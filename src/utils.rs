@@ -16,8 +16,6 @@
 /// Currently, uses Hopcroft & Ullman variant.
 pub fn pairing2(a: u64, b: u64) -> u64 {
     // Cantor:
-    // assert!(a >= 0);
-    // assert!(b >= 0);
     // return (a + b) * (a + b + 1) / 2 + b;
 
     // Hopcroft & Ullman:
