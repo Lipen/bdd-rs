@@ -397,7 +397,7 @@ impl Bdd {
 
     pub fn apply_eq(&mut self, u: Ref, v: Ref) -> Ref {
         debug!("apply_eq(u = {}, v = {})", u, v);
-        -self.apply_xor(u, v)
+        self.apply_ite(u, v, -v)
     }
 }
 
