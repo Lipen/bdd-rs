@@ -1,5 +1,7 @@
+use std::fmt::{Display, Formatter};
 use std::ops::Neg;
 
+// TODO: refactor
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Ref(i32);
 
@@ -17,6 +19,7 @@ impl Ref {
         Self(-self.0)
     }
 
+    /// Return the internal representation of the reference.
     pub const fn get(self) -> i32 {
         self.0
     }
@@ -25,8 +28,15 @@ impl Ref {
         self.0.abs() as u32
     }
 
+    /// Return the index of the reference.
+    // TODO: change to return u32
     pub const fn index(self) -> usize {
         self.0.abs() as usize
+    }
+
+    // TODO: rename
+    pub(crate) fn as_lit(self) -> u32 {
+        ((self.0.abs() as u32) << 1) + (self.0 < 0) as u32
     }
 }
 
@@ -35,5 +45,16 @@ impl Neg for Ref {
 
     fn neg(self) -> Self::Output {
         self.negate()
+    }
+}
+
+impl Display for Ref {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}@{}",
+            if self.is_negated() { "~" } else { "" },
+            self.abs()
+        )
     }
 }

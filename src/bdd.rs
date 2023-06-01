@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use log::debug;
 
+use crate::cache::OpCache;
 use crate::reference::Ref;
 use crate::storage::Storage;
 use crate::utils::pairing3;
@@ -13,17 +14,28 @@ pub struct Bdd {
     bitmask: u64,
     storage: Storage,
     buckets: Vec<usize>,
+    cache: OpCache<(Ref, Ref, Ref), Ref>,
     pub zero: Ref,
     pub one: Ref,
 }
 
 impl Bdd {
     pub fn new(storage_bits: usize) -> Self {
+        assert!(
+            storage_bits <= 31,
+            "Storage bits should be in the range 0..=31"
+        );
+
         let buckets_bits = storage_bits;
+        let cache_bits = storage_bits;
         let mut storage = Storage::new(1 << storage_bits);
         let mut buckets = vec![0; 1 << buckets_bits];
-        buckets[0] = storage.alloc(); // Allocate and store the terminal node in the 0th bucket.
+        let cache = OpCache::new(cache_bits);
+
+        // Allocate and store the terminal node in the 0th bucket:
+        buckets[0] = storage.alloc();
         assert_eq!(buckets[0], 1); // Make sure the terminal node is (1).
+
         Self {
             storage_bits,
             buckets_bits,
@@ -31,6 +43,7 @@ impl Bdd {
             bitmask: (1 << buckets_bits) - 1,
             storage,
             buckets,
+            cache,
             zero: Ref::new(-1),
             one: Ref::new(1),
         }
@@ -54,6 +67,7 @@ impl Debug for Bdd {
 }
 
 impl Bdd {
+    // TODO: change Ref::index from usize to u32
     pub fn variable(&self, index: usize) -> u32 {
         self.storage.variable(index)
     }
@@ -78,16 +92,13 @@ impl Bdd {
     }
 
     fn lookup(&self, v: u32, low: Ref, high: Ref) -> usize {
-        // FIXME: abs
-        (pairing3(v as u64, low.abs() as u64, high.abs() as u64) & self.bitmask) as usize
+        (pairing3(v as u64, low.as_lit() as u64, high.as_lit() as u64) & self.bitmask) as usize
     }
 
     pub fn mk_node(&mut self, v: u32, low: Ref, high: Ref) -> Ref {
-        debug!("mk(v = {}, low = {:?}, high = {:?})", v, low, high);
+        debug!("mk(v = {}, low = {}, high = {})", v, low, high);
 
-        assert_ne!(v, 0);
-        assert_ne!(low.index(), 0);
-        assert_ne!(high.index(), 0);
+        assert_ne!(v, 0, "Variable index not be zero");
 
         // Handle canonicity
         if high.is_negated() {
@@ -97,13 +108,13 @@ impl Bdd {
 
         // Handle duplicates
         if low == high {
-            debug!("mk: duplicates {:?} == {:?}", low, high);
+            debug!("mk: duplicates {} == {}", low, high);
             return low;
         }
 
         let bucket_index = self.lookup(v, low, high);
         debug!(
-            "mk: bucketIndex for ({}, {:?}, {:?}) is {}",
+            "mk: bucketIndex for ({}, {}, {}) is {}",
             v, low, high, bucket_index
         );
         let mut index = self.buckets[bucket_index];
@@ -113,7 +124,7 @@ impl Bdd {
             let i = self.storage.add(v, low.get(), high.get());
             self.buckets[bucket_index] = i;
             let node = Ref::new(i as i32);
-            debug!("mk: created new node {:?}", node);
+            debug!("mk: created new node {}", node);
             return node;
         }
 
@@ -123,7 +134,7 @@ impl Bdd {
             if self.variable(index) == v && self.low(index) == low && self.high(index) == high {
                 // The node already exists
                 let node = Ref::new(index as i32);
-                debug!("mk: node {:?} already exists", node);
+                debug!("mk: node {} already exists", node);
                 return node;
             }
 
@@ -134,7 +145,7 @@ impl Bdd {
                 let i = self.storage.add(v, low.get(), high.get());
                 self.storage.set_next(index, i);
                 let node = Ref::new(i as i32);
-                debug!("mk: created new node {:?} after {}", node, index);
+                debug!("mk: created new node {} after {}", node, index);
                 return node;
             } else {
                 // Go to the next node in the bucket
@@ -145,12 +156,12 @@ impl Bdd {
     }
 
     pub fn mk_var(&mut self, v: u32) -> Ref {
-        assert_ne!(v, 0);
+        assert_ne!(v, 0, "Variable index not be zero");
         self.mk_node(v, self.zero, self.one)
     }
 
     pub fn top_cofactors(&self, node: Ref, v: u32) -> (Ref, Ref) {
-        assert_ne!(v, 0);
+        assert_ne!(v, 0, "Variable index not be zero");
 
         let i = node.abs() as usize;
         if self.is_terminal(node) || v < self.variable(i) {
@@ -162,7 +173,10 @@ impl Bdd {
         } else {
             (self.low(i), self.high(i))
         };
-        debug!("top_cofactors(node = {:?}, v = {}) -> {:?}", node, v, res);
+        debug!(
+            "top_cofactors(node = {}, v = {}) -> ({}, {})",
+            node, v, res.0, res.1
+        );
         res
     }
 
@@ -188,7 +202,7 @@ impl Bdd {
     /// assert_eq!(f, bdd.apply_or(x_and_y, not_x_and_z));
     /// ```
     pub fn apply_ite(&mut self, f: Ref, g: Ref, h: Ref) -> Ref {
-        debug!("apply_ite(f = {:?}, g = {:?}, h = {:?})", f, g, h);
+        debug!("apply_ite(f = {}, g = {}, h = {})", f, g, h);
 
         // Base cases:
         //   ite(1,G,H) => G
@@ -209,6 +223,10 @@ impl Bdd {
         //   ite(F,G,G) => G
         //   ite(F,1,0) => F
         //   ite(F,0,1) => ~F
+        //   ite(F,1,~F) => 1
+        //   ite(F,F,1) => 1
+        //   ite(F,~F,0) => 0
+        //   ite(F,0,F) => F
         if g == h {
             debug!("ite(F,G,G) => G");
             return g;
@@ -220,6 +238,22 @@ impl Bdd {
         if self.is_zero(g) && self.is_one(h) {
             debug!("ite(F,0,1) => ~F");
             return -f;
+        }
+        if self.is_one(g) && h == -f {
+            debug!("ite(F,1,~F) => 1");
+            return self.one;
+        }
+        if g == f && self.is_one(h) {
+            debug!("ite(F,F,1) => 1");
+            return self.one;
+        }
+        if g == -f && self.is_zero(h) {
+            debug!("ite(F,~F,0) => 0");
+            return self.zero;
+        }
+        if self.is_zero(g) && h == f {
+            debug!("ite(F,0,F) => F");
+            return f;
         }
 
         // Standard triples:
@@ -250,10 +284,10 @@ impl Bdd {
         assert_ne!(i, 0);
 
         // Equivalent pairs:
-        //   ite(F,1,H) == ite(H,1,F)
-        //   ite(F,G,0) == ite(G,F,0)
-        //   ite(F,G,1) == ite(~G,~F,1)
-        //   ite(F,0,H) == ite(~H,0,~F)
+        //   ite(F,1,H) == ite(H,1,F) == F ∨ H
+        //   ite(F,G,0) == ite(G,F,0) == F ∧ G
+        //   ite(F,G,1) == ite(~G,~F,1) == F -> G
+        //   ite(F,0,H) == ite(~H,0,~F) == ~F ∧ H
         //   ite(F,G,~G) == ite(G,F,~F)
         // (choose the one with the lowest variable)
         if self.is_one(g) && k < i {
@@ -282,6 +316,37 @@ impl Bdd {
             return self.apply_ite(g, f, -f);
         }
 
+        // Make sure the first two pointers (f and g) are regular (not negated)
+        let (mut f, mut g, mut h) = (f, g, h);
+
+        // ite(~F,G,H) => ite(F,H,G)
+        if f.is_negated() {
+            debug!("ite(~F,G,H) => ite(F,H,G)");
+            f = -f;
+            std::mem::swap(&mut g, &mut h);
+        }
+        assert!(!f.is_negated());
+
+        // ite(F,~G,H) => ~ite(F,G,~H)
+        let mut n = false;
+        if g.is_negated() {
+            n = true;
+            g = -g;
+            h = -h;
+        }
+        assert!(!g.is_negated());
+
+        let (f, g, h) = (f, g, h);
+
+        if let Some(res) = self.cache.get((f, g, h)) {
+            let res = if n { -res } else { res };
+            debug!(
+                "cache: apply_ite(f = {}, g = {}, h = {}) -> {}",
+                f, g, h, res
+            );
+            return res;
+        }
+
         // Determine the top variable:
         let mut m = i;
         if j != 0 {
@@ -294,46 +359,44 @@ impl Bdd {
         assert_ne!(m, 0);
 
         let (f0, f1) = self.top_cofactors(f, m);
-        // debug!("cofactors of f = {:?}:", f);
-        // debug!("    f0 = {:?}", f0);
-        // debug!("    f1 = {:?}", f1);
+        debug!("cofactors of f = {} are: f0 = {}, f1 = {}", f, f0, f1);
         let (g0, g1) = self.top_cofactors(g, m);
-        // debug!("cofactors of g = {:?}:", g);
-        // debug!("    g0 = {:?}", g0);
-        // debug!("    g1 = {:?}", g1);
+        debug!("cofactors of g = {} are: g0 = {}, g1 = {}", g, g0, g1);
         let (h0, h1) = self.top_cofactors(h, m);
-        // debug!("cofactors of h = {:?}:", h);
-        // debug!("    h0 = {:?}", h0);
-        // debug!("    h1 = {:?}", h1);
+        debug!("cofactors of h = {} are: h0 = {}, h1 = {}", h, h0, h1);
 
         let e = self.apply_ite(f0, g0, h0);
         let t = self.apply_ite(f1, g1, h1);
-        // debug!("cofactors of res:");
-        // debug!("    e = {:?}", e);
-        // debug!("    t = {:?}", t);
+        debug!("cofactors of res: e = {}, t = {}", e, t);
 
         let res = self.mk_node(m, e, t);
-
+        let res = if n { -res } else { res };
         debug!(
-            "apply_ite(f = {:?}, g = {:?}, h = {:?}) -> {:?}",
+            "computed: apply_ite(f = {}, g = {}, h = {}) -> {}",
             f, g, h, res
         );
+
+        self.cache.insert((f, g, h), res);
         res
     }
 
     pub fn apply_and(&mut self, u: Ref, v: Ref) -> Ref {
+        debug!("apply_and(u = {}, v = {})", u, v);
         self.apply_ite(u, v, self.zero)
     }
 
     pub fn apply_or(&mut self, u: Ref, v: Ref) -> Ref {
+        debug!("apply_or(u = {}, v = {})", u, v);
         self.apply_ite(u, self.one, v)
     }
 
     pub fn apply_xor(&mut self, u: Ref, v: Ref) -> Ref {
+        debug!("apply_xor(u = {}, v = {})", u, v);
         self.apply_ite(u, -v, v)
     }
 
     pub fn apply_eq(&mut self, u: Ref, v: Ref) -> Ref {
+        debug!("apply_eq(u = {}, v = {})", u, v);
         -self.apply_xor(u, v)
     }
 }

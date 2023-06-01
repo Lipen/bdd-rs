@@ -1,8 +1,7 @@
 use std::cmp::min;
-use std::ops::{Index, IndexMut};
 
 #[derive(Clone)]
-pub struct Item {
+struct Item {
     occupied: bool,
     variable: u32,
     low: i32,
@@ -44,32 +43,24 @@ impl Storage {
         storage
     }
 
-    pub fn item(&self, index: usize) -> &Item {
-        &self.data[index]
-    }
-
-    pub fn item_mut(&mut self, index: usize) -> &mut Item {
-        &mut self.data[index]
-    }
-
     pub fn is_occupied(&self, index: usize) -> bool {
-        self.item(index).occupied
+        self.data[index].occupied
     }
 
     pub fn variable(&self, index: usize) -> u32 {
-        self.item(index).variable
+        self.data[index].variable
     }
 
     pub fn low(&self, index: usize) -> i32 {
-        self.item(index).low
+        self.data[index].low
     }
 
     pub fn high(&self, index: usize) -> i32 {
-        self.item(index).high
+        self.data[index].high
     }
 
     pub fn next(&self, index: usize) -> usize {
-        self.item(index).next
+        self.data[index].next
     }
 
     pub(crate) fn alloc(&mut self) -> usize {
@@ -82,51 +73,37 @@ impl Storage {
 
         self.min_free = index + 1;
         self.real_size += 1;
-        self[index].occupied = true;
+        self.data[index].occupied = true;
 
         index
     }
 
     pub fn add(&mut self, v: u32, low: i32, high: i32) -> usize {
-        assert_ne!(v, 0);
-        assert_ne!(low, 0);
-        assert_ne!(high, 0);
+        assert_ne!(v, 0, "Variable is 0");
+        assert_ne!(low, 0, "Low is 0");
+        assert_ne!(high, 0, "High is 0");
 
         let index = self.alloc();
-        self[index].variable = v;
-        self[index].low = low;
-        self[index].high = high;
-        self[index].next = 0;
+        self.data[index].variable = v;
+        self.data[index].low = low;
+        self.data[index].high = high;
+        self.data[index].next = 0;
 
         index
     }
 
     pub fn drop(&mut self, index: usize) {
-        assert_ne!(index, 0);
+        assert_ne!(index, 0, "Index is 0");
 
         self.real_size -= 1;
-        self[index].occupied = false;
+        self.data[index].occupied = false;
         self.min_free = min(self.min_free, index);
     }
 
     pub fn set_next(&mut self, index: usize, next: usize) {
-        assert_ne!(index, 0);
+        assert_ne!(index, 0, "Index is 0");
 
-        self[index].next = next;
-    }
-}
-
-impl Index<usize> for Storage {
-    type Output = Item;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        self.item(index)
-    }
-}
-
-impl IndexMut<usize> for Storage {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        self.item_mut(index)
+        self.data[index].next = next;
     }
 }
 
