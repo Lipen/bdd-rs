@@ -163,7 +163,7 @@ impl Bdd {
     pub fn top_cofactors(&self, node: Ref, v: u32) -> (Ref, Ref) {
         assert_ne!(v, 0, "Variable index not be zero");
 
-        let i = node.abs() as usize;
+        let i = node.index();
         if self.is_terminal(node) || v < self.variable(i) {
             return (node, node);
         }
