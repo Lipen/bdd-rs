@@ -399,6 +399,36 @@ impl Bdd {
         debug!("apply_eq(u = {}, v = {})", u, v);
         self.apply_ite(u, v, -v)
     }
+
+    pub fn cofactor_cube(&mut self, f: Ref, cube: &[i32]) -> Ref {
+        debug!("cofactor_cube(f = {}, cube = {:?})", f, cube);
+        if cube.len() == 1 {
+            let xu = cube[0];
+            let u = xu.abs() as u32;
+            let (f0, f1) = self.top_cofactors(f, u);
+            return if xu > 0 { f1 } else { f0 };
+        }
+        let t = self.variable(f.index());
+        let xu = cube[0];
+        let u = xu.abs() as u32;
+        return if t > u {
+            self.cofactor_cube(f, &cube[1..])
+        } else if t == u {
+            let (f0, f1) = self.top_cofactors(f, u);
+            if xu > 0 {
+                self.cofactor_cube(f1, &cube[1..])
+            } else {
+                self.cofactor_cube(f0, &cube[1..])
+            }
+        } else if t < u {
+            let (f0, f1) = self.top_cofactors(f, t);
+            let low = self.cofactor_cube(f0, cube);
+            let high = self.cofactor_cube(f1, cube);
+            self.mk_node(t, low, high)
+        } else {
+            unreachable!()
+        };
+    }
 }
 
 #[cfg(test)]
@@ -434,5 +464,23 @@ mod tests {
         let h = bdd.mk_var(8);
         let result = bdd.mk_node(bdd.variable(f.index()), -g, -h);
         assert_eq!(bdd.apply_ite(-f, -g, -h), result);
+    }
+
+    #[test]
+    fn test_cofactor_cube() {
+        let mut bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+
+        let f = bdd.apply_and(x1, x2);
+        let cube = vec![1, 2];
+        assert_eq!(bdd.cofactor_cube(f, &cube), bdd.one);
+        let cube = vec![1, -2];
+        assert_eq!(bdd.cofactor_cube(f, &cube), bdd.zero);
+        let cube = vec![-1, 2];
+        assert_eq!(bdd.cofactor_cube(f, &cube), bdd.zero);
+        let cube = vec![-1, -2];
+        assert_eq!(bdd.cofactor_cube(f, &cube), bdd.zero);
     }
 }
