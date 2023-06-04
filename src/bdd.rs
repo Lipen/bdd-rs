@@ -420,16 +420,19 @@ impl Bdd {
 
     pub fn cofactor_cube(&mut self, f: Ref, cube: &[i32]) -> Ref {
         debug!("cofactor_cube(f = {}, cube = {:?})", f, cube);
+
         if cube.len() == 1 {
             let xu = cube[0];
             let u = xu.abs() as u32;
             let (f0, f1) = self.top_cofactors(f, u);
             return if xu > 0 { f1 } else { f0 };
         }
+
         let t = self.variable(f.index());
         let xu = cube[0];
         let u = xu.abs() as u32;
-        return if t > u {
+
+        if t > u {
             self.cofactor_cube(f, &cube[1..])
         } else if t == u {
             let (f0, f1) = self.top_cofactors(f, u);
@@ -445,7 +448,7 @@ impl Bdd {
             self.mk_node(t, low, high)
         } else {
             unreachable!()
-        };
+        }
     }
 
     pub fn constrain(&mut self, f: Ref, c: Ref) -> Ref {
