@@ -14,7 +14,8 @@ pub struct Bdd {
     bitmask: u64,
     storage: Storage,
     buckets: Vec<usize>,
-    cache: OpCache<(Ref, Ref, Ref), Ref>,
+    ite_cache: OpCache<(Ref, Ref, Ref), Ref>,
+    constrain_cache: OpCache<(Ref, Ref), Ref>,
     pub zero: Ref,
     pub one: Ref,
 }
@@ -30,7 +31,6 @@ impl Bdd {
         let cache_bits = storage_bits;
         let mut storage = Storage::new(1 << storage_bits);
         let mut buckets = vec![0; 1 << buckets_bits];
-        let cache = OpCache::new(cache_bits);
 
         // Allocate and store the terminal node in the 0th bucket:
         buckets[0] = storage.alloc();
@@ -43,7 +43,8 @@ impl Bdd {
             bitmask: (1 << buckets_bits) - 1,
             storage,
             buckets,
-            cache,
+            ite_cache: OpCache::new(cache_bits),
+            constrain_cache: OpCache::new(cache_bits),
             zero: Ref::new(-1),
             one: Ref::new(1),
         }
@@ -355,7 +356,7 @@ impl Bdd {
 
         let (f, g, h) = (f, g, h);
 
-        if let Some(res) = self.cache.get((f, g, h)) {
+        if let Some(res) = self.ite_cache.get((f, g, h)) {
             let res = if n { -res } else { res };
             debug!(
                 "cache: apply_ite(f = {}, g = {}, h = {}) -> {}",
@@ -393,7 +394,7 @@ impl Bdd {
             f, g, h, res
         );
 
-        self.cache.insert((f, g, h), res);
+        self.ite_cache.insert((f, g, h), res);
         res
     }
 
@@ -460,6 +461,11 @@ impl Bdd {
         if self.is_terminal(f) {
             debug!("f is terminal");
             return f;
+        }
+
+        if let Some(res) = self.constrain_cache.get((f, c)) {
+            debug!("cache: constrain(f = {}, c = {}) -> {}", f, c, res);
+            return res;
         }
 
         let v = self.variable(c.index());
