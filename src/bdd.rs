@@ -81,6 +81,23 @@ impl Bdd {
         self.storage.next(index)
     }
 
+    pub fn low_node(&self, node: Ref) -> Ref {
+        let low = self.low(node.index());
+        if node.is_negated() {
+            -low
+        } else {
+            low
+        }
+    }
+    pub fn high_node(&self, node: Ref) -> Ref {
+        let high = self.high(node.index());
+        if node.is_negated() {
+            -high
+        } else {
+            high
+        }
+    }
+
     pub fn is_zero(&self, node: Ref) -> bool {
         node == self.zero
     }
@@ -429,6 +446,69 @@ impl Bdd {
             unreachable!()
         };
     }
+
+    pub fn constrain(&mut self, f: Ref, c: Ref) -> Ref {
+        debug!("constrain(f = {}, c = {})", f, c);
+
+        if self.is_zero(c) {
+            panic!("constrain(f, 0) is not allowed");
+        }
+        if self.is_one(c) {
+            debug!("c is one");
+            return f;
+        }
+        if self.is_terminal(f) {
+            debug!("f is terminal");
+            return f;
+        }
+
+        let v = self.variable(c.index());
+        let (f0, f1) = self.top_cofactors(f, v);
+        let (c0, c1) = self.top_cofactors(c, v);
+
+        if self.is_zero(c0) {
+            debug!("c0 is zero");
+            return self.constrain(f1, c1);
+        }
+        if self.is_zero(c1) {
+            debug!("c1 is zero");
+            return self.constrain(f0, c0);
+        }
+        if f0 == f1 {
+            debug!("f0 == f1");
+            let low = self.constrain(f, c0);
+            let high = self.constrain(f, c1);
+            return self.mk_node(v, low, high);
+        }
+
+        let low = self.constrain(f0, c0);
+        let high = self.constrain(f1, c1);
+        let res = self.mk_node(v, low, high);
+        debug!("computed: constrain(f = {}, c = {}) -> {}", f, c, res);
+
+        self.constrain_cache.insert((f, c), res);
+        res
+    }
+
+    pub fn to_bracket_string(&self, node: Ref) -> String {
+        if self.is_zero(node) {
+            return format!("{}:(0)", node);
+        } else if self.is_one(node) {
+            return format!("{}:(1)", node);
+        }
+
+        let v = self.variable(node.index());
+        let low = self.low_node(node);
+        let high = self.high_node(node);
+
+        format!(
+            "{}:(x{}, {}, {})",
+            node,
+            v,
+            self.to_bracket_string(high),
+            self.to_bracket_string(low)
+        )
+    }
 }
 
 #[cfg(test)]
@@ -482,5 +562,34 @@ mod tests {
         assert_eq!(bdd.cofactor_cube(f, &cube), bdd.zero);
         let cube = vec![-1, -2];
         assert_eq!(bdd.cofactor_cube(f, &cube), bdd.zero);
+    }
+
+    #[test]
+    fn test_constrain() {
+        let mut bdd = Bdd::default();
+
+        let s = bdd.mk_node(3, -bdd.one, bdd.one);
+        let p = bdd.mk_node(2, -s, s);
+        let r = bdd.mk_node(2, s, bdd.one);
+        let q = bdd.mk_node(2, -s, bdd.one);
+        let t = bdd.mk_node(2, -bdd.one, s);
+
+        println!("s = {}", bdd.to_bracket_string(s));
+        println!("p = {}", bdd.to_bracket_string(p));
+        println!("r = {}", bdd.to_bracket_string(r));
+        println!("q = {}", bdd.to_bracket_string(q));
+        println!("t = {}", bdd.to_bracket_string(t));
+
+        let f = bdd.mk_node(1, -p, s);
+        println!("f = {}", bdd.to_bracket_string(f));
+        let g = bdd.mk_node(1, -r, q);
+        println!("g = {}", bdd.to_bracket_string(g));
+        let h = bdd.mk_node(1, -bdd.one, t);
+        println!("h = {}", bdd.to_bracket_string(h));
+
+        let fg = bdd.constrain(f, g);
+        println!("f|g = {}", bdd.to_bracket_string(fg));
+
+        assert_eq!(fg, h, "h = constrain(f, g)");
     }
 }
