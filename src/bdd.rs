@@ -116,7 +116,7 @@ impl Bdd {
     pub fn mk_node(&mut self, v: u32, low: Ref, high: Ref) -> Ref {
         debug!("mk(v = {}, low = {}, high = {})", v, low, high);
 
-        assert_ne!(v, 0, "Variable index not be zero");
+        assert_ne!(v, 0, "Variable index should not be zero");
 
         // Handle canonicity
         if high.is_negated() {
@@ -174,12 +174,12 @@ impl Bdd {
     }
 
     pub fn mk_var(&mut self, v: u32) -> Ref {
-        assert_ne!(v, 0, "Variable index not be zero");
+        assert_ne!(v, 0, "Variable index should not be zero");
         self.mk_node(v, self.zero, self.one)
     }
 
     pub fn top_cofactors(&self, node: Ref, v: u32) -> (Ref, Ref) {
-        assert_ne!(v, 0, "Variable index not be zero");
+        assert_ne!(v, 0, "Variable index should not be zero");
 
         let i = node.index();
         if self.is_terminal(node) || v < self.variable(i) {
