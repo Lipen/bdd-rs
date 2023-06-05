@@ -577,6 +577,42 @@ mod tests {
         assert_eq!(bdd.cofactor_cube(f, &cube), bdd.zero);
     }
 
+    impl Bdd {
+        fn build_example(&mut self) -> Ref {
+            let x1 = self.mk_var(1);
+            let x2 = self.mk_var(2);
+            let x3 = self.mk_var(3);
+
+            let t = self.apply_and(x1, x2);
+            let f = self.apply_or(t, x3);
+
+            f
+        }
+    }
+
+    #[test]
+    fn test_constrain_base() {
+        let mut bdd = Bdd::default();
+        {
+            let f = bdd.build_example();
+            let g = bdd.one;
+            let result = bdd.constrain(f, g);
+            assert_eq!(result, f); // When g is 1, the result should be f.
+        }
+        {
+            let f = bdd.build_example();
+            let g = f;
+            let result = bdd.constrain(f, g);
+            assert_eq!(result, bdd.one); // When g is f, the result should be 1.
+        }
+        {
+            let f = bdd.zero;
+            let g = bdd.build_example();
+            let result = bdd.constrain(f, g);
+            assert_eq!(result, bdd.zero); // When f is 0, the result should be 0.
+        }
+    }
+
     #[test]
     fn test_constrain() {
         let mut bdd = Bdd::default();
