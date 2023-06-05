@@ -451,14 +451,14 @@ impl Bdd {
         }
     }
 
-    pub fn constrain(&mut self, f: Ref, c: Ref) -> Ref {
-        debug!("constrain(f = {}, c = {})", f, c);
+    pub fn constrain(&mut self, f: Ref, g: Ref) -> Ref {
+        debug!("constrain(f = {}, g = {})", f, g);
 
-        if self.is_zero(c) {
+        if self.is_zero(g) {
             panic!("constrain(f, 0) is not allowed");
         }
-        if self.is_one(c) {
-            debug!("c is one");
+        if self.is_one(g) {
+            debug!("g is one");
             return f;
         }
         if self.is_terminal(f) {
@@ -466,36 +466,40 @@ impl Bdd {
             return f;
         }
 
-        if let Some(res) = self.constrain_cache.get((f, c)) {
-            debug!("cache: constrain(f = {}, c = {}) -> {}", f, c, res);
+        if let Some(res) = self.constrain_cache.get((f, g)) {
+            debug!("cache: constrain(f = {}, c = {}) -> {}", f, g, res);
             return res;
         }
 
-        let v = self.variable(c.index());
+        // let i = self.variable(f.index());
+        // let j = self.variable(g.index());
+        // let v = i.min(j);
+        let v = self.variable(g.index());
         let (f0, f1) = self.top_cofactors(f, v);
-        let (c0, c1) = self.top_cofactors(c, v);
+        let (g0, g1) = self.top_cofactors(g, v);
 
-        if self.is_zero(c0) {
-            debug!("c0 is zero");
-            return self.constrain(f1, c1);
+        if self.is_zero(g0) {
+            debug!("g0 is zero");
+            return self.constrain(f1, g1);
         }
-        if self.is_zero(c1) {
-            debug!("c1 is zero");
-            return self.constrain(f0, c0);
+        if self.is_zero(g1) {
+            debug!("g1 is zero");
+            return self.constrain(f0, g0);
         }
+
         if f0 == f1 {
             debug!("f0 == f1");
-            let low = self.constrain(f, c0);
-            let high = self.constrain(f, c1);
+            let low = self.constrain(f, g0);
+            let high = self.constrain(f, g1);
             return self.mk_node(v, low, high);
         }
 
-        let low = self.constrain(f0, c0);
-        let high = self.constrain(f1, c1);
+        let low = self.constrain(f0, g0);
+        let high = self.constrain(f1, g1);
         let res = self.mk_node(v, low, high);
-        debug!("computed: constrain(f = {}, c = {}) -> {}", f, c, res);
+        debug!("computed: constrain(f = {}, c = {}) -> {}", f, g, res);
 
-        self.constrain_cache.insert((f, c), res);
+        self.constrain_cache.insert((f, g), res);
         res
     }
 
