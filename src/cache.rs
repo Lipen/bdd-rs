@@ -120,7 +120,7 @@ impl OpCache<(Ref, Ref), Ref> {
     pub fn insert(&mut self, key: (Ref, Ref), value: Ref) {
         let k = self.encode(key);
         debug!("caching {} for key = {:?}, k = {}", value, key, k);
-        self.table.insert(k, value.get())
+        self.table.insert(k, value.get());
     }
 }
 
@@ -135,7 +135,7 @@ impl OpCache<(Ref, Ref), i32> {
     pub fn insert(&mut self, key: (Ref, Ref), value: i32) {
         let k = self.encode(key);
         debug!("caching {} for key = {:?}, k = {}", value, key, k);
-        self.table.insert(k, value)
+        self.table.insert(k, value);
     }
 }
 
@@ -161,6 +161,6 @@ impl OpCache<(Ref, Ref, Ref), Ref> {
     pub fn insert(&mut self, key: (Ref, Ref, Ref), value: Ref) {
         let k = self.encode(key);
         debug!("caching {} for key = {:?}, k = {}", value, key, k);
-        self.table.insert(k, value.get())
+        self.table.insert(k, value.get());
     }
 }
