@@ -178,6 +178,23 @@ impl Bdd {
         self.mk_node(v, self.zero, self.one)
     }
 
+    pub fn cube(&mut self, literals: &[i32]) -> Ref {
+        debug!("cube(literals = {:?})", literals);
+        let mut current = self.one;
+        let mut literals = literals.to_vec();
+        literals.sort_by_key(|&v| v.abs());
+        literals.reverse();
+        for lit in literals {
+            assert_ne!(lit, 0, "Variable index should not be zero");
+            current = if lit < 0 {
+                self.mk_node(-lit as u32, current, self.zero)
+            } else {
+                self.mk_node(lit as u32, self.zero, current)
+            }
+        }
+        current
+    }
+
     pub fn top_cofactors(&self, node: Ref, v: u32) -> (Ref, Ref) {
         assert_ne!(v, 0, "Variable index should not be zero");
 
@@ -527,6 +544,25 @@ impl Bdd {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_cube() {
+        let mut bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+
+        let x1_and_x2 = bdd.apply_and(x1, x2);
+        let x1_and_x2_and_3 = bdd.apply_and(x1_and_x2, x3);
+        let cube = bdd.cube(&[1, 2, 3]);
+        assert_eq!(x1_and_x2_and_3, cube);
+
+        let x1_and_not_x2 = bdd.apply_and(x1, -x2);
+        let x1_and_not_x2_and_not_x3 = bdd.apply_and(x1_and_not_x2, -x3);
+        let cube = bdd.cube(&[1, -2, -3]);
+        assert_eq!(x1_and_not_x2_and_not_x3, cube);
+    }
 
     #[test]
     fn test_apply_ite() {
