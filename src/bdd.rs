@@ -534,9 +534,9 @@ impl Bdd {
 
     pub fn to_bracket_string(&self, node: Ref) -> String {
         if self.is_zero(node) {
-            return format!("{}:(0)", node);
+            return format!("(0)");
         } else if self.is_one(node) {
-            return format!("{}:(1)", node);
+            return format!("(1)");
         }
 
         let v = self.variable(node.index());
