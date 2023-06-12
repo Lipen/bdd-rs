@@ -689,4 +689,41 @@ mod tests {
 
         assert_eq!(fg, h, "h = constrain(f, g)");
     }
+
+    #[test]
+    fn test_constrain_example2() {
+        let mut bdd = Bdd::default();
+
+        // f = x1*x3 + ~x1*(x2^x3)
+        // g = x1*x2 + ~x2*~x3
+        // h = f|g = x1*x2*x3
+        // where:
+        //   * is AND
+        //   + is OR
+        //   ^ is XOR
+        //   ~ is NOT
+        //   | is 'constrain'
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+
+        // f = x1*x3 + ~x1*(x2^x3)
+        let x1_and_x3 = bdd.apply_and(x1, x3);
+        let x2_xor_x3 = bdd.apply_xor(x2, x3);
+        let not_x1_and_x2_xor_x3 = bdd.apply_and(-x1, x2_xor_x3);
+        let f = bdd.apply_or(x1_and_x3, not_x1_and_x2_xor_x3);
+
+        // g = x1*x2 + ~x2*~x3
+        let x1_and_x2 = bdd.apply_and(x1, x2);
+        let not_x2_and_not_x3 = bdd.apply_and(-x2, -x3);
+        let g = bdd.apply_or(x1_and_x2, not_x2_and_not_x3);
+
+        // h = x1*x2*x3
+        let h = bdd.cube(&[1, 2, 3]);
+
+        // f|g == h
+        let fg = bdd.constrain(f, g);
+        assert_eq!(fg, h);
+    }
 }
