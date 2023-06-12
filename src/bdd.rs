@@ -472,15 +472,24 @@ impl Bdd {
         debug!("constrain(f = {}, g = {})", f, g);
 
         if self.is_zero(g) {
-            panic!("constrain(f, 0) is not allowed");
+            debug!("g is zero => f|g = 0");
+            return self.zero;
         }
         if self.is_one(g) {
-            debug!("g is one");
+            debug!("g is one => f|g = f");
             return f;
         }
         if self.is_terminal(f) {
-            debug!("f is terminal");
+            debug!("f is terminal => f|g = f");
             return f;
+        }
+        if f == g {
+            debug!("f = g => f|g = 1");
+            return self.one;
+        }
+        if f == -g {
+            debug!("f = ~g => f|g = 0");
+            return self.zero;
         }
 
         if let Some(res) = self.constrain_cache.get((f, g)) {
@@ -488,20 +497,22 @@ impl Bdd {
             return res;
         }
 
-        // let i = self.variable(f.index());
-        // let j = self.variable(g.index());
-        // let v = i.min(j);
-        let v = self.variable(g.index());
+        // TODO: is it necessary to compute min var, or we can just use var(g)?
+        let i = self.variable(f.index());
+        let j = self.variable(g.index());
+        let v = i.min(j);
+        debug!("min variable = {}", v);
+
         let (f0, f1) = self.top_cofactors(f, v);
         let (g0, g1) = self.top_cofactors(g, v);
 
-        if self.is_zero(g0) {
-            debug!("g0 is zero");
-            return self.constrain(f1, g1);
-        }
         if self.is_zero(g1) {
             debug!("g1 is zero");
             return self.constrain(f0, g0);
+        }
+        if self.is_zero(g0) {
+            debug!("g0 is zero");
+            return self.constrain(f1, g1);
         }
 
         if f0 == f1 {
@@ -513,6 +524,7 @@ impl Bdd {
 
         let low = self.constrain(f0, g0);
         let high = self.constrain(f1, g1);
+        // TODO: replace 'mk_node' with 'ITE'?
         let res = self.mk_node(v, low, high);
         debug!("computed: constrain(f = {}, c = {}) -> {}", f, g, res);
 
