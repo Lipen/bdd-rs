@@ -662,7 +662,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constrain() {
+    fn test_constrain_example1() {
         let mut bdd = Bdd::default();
 
         let s = bdd.mk_node(3, -bdd.one, bdd.one);
