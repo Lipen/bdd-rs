@@ -25,13 +25,12 @@ impl Ref {
     }
 
     pub const fn abs(self) -> u32 {
-        self.0.abs() as u32
+        self.0.unsigned_abs()
     }
 
     /// Return the index of the reference.
-    // TODO: change to return u32
     pub const fn index(self) -> usize {
-        self.0.abs() as usize
+        self.0.unsigned_abs() as usize
     }
 
     // TODO: rename

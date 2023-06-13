@@ -426,14 +426,14 @@ impl Bdd {
 
         if cube.len() == 1 {
             let xu = cube[0];
-            let u = xu.abs() as u32;
+            let u = xu.unsigned_abs();
             let (f0, f1) = self.top_cofactors(f, u);
             return if xu > 0 { f1 } else { f0 };
         }
 
         let t = self.variable(f.index());
         let xu = cube[0];
-        let u = xu.abs() as u32;
+        let u = xu.unsigned_abs();
 
         if t > u {
             self.cofactor_cube(f, &cube[1..])
