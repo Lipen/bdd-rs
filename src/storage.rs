@@ -52,7 +52,7 @@ where
 
         let buckets_bits = min(bits, 16);
         let buckets = vec![0; 1 << buckets_bits];
-        let bitmask = 1 << buckets_bits - 1;
+        let bitmask = (1 << buckets_bits) - 1;
 
         Self {
             data,
