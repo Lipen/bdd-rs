@@ -51,8 +51,9 @@ where
         data[0].occupied = true; // Set 0th cell as occupied (sentry).
 
         let buckets_bits = min(bits, 16);
-        let buckets = vec![0; 1 << buckets_bits];
-        let bitmask = (1 << buckets_bits) - 1;
+        let buckets_size = 1 << buckets_bits;
+        let buckets = vec![0; buckets_size];
+        let bitmask = (buckets_size - 1) as u64;
 
         Self {
             data,
