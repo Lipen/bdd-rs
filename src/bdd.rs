@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use log::debug;
 
-use crate::cache::OpCache;
+use crate::cache::Cache;
 use crate::reference::Ref;
 use crate::storage::Storage;
 use crate::utils::{pairing3, MyHash};
@@ -50,8 +50,8 @@ impl Storage<Triple> {
 
 pub struct Bdd {
     storage: Storage<Triple>,
-    ite_cache: OpCache<(Ref, Ref, Ref), Ref>,
-    constrain_cache: OpCache<(Ref, Ref), Ref>,
+    ite_cache: Cache<(Ref, Ref, Ref), Ref>,
+    constrain_cache: Cache<(Ref, Ref), Ref>,
     pub zero: Ref,
     pub one: Ref,
 }
@@ -75,8 +75,8 @@ impl Bdd {
 
         Self {
             storage,
-            ite_cache: OpCache::new(cache_bits),
-            constrain_cache: OpCache::new(cache_bits),
+            ite_cache: Cache::new(cache_bits),
+            constrain_cache: Cache::new(cache_bits),
             zero,
             one,
         }
@@ -360,7 +360,7 @@ impl Bdd {
 
         let (f, g, h) = (f, g, h);
 
-        if let Some(res) = self.ite_cache.get(&(f, g, h)) {
+        if let Some(&res) = self.ite_cache.get(&(f, g, h)) {
             let res = if n { -res } else { res };
             debug!(
                 "cache: apply_ite(f = {}, g = {}, h = {}) -> {}",
@@ -398,7 +398,7 @@ impl Bdd {
             f, g, h, res
         );
 
-        self.ite_cache.insert((f, g, h), res);
+        self.ite_cache.insert(&(f, g, h), res);
         res
     }
 
@@ -479,7 +479,7 @@ impl Bdd {
             return self.zero;
         }
 
-        if let Some(res) = self.constrain_cache.get(&(f, g)) {
+        if let Some(&res) = self.constrain_cache.get(&(f, g)) {
             debug!("cache: constrain(f = {}, c = {}) -> {}", f, g, res);
             return res;
         }
@@ -515,7 +515,7 @@ impl Bdd {
         let res = self.mk_node(v, low, high);
         debug!("computed: constrain(f = {}, c = {}) -> {}", f, g, res);
 
-        self.constrain_cache.insert((f, g), res);
+        self.constrain_cache.insert(&(f, g), res);
         res
     }
 

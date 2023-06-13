@@ -1,24 +1,23 @@
-use std::borrow::Borrow;
 use std::cell::Cell;
-use std::fmt::Debug;
-
-use log::debug;
+use std::marker::PhantomData;
 
 use crate::reference::Ref;
 use crate::utils::{pairing2, pairing3, MyHash};
 
-struct Table<T> {
-    keys: Vec<u64>,
-    data: Vec<T>,
+struct Entry<K, V> {
+    key: K,
+    value: V,
+}
+
+pub struct Cache<K, T> {
+    data: Vec<Option<Entry<u64, T>>>,
     bitmask: u64,
     hits: Cell<usize>,
     misses: Cell<usize>,
+    _phantom: PhantomData<K>,
 }
 
-impl<T> Table<T>
-where
-    T: Default + Clone,
-{
+impl<K, V> Cache<K, V> {
     /// Create a new table of size `2^bits`.
     pub fn new(bits: usize) -> Self {
         assert!(bits <= 31, "Bits should be in the range 0..=31");
@@ -27,80 +26,66 @@ where
         let bitmask = (size - 1) as u64;
 
         Self {
-            keys: vec![0; size],
-            data: vec![Default::default(); size],
+            // data: vec![None; size],
+            data: std::iter::repeat_with(|| None).take(size).collect(),
             bitmask,
             hits: Cell::new(0),
             misses: Cell::new(0),
+            _phantom: PhantomData,
         }
     }
-}
 
-impl<T> Table<T> {
     /// Get the number of cache hits.
     pub fn hits(&self) -> usize {
         self.hits.get()
     }
-
     /// Get the number of cache misses.
     pub fn misses(&self) -> usize {
         self.misses.get()
     }
 
+    /// Reset the cache.
     pub fn clear(&mut self) {
-        self.keys.fill(0);
+        self.data.fill_with(|| None);
     }
 
     fn index(&self, key: u64) -> usize {
-        assert_ne!(key, 0, "Key should not be zero");
         (key & self.bitmask) as usize
     }
 
-    pub fn get(&self, key: u64) -> Option<&T> {
+    /// Get the cached result.
+    pub fn get(&mut self, key: &K) -> Option<&V>
+    where
+        K: MyHash,
+    {
+        let key = key.hash();
         let index = self.index(key);
-        if self.keys[index] != key {
-            self.misses.set(self.misses.get() + 1);
-            None
-        } else {
-            self.hits.set(self.hits.get() + 1);
-            Some(&self.data[index])
+        match &self.data[index] {
+            Some(entry) if entry.key == key => {
+                self.hits.set(self.hits.get() + 1);
+                Some(&entry.value)
+            }
+            _ => {
+                self.misses.set(self.misses.get() + 1);
+                None
+            }
         }
     }
 
-    pub fn insert(&mut self, key: u64, value: T) {
-        let index = self.index(key);
-        self.keys[index] = key;
-        self.data[index] = value;
+    /// Insert a result into the cache.
+    pub fn insert(&mut self, key: &K, value: V)
+    where
+        K: MyHash,
+    {
+        let k = key.hash();
+        let index = self.index(k);
+        self.data[index] = Some(Entry { key: k, value });
     }
 }
 
-pub struct OpCache<K, V> {
-    table: Table<i32>,
-    _phantom: std::marker::PhantomData<(K, V)>,
-}
-
-impl<K, V> OpCache<K, V> {
-    /// Create a new cache of size `2^bits`.
-    pub fn new(bits: usize) -> Self {
-        Self {
-            table: Table::new(bits),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
-    /// Get the number of cache hits.
-    pub fn hits(&self) -> usize {
-        self.table.hits()
-    }
-
-    /// Get the number of cache misses.
-    pub fn misses(&self) -> usize {
-        self.table.misses()
-    }
-
-    /// Reset the cache.
-    pub fn clear(&mut self) {
-        self.table.clear();
+impl MyHash for Ref {
+    fn hash(&self) -> u64 {
+        self.inner() as u64
     }
 }
 
@@ -120,46 +105,32 @@ impl MyHash for (Ref, Ref, Ref) {
     }
 }
 
-impl<K> OpCache<K, Ref> {
-    /// Get the cached result.
-    pub fn get<Q>(&mut self, key: &Q) -> Option<Ref>
-    where
-        K: Borrow<Q>,
-        Q: MyHash,
-    {
-        let k = key.borrow().hash();
-        self.table.get(k).copied().map(Ref::new)
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    /// Insert a result into the cache.
-    pub fn insert(&mut self, key: K, value: Ref)
-    where
-        K: MyHash + Debug,
-    {
-        let k = key.hash();
-        debug!("caching {} for key = {:?}, k = {}", value, key, k);
-        self.table.insert(k, value.get());
-    }
-}
+    #[test]
+    fn test_cache() {
+        let mut cache = Cache::<(u64, u64), i32>::new(3);
 
-impl<K> OpCache<K, i32> {
-    /// Get the cached result.
-    pub fn get<Q>(&mut self, key: &Q) -> Option<i32>
-    where
-        K: Borrow<Q>,
-        Q: MyHash,
-    {
-        let k = key.borrow().hash();
-        self.table.get(k).copied()
-    }
+        impl MyHash for (u64, u64) {
+            fn hash(&self) -> u64 {
+                pairing2(self.0, self.1)
+            }
+        }
 
-    /// Insert a result into the cache.
-    pub fn insert(&mut self, key: K, value: i32)
-    where
-        K: MyHash + Debug,
-    {
-        let k = key.hash();
-        debug!("caching {} for key = {:?}, k = {}", value, key, k);
-        self.table.insert(k, value);
+        cache.insert(&(1, 2), 3);
+        cache.insert(&(2, 3), 1);
+        cache.insert(&(1, 3), 2);
+
+        assert_eq!(cache.get(&(1, 2)), Some(&3));
+        assert_eq!(cache.get(&(2, 3)), Some(&1));
+        assert_eq!(cache.get(&(1, 3)), Some(&2));
+        assert_eq!(cache.get(&(2, 1)), None);
+        assert_eq!(cache.get(&(3, 2)), None);
+        assert_eq!(cache.get(&(3, 1)), None);
+        assert_eq!(cache.get(&(1, 1)), None);
+        assert_eq!(cache.get(&(2, 2)), None);
+        assert_eq!(cache.get(&(3, 3)), None);
     }
 }
