@@ -29,5 +29,6 @@ pub fn pairing3(a: u64, b: u64, c: u64) -> u64 {
 }
 
 pub trait MyHash {
+    // TODO: maybe return `u32` instead of `u64`? or `usize`?
     fn hash(&self) -> u64;
 }
