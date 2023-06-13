@@ -15,6 +15,7 @@ pub struct Triple {
     high: i32,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for Triple {
     fn default() -> Self {
         Self {
