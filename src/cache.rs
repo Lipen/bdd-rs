@@ -8,9 +8,9 @@ use crate::reference::Ref;
 use crate::utils::{pairing2, pairing3, MyHash};
 
 struct Table<T> {
-    bitmask: u64,
     keys: Vec<u64>,
     data: Vec<T>,
+    bitmask: u64,
     hits: Cell<usize>,
     misses: Cell<usize>,
 }
@@ -27,9 +27,9 @@ where
         let bitmask = (size - 1) as u64;
 
         Self {
-            bitmask,
             keys: vec![0; size],
             data: vec![Default::default(); size],
+            bitmask,
             hits: Cell::new(0),
             misses: Cell::new(0),
         }
