@@ -520,9 +520,9 @@ impl Bdd {
 
     pub fn to_bracket_string(&self, node: Ref) -> String {
         if self.is_zero(node) {
-            return format!("(0)");
+            return "(0)".to_string();
         } else if self.is_one(node) {
-            return format!("(1)");
+            return "(1)".to_string();
         }
 
         assert_ne!(node.index(), 0);
