@@ -1,4 +1,6 @@
+use std::borrow::Borrow;
 use std::cell::Cell;
+use std::fmt::Debug;
 
 use log::debug;
 
@@ -118,20 +120,21 @@ impl MyHash for (Ref, Ref, Ref) {
     }
 }
 
-impl<K> OpCache<K, Ref>
-where
-    K: MyHash,
-{
+impl<K> OpCache<K, Ref> {
     /// Get the cached result.
-    pub fn get(&mut self, key: K) -> Option<Ref> {
-        let k = key.hash();
+    pub fn get<Q>(&mut self, key: &Q) -> Option<Ref>
+    where
+        K: Borrow<Q>,
+        Q: MyHash,
+    {
+        let k = key.borrow().hash();
         self.table.get(k).copied().map(Ref::new)
     }
 
     /// Insert a result into the cache.
     pub fn insert(&mut self, key: K, value: Ref)
     where
-        K: std::fmt::Debug,
+        K: MyHash + Debug,
     {
         let k = key.hash();
         debug!("caching {} for key = {:?}, k = {}", value, key, k);
@@ -139,20 +142,21 @@ where
     }
 }
 
-impl<K> OpCache<K, i32>
-where
-    K: MyHash,
-{
+impl<K> OpCache<K, i32> {
     /// Get the cached result.
-    pub fn get(&mut self, key: K) -> Option<i32> {
-        let k = key.hash();
+    pub fn get<Q>(&mut self, key: &Q) -> Option<i32>
+    where
+        K: Borrow<Q>,
+        Q: MyHash,
+    {
+        let k = key.borrow().hash();
         self.table.get(k).copied()
     }
 
     /// Insert a result into the cache.
     pub fn insert(&mut self, key: K, value: i32)
     where
-        K: std::fmt::Debug,
+        K: MyHash + Debug,
     {
         let k = key.hash();
         debug!("caching {} for key = {:?}, k = {}", value, key, k);

@@ -360,7 +360,7 @@ impl Bdd {
 
         let (f, g, h) = (f, g, h);
 
-        if let Some(res) = self.ite_cache.get((f, g, h)) {
+        if let Some(res) = self.ite_cache.get(&(f, g, h)) {
             let res = if n { -res } else { res };
             debug!(
                 "cache: apply_ite(f = {}, g = {}, h = {}) -> {}",
@@ -479,7 +479,7 @@ impl Bdd {
             return self.zero;
         }
 
-        if let Some(res) = self.constrain_cache.get((f, g)) {
+        if let Some(res) = self.constrain_cache.get(&(f, g)) {
             debug!("cache: constrain(f = {}, c = {}) -> {}", f, g, res);
             return res;
         }
