@@ -1,19 +1,44 @@
+use std::cmp::min;
 use std::fmt::Debug;
 
 use log::debug;
 
 use crate::cache::OpCache;
 use crate::reference::Ref;
-use crate::storage::Storage;
+use crate::storage::{MyHash, Storage};
 use crate::utils::pairing3;
 
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct Triple {
+    variable: u32,
+    low: Ref,
+    high: Ref,
+}
+
+impl MyHash for Triple {
+    fn hash(&self) -> u64 {
+        pairing3(
+            self.variable as u64,
+            self.low.as_lit() as u64,
+            self.high.as_lit() as u64,
+        )
+    }
+}
+
+impl Storage<Triple> {
+    pub fn variable(&self, index: usize) -> u32 {
+        self.value(index).variable
+    }
+    pub fn low(&self, index: usize) -> Ref {
+        self.value(index).low
+    }
+    pub fn high(&self, index: usize) -> Ref {
+        self.value(index).high
+    }
+}
+
 pub struct Bdd {
-    storage_bits: usize,
-    buckets_bits: usize,
-    cache_bits: usize,
-    bitmask: u64,
-    storage: Storage,
-    buckets: Vec<usize>,
+    storage: Storage<Triple>,
     ite_cache: OpCache<(Ref, Ref, Ref), Ref>,
     constrain_cache: OpCache<(Ref, Ref), Ref>,
     pub zero: Ref,
@@ -27,26 +52,22 @@ impl Bdd {
             "Storage bits should be in the range 0..=31"
         );
 
-        let buckets_bits = storage_bits;
-        let cache_bits = storage_bits;
-        let mut storage = Storage::new(1 << storage_bits);
-        let mut buckets = vec![0; 1 << buckets_bits];
+        let cache_bits = min(storage_bits, 20);
 
-        // Allocate and store the terminal node in the 0th bucket:
-        buckets[0] = storage.alloc();
-        assert_eq!(buckets[0], 1); // Make sure the terminal node is (1).
+        let mut storage = Storage::new(storage_bits);
+
+        // Allocate the terminal node:
+        let one = storage.alloc();
+        assert_eq!(one, 1); // Make sure the terminal node is (1).
+        let one = Ref::new(one as i32);
+        let zero = -one;
 
         Self {
-            storage_bits,
-            buckets_bits,
-            cache_bits: 20,
-            bitmask: (1 << buckets_bits) - 1,
             storage,
-            buckets,
             ite_cache: OpCache::new(cache_bits),
             constrain_cache: OpCache::new(cache_bits),
-            zero: Ref::new(-1),
-            one: Ref::new(1),
+            zero,
+            one,
         }
     }
 }
@@ -60,9 +81,9 @@ impl Default for Bdd {
 impl Debug for Bdd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Bdd")
-            .field("storage_bits", &self.storage_bits)
-            .field("buckets_bits", &self.buckets_bits)
-            .field("cache_bits", &self.cache_bits)
+            .field("capacity", &self.storage.capacity())
+            .field("size", &self.storage.size())
+            .field("real_size", &self.storage.real_size())
             .finish()
     }
 }
@@ -73,10 +94,10 @@ impl Bdd {
         self.storage.variable(index)
     }
     pub fn low(&self, index: usize) -> Ref {
-        Ref::new(self.storage.low(index))
+        self.storage.low(index)
     }
     pub fn high(&self, index: usize) -> Ref {
-        Ref::new(self.storage.high(index))
+        self.storage.high(index)
     }
     pub fn next(&self, index: usize) -> usize {
         self.storage.next(index)
@@ -109,10 +130,6 @@ impl Bdd {
         self.is_zero(node) || self.is_one(node)
     }
 
-    fn lookup(&self, v: u32, low: Ref, high: Ref) -> usize {
-        (pairing3(v as u64, low.as_lit() as u64, high.as_lit() as u64) & self.bitmask) as usize
-    }
-
     pub fn mk_node(&mut self, v: u32, low: Ref, high: Ref) -> Ref {
         debug!("mk(v = {}, low = {}, high = {})", v, low, high);
 
@@ -130,47 +147,12 @@ impl Bdd {
             return low;
         }
 
-        let bucket_index = self.lookup(v, low, high);
-        debug!(
-            "mk: bucketIndex for ({}, {}, {}) is {}",
-            v, low, high, bucket_index
-        );
-        let mut index = self.buckets[bucket_index];
-
-        if index == 0 {
-            // Create new node and put it into the bucket
-            let i = self.storage.add(v, low.get(), high.get());
-            self.buckets[bucket_index] = i;
-            let node = Ref::new(i as i32);
-            debug!("mk: created new node {}", node);
-            return node;
-        }
-
-        loop {
-            assert!(index > 0);
-
-            if self.variable(index) == v && self.low(index) == low && self.high(index) == high {
-                // The node already exists
-                let node = Ref::new(index as i32);
-                debug!("mk: node {} already exists", node);
-                return node;
-            }
-
-            let next = self.next(index);
-
-            if next == 0 {
-                // Create new node and append it to the bucket
-                let i = self.storage.add(v, low.get(), high.get());
-                self.storage.set_next(index, i);
-                let node = Ref::new(i as i32);
-                debug!("mk: created new node {} after {}", node, index);
-                return node;
-            } else {
-                // Go to the next node in the bucket
-                debug!("mk: iterating over the bucket to {}", next);
-                index = next;
-            }
-        }
+        let i = self.storage.put(Triple {
+            variable: v,
+            low,
+            high,
+        });
+        Ref::new(i as i32)
     }
 
     pub fn mk_var(&mut self, v: u32) -> Ref {
@@ -208,10 +190,6 @@ impl Bdd {
         } else {
             (self.low(i), self.high(i))
         };
-        debug!(
-            "top_cofactors(node = {}, v = {}) -> ({}, {})",
-            node, v, res.0, res.1
-        );
         res
     }
 
@@ -538,6 +516,8 @@ impl Bdd {
         } else if self.is_one(node) {
             return format!("(1)");
         }
+
+        assert_ne!(node.index(), 0);
 
         let v = self.variable(node.index());
         let low = self.low_node(node);
