@@ -4,23 +4,33 @@ use std::fmt::Debug;
 use log::debug;
 
 use crate::cache::OpCache;
-use crate::reference::Ref;
+use crate::reference::{signed_to_lit, Ref};
 use crate::storage::{MyHash, Storage};
 use crate::utils::pairing3;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Triple {
     variable: u32,
-    low: Ref,
-    high: Ref,
+    low: i32,
+    high: i32,
+}
+
+impl Default for Triple {
+    fn default() -> Self {
+        Self {
+            variable: 0,
+            low: 0,
+            high: 0,
+        }
+    }
 }
 
 impl MyHash for Triple {
     fn hash(&self) -> u64 {
         pairing3(
             self.variable as u64,
-            self.low.as_lit() as u64,
-            self.high.as_lit() as u64,
+            signed_to_lit(self.low) as u64,
+            signed_to_lit(self.high) as u64,
         )
     }
 }
@@ -29,10 +39,10 @@ impl Storage<Triple> {
     pub fn variable(&self, index: usize) -> u32 {
         self.value(index).variable
     }
-    pub fn low(&self, index: usize) -> Ref {
+    pub fn low(&self, index: usize) -> i32 {
         self.value(index).low
     }
-    pub fn high(&self, index: usize) -> Ref {
+    pub fn high(&self, index: usize) -> i32 {
         self.value(index).high
     }
 }
@@ -93,10 +103,10 @@ impl Bdd {
         self.storage.variable(index)
     }
     pub fn low(&self, index: usize) -> Ref {
-        self.storage.low(index)
+        Ref::new(self.storage.low(index))
     }
     pub fn high(&self, index: usize) -> Ref {
-        self.storage.high(index)
+        Ref::new(self.storage.high(index))
     }
     pub fn next(&self, index: usize) -> usize {
         self.storage.next(index)
@@ -148,8 +158,8 @@ impl Bdd {
 
         let i = self.storage.put(Triple {
             variable: v,
-            low,
-            high,
+            low: low.get(),
+            high: high.get(),
         });
         Ref::new(i as i32)
     }
@@ -535,6 +545,38 @@ impl Bdd {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_var() {
+        let mut bdd = Bdd::default();
+
+        let x = bdd.mk_var(1);
+
+        assert_eq!(bdd.variable(x.index()), 1);
+        assert_eq!(bdd.high_node(x), bdd.one);
+        assert_eq!(bdd.low_node(x), bdd.zero);
+    }
+
+    #[test]
+    fn test_terminal() {
+        let bdd = Bdd::default();
+
+        assert_eq!(bdd.is_terminal(bdd.zero), true);
+        assert_eq!(bdd.is_zero(bdd.zero), true);
+        assert_eq!(bdd.is_one(bdd.zero), false);
+
+        assert_eq!(bdd.is_terminal(bdd.one), true);
+        assert_eq!(bdd.is_zero(bdd.one), false);
+        assert_eq!(bdd.is_one(bdd.one), true);
+
+        assert_eq!(bdd.variable(bdd.zero.index()), 0);
+        assert_eq!(bdd.low(bdd.zero.index()).index(), 0);
+        assert_eq!(bdd.high(bdd.zero.index()).index(), 0);
+
+        assert_eq!(bdd.variable(bdd.one.index()), 0);
+        assert_eq!(bdd.low(bdd.one.index()).index(), 0);
+        assert_eq!(bdd.high(bdd.one.index()).index(), 0);
+    }
 
     #[test]
     fn test_cube() {

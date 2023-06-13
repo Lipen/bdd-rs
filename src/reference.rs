@@ -36,7 +36,7 @@ impl Ref {
 
     // TODO: rename
     pub(crate) fn as_lit(self) -> u32 {
-        ((self.0.abs() as u32) << 1) + (self.0 < 0) as u32
+        signed_to_lit(self.0)
     }
 }
 
@@ -57,4 +57,8 @@ impl Display for Ref {
             self.abs()
         )
     }
+}
+
+pub(crate) fn signed_to_lit(value: i32) -> u32 {
+    (value.unsigned_abs() << 1) + (value < 0) as u32
 }

@@ -1,33 +1,26 @@
 use std::cmp::min;
-use std::mem::MaybeUninit;
 
 #[derive(Clone)]
-struct Entry<T>
-where
-    T: Copy,
-{
-    value: MaybeUninit<T>,
+struct Entry<T> {
+    value: T,
     occupied: bool,
     next: usize,
 }
 
 impl<T> Default for Entry<T>
 where
-    T: Copy,
+    T: Default,
 {
     fn default() -> Self {
         Self {
-            value: MaybeUninit::uninit(),
+            value: T::default(),
             occupied: false,
             next: 0,
         }
     }
 }
 
-pub struct Storage<T>
-where
-    T: Copy,
-{
+pub struct Storage<T> {
     data: Vec<Entry<T>>,
     buckets: Vec<usize>,
     bitmask: u64,
@@ -41,7 +34,7 @@ where
 
 impl<T> Storage<T>
 where
-    T: Copy,
+    T: Default + Clone,
 {
     pub fn new(bits: usize) -> Self {
         assert!(bits <= 31, "Storage bits should be in the range 0..=31");
@@ -64,7 +57,9 @@ where
             real_size: 0,
         }
     }
+}
 
+impl<T> Storage<T> {
     pub fn capacity(&self) -> usize {
         self.data.len()
     }
@@ -76,18 +71,15 @@ where
     }
 
     pub fn is_occupied(&self, index: usize) -> bool {
+        assert_ne!(index, 0, "Index is 0");
         self.data[index].occupied
     }
-    pub fn value(&self, index: usize) -> T {
-        assert!(self.is_occupied(index), "Index {} is not occupied", index);
-        unsafe { self.data[index].value.assume_init() }
-    }
     pub fn next(&self, index: usize) -> usize {
+        assert_ne!(index, 0, "Index is 0");
         self.data[index].next
     }
     pub fn set_next(&mut self, index: usize, next: usize) {
         assert_ne!(index, 0, "Index is 0");
-
         self.data[index].next = next;
     }
 
@@ -110,21 +102,31 @@ where
         index
     }
 
-    pub fn add(&mut self, value: T) -> usize {
-        let index = self.alloc();
-
-        self.data[index].value = MaybeUninit::new(value);
-        self.data[index].next = 0;
-
-        index
-    }
-
     pub fn drop(&mut self, index: usize) {
         assert_ne!(index, 0, "Index is 0");
 
         self.data[index].occupied = false;
         self.min_free = min(self.min_free, index);
         self.real_size -= 1;
+    }
+}
+
+impl<T> Storage<T>
+where
+    T: Copy,
+{
+    pub fn value(&self, index: usize) -> T {
+        assert_ne!(index, 0, "Index is 0");
+        self.data[index].value
+    }
+
+    pub fn add(&mut self, value: T) -> usize {
+        let index = self.alloc();
+
+        self.data[index].value = value;
+        self.data[index].next = 0;
+
+        index
     }
 }
 
@@ -230,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_put() {
-        #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+        #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
         struct Item(i32);
 
         impl MyHash for Item {
