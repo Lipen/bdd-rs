@@ -4,9 +4,9 @@ use std::fmt::Debug;
 use log::debug;
 
 use crate::cache::OpCache;
-use crate::reference::{signed_to_lit, Ref};
-use crate::storage::{MyHash, Storage};
-use crate::utils::pairing3;
+use crate::reference::Ref;
+use crate::storage::Storage;
+use crate::utils::{pairing3, MyHash};
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Triple {
@@ -30,8 +30,8 @@ impl MyHash for Triple {
     fn hash(&self) -> u64 {
         pairing3(
             self.variable as u64,
-            signed_to_lit(self.low) as u64,
-            signed_to_lit(self.high) as u64,
+            ((self.low.unsigned_abs() << 1) + (self.low < 0) as u32) as u64,
+            ((self.high.unsigned_abs() << 1) + (self.high < 0) as u32) as u64,
         )
     }
 }
@@ -70,7 +70,7 @@ impl Bdd {
         // Allocate the terminal node:
         let one = storage.alloc();
         assert_eq!(one, 1); // Make sure the terminal node is (1).
-        let one = Ref::new(one as i32);
+        let one = Ref::positive(one as u32);
         let zero = -one;
 
         Self {
@@ -100,17 +100,17 @@ impl Debug for Bdd {
 }
 
 impl Bdd {
-    pub fn variable(&self, index: usize) -> u32 {
-        self.storage.variable(index)
+    pub fn variable(&self, index: u32) -> u32 {
+        self.storage.variable(index as usize)
     }
-    pub fn low(&self, index: usize) -> Ref {
-        Ref::new(self.storage.low(index))
+    pub fn low(&self, index: u32) -> Ref {
+        Ref::new(self.storage.low(index as usize))
     }
-    pub fn high(&self, index: usize) -> Ref {
-        Ref::new(self.storage.high(index))
+    pub fn high(&self, index: u32) -> Ref {
+        Ref::new(self.storage.high(index as usize))
     }
-    pub fn next(&self, index: usize) -> usize {
-        self.storage.next(index)
+    pub fn next(&self, index: u32) -> usize {
+        self.storage.next(index as usize)
     }
 
     pub fn low_node(&self, node: Ref) -> Ref {
@@ -162,7 +162,7 @@ impl Bdd {
             low: low.get(),
             high: high.get(),
         });
-        Ref::new(i as i32)
+        Ref::positive(i as u32)
     }
 
     pub fn mk_var(&mut self, v: u32) -> Ref {

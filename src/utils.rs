@@ -27,3 +27,7 @@ pub fn pairing2(a: u64, b: u64) -> u64 {
 pub fn pairing3(a: u64, b: u64, c: u64) -> u64 {
     pairing2(pairing2(a, b), c)
 }
+
+pub trait MyHash {
+    fn hash(&self) -> u64;
+}

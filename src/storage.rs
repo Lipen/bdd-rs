@@ -1,5 +1,7 @@
 use std::cmp::min;
 
+use crate::utils::MyHash;
+
 #[derive(Clone)]
 struct Entry<T> {
     value: T,
@@ -22,8 +24,10 @@ where
 
 pub struct Storage<T> {
     data: Vec<Entry<T>>,
+
     buckets: Vec<usize>,
     bitmask: u64,
+
     /// Index of the first *possibly* free (non-occupied) cell.
     min_free: usize,
     /// Index of the last occupied cell.
@@ -128,10 +132,6 @@ where
 
         index
     }
-}
-
-pub trait MyHash {
-    fn hash(&self) -> u64;
 }
 
 impl<T> Storage<T>

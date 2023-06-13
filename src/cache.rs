@@ -3,7 +3,7 @@ use std::cell::Cell;
 use log::debug;
 
 use crate::reference::Ref;
-use crate::utils::{pairing2, pairing3};
+use crate::utils::{pairing2, pairing3, MyHash};
 
 struct Table<T> {
     bitmask: u64,
@@ -102,65 +102,60 @@ impl<K, V> OpCache<K, V> {
     }
 }
 
-impl<V> OpCache<(Ref, Ref), V> {
-    /// Encode a key into a `u64`.
-    fn encode(&self, key: (Ref, Ref)) -> u64 {
-        pairing2(key.0.as_lit() as u64, key.1.as_lit() as u64)
+impl MyHash for (Ref, Ref) {
+    fn hash(&self) -> u64 {
+        pairing2(self.0.inner() as u64, self.1.inner() as u64)
     }
 }
 
-impl OpCache<(Ref, Ref), Ref> {
-    /// Get the cached result.
-    pub fn get(&mut self, key: (Ref, Ref)) -> Option<Ref> {
-        let k = self.encode(key);
-        self.table.get(k).copied().map(Ref::new)
-    }
-
-    /// Insert a result into the cache.
-    pub fn insert(&mut self, key: (Ref, Ref), value: Ref) {
-        let k = self.encode(key);
-        debug!("caching {} for key = {:?}, k = {}", value, key, k);
-        self.table.insert(k, value.get());
-    }
-}
-
-impl OpCache<(Ref, Ref), i32> {
-    /// Get the cached result.
-    pub fn get(&mut self, key: (Ref, Ref)) -> Option<i32> {
-        let k = self.encode(key);
-        self.table.get(k).copied()
-    }
-
-    /// Insert a result into the cache.
-    pub fn insert(&mut self, key: (Ref, Ref), value: i32) {
-        let k = self.encode(key);
-        debug!("caching {} for key = {:?}, k = {}", value, key, k);
-        self.table.insert(k, value);
-    }
-}
-
-impl<V> OpCache<(Ref, Ref, Ref), V> {
-    /// Encode a key into a `u64`.
-    fn encode(&self, key: (Ref, Ref, Ref)) -> u64 {
+impl MyHash for (Ref, Ref, Ref) {
+    fn hash(&self) -> u64 {
         pairing3(
-            key.0.as_lit() as u64,
-            key.1.as_lit() as u64,
-            key.2.as_lit() as u64,
+            self.0.inner() as u64,
+            self.1.inner() as u64,
+            self.2.inner() as u64,
         )
     }
 }
 
-impl OpCache<(Ref, Ref, Ref), Ref> {
+impl<K> OpCache<K, Ref>
+where
+    K: MyHash,
+{
     /// Get the cached result.
-    pub fn get(&mut self, key: (Ref, Ref, Ref)) -> Option<Ref> {
-        let k = self.encode(key);
+    pub fn get(&mut self, key: K) -> Option<Ref> {
+        let k = key.hash();
         self.table.get(k).copied().map(Ref::new)
     }
 
     /// Insert a result into the cache.
-    pub fn insert(&mut self, key: (Ref, Ref, Ref), value: Ref) {
-        let k = self.encode(key);
+    pub fn insert(&mut self, key: K, value: Ref)
+    where
+        K: std::fmt::Debug,
+    {
+        let k = key.hash();
         debug!("caching {} for key = {:?}, k = {}", value, key, k);
         self.table.insert(k, value.get());
+    }
+}
+
+impl<K> OpCache<K, i32>
+where
+    K: MyHash,
+{
+    /// Get the cached result.
+    pub fn get(&mut self, key: K) -> Option<i32> {
+        let k = key.hash();
+        self.table.get(k).copied()
+    }
+
+    /// Insert a result into the cache.
+    pub fn insert(&mut self, key: K, value: i32)
+    where
+        K: std::fmt::Debug,
+    {
+        let k = key.hash();
+        debug!("caching {} for key = {:?}, k = {}", value, key, k);
+        self.table.insert(k, value);
     }
 }

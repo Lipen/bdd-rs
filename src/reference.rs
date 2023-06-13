@@ -1,41 +1,44 @@
 use std::fmt::{Display, Formatter};
 use std::ops::Neg;
 
-// TODO: refactor
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct Ref(i32);
+pub struct Ref(u32);
 
 impl Ref {
     pub const fn new(index: i32) -> Self {
         // assert_ne!(index, 0);
-        Self(index)
+        Self((index.unsigned_abs() << 1) + (index < 0) as u32)
+    }
+    pub const fn positive(index: u32) -> Self {
+        // assert_ne!(index, 0);
+        Self(index << 1)
+    }
+    pub const fn negative(index: u32) -> Self {
+        // assert_ne!(index, 0);
+        Self((index << 1) + 1)
     }
 
     pub const fn is_negated(&self) -> bool {
-        self.0 < 0
+        self.0 & 1 == 1
     }
 
     pub const fn negate(self) -> Self {
-        Self(-self.0)
+        Self(self.0 ^ 1)
     }
 
-    /// Return the internal representation of the reference.
-    pub const fn get(self) -> i32 {
+    pub const fn inner(self) -> u32 {
         self.0
     }
-
-    pub const fn abs(self) -> u32 {
-        self.0.unsigned_abs()
+    pub const fn index(self) -> u32 {
+        self.0 >> 1
     }
-
-    /// Return the index of the reference.
-    pub const fn index(self) -> usize {
-        self.0.unsigned_abs() as usize
-    }
-
-    // TODO: rename
-    pub(crate) fn as_lit(self) -> u32 {
-        signed_to_lit(self.0)
+    pub const fn get(self) -> i32 {
+        let value = self.index() as i32;
+        if self.is_negated() {
+            -value
+        } else {
+            value
+        }
     }
 }
 
@@ -53,11 +56,7 @@ impl Display for Ref {
             f,
             "{}@{}",
             if self.is_negated() { "~" } else { "" },
-            self.abs()
+            self.index()
         )
     }
-}
-
-pub(crate) fn signed_to_lit(value: i32) -> u32 {
-    (value.unsigned_abs() << 1) + (value < 0) as u32
 }
