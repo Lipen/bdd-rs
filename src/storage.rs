@@ -203,7 +203,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_and_get() {
+    fn test_add() {
         let mut storage = Storage::new(2);
         let index = storage.add(42);
         assert_eq!(storage.value(index), 42);
