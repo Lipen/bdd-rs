@@ -1,4 +1,4 @@
-use std::cmp::min;
+use std::cmp::{min, Ordering};
 use std::fmt::Debug;
 
 use log::debug;
@@ -435,22 +435,22 @@ impl Bdd {
         let xu = cube[0];
         let u = xu.unsigned_abs();
 
-        if t > u {
-            self.cofactor_cube(f, &cube[1..])
-        } else if t == u {
-            let (f0, f1) = self.top_cofactors(f, u);
-            if xu > 0 {
-                self.cofactor_cube(f1, &cube[1..])
-            } else {
-                self.cofactor_cube(f0, &cube[1..])
+        match t.cmp(&u) {
+            Ordering::Greater => self.cofactor_cube(f, &cube[1..]),
+            Ordering::Equal => {
+                let (f0, f1) = self.top_cofactors(f, u);
+                if xu > 0 {
+                    self.cofactor_cube(f1, &cube[1..])
+                } else {
+                    self.cofactor_cube(f0, &cube[1..])
+                }
             }
-        } else if t < u {
-            let (f0, f1) = self.top_cofactors(f, t);
-            let low = self.cofactor_cube(f0, cube);
-            let high = self.cofactor_cube(f1, cube);
-            self.mk_node(t, low, high)
-        } else {
-            unreachable!()
+            Ordering::Less => {
+                let (f0, f1) = self.top_cofactors(f, t);
+                let low = self.cofactor_cube(f0, cube);
+                let high = self.cofactor_cube(f1, cube);
+                self.mk_node(t, low, high)
+            }
         }
     }
 
