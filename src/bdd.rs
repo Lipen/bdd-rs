@@ -89,7 +89,6 @@ impl Debug for Bdd {
 }
 
 impl Bdd {
-    // TODO: change Ref::index from usize to u32
     pub fn variable(&self, index: usize) -> u32 {
         self.storage.variable(index)
     }
