@@ -194,12 +194,11 @@ impl Bdd {
             return (node, node);
         }
         assert_eq!(v, self.variable(i));
-        let res = if node.is_negated() {
+        if node.is_negated() {
             (-self.low(i), -self.high(i))
         } else {
             (self.low(i), self.high(i))
-        };
-        res
+        }
     }
 
     /// Apply the ITE operation to the arguments.
