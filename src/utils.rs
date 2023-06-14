@@ -37,11 +37,9 @@ pub fn pairing_szudzik(a: u64, b: u64) -> u64 {
 
 /// [Pairing function][pairing] for two `u64` values.
 ///
-/// Currently, we use Hopcroft & Ullman variant.
-///
 /// [pairing]: https://en.wikipedia.org/wiki/Pairing_function
 pub fn pairing2(a: u64, b: u64) -> u64 {
-    pairing_hopcroft(a, b)
+    pairing_szudzik(a, b)
 }
 
 /// Pairing function for three `u64` values.
