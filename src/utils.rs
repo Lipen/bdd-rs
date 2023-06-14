@@ -27,6 +27,8 @@ pub fn pairing_hopcroft(a: u64, b: u64) -> u64 {
 /// ```text
 /// (a, b) -> if (a<b) then (b^2 + a) else (a^2 + a + b)
 /// ```
+///
+/// [szudzik-pairing]: http://szudzik.com/ElegantPairing.pdf
 pub fn pairing_szudzik(a: u64, b: u64) -> u64 {
     if a < b {
         b * b + a
