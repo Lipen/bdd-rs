@@ -58,6 +58,18 @@ pub trait MyHash {
     fn hash(&self) -> u64;
 }
 
+impl MyHash for (u64, u64) {
+    fn hash(&self) -> u64 {
+        pairing2(self.0, self.1)
+    }
+}
+
+impl MyHash for (u64, u64, u64) {
+    fn hash(&self) -> u64 {
+        pairing3(self.0, self.1, self.2)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

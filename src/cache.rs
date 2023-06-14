@@ -113,12 +113,6 @@ mod tests {
     fn test_cache() {
         let mut cache = Cache::<(u64, u64), i32>::new(3);
 
-        impl MyHash for (u64, u64) {
-            fn hash(&self) -> u64 {
-                pairing2(self.0, self.1)
-            }
-        }
-
         cache.insert(&(1, 2), 3);
         cache.insert(&(2, 3), 1);
         cache.insert(&(1, 3), 2);
