@@ -1,3 +1,14 @@
+/// [Cantor pairing function][cantor-pairing].
+///
+/// ```text
+/// (a, b) -> (a + b) * (a + b + 1) / 2 + b
+/// ```
+///
+/// [cantor-pairing]: https://en.wikipedia.org/wiki/Pairing_function#Cantor_pairing_function
+pub fn pairing_cantor(a: u64, b: u64) -> u64 {
+    (a + b) * (a + b + 1) / 2 + b
+}
+
 /// [Hopcroft and Ullman pairing function][hopcroft-pairing].
 ///
 /// ```text
@@ -9,17 +20,6 @@ pub fn pairing_hopcroft(a: u64, b: u64) -> u64 {
     assert!(a > 0);
     assert!(b > 0);
     (a + b - 2) * (a + b - 1) / 2 + a
-}
-
-/// [Cantor pairing function][cantor-pairing].
-///
-/// ```text
-/// (a, b) -> (a + b) * (a + b + 1) / 2 + b
-/// ```
-///
-/// [cantor-pairing]: https://en.wikipedia.org/wiki/Pairing_function#Cantor_pairing_function
-pub fn pairing_cantor(a: u64, b: u64) -> u64 {
-    (a + b) * (a + b + 1) / 2 + b
 }
 
 /// [Szudzik pairing function][szudzik-pairing].
