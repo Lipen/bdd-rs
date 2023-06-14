@@ -36,6 +36,11 @@ pub fn pairing3(a: u64, b: u64, c: u64) -> u64 {
     pairing2(pairing2(a, b), c)
 }
 
+/// Pairing function for four `u64` values.
+pub fn pairing4(a: u64, b: u64, c: u64, d: u64) -> u64 {
+    pairing2(pairing2(a, b), pairing2(c, d))
+}
+
 pub trait MyHash {
     // TODO: maybe return `u32` instead of `u64`? or `usize`?
     /// Perfect hash function.
