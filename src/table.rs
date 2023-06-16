@@ -3,10 +3,28 @@ use std::ops::{Index, IndexMut};
 
 use crate::utils::MyHash;
 
+#[derive(Clone)]
+struct Entry<T> {
+    value: T,
+    next: usize,
+    occupied: bool,
+}
+
+impl<T> Default for Entry<T>
+where
+    T: Default,
+{
+    fn default() -> Self {
+        Self {
+            value: T::default(),
+            next: 0,
+            occupied: false,
+        }
+    }
+}
+
 pub struct Table<T> {
-    data: Vec<T>,
-    next: Vec<usize>,
-    occupied: Vec<bool>,
+    data: Vec<Entry<T>>,
 
     buckets: Vec<usize>,
     bitmask: u64,
@@ -28,10 +46,8 @@ where
         assert!(bits <= 31, "Storage bits should be in the range 0..=31");
 
         let capacity = 1 << bits;
-        let data = vec![T::default(); capacity];
-        let next = vec![0; capacity];
-        let mut occupied = vec![false; capacity];
-        occupied[0] = true; // Set 0th cell as occupied (sentry).
+        let mut data = vec![Entry::default(); capacity];
+        data[0].occupied = true; // Set 0th cell as occupied (sentry).
 
         let buckets_bits = min(bits, 16);
         let buckets_size = 1 << buckets_bits;
@@ -40,8 +56,6 @@ where
 
         Self {
             data,
-            next,
-            occupied,
             buckets,
             bitmask,
             min_free: 1,
@@ -64,24 +78,24 @@ impl<T> Table<T> {
 
     pub fn value(&self, index: usize) -> &T {
         assert_ne!(index, 0, "Index is 0");
-        &self.data[index]
+        &self.data[index].value
     }
     pub fn value_mut(&mut self, index: usize) -> &mut T {
         assert_ne!(index, 0, "Index is 0");
-        &mut self.data[index]
+        &mut self.data[index].value
     }
 
     pub fn is_occupied(&self, index: usize) -> bool {
         assert_ne!(index, 0, "Index is 0");
-        self.occupied[index]
+        self.data[index].occupied
     }
     pub fn next(&self, index: usize) -> usize {
         assert_ne!(index, 0, "Index is 0");
-        self.next[index]
+        self.data[index].next
     }
     pub fn set_next(&mut self, index: usize, next: usize) {
         assert_ne!(index, 0, "Index is 0");
-        self.next[index] = next;
+        self.data[index].next = next;
     }
 
     pub(crate) fn alloc(&mut self) -> usize {
@@ -96,7 +110,7 @@ impl<T> Table<T> {
             panic!("Storage is full");
         }
 
-        self.occupied[index] = true;
+        self.data[index].occupied = true;
         self.min_free = index + 1;
         self.real_size += 1;
 
@@ -106,7 +120,7 @@ impl<T> Table<T> {
     pub fn drop(&mut self, index: usize) {
         assert_ne!(index, 0, "Index is 0");
 
-        self.occupied[index] = false;
+        self.data[index].occupied = false;
         self.min_free = min(self.min_free, index);
         self.real_size -= 1;
     }
@@ -114,8 +128,8 @@ impl<T> Table<T> {
     pub fn add(&mut self, value: T) -> usize {
         let index = self.alloc();
 
-        self.data[index] = value;
-        self.next[index] = 0;
+        self.data[index].value = value;
+        self.data[index].next = 0;
 
         index
     }
