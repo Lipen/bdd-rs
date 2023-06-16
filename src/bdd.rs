@@ -5,14 +5,14 @@ use log::debug;
 
 use crate::cache::Cache;
 use crate::reference::Ref;
-use crate::storage::Storage;
+use crate::table::Table;
 use crate::utils::{pairing3, MyHash};
 
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub struct Triple {
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+struct Triple {
     variable: u32,
-    low: i32,
-    high: i32,
+    low: Ref,
+    high: Ref,
 }
 
 #[allow(clippy::derivable_impls)]
@@ -20,8 +20,8 @@ impl Default for Triple {
     fn default() -> Self {
         Self {
             variable: 0,
-            low: 0,
-            high: 0,
+            low: Ref::zero(),
+            high: Ref::zero(),
         }
     }
 }
@@ -30,26 +30,28 @@ impl MyHash for Triple {
     fn hash(&self) -> u64 {
         pairing3(
             self.variable as u64,
-            ((self.low.unsigned_abs() << 1) + (self.low < 0) as u32) as u64,
-            ((self.high.unsigned_abs() << 1) + (self.high < 0) as u32) as u64,
+            self.low.unsigned() as u64,
+            self.high.unsigned() as u64,
         )
     }
 }
 
-impl Storage<Triple> {
+type Storage = Table<Triple>;
+
+impl Storage {
     pub fn variable(&self, index: usize) -> u32 {
         self.value(index).variable
     }
-    pub fn low(&self, index: usize) -> i32 {
+    pub fn low(&self, index: usize) -> Ref {
         self.value(index).low
     }
-    pub fn high(&self, index: usize) -> i32 {
+    pub fn high(&self, index: usize) -> Ref {
         self.value(index).high
     }
 }
 
 pub struct Bdd {
-    storage: Storage<Triple>,
+    storage: Storage,
     ite_cache: Cache<(Ref, Ref, Ref), Ref>,
     constrain_cache: Cache<(Ref, Ref), Ref>,
     pub zero: Ref,
@@ -104,10 +106,10 @@ impl Bdd {
         self.storage.variable(index as usize)
     }
     pub fn low(&self, index: u32) -> Ref {
-        Ref::new(self.storage.low(index as usize))
+        self.storage.low(index as usize)
     }
     pub fn high(&self, index: u32) -> Ref {
-        Ref::new(self.storage.high(index as usize))
+        self.storage.high(index as usize)
     }
     pub fn next(&self, index: u32) -> usize {
         self.storage.next(index as usize)
@@ -159,8 +161,8 @@ impl Bdd {
 
         let i = self.storage.put(Triple {
             variable: v,
-            low: low.get(),
-            high: high.get(),
+            low,
+            high,
         });
         Ref::positive(i as u32)
     }
@@ -398,7 +400,7 @@ impl Bdd {
             f, g, h, res
         );
 
-        self.ite_cache.insert(&(f, g, h), res);
+        self.ite_cache.insert((f, g, h), res);
         res
     }
 
@@ -515,7 +517,7 @@ impl Bdd {
         let res = self.mk_node(v, low, high);
         debug!("computed: constrain(f = {}, c = {}) -> {}", f, g, res);
 
-        self.constrain_cache.insert(&(f, g), res);
+        self.constrain_cache.insert((f, g), res);
         res
     }
 

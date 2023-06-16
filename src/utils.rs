@@ -1,3 +1,5 @@
+use crate::reference::Ref;
+
 /// [Cantor pairing function][cantor-pairing].
 ///
 /// ```text
@@ -31,9 +33,11 @@ pub fn pairing_hopcroft(a: u64, b: u64) -> u64 {
 /// [szudzik-pairing]: http://szudzik.com/ElegantPairing.pdf
 pub fn pairing_szudzik(a: u64, b: u64) -> u64 {
     if a < b {
-        b * b + a
+        // b * b + a
+        b.wrapping_mul(b).wrapping_add(a)
     } else {
-        a * a + a + b
+        // a * a + a + b
+        a.wrapping_mul(a).wrapping_add(a).wrapping_add(b)
     }
 }
 
@@ -56,8 +60,13 @@ pub fn pairing4(a: u64, b: u64, c: u64, d: u64) -> u64 {
 
 pub trait MyHash {
     // TODO: maybe return `u32` instead of `u64`? or `usize`?
-    /// Perfect hash function.
     fn hash(&self) -> u64;
+}
+
+impl MyHash for u64 {
+    fn hash(&self) -> u64 {
+        *self
+    }
 }
 
 impl MyHash for (u64, u64) {
@@ -69,6 +78,28 @@ impl MyHash for (u64, u64) {
 impl MyHash for (u64, u64, u64) {
     fn hash(&self) -> u64 {
         pairing3(self.0, self.1, self.2)
+    }
+}
+
+impl MyHash for Ref {
+    fn hash(&self) -> u64 {
+        MyHash::hash(&(self.unsigned() as u64))
+    }
+}
+
+impl MyHash for (Ref, Ref) {
+    fn hash(&self) -> u64 {
+        MyHash::hash(&(self.0.unsigned() as u64, self.1.unsigned() as u64))
+    }
+}
+
+impl MyHash for (Ref, Ref, Ref) {
+    fn hash(&self) -> u64 {
+        MyHash::hash(&(
+            self.0.unsigned() as u64,
+            self.1.unsigned() as u64,
+            self.2.unsigned() as u64,
+        ))
     }
 }
 

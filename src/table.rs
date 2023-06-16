@@ -1,8 +1,9 @@
 use std::cmp::min;
+use std::ops::{Index, IndexMut};
 
 use crate::utils::MyHash;
 
-pub struct Storage<T> {
+pub struct Table<T> {
     data: Vec<T>,
     next: Vec<usize>,
     occupied: Vec<bool>,
@@ -18,10 +19,11 @@ pub struct Storage<T> {
     real_size: usize,
 }
 
-impl<T> Storage<T>
+impl<T> Table<T>
 where
     T: Default + Clone,
 {
+    /// Create a new table of size `2^bits`.
     pub fn new(bits: usize) -> Self {
         assert!(bits <= 31, "Storage bits should be in the range 0..=31");
 
@@ -49,7 +51,7 @@ where
     }
 }
 
-impl<T> Storage<T> {
+impl<T> Table<T> {
     pub fn capacity(&self) -> usize {
         self.data.len()
     }
@@ -58,6 +60,15 @@ impl<T> Storage<T> {
     }
     pub fn real_size(&self) -> usize {
         self.real_size
+    }
+
+    pub fn value(&self, index: usize) -> &T {
+        assert_ne!(index, 0, "Index is 0");
+        &self.data[index]
+    }
+    pub fn value_mut(&mut self, index: usize) -> &mut T {
+        assert_ne!(index, 0, "Index is 0");
+        &mut self.data[index]
     }
 
     pub fn is_occupied(&self, index: usize) -> bool {
@@ -99,16 +110,6 @@ impl<T> Storage<T> {
         self.min_free = min(self.min_free, index);
         self.real_size -= 1;
     }
-}
-
-impl<T> Storage<T>
-where
-    T: Copy,
-{
-    pub fn value(&self, index: usize) -> T {
-        assert_ne!(index, 0, "Index is 0");
-        self.data[index]
-    }
 
     pub fn add(&mut self, value: T) -> usize {
         let index = self.alloc();
@@ -120,22 +121,19 @@ where
     }
 }
 
-impl<T> Storage<T>
+impl<T> Table<T>
 where
-    T: Copy,
+    T: MyHash,
 {
-    fn hash(&self, value: &T) -> usize
-    where
-        T: MyHash,
-    {
+    fn bucket_index(&self, value: &T) -> usize {
         (value.hash() & self.bitmask) as usize
     }
 
     pub fn put(&mut self, value: T) -> usize
     where
-        T: MyHash + Eq,
+        T: Eq,
     {
-        let bucket_index = self.hash(&value);
+        let bucket_index = self.bucket_index(&value);
         let mut index = self.buckets[bucket_index];
 
         if index == 0 {
@@ -148,7 +146,7 @@ where
         loop {
             assert!(index > 0);
 
-            if value == self.value(index) {
+            if &value == self.value(index) {
                 // The node already exists.
                 return index;
             }
@@ -168,13 +166,27 @@ where
     }
 }
 
+impl<T> Index<usize> for Table<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        self.value(index)
+    }
+}
+
+impl<T> IndexMut<usize> for Table<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        self.value_mut(index)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_alloc() {
-        let mut storage = Storage::<()>::new(2);
+        let mut storage = Table::<()>::new(2);
         assert_eq!(storage.alloc(), 1);
         assert_eq!(storage.alloc(), 2);
         assert_eq!(storage.alloc(), 3);
@@ -183,7 +195,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Storage is full")]
     fn test_alloc_too_much() {
-        let mut storage = Storage::<()>::new(2);
+        let mut storage = Table::<()>::new(2);
         assert_eq!(storage.alloc(), 1);
         assert_eq!(storage.alloc(), 2);
         assert_eq!(storage.alloc(), 3);
@@ -192,15 +204,15 @@ mod tests {
 
     #[test]
     fn test_add() {
-        let mut storage = Storage::new(2);
-        let index = storage.add(42);
-        assert_eq!(storage.value(index), 42);
-        assert_eq!(storage.next(index), 0);
+        let mut table = Table::new(2);
+        let index = table.add(42);
+        assert_eq!(table[index], 42);
+        assert_eq!(table.next(index), 0);
     }
 
     #[test]
     fn test_drop() {
-        let mut storage = Storage::new(2);
+        let mut storage = Table::new(2);
         let index = storage.add(42);
         assert!(storage.is_occupied(index));
         storage.drop(index);
@@ -209,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_set_next() {
-        let mut storage = Storage::new(2);
+        let mut storage = Table::new(2);
         let index1 = storage.add(10);
         let index2 = storage.add(20);
         storage.set_next(index1, index2);
@@ -227,12 +239,12 @@ mod tests {
             }
         }
 
-        let mut storage = Storage::new(2);
+        let mut storage = Table::new(2);
         let index1 = storage.put(Item(5));
         let index2 = storage.put(Item(-5));
         assert_ne!(index1, index2);
-        assert_eq!(storage.value(index1), Item(5));
-        assert_eq!(storage.value(index2), Item(-5));
+        assert_eq!(storage[index1], Item(5));
+        assert_eq!(storage[index2], Item(-5));
         assert_eq!(storage.next(index1), index2);
     }
 }
