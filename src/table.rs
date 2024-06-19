@@ -10,16 +10,48 @@ struct Entry<T> {
     occupied: bool,
 }
 
+impl<T> Entry<T> {
+    pub fn new(value: T) -> Self {
+        Self {
+            value,
+            next: 0,
+            occupied: false,
+        }
+    }
+}
+
 impl<T> Default for Entry<T>
 where
     T: Default,
 {
     fn default() -> Self {
-        Self {
-            value: T::default(),
-            next: 0,
-            occupied: false,
-        }
+        Self::new(T::default())
+    }
+}
+
+impl<T> Entry<T> {
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+
+    pub fn value_mut(&mut self) -> &mut T {
+        &mut self.value
+    }
+
+    pub fn next(&self) -> usize {
+        self.next
+    }
+
+    pub fn set_next(&mut self, next: usize) {
+        self.next = next;
+    }
+
+    pub fn occupied(&self) -> bool {
+        self.occupied
+    }
+
+    pub fn set_occupied(&mut self, occupied: bool) {
+        self.occupied = occupied;
     }
 }
 
@@ -39,15 +71,17 @@ pub struct Table<T> {
 
 impl<T> Table<T>
 where
-    T: Default + Clone,
+    T: Default,
 {
     /// Create a new table of size `2^bits`.
     pub fn new(bits: usize) -> Self {
         assert!(bits <= 31, "Storage bits should be in the range 0..=31");
 
         let capacity = 1 << bits;
-        let mut data = vec![Entry::default(); capacity];
-        data[0].occupied = true; // Set 0th cell as occupied (sentry).
+        // let mut data = vec![Entry::default(); capacity];
+        let mut data: Vec<Entry<T>> = Vec::with_capacity(capacity);
+        data.resize_with(capacity, Entry::default);
+        data[0].set_occupied(true); // Set 0th cell as occupied (sentry).
 
         let buckets_bits = min(bits, 16);
         let buckets_size = 1 << buckets_bits;
@@ -78,24 +112,24 @@ impl<T> Table<T> {
 
     pub fn value(&self, index: usize) -> &T {
         assert_ne!(index, 0, "Index is 0");
-        &self.data[index].value
+        self.data[index].value()
     }
     pub fn value_mut(&mut self, index: usize) -> &mut T {
         assert_ne!(index, 0, "Index is 0");
-        &mut self.data[index].value
+        self.data[index].value_mut()
     }
 
     pub fn is_occupied(&self, index: usize) -> bool {
         assert_ne!(index, 0, "Index is 0");
-        self.data[index].occupied
+        self.data[index].occupied()
     }
     pub fn next(&self, index: usize) -> usize {
         assert_ne!(index, 0, "Index is 0");
-        self.data[index].next
+        self.data[index].next()
     }
     pub fn set_next(&mut self, index: usize, next: usize) {
         assert_ne!(index, 0, "Index is 0");
-        self.data[index].next = next;
+        self.data[index].set_next(next);
     }
 
     pub(crate) fn alloc(&mut self) -> usize {
@@ -110,7 +144,7 @@ impl<T> Table<T> {
             panic!("Storage is full");
         }
 
-        self.data[index].occupied = true;
+        self.data[index].set_occupied(true);
         self.min_free = index + 1;
         self.real_size += 1;
 
