@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::cmp::{min, Ordering};
 use std::fmt::Debug;
 
@@ -51,9 +52,9 @@ impl Storage {
 }
 
 pub struct Bdd {
-    storage: Storage,
-    ite_cache: Cache<(Ref, Ref, Ref), Ref>,
-    constrain_cache: Cache<(Ref, Ref), Ref>,
+    storage: RefCell<Storage>,
+    ite_cache: RefCell<Cache<(Ref, Ref, Ref), Ref>>,
+    constrain_cache: RefCell<Cache<(Ref, Ref), Ref>>,
     pub zero: Ref,
     pub one: Ref,
 }
@@ -76,9 +77,9 @@ impl Bdd {
         let zero = -one;
 
         Self {
-            storage,
-            ite_cache: Cache::new(cache_bits),
-            constrain_cache: Cache::new(cache_bits),
+            storage: RefCell::new(storage),
+            ite_cache: RefCell::new(Cache::new(cache_bits)),
+            constrain_cache: RefCell::new(Cache::new(cache_bits)),
             zero,
             one,
         }
@@ -93,26 +94,27 @@ impl Default for Bdd {
 
 impl Debug for Bdd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let storage = self.storage.borrow();
         f.debug_struct("Bdd")
-            .field("capacity", &self.storage.capacity())
-            .field("size", &self.storage.size())
-            .field("real_size", &self.storage.real_size())
+            .field("capacity", &storage.capacity())
+            .field("size", &storage.size())
+            .field("real_size", &storage.real_size())
             .finish()
     }
 }
 
 impl Bdd {
     pub fn variable(&self, index: u32) -> u32 {
-        self.storage.variable(index as usize)
+        self.storage.borrow().variable(index as usize)
     }
     pub fn low(&self, index: u32) -> Ref {
-        self.storage.low(index as usize)
+        self.storage.borrow().low(index as usize)
     }
     pub fn high(&self, index: u32) -> Ref {
-        self.storage.high(index as usize)
+        self.storage.borrow().high(index as usize)
     }
     pub fn next(&self, index: u32) -> usize {
-        self.storage.next(index as usize)
+        self.storage.borrow().next(index as usize)
     }
 
     pub fn low_node(&self, node: Ref) -> Ref {
@@ -142,7 +144,7 @@ impl Bdd {
         self.is_zero(node) || self.is_one(node)
     }
 
-    pub fn mk_node(&mut self, v: u32, low: Ref, high: Ref) -> Ref {
+    pub fn mk_node(&self, v: u32, low: Ref, high: Ref) -> Ref {
         debug!("mk(v = {}, low = {}, high = {})", v, low, high);
 
         assert_ne!(v, 0, "Variable index should not be zero");
@@ -159,7 +161,7 @@ impl Bdd {
             return low;
         }
 
-        let i = self.storage.put(Triple {
+        let i = self.storage.borrow_mut().put(Triple {
             variable: v,
             low,
             high,
@@ -167,12 +169,12 @@ impl Bdd {
         Ref::positive(i as u32)
     }
 
-    pub fn mk_var(&mut self, v: u32) -> Ref {
+    pub fn mk_var(&self, v: u32) -> Ref {
         assert_ne!(v, 0, "Variable index should not be zero");
         self.mk_node(v, self.zero, self.one)
     }
 
-    pub fn cube(&mut self, literals: &[i32]) -> Ref {
+    pub fn cube(&self, literals: &[i32]) -> Ref {
         debug!("cube(literals = {:?})", literals);
         let mut current = self.one;
         let mut literals = literals.to_vec();
@@ -215,7 +217,7 @@ impl Bdd {
     /// ```
     /// use bdd_rs::bdd::Bdd;
     ///
-    /// let mut bdd = Bdd::default();
+    /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
     /// let y = bdd.mk_var(2);
     /// let z = bdd.mk_var(3);
@@ -225,7 +227,7 @@ impl Bdd {
     /// let  not_x_and_z = bdd.apply_and(-x, z);
     /// assert_eq!(f, bdd.apply_or(x_and_y, not_x_and_z));
     /// ```
-    pub fn apply_ite(&mut self, f: Ref, g: Ref, h: Ref) -> Ref {
+    pub fn apply_ite(&self, f: Ref, g: Ref, h: Ref) -> Ref {
         debug!("apply_ite(f = {}, g = {}, h = {})", f, g, h);
 
         // Base cases:
@@ -362,7 +364,7 @@ impl Bdd {
 
         let (f, g, h) = (f, g, h);
 
-        if let Some(&res) = self.ite_cache.get(&(f, g, h)) {
+        if let Some(&res) = self.ite_cache.borrow().get(&(f, g, h)) {
             let res = if n { -res } else { res };
             debug!(
                 "cache: apply_ite(f = {}, g = {}, h = {}) -> {}",
@@ -400,31 +402,31 @@ impl Bdd {
             f, g, h, res
         );
 
-        self.ite_cache.insert((f, g, h), res);
+        self.ite_cache.borrow_mut().insert((f, g, h), res);
         res
     }
 
-    pub fn apply_and(&mut self, u: Ref, v: Ref) -> Ref {
+    pub fn apply_and(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_and(u = {}, v = {})", u, v);
         self.apply_ite(u, v, self.zero)
     }
 
-    pub fn apply_or(&mut self, u: Ref, v: Ref) -> Ref {
+    pub fn apply_or(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_or(u = {}, v = {})", u, v);
         self.apply_ite(u, self.one, v)
     }
 
-    pub fn apply_xor(&mut self, u: Ref, v: Ref) -> Ref {
+    pub fn apply_xor(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_xor(u = {}, v = {})", u, v);
         self.apply_ite(u, -v, v)
     }
 
-    pub fn apply_eq(&mut self, u: Ref, v: Ref) -> Ref {
+    pub fn apply_eq(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_eq(u = {}, v = {})", u, v);
         self.apply_ite(u, v, -v)
     }
 
-    pub fn cofactor_cube(&mut self, f: Ref, cube: &[i32]) -> Ref {
+    pub fn cofactor_cube(&self, f: Ref, cube: &[i32]) -> Ref {
         debug!("cofactor_cube(f = {}, cube = {:?})", f, cube);
 
         if cube.len() == 1 {
@@ -457,7 +459,7 @@ impl Bdd {
         }
     }
 
-    pub fn constrain(&mut self, f: Ref, g: Ref) -> Ref {
+    pub fn constrain(&self, f: Ref, g: Ref) -> Ref {
         debug!("constrain(f = {}, g = {})", f, g);
 
         if self.is_zero(g) {
@@ -481,7 +483,7 @@ impl Bdd {
             return self.zero;
         }
 
-        if let Some(&res) = self.constrain_cache.get(&(f, g)) {
+        if let Some(&res) = self.constrain_cache.borrow().get(&(f, g)) {
             debug!("cache: constrain(f = {}, c = {}) -> {}", f, g, res);
             return res;
         }
@@ -517,7 +519,7 @@ impl Bdd {
         let res = self.mk_node(v, low, high);
         debug!("computed: constrain(f = {}, c = {}) -> {}", f, g, res);
 
-        self.constrain_cache.insert((f, g), res);
+        self.constrain_cache.borrow_mut().insert((f, g), res);
         res
     }
 
@@ -550,13 +552,25 @@ mod tests {
 
     #[test]
     fn test_var() {
-        let mut bdd = Bdd::default();
+        let bdd = Bdd::default();
 
         let x = bdd.mk_var(1);
 
         assert_eq!(bdd.variable(x.index()), 1);
         assert_eq!(bdd.high_node(x), bdd.one);
         assert_eq!(bdd.low_node(x), bdd.zero);
+    }
+
+    #[test]
+    fn test_not_var() {
+        let bdd = Bdd::default();
+
+        let x = bdd.mk_var(1);
+        let not_x = -x;
+
+        assert_eq!(bdd.variable(not_x.index()), 1);
+        assert_eq!(bdd.high_node(not_x), bdd.zero);
+        assert_eq!(bdd.low_node(not_x), bdd.one);
     }
 
     #[test]
@@ -582,26 +596,24 @@ mod tests {
 
     #[test]
     fn test_cube() {
-        let mut bdd = Bdd::default();
+        let bdd = Bdd::default();
 
         let x1 = bdd.mk_var(1);
         let x2 = bdd.mk_var(2);
         let x3 = bdd.mk_var(3);
 
-        let x1_and_x2 = bdd.apply_and(x1, x2);
-        let x1_and_x2_and_3 = bdd.apply_and(x1_and_x2, x3);
+        let f = bdd.apply_and(bdd.apply_and(x1, x2), x3);
         let cube = bdd.cube(&[1, 2, 3]);
-        assert_eq!(x1_and_x2_and_3, cube);
+        assert_eq!(f, cube);
 
-        let x1_and_not_x2 = bdd.apply_and(x1, -x2);
-        let x1_and_not_x2_and_not_x3 = bdd.apply_and(x1_and_not_x2, -x3);
+        let f = bdd.apply_and(bdd.apply_and(x1, -x2), -x3);
         let cube = bdd.cube(&[1, -2, -3]);
-        assert_eq!(x1_and_not_x2_and_not_x3, cube);
+        assert_eq!(f, cube);
     }
 
     #[test]
     fn test_apply_ite() {
-        let mut bdd = Bdd::default();
+        let bdd = Bdd::default();
 
         // Terminal cases
         let g = bdd.mk_var(2);
@@ -632,7 +644,7 @@ mod tests {
 
     #[test]
     fn test_cofactor_cube() {
-        let mut bdd = Bdd::default();
+        let bdd = Bdd::default();
 
         let x1 = bdd.mk_var(1);
         let x2 = bdd.mk_var(2);
@@ -649,7 +661,7 @@ mod tests {
     }
 
     impl Bdd {
-        fn build_example(&mut self) -> Ref {
+        fn build_example(&self) -> Ref {
             let x1 = self.mk_var(1);
             let x2 = self.mk_var(2);
             let x3 = self.mk_var(3);
@@ -663,7 +675,7 @@ mod tests {
 
     #[test]
     fn test_constrain_base() {
-        let mut bdd = Bdd::default();
+        let bdd = Bdd::default();
         {
             let f = bdd.build_example();
             let g = bdd.one;
@@ -686,7 +698,7 @@ mod tests {
 
     #[test]
     fn test_constrain_example1() {
-        let mut bdd = Bdd::default();
+        let bdd = Bdd::default();
 
         let s = bdd.mk_node(3, -bdd.one, bdd.one);
         let p = bdd.mk_node(2, -s, s);
@@ -715,7 +727,7 @@ mod tests {
 
     #[test]
     fn test_constrain_example2() {
-        let mut bdd = Bdd::default();
+        let bdd = Bdd::default();
 
         // f = x1*x3 + ~x1*(x2^x3)
         // g = x1*x2 + ~x2*~x3
@@ -732,15 +744,13 @@ mod tests {
         let x3 = bdd.mk_var(3);
 
         // f = x1*x3 + ~x1*(x2^x3)
-        let x1_and_x3 = bdd.apply_and(x1, x3);
-        let x2_xor_x3 = bdd.apply_xor(x2, x3);
-        let not_x1_and_x2_xor_x3 = bdd.apply_and(-x1, x2_xor_x3);
-        let f = bdd.apply_or(x1_and_x3, not_x1_and_x2_xor_x3);
+        let f = bdd.apply_or(
+            bdd.apply_and(x1, x3),
+            bdd.apply_and(-x1, bdd.apply_xor(x2, x3)),
+        );
 
         // g = x1*x2 + ~x2*~x3
-        let x1_and_x2 = bdd.apply_and(x1, x2);
-        let not_x2_and_not_x3 = bdd.apply_and(-x2, -x3);
-        let g = bdd.apply_or(x1_and_x2, not_x2_and_not_x3);
+        let g = bdd.apply_or(bdd.apply_and(x1, x2), bdd.apply_and(-x2, -x3));
 
         // h = x1*x2*x3
         let h = bdd.cube(&[1, 2, 3]);

@@ -10,7 +10,7 @@ fn main() -> color_eyre::Result<()> {
         simplelog::ColorChoice::Auto,
     )?;
 
-    let mut bdd = Bdd::default();
+    let bdd = Bdd::default();
     println!("bdd = {:?}", bdd);
 
     println!("zero = {}", bdd.zero);

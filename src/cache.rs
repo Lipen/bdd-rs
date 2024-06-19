@@ -55,7 +55,7 @@ where
     }
 
     /// Get the cached result.
-    pub fn get(&mut self, key: &K) -> Option<&V>
+    pub fn get(&self, key: &K) -> Option<&V>
     where
         K: Eq,
     {
