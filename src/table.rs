@@ -11,6 +11,7 @@ struct Entry<T> {
 }
 
 impl<T> Entry<T> {
+    /// Create a new cell with the given value.
     pub fn new(value: T) -> Self {
         Self {
             value,
@@ -30,26 +31,29 @@ where
 }
 
 impl<T> Entry<T> {
+    /// Get the reference to the value.
     pub fn value(&self) -> &T {
         &self.value
     }
-
+    /// Get the mutable reference to the value.
     pub fn value_mut(&mut self) -> &mut T {
         &mut self.value
     }
 
+    /// Get the index of the next cell.
     pub fn next(&self) -> usize {
         self.next
     }
-
+    /// Set the index of the next cell.
     pub fn set_next(&mut self, next: usize) {
         self.next = next;
     }
 
+    /// Check if the cell is occupied.
     pub fn occupied(&self) -> bool {
         self.occupied
     }
-
+    /// Set the occupied flag.
     pub fn set_occupied(&mut self, occupied: bool) {
         self.occupied = occupied;
     }
@@ -100,38 +104,47 @@ where
 }
 
 impl<T> Table<T> {
+    /// Get the capacity of the table.
     pub fn capacity(&self) -> usize {
         self.data.len()
     }
+    /// Get the index of the last occupied.
     pub fn size(&self) -> usize {
         self.last_index
     }
+    /// Get the number of occupied cells.
     pub fn real_size(&self) -> usize {
         self.real_size
     }
 
+    /// Get the reference to the value at the given index.
     pub fn value(&self, index: usize) -> &T {
         assert_ne!(index, 0, "Index is 0");
         self.data[index].value()
     }
+    /// Get the mutable reference to the value at the given index.
     pub fn value_mut(&mut self, index: usize) -> &mut T {
         assert_ne!(index, 0, "Index is 0");
         self.data[index].value_mut()
     }
 
+    /// Check if the cell at the given index is occupied.
     pub fn is_occupied(&self, index: usize) -> bool {
         assert_ne!(index, 0, "Index is 0");
         self.data[index].occupied()
     }
+    /// Get the index of the next cell.
     pub fn next(&self, index: usize) -> usize {
         assert_ne!(index, 0, "Index is 0");
         self.data[index].next()
     }
+    /// Set the index of the next cell.
     pub fn set_next(&mut self, index: usize, next: usize) {
         assert_ne!(index, 0, "Index is 0");
         self.data[index].set_next(next);
     }
 
+    /// Allocate a new cell in the table and return its index.
     pub(crate) fn alloc(&mut self) -> usize {
         let index = (self.min_free..=self.last_index)
             .find(|&i| !self.is_occupied(i))
@@ -151,6 +164,7 @@ impl<T> Table<T> {
         index
     }
 
+    /// Drop the value at the given index.
     pub fn drop(&mut self, index: usize) {
         assert_ne!(index, 0, "Index is 0");
 
@@ -159,6 +173,7 @@ impl<T> Table<T> {
         self.real_size -= 1;
     }
 
+    /// Add a new value to the table and return its index.
     pub fn add(&mut self, value: T) -> usize {
         let index = self.alloc();
 
@@ -177,6 +192,7 @@ where
         (value.hash() & self.bitmask) as usize
     }
 
+    /// Put a new value into the table and return its index.
     pub fn put(&mut self, value: T) -> usize
     where
         T: Eq,
