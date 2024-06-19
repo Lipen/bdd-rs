@@ -3,45 +3,6 @@ use std::ops::{Add, BitXor, Mul};
 use crate::bdd::Bdd;
 use crate::reference::Ref;
 
-pub struct BddAndOp {
-    f: Ref,
-    g: Ref,
-}
-
-impl Mul for Ref {
-    type Output = BddAndOp;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        BddAndOp { f: self, g: rhs }
-    }
-}
-
-pub struct BddOrOp {
-    f: Ref,
-    g: Ref,
-}
-
-impl Add for Ref {
-    type Output = BddOrOp;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        BddOrOp { f: self, g: rhs }
-    }
-}
-
-pub struct BddXorOp {
-    f: Ref,
-    g: Ref,
-}
-
-impl BitXor for Ref {
-    type Output = BddXorOp;
-
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        BddXorOp { f: self, g: rhs }
-    }
-}
-
 pub trait Eval {
     fn eval(&self, bdd: &Bdd) -> Ref;
 }
@@ -58,15 +19,54 @@ impl Eval for Ref {
     }
 }
 
+pub struct BddAndOp {
+    f: Ref,
+    g: Ref,
+}
+
+impl Mul for Ref {
+    type Output = BddAndOp;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        BddAndOp { f: self, g: rhs }
+    }
+}
+
 impl Eval for BddAndOp {
     fn eval(&self, bdd: &Bdd) -> Ref {
         bdd.apply_and(self.f, self.g)
     }
 }
 
+pub struct BddOrOp {
+    f: Ref,
+    g: Ref,
+}
+
+impl Add for Ref {
+    type Output = BddOrOp;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        BddOrOp { f: self, g: rhs }
+    }
+}
+
 impl Eval for BddOrOp {
     fn eval(&self, bdd: &Bdd) -> Ref {
         bdd.apply_or(self.f, self.g)
+    }
+}
+
+pub struct BddXorOp {
+    f: Ref,
+    g: Ref,
+}
+
+impl BitXor for Ref {
+    type Output = BddXorOp;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        BddXorOp { f: self, g: rhs }
     }
 }
 
