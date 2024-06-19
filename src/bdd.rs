@@ -396,13 +396,13 @@ impl Bdd {
         debug!("cofactors of res: e = {}, t = {}", e, t);
 
         let res = self.mk_node(m, e, t);
+        self.ite_cache.borrow_mut().insert((f, g, h), res);
+
         let res = if n { -res } else { res };
         debug!(
             "computed: apply_ite(f = {}, g = {}, h = {}) -> {}",
             f, g, h, res
         );
-
-        self.ite_cache.borrow_mut().insert((f, g, h), res);
         res
     }
 
