@@ -11,3 +11,4 @@ log = "0.4.17"
 [dev-dependencies]
 color-eyre = "0.6"
 simplelog = "0.12"
+test-log = "0.2"
