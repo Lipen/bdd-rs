@@ -1,4 +1,4 @@
-use std::ops::{BitAnd, BitOr, BitXor, Rem};
+use std::ops::{Add, BitXor, Mul};
 
 use crate::bdd::Bdd;
 use crate::reference::Ref;
@@ -8,10 +8,10 @@ pub struct BddAndOp {
     g: Ref,
 }
 
-impl BitAnd for Ref {
+impl Mul for Ref {
     type Output = BddAndOp;
 
-    fn bitand(self, rhs: Self) -> Self::Output {
+    fn mul(self, rhs: Self) -> Self::Output {
         BddAndOp { f: self, g: rhs }
     }
 }
@@ -21,10 +21,10 @@ pub struct BddOrOp {
     g: Ref,
 }
 
-impl BitOr for Ref {
+impl Add for Ref {
     type Output = BddOrOp;
 
-    fn bitor(self, rhs: Self) -> Self::Output {
+    fn add(self, rhs: Self) -> Self::Output {
         BddOrOp { f: self, g: rhs }
     }
 }
@@ -39,19 +39,6 @@ impl BitXor for Ref {
 
     fn bitxor(self, rhs: Self) -> Self::Output {
         BddXorOp { f: self, g: rhs }
-    }
-}
-
-pub struct BddEqOp {
-    f: Ref,
-    g: Ref,
-}
-
-impl Rem for Ref {
-    type Output = BddEqOp;
-
-    fn rem(self, rhs: Self) -> Self::Output {
-        BddEqOp { f: self, g: rhs }
     }
 }
 
@@ -89,17 +76,11 @@ impl Eval for BddXorOp {
     }
 }
 
-impl Eval for BddEqOp {
-    fn eval(&self, bdd: &Bdd) -> Ref {
-        bdd.apply_eq(self.f, self.g)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use test_log::test;
+
+    use super::*;
 
     #[test]
     fn test_eval_var() {
@@ -123,7 +104,7 @@ mod tests {
         let x = bdd.mk_var(1);
         let y = bdd.mk_var(2);
         let f = bdd.apply_and(x, y);
-        let res = bdd.eval(x & y);
+        let res = bdd.eval(x * y);
         assert_eq!(res, f);
     }
 
@@ -133,7 +114,7 @@ mod tests {
         let x = bdd.mk_var(1);
         let y = bdd.mk_var(2);
         let f = bdd.apply_or(x, y);
-        let res = bdd.eval(x | y);
+        let res = bdd.eval(x + y);
         assert_eq!(res, f);
     }
 
@@ -144,16 +125,6 @@ mod tests {
         let y = bdd.mk_var(2);
         let f = bdd.apply_xor(x, y);
         let res = bdd.eval(x ^ y);
-        assert_eq!(res, f);
-    }
-
-    #[test]
-    fn test_eval_eq() {
-        let bdd = Bdd::default();
-        let x = bdd.mk_var(1);
-        let y = bdd.mk_var(2);
-        let f = bdd.apply_eq(x, y);
-        let res = bdd.eval(x % y);
         assert_eq!(res, f);
     }
 }
