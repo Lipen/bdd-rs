@@ -29,6 +29,8 @@ fn main() -> color_eyre::Result<()> {
     println!("f = {}", bdd.to_bracket_string(f));
     let h = bdd.constrain(f, cube);
     println!("h = {}", bdd.to_bracket_string(h));
+    let t = bdd.eval(x1 + x2 * x3);
+    println!("t = {}", bdd.to_bracket_string(t));
 
     Ok(())
 }
