@@ -658,19 +658,27 @@ mod tests {
     }
 
     #[test]
-    fn test_xor_0() {
+    fn test_xor_itself() {
         let bdd = Bdd::default();
+
         let x = bdd.mk_var(1);
-        let f = bdd.apply_xor(x, x);
-        assert_eq!(f, bdd.zero);
+        let y = bdd.mk_var(2);
+        let f = bdd.apply_and(x, y);
+
+        let res = bdd.apply_xor(f, f);
+        assert_eq!(res, bdd.zero);
     }
 
     #[test]
-    fn test_xor_1() {
+    fn test_xor_contrary() {
         let bdd = Bdd::default();
+
         let x = bdd.mk_var(1);
-        let f = bdd.apply_xor(x, -x);
-        assert_eq!(f, bdd.one);
+        let y = bdd.mk_var(2);
+        let f = bdd.apply_and(x, y);
+
+        let res = bdd.apply_xor(f, -f);
+        assert_eq!(res, bdd.one);
     }
 
     #[test]
