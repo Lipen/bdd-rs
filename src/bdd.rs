@@ -568,9 +568,9 @@ impl Bdd {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use test_log::test;
+
+    use super::*;
 
     #[test]
     fn test_var() {

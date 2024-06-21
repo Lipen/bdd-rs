@@ -21,6 +21,7 @@ impl Eval for Ref {
 
 pub enum Expr {
     Term(Ref),
+    Not(Box<Expr>),
     And(Box<Expr>, Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
     Xor(Box<Expr>, Box<Expr>),
@@ -29,6 +30,14 @@ pub enum Expr {
 impl Expr {
     pub fn term(value: Ref) -> Self {
         Expr::Term(value)
+    }
+
+    pub fn not(value: Self) -> Self {
+        match value {
+            Expr::Term(term) => Expr::Term(-term),
+            Expr::Not(inner) => *inner,
+            _ => Expr::Not(Box::new(value)),
+        }
     }
 
     pub fn and(lhs: Self, rhs: Self) -> Self {
@@ -47,11 +56,21 @@ impl Expr {
 impl Eval for Expr {
     fn eval(&self, bdd: &Bdd) -> Ref {
         match self {
-            Expr::Term(term) => *term,
+            Expr::Term(term) => term.eval(bdd),
+            Expr::Not(inner) => -inner.eval(bdd),
             Expr::And(lhs, rhs) => bdd.apply_and(lhs.eval(bdd), rhs.eval(bdd)),
             Expr::Or(lhs, rhs) => bdd.apply_or(lhs.eval(bdd), rhs.eval(bdd)),
             Expr::Xor(lhs, rhs) => bdd.apply_xor(lhs.eval(bdd), rhs.eval(bdd)),
         }
+    }
+}
+
+// -Expr = Expr::Not
+impl std::ops::Neg for Expr {
+    type Output = Expr;
+
+    fn neg(self) -> Self::Output {
+        Expr::not(self)
     }
 }
 
@@ -173,6 +192,7 @@ mod tests {
     fn test_eval_var() {
         let bdd = Bdd::default();
         let x = bdd.mk_var(1);
+
         let res = bdd.eval(x);
         assert_eq!(res, x);
     }
@@ -181,6 +201,7 @@ mod tests {
     fn test_eval_not_var() {
         let bdd = Bdd::default();
         let x = bdd.mk_var(1);
+
         let res = bdd.eval(-x);
         assert_eq!(res, -x);
     }
@@ -190,9 +211,10 @@ mod tests {
         let bdd = Bdd::default();
         let x = bdd.mk_var(1);
         let y = bdd.mk_var(2);
-        let f = bdd.apply_and(x, y);
+
         let res = bdd.eval(x * y);
-        assert_eq!(res, f);
+        let expected = bdd.apply_and(x, y);
+        assert_eq!(res, expected);
     }
 
     #[test]
@@ -200,9 +222,10 @@ mod tests {
         let bdd = Bdd::default();
         let x = bdd.mk_var(1);
         let y = bdd.mk_var(2);
-        let f = bdd.apply_or(x, y);
+
         let res = bdd.eval(x + y);
-        assert_eq!(res, f);
+        let expected = bdd.apply_or(x, y);
+        assert_eq!(res, expected);
     }
 
     #[test]
@@ -210,9 +233,10 @@ mod tests {
         let bdd = Bdd::default();
         let x = bdd.mk_var(1);
         let y = bdd.mk_var(2);
-        let f = bdd.apply_xor(x, y);
+
         let res = bdd.eval(x ^ y);
-        assert_eq!(res, f);
+        let expected = bdd.apply_xor(x, y);
+        assert_eq!(res, expected);
     }
 
     #[test]
@@ -222,8 +246,46 @@ mod tests {
         let y = bdd.mk_var(2);
         let z = bdd.mk_var(3);
         let t = bdd.mk_var(4);
-        let f = bdd.apply_xor(bdd.apply_or(x, y), bdd.apply_and(z, t));
+
         let res = bdd.eval(x + y ^ z * t);
-        assert_eq!(res, f);
+        let expected = bdd.apply_xor(bdd.apply_or(x, y), bdd.apply_and(z, t));
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_eval_neg() {
+        let bdd = Bdd::default();
+        let x = bdd.mk_var(1);
+        let y = bdd.mk_var(2);
+
+        let res = bdd.eval(-x * -y);
+        let expected = bdd.apply_and(-x, -y);
+        assert_eq!(res, expected);
+
+        let res = bdd.eval(-x + -y);
+        let expected = bdd.apply_or(-x, -y);
+        assert_eq!(res, expected);
+
+        let res = bdd.eval(-x ^ -y);
+        let expected = bdd.apply_xor(-x, -y);
+        assert_eq!(res, expected);
+
+        let res = bdd.eval(-(x * -y));
+        let expected = -bdd.apply_and(x, -y);
+        assert_eq!(res, expected);
+
+        let res = bdd.eval(-(x + -y));
+        let expected = -bdd.apply_or(x, -y);
+        assert_eq!(res, expected);
+
+        let res = bdd.eval(-(x ^ -y));
+        let expected = -bdd.apply_xor(x, -y);
+        assert_eq!(res, expected);
+
+        let z = bdd.mk_var(3);
+
+        let res = bdd.eval(-(-x * -(y + -z)));
+        let expected = -bdd.apply_and(-x, -bdd.apply_or(y, -z));
+        assert_eq!(res, expected);
     }
 }
