@@ -10,14 +10,14 @@ use crate::table::Table;
 use crate::utils::{pairing2, pairing3, MyHash};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-struct Triple {
+struct Node {
     variable: u32,
     low: Ref,
     high: Ref,
 }
 
 #[allow(clippy::derivable_impls)]
-impl Default for Triple {
+impl Default for Node {
     fn default() -> Self {
         Self {
             variable: 0,
@@ -27,7 +27,7 @@ impl Default for Triple {
     }
 }
 
-impl MyHash for Triple {
+impl MyHash for Node {
     fn hash(&self) -> u64 {
         pairing3(
             self.variable as u64,
@@ -37,7 +37,7 @@ impl MyHash for Triple {
     }
 }
 
-type Storage = Table<Triple>;
+type Storage = Table<Node>;
 
 impl Storage {
     pub fn variable(&self, index: usize) -> u32 {
@@ -178,7 +178,7 @@ impl Bdd {
             return low;
         }
 
-        let i = self.storage.borrow_mut().put(Triple {
+        let i = self.storage.borrow_mut().put(Node {
             variable: v,
             low,
             high,
