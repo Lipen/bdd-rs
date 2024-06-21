@@ -19,6 +19,7 @@ impl Eval for Ref {
     }
 }
 
+#[derive(Debug)]
 pub enum Expr {
     Term(Ref),
     Not(Box<Expr>),
