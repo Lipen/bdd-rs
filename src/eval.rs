@@ -1,4 +1,4 @@
-use std::ops::{Add, BitXor, Mul};
+use std::ops::{Add, BitXor, Mul, Neg};
 
 use crate::bdd::Bdd;
 use crate::reference::Ref;
@@ -66,7 +66,7 @@ impl Eval for Expr {
 }
 
 // -Expr = Expr::Not
-impl std::ops::Neg for Expr {
+impl Neg for Expr {
     type Output = Expr;
 
     fn neg(self) -> Self::Output {
