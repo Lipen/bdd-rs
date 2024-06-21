@@ -289,4 +289,19 @@ mod tests {
         let expected = -bdd.apply_and(-x, -bdd.apply_or(y, -z));
         assert_eq!(res, expected);
     }
+
+    #[test]
+    fn test_eval_xor_itself() {
+        let bdd = Bdd::default();
+
+        let x = bdd.mk_var(1);
+
+        let res = bdd.eval(x ^ x);
+        let expected = bdd.apply_xor(x, x);
+        assert_eq!(res, expected);
+
+        let res = bdd.eval(x ^ -x);
+        let expected = bdd.apply_xor(x, -x);
+        assert_eq!(res, expected);
+    }
 }
