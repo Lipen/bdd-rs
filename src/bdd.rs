@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::cmp::{min, Ordering};
+use std::collections::{HashSet, VecDeque};
 use std::fmt::Debug;
 
 use log::debug;
@@ -73,6 +74,7 @@ impl MyHash for OpKey {
 pub struct Bdd {
     storage: RefCell<Storage>,
     cache: RefCell<Cache<OpKey, Ref>>,
+    size_cache: RefCell<Cache<Ref, u64>>,
     pub zero: Ref,
     pub one: Ref,
 }
@@ -97,6 +99,7 @@ impl Bdd {
         Self {
             storage: RefCell::new(storage),
             cache: RefCell::new(Cache::new(cache_bits)),
+            size_cache: RefCell::new(Cache::new(cache_bits)),
             zero,
             one,
         }
@@ -425,6 +428,11 @@ impl Bdd {
         res
     }
 
+    pub fn apply_not(&self, f: Ref) -> Ref {
+        debug!("apply_not(f = {})", f);
+        -f
+    }
+
     pub fn apply_and(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_and(u = {}, v = {})", u, v);
         self.apply_ite(u, v, self.zero)
@@ -443,6 +451,15 @@ impl Bdd {
     pub fn apply_eq(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_eq(u = {}, v = {})", u, v);
         self.apply_ite(u, v, -v)
+    }
+
+    pub fn apply_and_many(&self, nodes: &[Ref]) -> Ref {
+        debug!("apply_and_many(nodes = {:?})", nodes);
+        let mut res = self.one;
+        for &node in nodes {
+            res = self.apply_and(res, node);
+        }
+        res
     }
 
     pub fn cofactor_cube(&self, f: Ref, cube: &[i32]) -> Ref {
@@ -541,6 +558,34 @@ impl Bdd {
 
         self.cache.borrow_mut().insert(key, res);
         res
+    }
+
+    pub fn descendants(&self, nodes: impl IntoIterator<Item = Ref>) -> HashSet<u32> {
+        let mut visited = HashSet::new();
+        visited.insert(self.one.index());
+        let mut queue = VecDeque::from_iter(nodes);
+
+        while let Some(node) = queue.pop_front() {
+            let i = node.index();
+            if visited.insert(i) {
+                queue.push_back(self.low(i));
+                queue.push_back(self.high(i));
+            }
+        }
+
+        visited
+    }
+
+    pub fn size(&self, f: Ref) -> u64 {
+        debug!("size(f = {})", f);
+        if let Some(&size) = self.size_cache.borrow().get(&f) {
+            debug!("cache: size({}) -> {}", f, size);
+            return size;
+        }
+        let size = self.descendants([f]).len() as u64;
+        debug!("computed: size({}) -> {}", f, size);
+        self.size_cache.borrow_mut().insert(f, size);
+        size
     }
 
     pub fn to_bracket_string(&self, node: Ref) -> String {
