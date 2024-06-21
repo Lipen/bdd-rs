@@ -7,7 +7,7 @@ use log::debug;
 use crate::cache::Cache;
 use crate::reference::Ref;
 use crate::table::Table;
-use crate::utils::{pairing3, MyHash};
+use crate::utils::{pairing2, pairing3, MyHash};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 struct Triple {
@@ -51,10 +51,28 @@ impl Storage {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+enum OpKey {
+    Ite(Ref, Ref, Ref),
+    Constrain(Ref, Ref),
+}
+
+impl MyHash for OpKey {
+    fn hash(&self) -> u64 {
+        match self {
+            OpKey::Ite(f, g, h) => pairing3(
+                f.unsigned() as u64,
+                g.unsigned() as u64,
+                h.unsigned() as u64,
+            ),
+            OpKey::Constrain(f, g) => pairing2(f.unsigned() as u64, g.unsigned() as u64),
+        }
+    }
+}
+
 pub struct Bdd {
     storage: RefCell<Storage>,
-    ite_cache: RefCell<Cache<(Ref, Ref, Ref), Ref>>,
-    constrain_cache: RefCell<Cache<(Ref, Ref), Ref>>,
+    cache: RefCell<Cache<OpKey, Ref>>,
     pub zero: Ref,
     pub one: Ref,
 }
@@ -78,8 +96,7 @@ impl Bdd {
 
         Self {
             storage: RefCell::new(storage),
-            ite_cache: RefCell::new(Cache::new(cache_bits)),
-            constrain_cache: RefCell::new(Cache::new(cache_bits)),
+            cache: RefCell::new(Cache::new(cache_bits)),
             zero,
             one,
         }
@@ -362,14 +379,16 @@ impl Bdd {
         }
         assert!(!g.is_negated());
 
-        let (f, g, h) = (f, g, h);
+        let (f, g, h) = (f, g, h); // make immutable
 
-        if let Some(&res) = self.ite_cache.borrow().get(&(f, g, h)) {
-            let res = if n { -res } else { res };
+        let key = OpKey::Ite(f, g, h);
+        debug!("key = {:?}", key);
+        if let Some(&res) = self.cache.borrow().get(&key) {
             debug!(
                 "cache: apply_ite(f = {}, g = {}, h = {}) -> {}",
                 f, g, h, res
             );
+            let res = if n { -res } else { res };
             return res;
         }
 
@@ -396,13 +415,13 @@ impl Bdd {
         debug!("cofactors of res: e = {}, t = {}", e, t);
 
         let res = self.mk_node(m, e, t);
-        self.ite_cache.borrow_mut().insert((f, g, h), res);
-
-        let res = if n { -res } else { res };
         debug!(
             "computed: apply_ite(f = {}, g = {}, h = {}) -> {}",
             f, g, h, res
         );
+        self.cache.borrow_mut().insert(key, res);
+
+        let res = if n { -res } else { res };
         res
     }
 
@@ -483,7 +502,8 @@ impl Bdd {
             return self.zero;
         }
 
-        if let Some(&res) = self.constrain_cache.borrow().get(&(f, g)) {
+        let key = OpKey::Constrain(f, g);
+        if let Some(&res) = self.cache.borrow().get(&key) {
             debug!("cache: constrain(f = {}, c = {}) -> {}", f, g, res);
             return res;
         }
@@ -519,7 +539,7 @@ impl Bdd {
         let res = self.mk_node(v, low, high);
         debug!("computed: constrain(f = {}, c = {}) -> {}", f, g, res);
 
-        self.constrain_cache.borrow_mut().insert((f, g), res);
+        self.cache.borrow_mut().insert(key, res);
         res
     }
 
@@ -549,6 +569,8 @@ impl Bdd {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use test_log::test;
 
     #[test]
     fn test_var() {
@@ -758,5 +780,26 @@ mod tests {
         // f|g == h
         let fg = bdd.constrain(f, g);
         assert_eq!(fg, h);
+    }
+
+    #[test]
+    fn test_negation_in_ite_cache() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        println!("x1 = {}", bdd.to_bracket_string(x1));
+        let x2 = bdd.mk_var(2);
+        println!("x2 = {}", bdd.to_bracket_string(x2));
+
+        let f = bdd.apply_xor(x1, x2);
+        println!("f = {}", bdd.to_bracket_string(f));
+        let g = bdd.apply_xor(x1, x2);
+        println!("g = {}", bdd.to_bracket_string(g));
+
+        let f = bdd.apply_xor(x1, -x2);
+        println!("f = {}", bdd.to_bracket_string(f));
+        let g = bdd.apply_xor(x1, -x2);
+        println!("g = {}", bdd.to_bracket_string(g));
+        assert_eq!(f, g);
     }
 }
