@@ -658,6 +658,22 @@ mod tests {
     }
 
     #[test]
+    fn test_xor_0() {
+        let bdd = Bdd::default();
+        let x = bdd.mk_var(1);
+        let f = bdd.apply_xor(x, x);
+        assert_eq!(f, bdd.zero);
+    }
+
+    #[test]
+    fn test_xor_1() {
+        let bdd = Bdd::default();
+        let x = bdd.mk_var(1);
+        let f = bdd.apply_xor(x, -x);
+        assert_eq!(f, bdd.one);
+    }
+
+    #[test]
     fn test_apply_ite() {
         let bdd = Bdd::default();
 
