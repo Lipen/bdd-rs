@@ -634,6 +634,30 @@ mod tests {
     }
 
     #[test]
+    fn test_de_morgan_and() {
+        let bdd = Bdd::default();
+
+        let x = bdd.mk_var(1);
+        let y = bdd.mk_var(2);
+
+        let f = -bdd.apply_and(x, y);
+        let g = bdd.apply_or(-x, -y);
+        assert_eq!(f, g);
+    }
+
+    #[test]
+    fn test_de_morgan_or() {
+        let bdd = Bdd::default();
+
+        let x = bdd.mk_var(1);
+        let y = bdd.mk_var(2);
+
+        let f = -bdd.apply_or(x, y);
+        let g = bdd.apply_and(-x, -y);
+        assert_eq!(f, g);
+    }
+
+    #[test]
     fn test_apply_ite() {
         let bdd = Bdd::default();
 
