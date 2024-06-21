@@ -688,8 +688,8 @@ mod tests {
             let x2 = self.mk_var(2);
             let x3 = self.mk_var(3);
 
-            let t = self.apply_and(x1, x2);
-            let f = self.apply_or(t, x3);
+            // x1 ∨ (x2 ∧ x3)
+            let f = self.apply_or(self.apply_and(x1, x2), x3);
 
             f
         }
