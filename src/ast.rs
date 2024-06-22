@@ -214,8 +214,7 @@ pub trait FMapRef<A> {
     where
         Self: 'a;
 
-    //noinspection RsNeedlessLifetimes
-    fn fmap_ref<'a, B, F>(&'a self, f: F) -> Self::Output<'a, B>
+    fn fmap_ref<B, F>(&self, f: F) -> Self::Output<'_, B>
     where
         F: FnMut(&A) -> B;
 }
@@ -252,8 +251,7 @@ impl<T, A> FMapRef<A> for MyExpr<T, A> {
         T: 'a,
         A: 'a;
 
-    //noinspection RsNeedlessLifetimes
-    fn fmap_ref<'a, B, F>(&'a self, mut f: F) -> Self::Output<'a, B>
+    fn fmap_ref<B, F>(&self, mut f: F) -> Self::Output<'_, B>
     where
         F: FnMut(&A) -> B,
     {
