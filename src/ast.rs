@@ -220,13 +220,15 @@ pub trait FMapRef<A> {
         F: FnMut(&A) -> B;
 }
 
-pub trait GenericExpr<A>: FMapRef<A> {
+pub trait GenericExpr<A>: FMap<A> + FMapRef<A> {
     type Term;
 }
 
+#[derive(Debug)]
 pub enum MyExpr<T, A = Idx> {
     Term(T),
     And(A, A),
+    Or(A, A),
 }
 
 impl<T, A> FMap<A> for MyExpr<T, A> {
@@ -239,6 +241,7 @@ impl<T, A> FMap<A> for MyExpr<T, A> {
         match self {
             MyExpr::Term(t) => MyExpr::Term(t),
             MyExpr::And(a, b) => MyExpr::And(f(a), f(b)),
+            MyExpr::Or(a, b) => MyExpr::Or(f(a), f(b)),
         }
     }
 }
@@ -257,6 +260,7 @@ impl<T, A> FMapRef<A> for MyExpr<T, A> {
         match self {
             MyExpr::Term(t) => MyExpr::<&T, B>::Term(t),
             MyExpr::And(a, b) => MyExpr::And(f(a), f(b)),
+            MyExpr::Or(a, b) => MyExpr::Or(f(a), f(b)),
         }
     }
 }
@@ -274,9 +278,85 @@ impl<E> GenericExprArena<E>
 where
     E: GenericExpr<Idx>,
 {
+    fn expand_exprs<R, X, F>(seed: R, expand: F) -> Self
+    where
+        R: Clone,
+        X: FMap<R, Output<Idx> = E>,
+        F: Fn(R) -> X,
+    {
+        let mut frontier: VecDeque<R> = VecDeque::from([seed]);
+        let mut exprs: Vec<E> = vec![];
+
+        while let Some(seed) = frontier.pop_front() {
+            let expr = expand(seed);
+            let expr = expr.fmap(|e| {
+                frontier.push_back(e.clone());
+                Idx(exprs.len() + frontier.len())
+            });
+            exprs.push(expr);
+        }
+
+        Self { exprs }
+    }
+}
+
+impl<T> GenericExprArena<MyExpr<T>> {
+    pub fn from_boxed(aes: ExprBoxed<T>) -> Self
+    where
+        T: Clone,
+    {
+        Self::expand_exprs(aes, |seed| match seed {
+            ExprBoxed::Term(term) => MyExpr::Term(term),
+            // ExprBoxed::Not(a) => MyExpr::Not(a),
+            ExprBoxed::And(a, b) => MyExpr::And(*a, *b),
+            ExprBoxed::Or(a, b) => MyExpr::Or(*a, *b),
+            // ExprBoxed::Xor(a, b) => MyExpr::Xor(a, b),
+            // ExprBoxed::Ite(a, b, c) => MyExpr::Ite(a, b, c),
+            _ => todo!(),
+        })
+    }
+
+    pub fn from_boxed_ref(ast: &ExprBoxed<T>) -> Self
+    where
+        T: Clone,
+    {
+        Self::expand_exprs(ast, |seed| match seed {
+            ExprBoxed::Term(term) => MyExpr::Term(term.clone()),
+            // ExprBoxed::Not(a) => MyExpr::Not(a),
+            ExprBoxed::And(a, b) => MyExpr::And(&**a, &**b),
+            ExprBoxed::Or(a, b) => MyExpr::Or(&**a, &**b),
+            // ExprBoxed::Xor(a, b) => MyExpr::Xor(a, b),
+            // ExprBoxed::Ite(a, b, c) => MyExpr::Ite(a, b, c),
+            _ => todo!(),
+        })
+    }
+}
+
+impl<T> From<ExprBoxed<T>> for GenericExprArena<MyExpr<T>>
+where
+    T: Clone,
+{
+    fn from(value: ExprBoxed<T>) -> Self {
+        Self::from_boxed(value)
+    }
+}
+
+impl<T> From<&ExprBoxed<T>> for GenericExprArena<MyExpr<T>>
+where
+    T: Clone,
+{
+    fn from(value: &ExprBoxed<T>) -> Self {
+        Self::from_boxed_ref(value)
+    }
+}
+
+impl<E> GenericExprArena<E>
+where
+    E: GenericExpr<Idx>,
+{
     fn collapse_exprs<'a, B, F>(&'a self, mut collapse: F) -> B
     where
-        F: FnMut(E::Output<'a, B>) -> B,
+        F: FnMut(<E as FMapRef<Idx>>::Output<'a, B>) -> B,
     {
         let mut results: Vec<Option<B>> = std::iter::repeat_with(|| None)
             .take(self.exprs.len())
@@ -296,11 +376,26 @@ impl<T> GenericExprArena<MyExpr<T>> {
     pub fn eval(&self) -> T
     where
         T: Clone,
+        T: Mul<Output = T>,
         T: Add<Output = T>,
     {
         self.collapse_exprs(|expr| match expr {
             MyExpr::Term(term) => term.clone(),
-            MyExpr::And(a, b) => a + b,
+            MyExpr::And(a, b) => a * b,
+            MyExpr::Or(a, b) => a + b,
+        })
+    }
+}
+
+impl<T> GenericExprArena<MyExpr<T>> {
+    pub fn to_boxed(&self) -> ExprBoxed<T>
+    where
+        T: Clone,
+    {
+        self.collapse_exprs(|expr| match expr {
+            MyExpr::Term(term) => ExprBoxed::term(term.clone()),
+            MyExpr::And(a, b) => ExprBoxed::and(a, b),
+            MyExpr::Or(a, b) => ExprBoxed::or(a, b),
         })
     }
 }
@@ -310,7 +405,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test() {
+    fn test_expr() {
         let expr_boxed = ExprBoxed::and(
             ExprBoxed::term(4),
             ExprBoxed::or(ExprBoxed::term(2), ExprBoxed::Term(3)),
@@ -324,6 +419,26 @@ mod tests {
         println!("eval = {}", arena.eval());
         println!("eval = {}", arena.eval());
         println!("eval = {}", arena.eval());
+        assert_eq!(arena.eval(), 4 * (2 + 3));
+        println!("boxed = {:?}", arena.to_boxed());
+    }
+
+    #[test]
+    fn test_generic_expr() {
+        let expr_boxed = ExprBoxed::and(
+            ExprBoxed::term(4),
+            ExprBoxed::or(ExprBoxed::term(2), ExprBoxed::Term(3)),
+        );
+        println!("expr_boxed = {:?}", expr_boxed);
+        let arena = GenericExprArena::from_boxed_ref(&expr_boxed);
+        println!("arena = {:?}", arena);
+        for expr in arena.exprs.iter() {
+            println!("- {:?}", expr);
+        }
+        println!("eval = {}", arena.eval());
+        println!("eval = {}", arena.eval());
+        println!("eval = {}", arena.eval());
+        assert_eq!(arena.eval(), 4 * (2 + 3));
         println!("boxed = {:?}", arena.to_boxed());
     }
 }
