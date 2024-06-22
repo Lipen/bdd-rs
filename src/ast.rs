@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::fmt::Display;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Mul, Neg};
 
 #[derive(Debug, Clone)]
@@ -38,6 +39,25 @@ impl<T> ExprBoxed<T> {
 
     pub fn ite(cond: Self, then: Self, else_: Self) -> Self {
         ExprBoxed::Ite(Box::new(cond), Box::new(then), Box::new(else_))
+    }
+
+    pub fn to_string(&self) -> String
+    where
+        T: Display,
+    {
+        match self {
+            ExprBoxed::Term(term) => format!("{}", term),
+            ExprBoxed::Not(a) => format!("~{}", a.to_string()),
+            ExprBoxed::And(a, b) => format!("({} & {})", a.to_string(), b.to_string()),
+            ExprBoxed::Or(a, b) => format!("({} | {})", a.to_string(), b.to_string()),
+            ExprBoxed::Xor(a, b) => format!("({} ^ {})", a.to_string(), b.to_string()),
+            ExprBoxed::Ite(a, b, c) => format!(
+                "({} ? {} : {})",
+                a.to_string(),
+                b.to_string(),
+                c.to_string()
+            ),
+        }
     }
 }
 
@@ -216,14 +236,32 @@ impl<T> Arena<Expr<T>> {
     pub fn eval(&self) -> T
     where
         T: Clone,
+        T: Neg<Output = T>,
         T: Mul<Output = T>,
         T: Add<Output = T>,
     {
-        self.collapse_exprs(|expr| match expr {
+        self.collapse_exprs(|expr: Expr<&T, T>| match expr {
             Expr::Term(term) => term.clone(),
+            Expr::Not(a) => -a,
             Expr::And(a, b) => a * b,
             Expr::Or(a, b) => a + b,
             _ => todo!(),
+        })
+    }
+}
+
+impl<T> Arena<Expr<T>> {
+    pub fn to_string(&self) -> String
+    where
+        T: Display,
+    {
+        self.collapse_exprs(|expr| match expr {
+            Expr::Term(term) => format!("{}", term),
+            Expr::Not(a) => format!("~{}", a),
+            Expr::And(a, b) => format!("({} & {})", a, b),
+            Expr::Or(a, b) => format!("({} | {})", a, b),
+            Expr::Xor(a, b) => format!("({} ^ {})", a, b),
+            Expr::Ite(a, b, c) => format!("({} ? {} : {})", a, b, c),
         })
     }
 }
@@ -236,16 +274,18 @@ mod tests {
     fn test_expr() {
         let expr_boxed = ExprBoxed::and(
             ExprBoxed::term(4),
-            ExprBoxed::or(ExprBoxed::term(2), ExprBoxed::Term(3)),
+            ExprBoxed::not(ExprBoxed::or(ExprBoxed::term(2), ExprBoxed::Term(3))),
         );
         println!("expr_boxed = {:?}", expr_boxed);
+        println!("expr_boxed = {}", expr_boxed.to_string());
         let arena = Arena::from_boxed(&expr_boxed);
         println!("arena = {:?}", arena);
+        println!("arena = {}", arena.to_string());
         for expr in arena.exprs.iter() {
             println!("- {:?}", expr);
         }
         println!("eval = {}", arena.eval());
-        assert_eq!(arena.eval(), 4 * (2 + 3));
+        assert_eq!(arena.eval(), 4 * -(2 + 3));
         println!("boxed = {:?}", arena.to_boxed());
     }
 
@@ -253,16 +293,18 @@ mod tests {
     fn test_generic() {
         let expr_boxed = ExprBoxed::and(
             ExprBoxed::term(4),
-            ExprBoxed::or(ExprBoxed::term(2), ExprBoxed::Term(3)),
+            ExprBoxed::not(ExprBoxed::or(ExprBoxed::term(2), ExprBoxed::Term(3))),
         );
         println!("expr_boxed = {:?}", expr_boxed);
+        println!("expr_boxed = {}", expr_boxed.to_string());
         let arena = Arena::from_boxed(&expr_boxed);
         println!("arena = {:?}", arena);
+        println!("arena = {}", arena.to_string());
         for expr in arena.exprs.iter() {
             println!("- {:?}", expr);
         }
         println!("eval = {}", arena.eval());
-        assert_eq!(arena.eval(), 4 * (2 + 3));
+        assert_eq!(arena.eval(), 4 * -(2 + 3));
         println!("boxed = {:?}", arena.to_boxed());
     }
 }
