@@ -201,6 +201,110 @@ impl<T> ExprArena<T> {
     }
 }
 
+pub trait FMap<A> {
+    type Output<B>;
+
+    fn fmap<B, F>(self, f: F) -> Self::Output<B>
+    where
+        F: FnMut(A) -> B;
+}
+
+pub trait FMapRef<A> {
+    type Output<'a, B>
+    where
+        Self: 'a;
+
+    //noinspection RsNeedlessLifetimes
+    fn fmap_ref<'a, B, F>(&'a self, f: F) -> Self::Output<'a, B>
+    where
+        F: FnMut(&A) -> B;
+}
+
+pub trait GenericExpr<A>: FMapRef<A> {
+    type Term;
+}
+
+pub enum MyExpr<T, A = Idx> {
+    Term(T),
+    And(A, A),
+}
+
+impl<T, A> FMap<A> for MyExpr<T, A> {
+    type Output<B> = MyExpr<T, B>;
+
+    fn fmap<B, F>(self, mut f: F) -> Self::Output<B>
+    where
+        F: FnMut(A) -> B,
+    {
+        match self {
+            MyExpr::Term(t) => MyExpr::Term(t),
+            MyExpr::And(a, b) => MyExpr::And(f(a), f(b)),
+        }
+    }
+}
+
+impl<T, A> FMapRef<A> for MyExpr<T, A> {
+    type Output<'a, B> = MyExpr<&'a T, B>
+    where
+        T: 'a,
+        A: 'a;
+
+    //noinspection RsNeedlessLifetimes
+    fn fmap_ref<'a, B, F>(&'a self, mut f: F) -> Self::Output<'a, B>
+    where
+        F: FnMut(&A) -> B,
+    {
+        match self {
+            MyExpr::Term(t) => MyExpr::<&T, B>::Term(t),
+            MyExpr::And(a, b) => MyExpr::And(f(a), f(b)),
+        }
+    }
+}
+
+impl<T, A> GenericExpr<A> for MyExpr<T, A> {
+    type Term = T;
+}
+
+#[derive(Debug)]
+pub struct GenericExprArena<E> {
+    exprs: Vec<E>,
+}
+
+impl<E> GenericExprArena<E>
+where
+    E: GenericExpr<Idx>,
+{
+    fn collapse_exprs<'a, B, F>(&'a self, mut collapse: F) -> B
+    where
+        F: FnMut(E::Output<'a, B>) -> B,
+    {
+        let mut results: Vec<Option<B>> = std::iter::repeat_with(|| None)
+            .take(self.exprs.len())
+            .collect();
+
+        for (i, expr) in self.exprs.iter().enumerate().rev() {
+            let expr = expr.fmap_ref(|idx| results[idx.0].take().unwrap());
+            let result = collapse(expr);
+            results[i] = Some(result);
+        }
+
+        results.into_iter().next().unwrap().unwrap()
+    }
+}
+
+impl<T> GenericExprArena<MyExpr<T>> {
+    pub fn eval(&self) -> T
+    where
+        T: Clone,
+        T: Add<Output = T>,
+    {
+        self.collapse_exprs(|expr| match expr {
+            MyExpr::Term(term) => term.clone(),
+            MyExpr::And(a, b) => a + b,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
