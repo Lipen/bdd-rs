@@ -280,7 +280,6 @@ where
 {
     fn expand_exprs<R, X, F>(seed: R, expand: F) -> Self
     where
-        R: Clone,
         X: FMap<R, Output<Idx> = E>,
         F: Fn(R) -> X,
     {
@@ -290,7 +289,7 @@ where
         while let Some(seed) = frontier.pop_front() {
             let expr = expand(seed);
             let expr = expr.fmap(|e| {
-                frontier.push_back(e.clone());
+                frontier.push_back(e);
                 Idx(exprs.len() + frontier.len())
             });
             exprs.push(expr);
@@ -301,11 +300,8 @@ where
 }
 
 impl<T> GenericExprArena<MyExpr<T>> {
-    pub fn from_boxed(aes: ExprBoxed<T>) -> Self
-    where
-        T: Clone,
-    {
-        Self::expand_exprs(aes, |seed| match seed {
+    pub fn from_boxed(ast: ExprBoxed<T>) -> Self {
+        Self::expand_exprs(ast, |seed| match seed {
             ExprBoxed::Term(term) => MyExpr::Term(term),
             // ExprBoxed::Not(a) => MyExpr::Not(a),
             ExprBoxed::And(a, b) => MyExpr::And(*a, *b),
@@ -332,10 +328,7 @@ impl<T> GenericExprArena<MyExpr<T>> {
     }
 }
 
-impl<T> From<ExprBoxed<T>> for GenericExprArena<MyExpr<T>>
-where
-    T: Clone,
-{
+impl<T> From<ExprBoxed<T>> for GenericExprArena<MyExpr<T>> {
     fn from(value: ExprBoxed<T>) -> Self {
         Self::from_boxed(value)
     }
