@@ -1,3 +1,4 @@
+pub mod ast;
 pub mod bdd;
 pub mod cache;
 pub mod eval;
