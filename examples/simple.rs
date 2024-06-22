@@ -10,6 +10,8 @@ fn main() -> color_eyre::Result<()> {
         simplelog::ColorChoice::Auto,
     )?;
 
+    let time_total = std::time::Instant::now();
+
     let bdd = Bdd::default();
     println!("bdd = {:?}", bdd);
 
@@ -31,6 +33,9 @@ fn main() -> color_eyre::Result<()> {
     println!("h = {}", bdd.to_bracket_string(h));
     let t = bdd.eval(x1 + x2 * x3);
     println!("t = {}", bdd.to_bracket_string(t));
+
+    let time_total = time_total.elapsed();
+    println!("Done in {:.3} s", time_total.as_secs_f64());
 
     Ok(())
 }

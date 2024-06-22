@@ -11,6 +11,8 @@ fn main() -> color_eyre::Result<()> {
         simplelog::ColorChoice::Auto,
     )?;
 
+    let time_total = std::time::Instant::now();
+
     // Note: 20 bits (default) are enough to encode at most n=8 queens.
     let bdd = Bdd::default();
     println!("bdd = {:?}", bdd);
@@ -91,6 +93,9 @@ fn main() -> color_eyre::Result<()> {
         bdd.size(res),
         bdd.to_bracket_string(res)
     );
+
+    let time_total = time_total.elapsed();
+    println!("Done in {:.3} s", time_total.as_secs_f64());
 
     Ok(())
 }
