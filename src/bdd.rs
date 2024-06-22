@@ -86,7 +86,7 @@ impl Bdd {
             "Storage bits should be in the range 0..=31"
         );
 
-        let cache_bits = min(storage_bits, 20);
+        let cache_bits = min(storage_bits, 16);
 
         let mut storage = Storage::new(storage_bits);
 
