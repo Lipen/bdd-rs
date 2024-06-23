@@ -48,7 +48,6 @@ fn main() -> color_eyre::Result<()> {
                     } else if literal.variable() <= header.i as u32 {
                         Signal::from_input(literal.variable() - 1)
                     } else {
-                        // Signal::from_var(literal.variable() - header.i as u32 - 1)
                         Signal::from_var(literal.variable() - 1)
                     };
                     if literal.is_negated() {
