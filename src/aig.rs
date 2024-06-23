@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::{BufRead, BufReader, Lines, Read};
 use std::str::FromStr;
@@ -213,6 +214,22 @@ pub enum AigerError {
     InvalidSymbol,
     IoError,
 }
+
+impl Display for AigerError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AigerError::InvalidHeader => write!(f, "Invalid header"),
+            AigerError::InvalidLiteral => write!(f, "Invalid literal"),
+            AigerError::LiteralOutOfRange => write!(f, "Literal out of range"),
+            AigerError::InvalidLiteralCount => write!(f, "Invalid literal count"),
+            AigerError::InvalidInverted => write!(f, "Invalid inverted literal"),
+            AigerError::InvalidSymbol => write!(f, "Invalid symbol"),
+            AigerError::IoError => write!(f, "I/O error"),
+        }
+    }
+}
+
+impl std::error::Error for AigerError {}
 
 impl From<io::Error> for AigerError {
     fn from(_error: io::Error) -> Self {
