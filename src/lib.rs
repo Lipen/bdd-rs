@@ -1,3 +1,4 @@
+pub mod aig;
 pub mod ast;
 pub mod bdd;
 pub mod cache;
