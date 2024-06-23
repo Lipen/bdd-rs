@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::fmt::Display;
-use std::ops::{Add, BitAnd, BitOr, BitXor, Mul, Neg};
+use std::ops::{Add, Mul, Neg};
 
 #[derive(Debug, Clone)]
 pub enum ExprBoxed<T> {
