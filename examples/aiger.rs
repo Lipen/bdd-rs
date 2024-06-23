@@ -152,8 +152,11 @@ fn encode_signal(bdd: &Bdd, signal: Signal, network: &Network) -> Ref {
                     TernaryType::And => bdd.apply_and(bdd.apply_and(a, b), c),
                     TernaryType::Xor => bdd.apply_xor(bdd.apply_xor(a, b), c),
                     TernaryType::Maj => {
-                        // bdd.apply_maj(a, b, c)
-                        todo!()
+                        // TODO: bdd.apply_maj(a, b, c)
+                        let ab = bdd.apply_and(a, b);
+                        let bc = bdd.apply_and(b, c);
+                        let ac = bdd.apply_and(a, c);
+                        bdd.apply_or(bdd.apply_or(ab, bc), ac)
                     }
                     TernaryType::Ite => bdd.apply_ite(a, b, c),
                 }
