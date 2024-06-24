@@ -75,7 +75,7 @@ impl Bdd {
         // Roots
         writeln!(dot, "{{ rank=source")?;
         for (i, root) in roots.iter().enumerate() {
-            writeln!(dot, "r{} [shape=square, label=\"{}\"];", i, root)?;
+            writeln!(dot, "r{} [shape=rect, label=\"{}\"];", i, root)?;
         }
         writeln!(dot, "}}")?;
 
