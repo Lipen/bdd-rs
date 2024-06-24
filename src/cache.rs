@@ -10,8 +10,9 @@ struct Entry<K, V> {
 pub struct Cache<K, T> {
     data: Vec<Option<Entry<K, T>>>,
     bitmask: u64,
-    hits: Cell<usize>,
-    misses: Cell<usize>,
+    hits: Cell<usize>, // successful lookups
+    faults : Cell<usize>, // unsuccessful lookups
+    misses: Cell<usize>, // total misses, including unsuccessful lookups
 }
 
 impl<K, V> Cache<K, V> {
@@ -27,6 +28,7 @@ impl<K, V> Cache<K, V> {
             data: std::iter::repeat_with(|| None).take(size).collect(),
             bitmask,
             hits: Cell::new(0),
+            faults: Cell::new(0),
             misses: Cell::new(0),
         }
     }
@@ -34,6 +36,10 @@ impl<K, V> Cache<K, V> {
     /// Get the number of cache hits.
     pub fn hits(&self) -> usize {
         self.hits.get()
+    }
+    /// Get the number of cache faults.
+    pub fn faults(&self) -> usize {
+        self.faults.get()
     }
     /// Get the number of cache misses.
     pub fn misses(&self) -> usize {
@@ -61,9 +67,15 @@ where
     {
         let index = self.index(key);
         match &self.data[index] {
-            Some(entry) if &entry.key == key => {
-                self.hits.set(self.hits.get() + 1);
-                Some(&entry.value)
+            Some(entry) => {
+                if &entry.key == key {
+                    self.hits.set(self.hits.get() + 1);
+                    Some(&entry.value)
+                } else {
+                    self.faults.set(self.faults.get() + 1);
+                    self.misses.set(self.misses.get() + 1);
+                    None
+                }
             }
             _ => {
                 self.misses.set(self.misses.get() + 1);
