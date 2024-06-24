@@ -53,7 +53,7 @@ impl Storage {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-enum OpKey {
+pub enum OpKey {
     Ite(Ref, Ref, Ref),
     Constrain(Ref, Ref),
 }
@@ -124,6 +124,10 @@ impl Debug for Bdd {
 }
 
 impl Bdd {
+    pub fn cache(&self) -> std::cell::Ref<'_, Cache<OpKey, Ref>> {
+        self.cache.borrow()
+    }
+
     pub fn variable(&self, index: u32) -> u32 {
         self.storage.borrow().variable(index as usize)
     }
