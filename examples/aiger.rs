@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::path::Path;
 
 use bdd_rs::aig::{Literal, Reader, Record};
 use bdd_rs::bdd::Bdd;
@@ -23,11 +24,11 @@ fn main() -> color_eyre::Result<()> {
     println!("bdd = {:?}", bdd);
 
     let pattern = "data/aag/**/*.aag";
-    println!("pattern = {:?}", pattern);
-    for file in glob::glob(pattern)?.filter_map(|r| r.ok()) {
+    println!("glob pattern = {:?}", pattern);
+    for path in glob::glob(pattern)?.filter_map(|r| r.ok()) {
         println!("----------------------------------");
-        println!("file: {}", file.display());
-        let file = File::open(file)?;
+        println!("path: {}", path.display());
+        let file = File::open(&path)?;
         match Reader::from_reader(file) {
             Ok(reader) => {
                 let header = reader.header().clone();
@@ -90,12 +91,20 @@ fn main() -> color_eyre::Result<()> {
                 println!("outputs: {}", outputs.len());
                 for &output in outputs.iter() {
                     println!(
-                        "- {} of size {} = {}",
+                        "- {} of size {}",
                         output,
                         bdd.size(output),
-                        bdd.to_bracket_string(output)
+                        // bdd.to_bracket_string(output)
                     );
                 }
+
+                let dot = bdd.to_dot(&outputs)?;
+                let dot_file = Path::new("data/dot")
+                    .join(path.file_name().unwrap())
+                    .with_extension("dot");
+                std::fs::create_dir_all(dot_file.parent().unwrap())?;
+                println!("DOT in {:?}", dot_file);
+                std::fs::write(&dot_file, dot)?;
             }
             Err(e) => println!("error: {:?}", e),
         }
@@ -117,15 +126,12 @@ fn encode_network(bdd: &Bdd, network: &Network) -> Vec<Ref> {
 }
 
 fn encode_signal(bdd: &Bdd, signal: Signal, network: &Network) -> Ref {
-    if signal.is_const() {
-        if signal.is_negated() {
-            bdd.one
-        } else {
-            bdd.zero
-        }
+    let res = if signal.is_const() {
+        bdd.zero
     } else if signal.is_input() {
         bdd.mk_var(signal.input() + 1)
     } else {
+        assert!(signal.is_var());
         if network.gate(signal.var()).is_none() {
             println!(
                 "no gate for signal = {}, signal.var() = {}",
@@ -190,5 +196,10 @@ fn encode_signal(bdd: &Bdd, signal: Signal, network: &Network) -> Ref {
                 NaryType::Xnor => todo!(),
             },
         }
+    };
+    if signal.is_negated() {
+        -res
+    } else {
+        res
     }
 }
