@@ -108,6 +108,10 @@ fn main() -> color_eyre::Result<()> {
             }
             Err(e) => println!("error: {:?}", e),
         }
+        println!("bdd = {:?}", bdd);
+        println!("bdd.cache_hits = {}", bdd.cache().hits());
+        println!("bdd.cache_faults = {}", bdd.cache().faults());
+        println!("bdd.cache_misses = {}", bdd.cache().misses());
     }
 
     let time_total = time_total.elapsed();
