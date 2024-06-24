@@ -23,6 +23,9 @@ fn main() -> color_eyre::Result<()> {
     let bdd = Bdd::default();
     println!("bdd = {:?}", bdd);
 
+    let dump_pdf = false;
+    let mut handles = Vec::new();
+
     let pattern = "data/aag/**/*.aag";
     println!("glob pattern = {:?}", pattern);
     for path in glob::glob(pattern)?.filter_map(|r| r.ok()) {
@@ -105,6 +108,22 @@ fn main() -> color_eyre::Result<()> {
                 std::fs::create_dir_all(dot_file.parent().unwrap())?;
                 println!("DOT in {:?}", dot_file);
                 std::fs::write(&dot_file, dot)?;
+
+                if dump_pdf {
+                    let pdf_file = Path::new("data/pdf")
+                        .join(path.file_name().unwrap())
+                        .with_extension("pdf");
+                    std::fs::create_dir_all(pdf_file.parent().unwrap())?;
+                    let handle = std::process::Command::new("dot")
+                        .arg(dot_file)
+                        .arg("-Tpdf")
+                        .arg("-o")
+                        .arg(&pdf_file)
+                        .stdout(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::piped())
+                        .spawn()?;
+                    handles.push((path, handle));
+                }
             }
             Err(e) => println!("error: {:?}", e),
         }
@@ -112,6 +131,18 @@ fn main() -> color_eyre::Result<()> {
         println!("bdd.cache_hits = {}", bdd.cache().hits());
         println!("bdd.cache_faults = {}", bdd.cache().faults());
         println!("bdd.cache_misses = {}", bdd.cache().misses());
+    }
+
+    for (path, handle) in handles {
+        println!("Waiting for {:?}...", path.display());
+        let output = handle.wait_with_output()?;
+        println!("status: {:?}", output.status);
+        println!("stdout:");
+        let stdout = String::from_utf8(output.stdout)?;
+        println!("{}", stdout);
+        println!("stderr:");
+        let stderr = String::from_utf8(output.stderr)?;
+        println!("{}", stderr);
     }
 
     let time_total = time_total.elapsed();
