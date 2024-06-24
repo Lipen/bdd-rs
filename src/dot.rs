@@ -1,8 +1,8 @@
+use std::collections::BTreeMap;
+use std::fmt::Write;
+
 use crate::bdd::Bdd;
 use crate::reference::Ref;
-use std::collections::{BTreeMap, HashMap};
-
-use std::fmt::Write;
 
 impl Bdd {
     pub fn to_dot(&self, roots: &[Ref]) -> color_eyre::Result<String> {
