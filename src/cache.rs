@@ -10,8 +10,8 @@ struct Entry<K, V> {
 pub struct Cache<K, T> {
     data: Vec<Option<Entry<K, T>>>,
     bitmask: u64,
-    hits: Cell<usize>, // successful lookups
-    faults : Cell<usize>, // unsuccessful lookups
+    hits: Cell<usize>,   // successful lookups
+    faults: Cell<usize>, // unsuccessful lookups
     misses: Cell<usize>, // total misses, including unsuccessful lookups
 }
 
