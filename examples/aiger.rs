@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::path::Path;
 
-use bdd_rs::aig::{Literal, Reader, Record};
+use bdd_rs::aiger::{Literal, Reader, Record};
 use bdd_rs::bdd::Bdd;
 use bdd_rs::gate::{BinaryType, Gate, NaryType, TernaryType};
 use bdd_rs::network::Network;

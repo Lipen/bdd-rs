@@ -1,4 +1,4 @@
-pub mod aig;
+pub mod aiger;
 pub mod ast;
 pub mod bdd;
 pub mod cache;
