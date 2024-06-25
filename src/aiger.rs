@@ -21,7 +21,7 @@ impl Literal {
     }
 
     pub const fn is_negated(&self) -> bool {
-        (self.0 & 1) == 1
+        self.0 & 1 != 0
     }
 }
 
