@@ -55,7 +55,7 @@ impl Bdd {
             }
             let high = self.high(id);
             assert!(!high.is_negated());
-            writeln!(dot, "{} -- {} [];", id, high.index())?;
+            writeln!(dot, "{} -- {};", id, high.index())?;
 
             let low = self.low(id);
             if low.is_negated() {
