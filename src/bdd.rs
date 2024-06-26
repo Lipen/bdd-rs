@@ -466,6 +466,102 @@ impl Bdd {
         res
     }
 
+    // f|v<-b
+    pub fn restrict(&self, f: Ref, v: u32, b: bool) -> Ref {
+        let mut cache = Cache::new(16);
+        self.restrict_(f, v, b, &mut cache)
+    }
+
+    fn restrict_(&self, f: Ref, v: u32, b: bool, cache: &mut Cache<Ref, Ref>) -> Ref {
+        assert_ne!(v, 0, "Variable index should not be zero");
+
+        if self.is_terminal(f) {
+            return f;
+        }
+
+        let i = self.variable(f.index());
+
+        if v < i {
+            // 'f' does not depend on 'v'
+            return f;
+        }
+
+        if v == i {
+            // Note: here, we do not need to wrap it with restrict(...).
+            return if b {
+                self.high_node(f)
+            } else {
+                self.low_node(f)
+            };
+        }
+
+        assert!(v > i);
+        let low = self.restrict_(self.low(f.index()), v, b, cache);
+        let high = self.restrict_(self.high(f.index()), v, b, cache);
+        let res = self.mk_node(i, low, high);
+        if f.is_negated() {
+            -res
+        } else {
+            res
+        }
+    }
+
+    // f|v<-g
+    pub fn compose(&self, f: Ref, v: u32, g: Ref) -> Ref {
+        let mut cache = Cache::new(16);
+        self.compose_(f, v, g, &mut cache)
+    }
+
+    fn compose_(&self, f: Ref, v: u32, g: Ref, cache: &mut Cache<(Ref, Ref), Ref>) -> Ref {
+        // TODO: compose(f, v, g) = ITE(g, restrict(f, v, true), restrict(f, v, false))
+
+        debug!("compose(f = {}, v = {}, g = {})", f, v, g);
+
+        if self.is_terminal(f) {
+            return f;
+        }
+
+        let i = self.variable(f.index());
+        assert_ne!(i, 0);
+        if v < i {
+            // 'f' does not depend on 'v'
+            return f;
+        }
+
+        let key = (f, g);
+        if let Some(&res) = cache.get(&key) {
+            return res;
+        }
+
+        let res = if v == i {
+            let index = f.index();
+            let res = self.apply_ite(g, self.high(index), self.low(index));
+            if f.is_negated() {
+                -res
+            } else {
+                res
+            }
+        } else {
+            assert!(v > i);
+
+            let m = if self.is_terminal(g) {
+                i
+            } else {
+                min(i, self.variable(g.index()))
+            };
+            assert_ne!(m, 0);
+
+            let (f0, f1) = self.top_cofactors(f, m);
+            let (g0, g1) = self.top_cofactors(g, m);
+            let h0 = self.compose_(f0, v, g0, cache);
+            let h1 = self.compose_(f1, v, g1, cache);
+
+            self.mk_node(m, h0, h1)
+        };
+        cache.insert(key, res);
+        res
+    }
+
     pub fn cofactor_cube(&self, f: Ref, cube: &[i32]) -> Ref {
         debug!("cofactor_cube(f = {}, cube = {:?})", f, cube);
 
@@ -898,5 +994,46 @@ mod tests {
         let g = bdd.apply_xor(x1, -x2);
         println!("g = {}", bdd.to_bracket_string(g));
         assert_eq!(f, g);
+    }
+
+    #[test]
+    fn test_restrict() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+
+        let f = bdd.apply_or(bdd.apply_eq(x1, x2), x3);
+        println!("f of size {} = {}", bdd.size(f), bdd.to_bracket_string(f));
+
+        let f_x2_zero = bdd.restrict(f, 2, false); // f|x2<-0
+        println!(
+            "f|x2<-0 of size {} = {}",
+            bdd.size(f_x2_zero),
+            bdd.to_bracket_string(f_x2_zero)
+        );
+
+        let g = bdd.apply_or(-x1, x3);
+        println!("g of size {} = {}", bdd.size(g), bdd.to_bracket_string(g));
+    }
+
+    #[test]
+    fn test_compose() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+
+        let f = bdd.apply_and(bdd.apply_eq(x1, x2), x3);
+        println!("f of size {} = {}", bdd.size(f), bdd.to_bracket_string(f));
+
+        let g = -bdd.apply_eq(x1, x2);
+        println!("g of size {} = {}", bdd.size(g), bdd.to_bracket_string(g));
+
+        let h = bdd.compose(f, bdd.variable(x3.index()), g);
+        println!("h of size {} = {}", bdd.size(h), bdd.to_bracket_string(h));
+        assert!(bdd.is_zero(h));
     }
 }
