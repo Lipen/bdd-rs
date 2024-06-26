@@ -457,6 +457,11 @@ impl Bdd {
         self.apply_ite(u, v, -v)
     }
 
+    pub fn apply_imply(&self, u: Ref, v: Ref) -> Ref {
+        debug!("apply_imply(u = {}, v = {})", u, v);
+        self.apply_ite(u, v, self.one)
+    }
+
     pub fn apply_and_many(&self, nodes: &[Ref]) -> Ref {
         debug!("apply_and_many(nodes = {:?})", nodes);
         let mut res = self.one;
