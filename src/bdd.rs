@@ -1016,6 +1016,8 @@ mod tests {
 
         let g = bdd.apply_or(-x1, x3);
         println!("g of size {} = {}", bdd.size(g), bdd.to_bracket_string(g));
+
+        assert_eq!(f_x2_zero, g);
     }
 
     #[test]
