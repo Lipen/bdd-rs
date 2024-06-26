@@ -362,7 +362,11 @@ mod tests {
 
     #[test]
     fn test_reader_single_input() {
-        let reader = make_reader(concat!("aag 1 1 0 0 0\n", "2\n",)).unwrap();
+        #[rustfmt::skip]
+        let reader = make_reader(concat!(
+        "aag 1 1 0 0 0\n",
+        "2\n",
+        )).unwrap();
 
         let header = reader.header();
         assert_eq!(header.m, 1);
@@ -378,8 +382,15 @@ mod tests {
 
     #[test]
     fn test_reader_and_gate() {
+        #[rustfmt::skip]
         let reader =
-            make_reader(concat!("aag 3 2 0 1 1\n", "2\n", "4\n", "6\n", "6 2 4\n",)).unwrap();
+            make_reader(concat!(
+            "aag 3 2 0 1 1\n",
+            "2\n",
+            "4\n",
+            "6\n",
+            "6 2 4\n",
+            )).unwrap();
 
         let header = reader.header();
         assert_eq!(header.m, 3);
@@ -404,8 +415,14 @@ mod tests {
 
     #[test]
     fn test_reader_or_gate() {
-        let reader =
-            make_reader(concat!("aag 3 2 0 1 1\n", "2\n", "4\n", "7\n", "6 3 5\n",)).unwrap();
+        #[rustfmt::skip]
+        let reader = make_reader(concat!(
+        "aag 3 2 0 1 1\n",
+        "2\n",
+        "4\n",
+        "7\n",
+        "6 3 5\n",
+        )).unwrap();
 
         let header = reader.header();
         assert_eq!(header.m, 3);
