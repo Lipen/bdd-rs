@@ -432,6 +432,133 @@ impl Bdd {
         res
     }
 
+    fn maybe_constant(&self, node: Ref) -> Option<bool> {
+        if self.is_zero(node) {
+            Some(false)
+        } else if self.is_one(node) {
+            Some(true)
+        } else {
+            None
+        }
+    }
+
+    pub fn ite_constant(&self, f: Ref, g: Ref, h: Ref) -> Option<bool> {
+        debug!("ite_constant(f = {}, g = {}, h = {})", f, g, h);
+
+        // TODO: "trivial" cases
+
+        // Base cases:
+        //   ite(1,G,H) => G
+        //   ite(0,G,H) => H
+        if self.is_one(f) {
+            debug!("ite(1,G,H) => G");
+            // return g;
+            return self.maybe_constant(g);
+        }
+        if self.is_zero(f) {
+            debug!("ite(0,G,H) => H");
+            // return h;
+            return self.maybe_constant(h);
+        }
+
+        // From now on, F is known not to be a constant
+        assert!(!self.is_terminal(f));
+
+        // More base cases:
+        //   ite(F,G,G) => G
+        //   ite(F,1,0) => F
+        //   ite(F,0,1) => ~F
+        //   ite(F,1,~F) => 1
+        //   ite(F,F,1) => 1
+        //   ite(F,~F,0) => 0
+        //   ite(F,0,F) => F
+        if g == h {
+            debug!("ite(F,G,G) => G");
+            // return g;
+            return self.maybe_constant(g);
+        }
+        if self.is_one(g) && self.is_zero(h) {
+            debug!("ite(F,1,0) => F");
+            // return f;
+            return None;
+        }
+        if self.is_zero(g) && self.is_one(h) {
+            debug!("ite(F,0,1) => ~F");
+            // return -f;
+            return None;
+        }
+        if self.is_one(g) && h == -f {
+            debug!("ite(F,1,~F) => 1");
+            // return self.one;
+            return Some(true);
+        }
+        if g == f && self.is_one(h) {
+            debug!("ite(F,F,1) => 1");
+            // return self.one;
+            return Some(true);
+        }
+        if g == -f && self.is_zero(h) {
+            debug!("ite(F,~F,0) => 0");
+            // return self.zero;
+            return Some(false);
+        }
+        if self.is_zero(g) && h == f {
+            debug!("ite(F,0,F) => F");
+            // return f;
+            return None;
+        }
+
+        // TODO: standard triples?
+
+        let key = OpKey::Ite(f, g, h);
+        if let Some(&res) = self.cache.borrow().get(&key) {
+            debug!(
+                "cache: ite_constant(f = {}, g = {}, h = {}) -> {}",
+                f, g, h, res
+            );
+            assert!(!self.is_terminal(res));
+            return None;
+        }
+
+        let i = self.variable(f.index());
+        let j = self.variable(g.index());
+        let k = self.variable(h.index());
+        assert_ne!(i, 0);
+
+        // Determine the top variable:
+        let mut m = i;
+        if j != 0 {
+            m = m.min(j);
+        }
+        if k != 0 {
+            m = m.min(k);
+        }
+        debug!("min variable = {}", m);
+        assert_ne!(m, 0);
+
+        let (f0, f1) = self.top_cofactors(f, m);
+        debug!("cofactors of f = {} are: f0 = {}, f1 = {}", f, f0, f1);
+        let (g0, g1) = self.top_cofactors(g, m);
+        debug!("cofactors of g = {} are: g0 = {}, g1 = {}", g, g0, g1);
+        let (h0, h1) = self.top_cofactors(h, m);
+        debug!("cofactors of h = {} are: h0 = {}, h1 = {}", h, h0, h1);
+
+        let t = self.ite_constant(f1, g1, h1);
+        if t.is_none() {
+            return None;
+        }
+        let e = self.ite_constant(f0, g0, h0);
+        if e != Some(true) {
+            return None;
+        }
+        t
+    }
+
+    pub fn is_implies(&self, f: Ref, g: Ref) -> bool {
+        debug!("is_implies(f = {}, g = {})", f, g);
+        self.ite_constant(f, g, self.one) == Some(true)
+    }
+
     pub fn apply_not(&self, f: Ref) -> Ref {
         debug!("apply_not(f = {})", f);
         -f
@@ -1042,5 +1169,46 @@ mod tests {
         let h = bdd.compose(f, bdd.variable(x3.index()), g);
         println!("h of size {} = {}", bdd.size(h), bdd.to_bracket_string(h));
         assert!(bdd.is_zero(h));
+    }
+
+    #[test]
+    fn test_ite_constant() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+
+        let f = bdd.apply_and(x1, x2);
+        println!(
+            "f = x1&x2 of size {} = {}",
+            bdd.size(f),
+            bdd.to_bracket_string(f)
+        );
+
+        println!("is_implies(f, x1) = {}", bdd.is_implies(f, x1));
+        println!("is_implies(f, x2) = {}", bdd.is_implies(f, x2));
+        println!("is_implies(f, -x1) = {}", bdd.is_implies(f, -x1));
+        println!("is_implies(f, -x2) = {}", bdd.is_implies(f, -x2));
+        println!(
+            "is_implies(f, x1&x2 = {}",
+            bdd.is_implies(f, bdd.apply_and(x1, x2))
+        );
+        println!(
+            "is_implies(f, x1|x2 = {}",
+            bdd.is_implies(f, bdd.apply_or(x1, x2))
+        );
+
+        assert!(bdd.is_implies(f, x1));
+        assert!(bdd.is_implies(f, x2));
+        assert!(!bdd.is_implies(f, -x1));
+        assert!(!bdd.is_implies(f, -x2));
+        assert!(bdd.is_implies(f, bdd.apply_and(x1, x2)));
+        assert!(bdd.is_implies(f, bdd.apply_or(x1, x2)));
+        assert!(bdd.is_implies(x1, bdd.one));
+        assert!(bdd.is_implies(x2, bdd.one));
+        assert!(bdd.is_implies(bdd.zero, x1));
+        assert!(bdd.is_implies(bdd.zero, x2));
+        assert!(bdd.is_implies(x1, bdd.apply_or(x1, x2)));
+        assert!(bdd.is_implies(x2, bdd.apply_or(x1, x2)));
     }
 }
