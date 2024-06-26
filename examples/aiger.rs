@@ -109,7 +109,7 @@ fn main() -> color_eyre::Result<()> {
                 println!("DOT in {:?}", dot_file);
                 std::fs::write(&dot_file, dot)?;
 
-                if dump_pdf && path.file_stem().unwrap() != "c432" {
+                if dump_pdf && bdd.descendants(outputs.iter().copied()).len() < 1000 {
                     let pdf_file = Path::new("data/pdf")
                         .join(path.file_name().unwrap())
                         .with_extension("pdf");
