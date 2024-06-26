@@ -40,8 +40,10 @@ impl Bdd {
         for level in levels.values() {
             writeln!(dot, "{{ rank=same")?;
             for &id in level.iter() {
-                let label = format!("\\N:v{}", self.variable(id));
-                writeln!(dot, "{} [label=\"{}\"];", id, label)?;
+                // let label = format!("\"\\N:v{}\"", self.variable(id));
+                // let label = format!("v{}", self.variable(id));
+                let label = format!("<x<SUB>{}</SUB>>", self.variable(id));
+                writeln!(dot, "{} [label={}];", id, label)?;
             }
             writeln!(dot, "}}")?;
         }
