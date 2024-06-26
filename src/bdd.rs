@@ -215,6 +215,22 @@ impl Bdd {
         current
     }
 
+    pub fn clause(&self, literals: &[i32]) -> Ref {
+        debug!("clause(literals = {:?})", literals);
+        let mut current = self.zero;
+        let mut literals = literals.to_vec();
+        literals.sort_by_key(|&v| v.abs());
+        for lit in literals {
+            assert_ne!(lit, 0, "Variable index should not be zero");
+            current = if lit < 0 {
+                self.mk_node(-lit as u32, current, self.one)
+            } else {
+                self.mk_node(lit as u32, self.one, current)
+            }
+        }
+        current
+    }
+
     pub fn top_cofactors(&self, node: Ref, v: u32) -> (Ref, Ref) {
         assert_ne!(v, 0, "Variable index should not be zero");
 
