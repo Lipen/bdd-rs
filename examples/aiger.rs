@@ -23,7 +23,7 @@ fn main() -> color_eyre::Result<()> {
     let bdd = Bdd::default();
     println!("bdd = {:?}", bdd);
 
-    let dump_pdf = false;
+    let dump_pdf = true;
     let mut handles = Vec::new();
 
     let pattern = "data/aag/**/*.aag";
@@ -109,7 +109,7 @@ fn main() -> color_eyre::Result<()> {
                 println!("DOT in {:?}", dot_file);
                 std::fs::write(&dot_file, dot)?;
 
-                if dump_pdf {
+                if dump_pdf && path.file_stem().unwrap() != "c432" {
                     let pdf_file = Path::new("data/pdf")
                         .join(path.file_name().unwrap())
                         .with_extension("pdf");
