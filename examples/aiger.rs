@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::path::Path;
 
-use bdd_rs::aiger::{Literal, Reader, Record};
+use aiger_rs::aiger::{Literal, Reader, Record};
 use bdd_rs::bdd::Bdd;
 use bdd_rs::gate::{BinaryType, Gate, NaryType, TernaryType};
 use bdd_rs::network::Network;
@@ -46,15 +46,15 @@ fn main() -> color_eyre::Result<()> {
                     println!("- {:?}", record);
                 }
                 let mut network = Network::new();
-                let lit2sig = |literal: Literal| {
-                    let signal = if literal.variable() == 0 {
+                let lit2sig = |lit: Literal| {
+                    let signal = if lit.index() == 0 {
                         Signal::zero()
-                    } else if literal.variable() <= header.i as u32 {
-                        Signal::from_input(literal.variable() - 1)
+                    } else if lit.index() <= header.i as u32 {
+                        Signal::from_input(lit.index() - 1)
                     } else {
-                        Signal::from_var(literal.variable() - 1)
+                        Signal::from_var(lit.index() - 1)
                     };
-                    if literal.is_negated() {
+                    if lit.is_negated() {
                         !signal
                     } else {
                         signal
@@ -80,7 +80,7 @@ fn main() -> color_eyre::Result<()> {
                             let left_signal = lit2sig(*left);
                             let right_signal = lit2sig(*right);
                             let gate = Gate::and(left_signal, right_signal);
-                            let output_signal = network.add_gate(output.variable() - 1, gate);
+                            let output_signal = network.add_gate(output.index() - 1, gate);
                             assert_eq!(output_signal, lit2sig(*output));
                         }
                         Record::Symbol { .. } => {
