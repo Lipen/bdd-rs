@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::cmp::{min, Ordering};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 
 use log::debug;
@@ -616,11 +616,11 @@ impl Bdd {
 
     // f|v<-b
     pub fn restrict(&self, f: Ref, v: u32, b: bool) -> Ref {
-        let mut cache = Cache::new(16);
+        let mut cache = HashMap::new();
         self.restrict_(f, v, b, &mut cache)
     }
 
-    fn restrict_(&self, f: Ref, v: u32, b: bool, cache: &mut Cache<Ref, Ref>) -> Ref {
+    fn restrict_(&self, f: Ref, v: u32, b: bool, cache: &mut HashMap<Ref, Ref>) -> Ref {
         assert_ne!(v, 0, "Variable index should not be zero");
 
         if self.is_terminal(f) {
@@ -643,15 +643,60 @@ impl Bdd {
             };
         }
 
-        assert!(v > i);
-        let low = self.restrict_(self.low(f.index()), v, b, cache);
-        let high = self.restrict_(self.high(f.index()), v, b, cache);
-        let res = self.mk_node(i, low, high);
-        if f.is_negated() {
-            -res
-        } else {
-            res
+        if let Some(&res) = cache.get(&f) {
+            return res;
         }
+
+        assert!(v > i);
+        let low = self.restrict_(self.low_node(f), v, b, cache);
+        let high = self.restrict_(self.high_node(f), v, b, cache);
+        let res = self.mk_node(i, low, high);
+        cache.insert(f, res);
+        res
+    }
+
+    pub fn restrict_multi(&self, f: Ref, values: &HashMap<u32, bool>) -> Ref {
+        let mut cache = HashMap::new();
+        self.restrict_multi_(f, values, &mut cache)
+    }
+
+    fn restrict_multi_(
+        &self,
+        f: Ref,
+        values: &HashMap<u32, bool>,
+        cache: &mut HashMap<Ref, Ref>,
+    ) -> Ref {
+        debug!("restrict_multi(f = {}, values = {:?})", f, values);
+
+        if self.is_terminal(f) {
+            return f;
+        }
+
+        if values.is_empty() {
+            return f;
+        }
+
+        if let Some(&res) = cache.get(&f) {
+            return res;
+        }
+
+        let i = self.variable(f.index());
+        let res = if let Some(&b) = values.get(&i) {
+            if b {
+                // `i` needs to be assigned true
+                self.restrict_multi_(self.high_node(f), values, cache)
+            } else {
+                // `i` needs to be assigned false
+                self.restrict_multi_(self.low_node(f), values, cache)
+            }
+        } else {
+            // `i` does not need to be assigned
+            let low = self.restrict_multi_(self.low_node(f), values, cache);
+            let high = self.restrict_multi_(self.high_node(f), values, cache);
+            self.mk_node(i, low, high)
+        };
+        cache.insert(f, res);
+        res
     }
 
     // f|v<-g
@@ -1166,6 +1211,33 @@ mod tests {
         println!("g of size {} = {}", bdd.size(g), bdd.to_bracket_string(g));
 
         assert_eq!(f_x2_zero, g);
+    }
+
+    #[test]
+    fn test_restrict_multi() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+        let x4 = bdd.mk_var(4);
+
+        let values = HashMap::from([
+            (bdd.variable(x2.index()), true),
+            (bdd.variable(x4.index()), false),
+        ]);
+        println!("values = {:?}", values);
+
+        let f = bdd.apply_and_many(&[-x1, x2, x3, -x4]);
+        println!("f of size {} = {}", bdd.size(f), bdd.to_bracket_string(f));
+
+        let g = bdd.restrict_multi(f, &values); // result of f|(x2<-1,x4<-0)
+        println!("g of size {} = {}", bdd.size(g), bdd.to_bracket_string(g));
+
+        let h = bdd.apply_and(-x1, x3); // expected
+        println!("h of size {} = {}", bdd.size(h), bdd.to_bracket_string(h));
+
+        assert_eq!(g, h);
     }
 
     #[test]
