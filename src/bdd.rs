@@ -614,6 +614,15 @@ impl Bdd {
         res
     }
 
+    pub fn apply_or_many(&self, nodes: &[Ref]) -> Ref {
+        debug!("apply_or_many(nodes = {:?}", nodes);
+        let mut res = self.zero;
+        for &node in nodes {
+            res = self.apply_or(res, node);
+        }
+        res
+    }
+
     // f|v<-b
     pub fn restrict(&self, f: Ref, v: u32, b: bool) -> Ref {
         let mut cache = HashMap::new();
