@@ -198,35 +198,38 @@ impl Bdd {
         self.mk_node(v, self.zero, self.one)
     }
 
-    pub fn cube(&self, literals: &[i32]) -> Ref {
-        debug!("cube(literals = {:?})", literals);
-        let mut current = self.one;
-        let mut literals = literals.to_vec();
+    pub fn cube(&self, literals: impl IntoIterator<Item = i32>) -> Ref {
+        let mut literals = literals.into_iter().collect::<Vec<_>>();
         literals.sort_by_key(|&v| v.abs());
+        debug!("cube(literals = {:?})", literals);
         literals.reverse();
+        let mut current = self.one;
         for lit in literals {
             assert_ne!(lit, 0, "Variable index should not be zero");
+            let node =self.mk_node(lit.unsigned_abs(), self.zero, current);
             current = if lit < 0 {
-                self.mk_node(-lit as u32, current, self.zero)
+                -node
             } else {
-                self.mk_node(lit as u32, self.zero, current)
-            }
+                node
+            };
         }
         current
     }
 
-    pub fn clause(&self, literals: &[i32]) -> Ref {
-        debug!("clause(literals = {:?})", literals);
-        let mut current = self.zero;
-        let mut literals = literals.to_vec();
+    pub fn clause(&self, literals: impl IntoIterator<Item = i32>) -> Ref {
+        let mut literals = literals.into_iter().collect::<Vec<_>>();
         literals.sort_by_key(|&v| v.abs());
+        debug!("clause(literals = {:?})", literals);
+        literals.reverse();
+        let mut current = self.zero;
         for lit in literals {
             assert_ne!(lit, 0, "Variable index should not be zero");
+            let node = self.mk_node(lit.unsigned_abs(), self.one, current);
             current = if lit < 0 {
-                self.mk_node(-lit as u32, current, self.one)
+                -node
             } else {
-                self.mk_node(lit as u32, self.one, current)
-            }
+                node
+            };
         }
         current
     }
@@ -1032,11 +1035,11 @@ mod tests {
         let x3 = bdd.mk_var(3);
 
         let f = bdd.apply_and(bdd.apply_and(x1, x2), x3);
-        let cube = bdd.cube(&[1, 2, 3]);
+        let cube = bdd.cube([1, 2, 3]);
         assert_eq!(f, cube);
 
         let f = bdd.apply_and(bdd.apply_and(x1, -x2), -x3);
-        let cube = bdd.cube(&[1, -2, -3]);
+        let cube = bdd.cube([1, -2, -3]);
         assert_eq!(f, cube);
     }
 
@@ -1230,7 +1233,7 @@ mod tests {
         let g = bdd.apply_or(bdd.apply_and(x1, x2), bdd.apply_and(-x2, -x3));
 
         // h = x1*x2*x3
-        let h = bdd.cube(&[1, 2, 3]);
+        let h = bdd.cube([1, 2, 3]);
 
         // f|g == h
         let fg = bdd.constrain(f, g);
