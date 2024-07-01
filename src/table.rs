@@ -144,6 +144,19 @@ impl<T> Table<T> {
         self.data[index].set_next(next);
     }
 
+    /// Get the number of buckets.
+    pub fn num_buckets(&self) -> usize {
+        self.buckets.len()
+    }
+    /// Get the bucket index.
+    pub fn bucket(&self, index: usize) -> usize {
+        self.buckets[index]
+    }
+    /// Set the bucket index.
+    pub fn set_bucket(&mut self, index: usize, bucket: usize) {
+        self.buckets[index] = bucket;
+    }
+
     /// Allocate a new cell in the table and return its index.
     pub(crate) fn alloc(&mut self) -> usize {
         let index = (self.min_free..=self.last_index)

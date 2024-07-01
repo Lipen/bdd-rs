@@ -890,6 +890,66 @@ impl Bdd {
         size
     }
 
+    pub fn collect_garbage(&self, roots: &[Ref]) {
+        debug!("Collecting garbage...");
+
+        self.cache.borrow_mut().clear();
+        self.size_cache.borrow_mut().clear();
+
+        let alive = self.descendants(roots.iter().copied());
+        debug!("Alive nodes: {:?}", alive);
+
+        let n = self.storage.borrow().num_buckets();
+        for i in 0..n {
+            let mut index = self.storage.borrow().bucket(i);
+
+            if index != 0 {
+                debug!("Cleaning bucket #{} pointing to {}", i, index);
+
+                while index != 0 && !alive.contains(&(index as u32)) {
+                    let next = self.storage.borrow().next(index);
+                    debug!("Dropping {}, next = {}", index, next);
+                    self.storage.borrow_mut().drop(index);
+                    index = next;
+                }
+
+                debug!(
+                    "Relinking bucket #{} to {}, next = {:?}",
+                    i,
+                    index,
+                    if index != 0 {
+                        Some(self.storage.borrow().next(index))
+                    } else {
+                        None
+                    }
+                );
+                self.storage.borrow_mut().set_bucket(i, index);
+
+                let mut prev = index;
+                while prev != 0 {
+                    let mut cur = self.storage.borrow().next(prev);
+                    while cur != 0 {
+                        if !alive.contains(&(cur as u32)) {
+                            let next = self.storage.borrow().next(cur);
+                            debug!("Dropping {}, prev = {}, next = {}", cur, prev, next);
+                            self.storage.borrow_mut().drop(cur);
+                            cur = next;
+                        } else {
+                            debug!("Keeping {}, prev = {}", cur, prev);
+                            break;
+                        }
+                    }
+                    let next_prev = self.storage.borrow().next(prev);
+                    if next_prev != cur {
+                        debug!("Relinking next({}) from {} to {}", prev, next_prev, cur);
+                        self.storage.borrow_mut().set_next(prev, cur);
+                    }
+                    prev = cur;
+                }
+            }
+        }
+    }
+
     pub fn to_bracket_string(&self, node: Ref) -> String {
         if self.is_zero(node) {
             return "(0)".to_string();
