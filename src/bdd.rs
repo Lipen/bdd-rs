@@ -608,19 +608,19 @@ impl Bdd {
         self.apply_ite(u, v, self.one)
     }
 
-    pub fn apply_and_many(&self, nodes: &[Ref]) -> Ref {
-        debug!("apply_and_many(nodes = {:?})", nodes);
+    pub fn apply_and_many(&self, nodes: impl IntoIterator<Item = Ref>) -> Ref {
+        debug!("apply_and_many(...)");
         let mut res = self.one;
-        for &node in nodes {
+        for node in nodes.into_iter() {
             res = self.apply_and(res, node);
         }
         res
     }
 
-    pub fn apply_or_many(&self, nodes: &[Ref]) -> Ref {
-        debug!("apply_or_many(nodes = {:?}", nodes);
+    pub fn apply_or_many(&self, nodes: impl IntoIterator<Item = Ref>) -> Ref {
+        debug!("apply_or_many(...)");
         let mut res = self.zero;
-        for &node in nodes {
+        for node in nodes.into_iter() {
             res = self.apply_or(res, node);
         }
         res
@@ -1300,7 +1300,7 @@ mod tests {
         ]);
         println!("values = {:?}", values);
 
-        let f = bdd.apply_and_many(&[-x1, x2, x3, -x4]);
+        let f = bdd.apply_and_many([-x1, x2, x3, -x4]);
         println!("f of size {} = {}", bdd.size(f), bdd.to_bracket_string(f));
 
         let g = bdd.restrict_multi(f, &values); // result of f|(x2<-1,x4<-0)

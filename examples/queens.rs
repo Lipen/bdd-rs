@@ -86,7 +86,7 @@ fn main() -> color_eyre::Result<()> {
 
     println!("bdd = {:?}", bdd);
     println!("Merging constraints...");
-    let res = bdd.apply_and_many(&constraints);
+    let res = bdd.apply_and_many(constraints.iter().copied());
     println!("bdd = {:?}", bdd);
     println!(
         "res of size {} = {}",
