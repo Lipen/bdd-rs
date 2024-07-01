@@ -25,9 +25,9 @@ fn main() -> color_eyre::Result<()> {
     let x3 = bdd.mk_var(3);
     println!("x3 = {}", x3);
 
-    let cube = bdd.cube(&[1, 2, 3]);
+    let cube = bdd.cube([1, 2, 3]);
     println!("cube = {}", bdd.to_bracket_string(cube));
-    let f = bdd.cube(&[2]);
+    let f = bdd.cube([2]);
     println!("f = {}", bdd.to_bracket_string(f));
     let h = bdd.constrain(f, cube);
     println!("h = {}", bdd.to_bracket_string(h));
