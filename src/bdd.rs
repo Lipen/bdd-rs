@@ -206,11 +206,10 @@ impl Bdd {
         let mut current = self.one;
         for lit in literals {
             assert_ne!(lit, 0, "Variable index should not be zero");
-            let node =self.mk_node(lit.unsigned_abs(), self.zero, current);
             current = if lit < 0 {
-                -node
+                self.mk_node(-lit as u32, current, self.zero)
             } else {
-                node
+                self.mk_node(lit as u32, self.zero, current)
             };
         }
         current
@@ -224,11 +223,10 @@ impl Bdd {
         let mut current = self.zero;
         for lit in literals {
             assert_ne!(lit, 0, "Variable index should not be zero");
-            let node = self.mk_node(lit.unsigned_abs(), self.one, current);
             current = if lit < 0 {
-                -node
+                self.mk_node(-lit as u32, self.one, current)
             } else {
-                node
+                self.mk_node(lit as u32, current, self.one)
             };
         }
         current
@@ -1041,6 +1039,23 @@ mod tests {
         let f = bdd.apply_and(bdd.apply_and(x1, -x2), -x3);
         let cube = bdd.cube([1, -2, -3]);
         assert_eq!(f, cube);
+    }
+
+    #[test]
+    fn test_clause() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+
+        let f = bdd.apply_or(bdd.apply_or(x1, x2), x3);
+        let clause = bdd.clause([1, 2, 3]);
+        assert_eq!(f, clause);
+
+        let f = bdd.apply_or(bdd.apply_or(x1, -x2), -x3);
+        let clause = bdd.clause([1, -2, -3]);
+        assert_eq!(f, clause);
     }
 
     #[test]
