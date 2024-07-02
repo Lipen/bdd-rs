@@ -56,6 +56,7 @@ impl Storage {
 pub enum OpKey {
     Ite(Ref, Ref, Ref),
     Constrain(Ref, Ref),
+    Restrict(Ref, Ref),
 }
 
 impl MyHash for OpKey {
@@ -67,6 +68,7 @@ impl MyHash for OpKey {
                 h.unsigned() as u64,
             ),
             OpKey::Constrain(f, g) => pairing2(f.unsigned() as u64, g.unsigned() as u64),
+            OpKey::Restrict(f, g) => pairing2(f.unsigned() as u64, g.unsigned() as u64),
         }
     }
 }
@@ -665,12 +667,12 @@ impl Bdd {
         res
     }
 
-    pub fn restrict_multi(&self, f: Ref, values: &HashMap<u32, bool>) -> Ref {
+    pub fn substitute_multi(&self, f: Ref, values: &HashMap<u32, bool>) -> Ref {
         let mut cache = HashMap::new();
-        self.restrict_multi_(f, values, &mut cache)
+        self.substitute_multi_(f, values, &mut cache)
     }
 
-    fn restrict_multi_(
+    fn substitute_multi_(
         &self,
         f: Ref,
         values: &HashMap<u32, bool>,
@@ -694,15 +696,15 @@ impl Bdd {
         let res = if let Some(&b) = values.get(&i) {
             if b {
                 // `i` needs to be assigned true
-                self.restrict_multi_(self.high_node(f), values, cache)
+                self.substitute_multi_(self.high_node(f), values, cache)
             } else {
                 // `i` needs to be assigned false
-                self.restrict_multi_(self.low_node(f), values, cache)
+                self.substitute_multi_(self.low_node(f), values, cache)
             }
         } else {
             // `i` does not need to be assigned
-            let low = self.restrict_multi_(self.low_node(f), values, cache);
-            let high = self.restrict_multi_(self.high_node(f), values, cache);
+            let low = self.substitute_multi_(self.low_node(f), values, cache);
+            let high = self.substitute_multi_(self.high_node(f), values, cache);
             self.mk_node(i, low, high)
         };
         cache.insert(f, res);
@@ -831,7 +833,7 @@ impl Bdd {
         // TODO: is it necessary to compute min var, or we can just use var(g)?
         let i = self.variable(f.index());
         let j = self.variable(g.index());
-        let v = i.min(j);
+        let v = min(i, j);
         debug!("min variable = {}", v);
 
         let (f0, f1) = self.top_cofactors(f, v);
@@ -859,6 +861,54 @@ impl Bdd {
         let res = self.mk_node(v, low, high);
         debug!("computed: constrain(f = {}, g = {}) -> {}", f, g, res);
 
+        self.cache.borrow_mut().insert(key, res);
+        res
+    }
+
+    pub fn restrict(&self, f: Ref, g: Ref) -> Ref {
+        debug!("restrict(f = {}, g = {})", f, g);
+
+        if self.is_zero(g) {
+            log::warn!("g is zero => f|g = 0");
+            return self.zero;
+        }
+        if self.is_one(g) || self.is_terminal(f) {
+            return f;
+        }
+        if f == g {
+            return self.one;
+        }
+        if f == -g {
+            return self.zero;
+        }
+
+        let key = OpKey::Restrict(f, g);
+        if let Some(&res) = self.cache.borrow().get(&key) {
+            debug!("cache: restrict(f = {}, g = {}) -> {}", f, g, res);
+            return res;
+        }
+
+        let i = self.variable(f.index());
+        let j = self.variable(g.index());
+        let v = min(i, j);
+
+        let (f0, f1) = self.top_cofactors(f, v);
+        let (g0, g1) = self.top_cofactors(g, v);
+
+        if self.is_zero(g1) {
+            return self.restrict(f0, g0);
+        }
+        if self.is_zero(g0) {
+            return self.restrict(f1, g1);
+        }
+
+        let res = if v == i {
+            let low = self.restrict(f0, g0);
+            let high = self.restrict(f1, g1);
+            self.mk_node(v, low, high)
+        } else {
+            self.restrict(f, self.apply_ite(g1, self.one, g0))
+        };
         self.cache.borrow_mut().insert(key, res);
         res
     }
@@ -1191,6 +1241,7 @@ mod tests {
         }
     }
 
+    // Somenzi, 1999
     #[test]
     fn test_constrain_example1() {
         let bdd = Bdd::default();
@@ -1255,6 +1306,39 @@ mod tests {
         assert_eq!(fg, h);
     }
 
+    // Somenzi, 1999
+    #[test]
+    fn test_restrict() {
+        let bdd = Bdd::default();
+
+        let x = bdd.mk_var(1);
+        let y = bdd.mk_var(2);
+        let z = bdd.mk_var(3);
+
+        let s = bdd.mk_node(3, -bdd.one, bdd.one);
+        let p = bdd.mk_node(2, -s, s);
+        let r = bdd.mk_node(2, s, bdd.one);
+        let q = bdd.mk_node(2, -s, bdd.one);
+        let t = bdd.mk_node(2, -bdd.one, s);
+
+        println!("s = {}", bdd.to_bracket_string(s));
+        println!("p = {}", bdd.to_bracket_string(p));
+        println!("r = {}", bdd.to_bracket_string(r));
+        println!("q = {}", bdd.to_bracket_string(q));
+        println!("t = {}", bdd.to_bracket_string(t));
+
+        let f = bdd.mk_node(1, -p, s);
+        println!("f = {}", bdd.to_bracket_string(f));
+        let g = bdd.mk_node(1, -r, q);
+        println!("g = {}", bdd.to_bracket_string(g));
+        let h = bdd.apply_and(x, z);
+        println!("h = {}", bdd.to_bracket_string(h));
+
+        let fg = bdd.restrict(f, g);
+        println!("f||g = {}", bdd.to_bracket_string(fg));
+        assert_eq!(fg, h, "h = restrict(f, g)");
+    }
+
     #[test]
     fn test_negation_in_ite_cache() {
         let bdd = Bdd::default();
@@ -1277,7 +1361,7 @@ mod tests {
     }
 
     #[test]
-    fn test_restrict() {
+    fn test_substitute() {
         let bdd = Bdd::default();
 
         let x1 = bdd.mk_var(1);
@@ -1301,7 +1385,7 @@ mod tests {
     }
 
     #[test]
-    fn test_restrict_multi() {
+    fn test_substitute_multi() {
         let bdd = Bdd::default();
 
         let x1 = bdd.mk_var(1);
@@ -1318,7 +1402,7 @@ mod tests {
         let f = bdd.apply_and_many([-x1, x2, x3, -x4]);
         println!("f of size {} = {}", bdd.size(f), bdd.to_bracket_string(f));
 
-        let g = bdd.restrict_multi(f, &values); // result of f|(x2<-1,x4<-0)
+        let g = bdd.substitute_multi(f, &values); // result of f|(x2<-1,x4<-0)
         println!("g of size {} = {}", bdd.size(g), bdd.to_bracket_string(g));
 
         let h = bdd.apply_and(-x1, x3); // expected
