@@ -824,7 +824,7 @@ impl Bdd {
 
         let key = OpKey::Constrain(f, g);
         if let Some(&res) = self.cache.borrow().get(&key) {
-            debug!("cache: constrain(f = {}, c = {}) -> {}", f, g, res);
+            debug!("cache: constrain(f = {}, g = {}) -> {}", f, g, res);
             return res;
         }
 
@@ -857,7 +857,7 @@ impl Bdd {
         let high = self.constrain(f1, g1);
         // TODO: replace 'mk_node' with 'ITE'?
         let res = self.mk_node(v, low, high);
-        debug!("computed: constrain(f = {}, c = {}) -> {}", f, g, res);
+        debug!("computed: constrain(f = {}, g = {}) -> {}", f, g, res);
 
         self.cache.borrow_mut().insert(key, res);
         res
