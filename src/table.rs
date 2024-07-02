@@ -223,7 +223,7 @@ where
         loop {
             assert!(index > 0);
 
-            if &value == self.value(index) {
+            if value == *self.value(index) {
                 // The node already exists.
                 return index;
             }
