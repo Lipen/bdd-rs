@@ -625,12 +625,12 @@ impl Bdd {
     }
 
     // f|v<-b
-    pub fn restrict(&self, f: Ref, v: u32, b: bool) -> Ref {
+    pub fn substitute(&self, f: Ref, v: u32, b: bool) -> Ref {
         let mut cache = HashMap::new();
-        self.restrict_(f, v, b, &mut cache)
+        self.substitute_(f, v, b, &mut cache)
     }
 
-    fn restrict_(&self, f: Ref, v: u32, b: bool, cache: &mut HashMap<Ref, Ref>) -> Ref {
+    fn substitute_(&self, f: Ref, v: u32, b: bool, cache: &mut HashMap<Ref, Ref>) -> Ref {
         assert_ne!(v, 0, "Variable index should not be zero");
 
         if self.is_terminal(f) {
@@ -658,8 +658,8 @@ impl Bdd {
         }
 
         assert!(v > i);
-        let low = self.restrict_(self.low_node(f), v, b, cache);
-        let high = self.restrict_(self.high_node(f), v, b, cache);
+        let low = self.substitute_(self.low_node(f), v, b, cache);
+        let high = self.substitute_(self.high_node(f), v, b, cache);
         let res = self.mk_node(i, low, high);
         cache.insert(f, res);
         res
@@ -1287,7 +1287,7 @@ mod tests {
         let f = bdd.apply_or(bdd.apply_eq(x1, x2), x3);
         println!("f of size {} = {}", bdd.size(f), bdd.to_bracket_string(f));
 
-        let f_x2_zero = bdd.restrict(f, 2, false); // f|x2<-0
+        let f_x2_zero = bdd.substitute(f, 2, false); // f|x2<-0
         println!(
             "f|x2<-0 of size {} = {}",
             bdd.size(f_x2_zero),
