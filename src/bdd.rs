@@ -711,6 +711,47 @@ impl Bdd {
         res
     }
 
+    pub fn cofactor_cube(&self, f: Ref, cube: &[i32]) -> Ref {
+        debug!("cofactor_cube(f = {}, cube = {:?})", f, cube);
+
+        if cube.len() == 0 {
+            debug!("cube is empty");
+            return f;
+        }
+
+        if self.is_terminal(f) {
+            debug!("f is terminal");
+            return f;
+        }
+
+        let t = self.variable(f.index()); // top variable of `f`
+        let xu = cube[0];
+        let u = xu.unsigned_abs();
+
+        match t.cmp(&u) {
+            Ordering::Greater => {
+                // `t > u`: `f` does not depend on `u`
+                self.cofactor_cube(f, &cube[1..])
+            }
+            Ordering::Equal => {
+                // `t == u`: `u` is the top variable of `f`
+                let (f0, f1) = self.top_cofactors(f, u);
+                if xu > 0 {
+                    self.cofactor_cube(f1, &cube[1..])
+                } else {
+                    self.cofactor_cube(f0, &cube[1..])
+                }
+            }
+            Ordering::Less => {
+                // `t < u`: `u` is not the top variable of 'f'
+                let (f0, f1) = self.top_cofactors(f, t);
+                let low = self.cofactor_cube(f0, cube);
+                let high = self.cofactor_cube(f1, cube);
+                self.mk_node(t, low, high)
+            }
+        }
+    }
+
     // f|v<-g
     pub fn compose(&self, f: Ref, v: u32, g: Ref) -> Ref {
         let mut cache = Cache::new(16);
@@ -765,45 +806,6 @@ impl Bdd {
         };
         cache.insert(key, res);
         res
-    }
-
-    pub fn cofactor_cube(&self, f: Ref, cube: &[i32]) -> Ref {
-        debug!("cofactor_cube(f = {}, cube = {:?})", f, cube);
-        assert!(cube.len() > 0, "Cube should not be empty");
-
-        if cube.len() == 1 {
-            let xu = cube[0];
-            let u = xu.unsigned_abs();
-            let (f0, f1) = self.top_cofactors(f, u);
-            return if xu > 0 { f1 } else { f0 };
-        }
-
-        let t = self.variable(f.index()); // top variable of `f`
-        let xu = cube[0];
-        let u = xu.unsigned_abs();
-
-        match t.cmp(&u) {
-            Ordering::Greater => {
-                // `t > u`: `f` does not depend on `u`
-                self.cofactor_cube(f, &cube[1..])
-            },
-            Ordering::Equal => {
-                // `t == u`: `u` is the top variable of `f`
-                let (f0, f1) = self.top_cofactors(f, u);
-                if xu > 0 {
-                    self.cofactor_cube(f1, &cube[1..])
-                } else {
-                    self.cofactor_cube(f0, &cube[1..])
-                }
-            }
-            Ordering::Less => {
-                // `t < u`: `u` is not the top variable of 'f'
-                let (f0, f1) = self.top_cofactors(f, t);
-                let low = self.cofactor_cube(f0, cube);
-                let high = self.cofactor_cube(f1, cube);
-                self.mk_node(t, low, high)
-            }
-        }
     }
 
     pub fn constrain(&self, f: Ref, g: Ref) -> Ref {
@@ -1197,18 +1199,40 @@ mod tests {
     fn test_cofactor_cube() {
         let bdd = Bdd::default();
 
-        let x1 = bdd.mk_var(1);
-        let x2 = bdd.mk_var(2);
+        let f = bdd.cube([1, 2, 3]);
+        println!("f = {}", bdd.to_bracket_string(f));
 
-        let f = bdd.apply_and(x1, x2);
-        let cube = vec![1, 2];
-        assert_eq!(bdd.cofactor_cube(f, &cube), bdd.one);
-        let cube = vec![1, -2];
-        assert_eq!(bdd.cofactor_cube(f, &cube), bdd.zero);
-        let cube = vec![-1, 2];
-        assert_eq!(bdd.cofactor_cube(f, &cube), bdd.zero);
-        let cube = vec![-1, -2];
-        assert_eq!(bdd.cofactor_cube(f, &cube), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[1]), bdd.cube([2, 3]));
+        assert_eq!(bdd.cofactor_cube(f, &[2]), bdd.cube([1, 3]));
+        assert_eq!(bdd.cofactor_cube(f, &[3]), bdd.cube([1, 2]));
+        assert_eq!(bdd.cofactor_cube(f, &[-1]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[-2]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[-3]), bdd.zero);
+
+        assert_eq!(bdd.cofactor_cube(f, &[1, 2]), bdd.cube([3]));
+        assert_eq!(bdd.cofactor_cube(f, &[1, 3]), bdd.cube([2]));
+        assert_eq!(bdd.cofactor_cube(f, &[2, 3]), bdd.cube([1]));
+        assert_eq!(bdd.cofactor_cube(f, &[1, -2]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[1, -3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[2, -3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[-1, 2]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[-1, 3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[-2, 3]), bdd.zero);
+
+        assert_eq!(bdd.cofactor_cube(f, &[1, 2, 3]), bdd.one);
+        assert_eq!(bdd.cofactor_cube(f, &[1, 2, -3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[1, -2, 3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[1, -2, -3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[-1, 2, 3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[-1, 2, -3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[-1, -2, 3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, &[-1, -2, -3]), bdd.zero);
+
+        assert_eq!(bdd.cofactor_cube(f, &[]), f);
+        assert_eq!(bdd.cofactor_cube(bdd.one, &[1]), bdd.one);
+        assert_eq!(bdd.cofactor_cube(bdd.zero, &[1]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(bdd.one, &[-1]), bdd.one);
+        assert_eq!(bdd.cofactor_cube(bdd.zero, &[-1]), bdd.zero);
     }
 
     impl Bdd {
