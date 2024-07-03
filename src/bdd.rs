@@ -1010,15 +1010,20 @@ impl Bdd {
     }
 
     pub fn to_bracket_string(&self, node: Ref) -> String {
+        let mut visited = HashSet::new();
+        self.node_to_str(node, &mut visited)
+    }
+
+    fn node_to_str(&self, node: Ref, visited: &mut HashSet<u32>) -> String {
         if self.is_zero(node) {
-            // return "(0)".to_string();
             return "⊥".to_string();
         } else if self.is_one(node) {
-            // return "(1)".to_string();
             return "⊤".to_string();
         }
 
-        assert_ne!(node.index(), 0);
+        if !visited.insert(node.index()) {
+            return format!("{}", node);
+        }
 
         let v = self.variable(node.index());
         let low = self.low_node(node);
@@ -1028,8 +1033,8 @@ impl Bdd {
             "{}:(x{}, {}, {})",
             node,
             v,
-            self.to_bracket_string(high),
-            self.to_bracket_string(low)
+            self.node_to_str(high, visited),
+            self.node_to_str(low, visited),
         )
     }
 }
