@@ -236,15 +236,20 @@ impl Bdd {
     pub fn top_cofactors(&self, node: Ref, v: u32) -> (Ref, Ref) {
         assert_ne!(v, 0, "Variable index should not be zero");
 
-        let i = node.index();
-        if self.is_terminal(node) || v < self.variable(i) {
+        if self.is_terminal(node) {
             return (node, node);
         }
-        assert_eq!(v, self.variable(i));
+
+        let index = node.index();
+        if v < self.variable(index) {
+            // 'node' does not depend on 'v'
+            return (node, node);
+        }
+        assert_eq!(v, self.variable(index));
         if node.is_negated() {
-            (-self.low(i), -self.high(i))
+            (-self.low(index), -self.high(index))
         } else {
-            (self.low(i), self.high(i))
+            (self.low(index), self.high(index))
         }
     }
 
