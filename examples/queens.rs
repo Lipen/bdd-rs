@@ -1,5 +1,23 @@
+use clap::Parser;
+
 use bdd_rs::bdd::Bdd;
 use bdd_rs::reference::Ref;
+
+#[derive(Debug, Parser)]
+#[command(author, version)]
+struct Cli {
+    /// Number of queens.
+    #[arg(value_name = "INT", default_value = "8")]
+    n: usize,
+
+    /// BDD size (in bits, so the actual size is `2^size` nodes).
+    #[clap(long, value_name = "INT", default_value = "20")]
+    size: usize,
+
+    /// Enable garbage collection.
+    #[clap(long)]
+    gc: bool,
+}
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
@@ -13,11 +31,15 @@ fn main() -> color_eyre::Result<()> {
 
     let time_total = std::time::Instant::now();
 
+    let args = Cli::parse();
+    println!("args = {:?}", args);
+
     // Note:
     // - 20 bits (default) are enough to encode at most n=8 queens (time=0.1s).
     // - 22 bits are required for n=9 queens (time=4s).
-    // - 24 bits are required (size=7590122) for n=10 queens (time=110s).
-    let bdd = Bdd::default();
+    // - 24 bits are required (size=7590122) for n=10 queens (time=100s).
+
+    let bdd = Bdd::new(args.size);
     println!("bdd = {:?}", bdd);
 
     // Encode N-queens problem:
@@ -25,12 +47,8 @@ fn main() -> color_eyre::Result<()> {
     // - One queen per row
     // - One queen per column
     // - No two queens on the same diagonal
-    let n: usize = if let Some(s) = std::env::args().nth(1) {
-        s.parse().expect("invalid number")
-    } else {
-        8
-    };
-    println!("n = {}", n);
+    let n = args.n;
+    println!("Encoding n-queens problem with n = {}", n);
     let mut queens = vec![];
     for i in 0..n {
         let mut row = vec![];
@@ -88,6 +106,12 @@ fn main() -> color_eyre::Result<()> {
     // }
 
     println!("bdd = {:?}", bdd);
+    if args.gc {
+        println!("GC...");
+        bdd.collect_garbage(&constraints);
+        println!("bdd = {:?}", bdd);
+    }
+
     println!("Merging constraints...");
     let res = bdd.apply_and_many(constraints.iter().copied());
     println!("bdd = {:?}", bdd);
