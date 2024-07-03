@@ -7,8 +7,8 @@ struct Entry<K, V> {
     value: V,
 }
 
-pub struct Cache<K, T> {
-    data: Vec<Option<Entry<K, T>>>,
+pub struct Cache<K, V> {
+    data: Vec<Option<Entry<K, V>>>,
     bitmask: u64,
     hits: Cell<usize>,   // successful lookups
     faults: Cell<usize>, // unsuccessful lookups
