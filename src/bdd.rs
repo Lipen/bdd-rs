@@ -10,7 +10,7 @@ use crate::reference::Ref;
 use crate::table::Table;
 use crate::utils::{pairing2, pairing3, MyHash};
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 struct Node {
     variable: u32,
     low: Ref,
