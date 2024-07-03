@@ -13,7 +13,10 @@ fn main() -> color_eyre::Result<()> {
 
     let time_total = std::time::Instant::now();
 
-    // Note: 20 bits (default) are enough to encode at most n=8 queens.
+    // Note:
+    // - 20 bits (default) are enough to encode at most n=8 queens (time=0.1s).
+    // - 22 bits are required for n=9 queens (time=4s).
+    // - 24 bits are required (size=7590122) for n=10 queens (time=110s).
     let bdd = Bdd::default();
     println!("bdd = {:?}", bdd);
 
