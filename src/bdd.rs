@@ -449,7 +449,7 @@ impl Bdd {
             f, g, h, res
         );
         self.cache.borrow_mut().insert(key, res);
-        if n { -res } else { res }
+        return if n { -res } else { res };
     }
 
     fn maybe_constant(&self, node: Ref) -> Option<bool> {
