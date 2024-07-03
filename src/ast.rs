@@ -88,14 +88,11 @@ impl<T> Functor for Option<T> {
     type Inner = T;
     type Mapped<R> = Option<R>;
 
-    fn fmap<R, F>(self, mut f: F) -> Self::Mapped<R>
+    fn fmap<R, F>(self, f: F) -> Self::Mapped<R>
     where
         F: FnMut(Self::Inner) -> R,
     {
-        match self {
-            Some(inner) => Some(f(inner)),
-            None => None,
-        }
+        self.map(f)
     }
 }
 
