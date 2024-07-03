@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
-use std::fmt::Write;
 
 use crate::bdd::Bdd;
 use crate::reference::Ref;
 
 impl Bdd {
-    pub fn to_dot(&self, roots: &[Ref]) -> color_eyre::Result<String> {
+    pub fn to_dot(&self, roots: &[Ref]) -> Result<String, std::fmt::Error> {
+        use std::fmt::Write as _;
+
         let mut dot = String::new();
         writeln!(dot, "graph {{")?;
         writeln!(dot, "node [shape=circle, fixedsize=true];")?;

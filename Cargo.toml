@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 log = "0.4"
-color-eyre = "0.6"
 
 [dev-dependencies]
 color-eyre = "0.6"
