@@ -715,7 +715,7 @@ impl Bdd {
     pub fn cofactor_cube(&self, f: Ref, cube: &[i32]) -> Ref {
         debug!("cofactor_cube(f = {}, cube = {:?})", f, cube);
 
-        if cube.len() == 0 {
+        if cube.is_empty() {
             debug!("cube is empty");
             return f;
         }
