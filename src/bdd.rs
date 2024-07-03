@@ -1318,7 +1318,7 @@ mod tests {
         let bdd = Bdd::default();
 
         let x = bdd.mk_var(1);
-        let y = bdd.mk_var(2);
+        let _y = bdd.mk_var(2);
         let z = bdd.mk_var(3);
 
         let s = bdd.mk_node(3, -bdd.one, bdd.one);
