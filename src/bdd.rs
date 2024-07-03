@@ -418,8 +418,7 @@ impl Bdd {
                 "cache: apply_ite(f = {}, g = {}, h = {}) -> {}",
                 f, g, h, res
             );
-            let res = if n { -res } else { res };
-            return res;
+            return if n { -res } else { res };
         }
 
         // Determine the top variable:
@@ -450,9 +449,7 @@ impl Bdd {
             f, g, h, res
         );
         self.cache.borrow_mut().insert(key, res);
-
-        let res = if n { -res } else { res };
-        res
+        if n { -res } else { res }
     }
 
     fn maybe_constant(&self, node: Ref) -> Option<bool> {
