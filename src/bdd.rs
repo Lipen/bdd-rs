@@ -769,6 +769,7 @@ impl Bdd {
 
     pub fn cofactor_cube(&self, f: Ref, cube: &[i32]) -> Ref {
         debug!("cofactor_cube(f = {}, cube = {:?})", f, cube);
+        assert!(cube.len() > 0, "Cube should not be empty");
 
         if cube.len() == 1 {
             let xu = cube[0];
@@ -777,13 +778,17 @@ impl Bdd {
             return if xu > 0 { f1 } else { f0 };
         }
 
-        let t = self.variable(f.index());
+        let t = self.variable(f.index()); // top variable of `f`
         let xu = cube[0];
         let u = xu.unsigned_abs();
 
         match t.cmp(&u) {
-            Ordering::Greater => self.cofactor_cube(f, &cube[1..]),
+            Ordering::Greater => {
+                // `t > u`: `f` does not depend on `u`
+                self.cofactor_cube(f, &cube[1..])
+            },
             Ordering::Equal => {
+                // `t == u`: `u` is the top variable of `f`
                 let (f0, f1) = self.top_cofactors(f, u);
                 if xu > 0 {
                     self.cofactor_cube(f1, &cube[1..])
@@ -792,6 +797,7 @@ impl Bdd {
                 }
             }
             Ordering::Less => {
+                // `t < u`: `u` is not the top variable of 'f'
                 let (f0, f1) = self.top_cofactors(f, t);
                 let low = self.cofactor_cube(f0, cube);
                 let high = self.cofactor_cube(f1, cube);
