@@ -21,8 +21,8 @@ impl Default for Node {
     fn default() -> Self {
         Self {
             variable: 0,
-            low: Ref::zero(),
-            high: Ref::zero(),
+            low: Ref::ZERO,
+            high: Ref::ZERO,
         }
     }
 }
