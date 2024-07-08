@@ -36,7 +36,7 @@ fn main() -> color_eyre::Result<()> {
 
     // Note:
     // - 20 bits (default) are enough to encode at most n=8 queens (time=0.1s).
-    // - 22 bits are required for n=9 queens (time=4s).
+    // - 22 bits are required (size=2169111) for n=9 queens (time=4s).
     // - 24 bits are required (size=7590122) for n=10 queens (time=100s).
 
     let bdd = Bdd::new(args.size);
