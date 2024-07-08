@@ -8,7 +8,7 @@ use log::debug;
 use crate::cache::Cache;
 use crate::reference::Ref;
 use crate::table::Table;
-use crate::utils::{pairing2, pairing3, MyHash};
+use crate::utils::MyHash;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 struct Node {
@@ -29,7 +29,10 @@ impl Default for Node {
 
 impl MyHash for Node {
     fn hash(&self) -> u64 {
-        pairing3(self.variable as u64, self.low.index() as u64, self.high.index() as u64)
+        let x = self.variable as u64;
+        let y = MyHash::hash(&self.low);
+        let z = MyHash::hash(&self.high);
+        MyHash::hash(&(x, y, z))
     }
 }
 
@@ -57,9 +60,9 @@ pub enum OpKey {
 impl MyHash for OpKey {
     fn hash(&self) -> u64 {
         match self {
-            OpKey::Ite(f, g, h) => pairing3(f.index() as u64, g.index() as u64, h.index() as u64),
-            OpKey::Constrain(f, g) => pairing2(f.index() as u64, g.index() as u64),
-            OpKey::Restrict(f, g) => pairing2(f.index() as u64, g.index() as u64),
+            &OpKey::Ite(f, g, h) => MyHash::hash(&(f, g, h)),
+            &OpKey::Constrain(f, g) => MyHash::hash(&(f, g)),
+            &OpKey::Restrict(f, g) => MyHash::hash(&(f, g)),
         }
     }
 }

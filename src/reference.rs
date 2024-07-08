@@ -2,6 +2,7 @@ use std::fmt::{Display, Formatter};
 use std::ops::Neg;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[repr(transparent)]
 pub struct Ref(i32);
 
 //noinspection RsAssertEqual (see https://github.com/rust-lang/rust/issues/119826)
@@ -32,6 +33,11 @@ impl Ref {
     }
     pub const fn negate(self) -> Self {
         Self(-self.0)
+    }
+
+    pub(crate) const fn hashy(self) -> u64 {
+        (self.index() << 1) as u64 | self.is_negated() as u64
+        // self.index() as u64
     }
 }
 
