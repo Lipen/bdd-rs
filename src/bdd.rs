@@ -29,7 +29,7 @@ impl Default for Node {
 
 impl MyHash for Node {
     fn hash(&self) -> u64 {
-        pairing3(self.variable as u64, self.low.unsigned() as u64, self.high.unsigned() as u64)
+        pairing3(self.variable as u64, self.low.index() as u64, self.high.index() as u64)
     }
 }
 
@@ -57,9 +57,9 @@ pub enum OpKey {
 impl MyHash for OpKey {
     fn hash(&self) -> u64 {
         match self {
-            OpKey::Ite(f, g, h) => pairing3(f.unsigned() as u64, g.unsigned() as u64, h.unsigned() as u64),
-            OpKey::Constrain(f, g) => pairing2(f.unsigned() as u64, g.unsigned() as u64),
-            OpKey::Restrict(f, g) => pairing2(f.unsigned() as u64, g.unsigned() as u64),
+            OpKey::Ite(f, g, h) => pairing3(f.index() as u64, g.index() as u64, h.index() as u64),
+            OpKey::Constrain(f, g) => pairing2(f.index() as u64, g.index() as u64),
+            OpKey::Restrict(f, g) => pairing2(f.index() as u64, g.index() as u64),
         }
     }
 }

@@ -83,19 +83,19 @@ impl MyHash for (u64, u64, u64) {
 
 impl MyHash for Ref {
     fn hash(&self) -> u64 {
-        MyHash::hash(&(self.unsigned() as u64))
+        MyHash::hash(&(self.index() as u64))
     }
 }
 
 impl MyHash for (Ref, Ref) {
     fn hash(&self) -> u64 {
-        MyHash::hash(&(self.0.unsigned() as u64, self.1.unsigned() as u64))
+        MyHash::hash(&(self.0.index() as u64, self.1.index() as u64))
     }
 }
 
 impl MyHash for (Ref, Ref, Ref) {
     fn hash(&self) -> u64 {
-        MyHash::hash(&(self.0.unsigned() as u64, self.1.unsigned() as u64, self.2.unsigned() as u64))
+        MyHash::hash(&(self.0.index() as u64, self.1.index() as u64, self.2.index() as u64))
     }
 }
 
