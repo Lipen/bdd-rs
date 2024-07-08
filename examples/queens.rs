@@ -115,11 +115,7 @@ fn main() -> color_eyre::Result<()> {
     println!("Merging constraints...");
     let res = bdd.apply_and_many(constraints.iter().copied());
     println!("bdd = {:?}", bdd);
-    println!(
-        "res of size {} = {}",
-        bdd.size(res),
-        bdd.to_bracket_string(res)
-    );
+    println!("res of size {} = {}", bdd.size(res), bdd.to_bracket_string(res));
 
     let time_total = time_total.elapsed();
     println!("Done in {:.3} s", time_total.as_secs_f64());

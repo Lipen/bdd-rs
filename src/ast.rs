@@ -51,12 +51,7 @@ impl<T> ExprBoxed<T> {
             ExprBoxed::And(a, b) => format!("({} & {})", a.to_string(), b.to_string()),
             ExprBoxed::Or(a, b) => format!("({} | {})", a.to_string(), b.to_string()),
             ExprBoxed::Xor(a, b) => format!("({} ^ {})", a.to_string(), b.to_string()),
-            ExprBoxed::Ite(a, b, c) => format!(
-                "({} ? {} : {})",
-                a.to_string(),
-                b.to_string(),
-                c.to_string()
-            ),
+            ExprBoxed::Ite(a, b, c) => format!("({} ? {} : {})", a.to_string(), b.to_string(), c.to_string()),
         }
     }
 }
@@ -199,9 +194,7 @@ where
     where
         F: FnMut(<&'a E as Functor>::Mapped<R>) -> R,
     {
-        let mut results: Vec<Option<R>> = std::iter::repeat_with(|| None)
-            .take(self.exprs.len())
-            .collect();
+        let mut results: Vec<Option<R>> = std::iter::repeat_with(|| None).take(self.exprs.len()).collect();
 
         for (i, expr) in self.exprs.iter().enumerate().rev() {
             let expr = expr.fmap(|idx| results[idx.0].take().unwrap());

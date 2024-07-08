@@ -29,11 +29,7 @@ impl Default for Node {
 
 impl MyHash for Node {
     fn hash(&self) -> u64 {
-        pairing3(
-            self.variable as u64,
-            self.low.unsigned() as u64,
-            self.high.unsigned() as u64,
-        )
+        pairing3(self.variable as u64, self.low.unsigned() as u64, self.high.unsigned() as u64)
     }
 }
 
@@ -61,11 +57,7 @@ pub enum OpKey {
 impl MyHash for OpKey {
     fn hash(&self) -> u64 {
         match self {
-            OpKey::Ite(f, g, h) => pairing3(
-                f.unsigned() as u64,
-                g.unsigned() as u64,
-                h.unsigned() as u64,
-            ),
+            OpKey::Ite(f, g, h) => pairing3(f.unsigned() as u64, g.unsigned() as u64, h.unsigned() as u64),
             OpKey::Constrain(f, g) => pairing2(f.unsigned() as u64, g.unsigned() as u64),
             OpKey::Restrict(f, g) => pairing2(f.unsigned() as u64, g.unsigned() as u64),
         }
@@ -82,10 +74,7 @@ pub struct Bdd {
 
 impl Bdd {
     pub fn new(storage_bits: usize) -> Self {
-        assert!(
-            storage_bits <= 31,
-            "Storage bits should be in the range 0..=31"
-        );
+        assert!(storage_bits <= 31, "Storage bits should be in the range 0..=31");
 
         let cache_bits = min(storage_bits, 16);
 
@@ -186,11 +175,7 @@ impl Bdd {
             return low;
         }
 
-        let i = self.storage.borrow_mut().put(Node {
-            variable: v,
-            low,
-            high,
-        });
+        let i = self.storage.borrow_mut().put(Node { variable: v, low, high });
         Ref::positive(i as u32)
     }
 
@@ -414,10 +399,7 @@ impl Bdd {
         let key = OpKey::Ite(f, g, h);
         debug!("key = {:?}", key);
         if let Some(&res) = self.cache.borrow().get(&key) {
-            debug!(
-                "cache: apply_ite(f = {}, g = {}, h = {}) -> {}",
-                f, g, h, res
-            );
+            debug!("cache: apply_ite(f = {}, g = {}, h = {}) -> {}", f, g, h, res);
             return if n { -res } else { res };
         }
 
@@ -444,10 +426,7 @@ impl Bdd {
         debug!("cofactors of res: e = {}, t = {}", e, t);
 
         let res = self.mk_node(m, e, t);
-        debug!(
-            "computed: apply_ite(f = {}, g = {}, h = {}) -> {}",
-            f, g, h, res
-        );
+        debug!("computed: apply_ite(f = {}, g = {}, h = {}) -> {}", f, g, h, res);
         self.cache.borrow_mut().insert(key, res);
         return if n { -res } else { res };
     }
@@ -532,10 +511,7 @@ impl Bdd {
 
         let key = OpKey::Ite(f, g, h);
         if let Some(&res) = self.cache.borrow().get(&key) {
-            debug!(
-                "cache: ite_constant(f = {}, g = {}, h = {}) -> {}",
-                f, g, h, res
-            );
+            debug!("cache: ite_constant(f = {}, g = {}, h = {}) -> {}", f, g, h, res);
             assert!(!self.is_terminal(res));
             return None;
         }
@@ -649,11 +625,7 @@ impl Bdd {
 
         if v == i {
             // Note: here, we do not need to wrap it with restrict(...).
-            return if b {
-                self.high_node(f)
-            } else {
-                self.low_node(f)
-            };
+            return if b { self.high_node(f) } else { self.low_node(f) };
         }
 
         if let Some(&res) = cache.get(&f) {
@@ -673,12 +645,7 @@ impl Bdd {
         self.substitute_multi_(f, values, &mut cache)
     }
 
-    fn substitute_multi_(
-        &self,
-        f: Ref,
-        values: &HashMap<u32, bool>,
-        cache: &mut HashMap<Ref, Ref>,
-    ) -> Ref {
+    fn substitute_multi_(&self, f: Ref, values: &HashMap<u32, bool>, cache: &mut HashMap<Ref, Ref>) -> Ref {
         debug!("restrict_multi(f = {}, values = {:?})", f, values);
 
         if self.is_terminal(f) {
@@ -791,11 +758,7 @@ impl Bdd {
         } else {
             assert!(v > i);
 
-            let m = if self.is_terminal(g) {
-                i
-            } else {
-                min(i, self.variable(g.index()))
-            };
+            let m = if self.is_terminal(g) { i } else { min(i, self.variable(g.index())) };
             assert_ne!(m, 0);
 
             let (f0, f1) = self.top_cofactors(f, m);
@@ -1328,10 +1291,7 @@ mod tests {
         let x3 = bdd.mk_var(3);
 
         // f = x1*x3 + ~x1*(x2^x3)
-        let f = bdd.apply_or(
-            bdd.apply_and(x1, x3),
-            bdd.apply_and(-x1, bdd.apply_xor(x2, x3)),
-        );
+        let f = bdd.apply_or(bdd.apply_and(x1, x3), bdd.apply_and(-x1, bdd.apply_xor(x2, x3)));
 
         // g = x1*x2 + ~x2*~x3
         let g = bdd.apply_or(bdd.apply_and(x1, x2), bdd.apply_and(-x2, -x3));
@@ -1410,11 +1370,7 @@ mod tests {
         println!("f of size {} = {}", bdd.size(f), bdd.to_bracket_string(f));
 
         let f_x2_zero = bdd.substitute(f, 2, false); // f|x2<-0
-        println!(
-            "f|x2<-0 of size {} = {}",
-            bdd.size(f_x2_zero),
-            bdd.to_bracket_string(f_x2_zero)
-        );
+        println!("f|x2<-0 of size {} = {}", bdd.size(f_x2_zero), bdd.to_bracket_string(f_x2_zero));
 
         let g = bdd.apply_or(-x1, x3);
         println!("g of size {} = {}", bdd.size(g), bdd.to_bracket_string(g));
@@ -1431,10 +1387,7 @@ mod tests {
         let x3 = bdd.mk_var(3);
         let x4 = bdd.mk_var(4);
 
-        let values = HashMap::from([
-            (bdd.variable(x2.index()), true),
-            (bdd.variable(x4.index()), false),
-        ]);
+        let values = HashMap::from([(bdd.variable(x2.index()), true), (bdd.variable(x4.index()), false)]);
         println!("values = {:?}", values);
 
         let f = bdd.apply_and_many([-x1, x2, x3, -x4]);
@@ -1476,24 +1429,14 @@ mod tests {
         let x2 = bdd.mk_var(2);
 
         let f = bdd.apply_and(x1, x2);
-        println!(
-            "f = x1&x2 of size {} = {}",
-            bdd.size(f),
-            bdd.to_bracket_string(f)
-        );
+        println!("f = x1&x2 of size {} = {}", bdd.size(f), bdd.to_bracket_string(f));
 
         println!("is_implies(f, x1) = {}", bdd.is_implies(f, x1));
         println!("is_implies(f, x2) = {}", bdd.is_implies(f, x2));
         println!("is_implies(f, -x1) = {}", bdd.is_implies(f, -x1));
         println!("is_implies(f, -x2) = {}", bdd.is_implies(f, -x2));
-        println!(
-            "is_implies(f, x1&x2 = {}",
-            bdd.is_implies(f, bdd.apply_and(x1, x2))
-        );
-        println!(
-            "is_implies(f, x1|x2 = {}",
-            bdd.is_implies(f, bdd.apply_or(x1, x2))
-        );
+        println!("is_implies(f, x1&x2 = {}", bdd.is_implies(f, bdd.apply_and(x1, x2)));
+        println!("is_implies(f, x1|x2 = {}", bdd.is_implies(f, bdd.apply_or(x1, x2)));
 
         assert!(bdd.is_implies(f, x1));
         assert!(bdd.is_implies(f, x2));

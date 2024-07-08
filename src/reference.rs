@@ -51,11 +51,6 @@ impl Neg for Ref {
 
 impl Display for Ref {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}@{}",
-            if self.is_negated() { "~" } else { "" },
-            self.index()
-        )
+        write!(f, "{}@{}", if self.is_negated() { "~" } else { "" }, self.index())
     }
 }

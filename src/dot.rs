@@ -63,12 +63,7 @@ impl Bdd {
                 if low.index() == 1 {
                     writeln!(dot, "{} -- 0 [style=dashed];", id)?;
                 } else {
-                    writeln!(
-                        dot,
-                        "{} -- {} [label=\"-1\", style=dotted];",
-                        id,
-                        low.index()
-                    )?;
+                    writeln!(dot, "{} -- {} [label=\"-1\", style=dotted];", id, low.index())?;
                 }
             } else {
                 writeln!(dot, "{} -- {} [style=dashed];", id, low.index())?;

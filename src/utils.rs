@@ -95,11 +95,7 @@ impl MyHash for (Ref, Ref) {
 
 impl MyHash for (Ref, Ref, Ref) {
     fn hash(&self) -> u64 {
-        MyHash::hash(&(
-            self.0.unsigned() as u64,
-            self.1.unsigned() as u64,
-            self.2.unsigned() as u64,
-        ))
+        MyHash::hash(&(self.0.unsigned() as u64, self.1.unsigned() as u64, self.2.unsigned() as u64))
     }
 }
 
