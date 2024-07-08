@@ -59,10 +59,10 @@ pub enum OpKey {
 
 impl MyHash for OpKey {
     fn hash(&self) -> u64 {
-        match self {
-            &OpKey::Ite(f, g, h) => MyHash::hash(&(f, g, h)),
-            &OpKey::Constrain(f, g) => MyHash::hash(&(f, g)),
-            &OpKey::Restrict(f, g) => MyHash::hash(&(f, g)),
+        match *self {
+            OpKey::Ite(f, g, h) => MyHash::hash(&(f, g, h)),
+            OpKey::Constrain(f, g) => MyHash::hash(&(f, g)),
+            OpKey::Restrict(f, g) => MyHash::hash(&(f, g)),
         }
     }
 }
