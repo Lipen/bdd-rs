@@ -6,17 +6,15 @@ use crate::utils::MyHash;
 #[derive(Clone)]
 struct Entry<T> {
     value: T,
-    next: usize,
-    occupied: bool,
+    next: u32, // 31 bits (MSB) for the index, 1 bit (LSB) for the occupied flag
 }
 
 impl<T> Entry<T> {
     /// Create a new cell with the given value.
-    pub fn new(value: T) -> Self {
+    pub const fn new(value: T) -> Self {
         Self {
             value,
-            next: 0,
-            occupied: false,
+            next : 0 ,
         }
     }
 }
@@ -32,7 +30,7 @@ where
 
 impl<T> Entry<T> {
     /// Get the reference to the value.
-    pub fn value(&self) -> &T {
+    pub const fn value(&self) -> &T {
         &self.value
     }
     /// Get the mutable reference to the value.
@@ -41,21 +39,22 @@ impl<T> Entry<T> {
     }
 
     /// Get the index of the next cell.
-    pub fn next(&self) -> usize {
-        self.next
+    pub const fn next(&self) -> usize {
+        (self.next >> 1) as usize
     }
     /// Set the index of the next cell.
     pub fn set_next(&mut self, next: usize) {
-        self.next = next;
+        debug_assert!((next as u32) < (1 << 31), "Index is too large");
+        self.next = ((next as u32) << 1) | (self.next & 1)
     }
 
     /// Check if the cell is occupied.
-    pub fn occupied(&self) -> bool {
-        self.occupied
+    pub const fn occupied(&self) -> bool {
+        (self.next & 1) != 0
     }
     /// Set the occupied flag.
     pub fn set_occupied(&mut self, occupied: bool) {
-        self.occupied = occupied;
+        self.next = (self.next & !1) | occupied as u32;
     }
 }
 
@@ -79,7 +78,7 @@ where
 {
     /// Create a new table of size `2^bits`.
     pub fn new(bits: usize) -> Self {
-        assert!(bits <= 31, "Storage bits should be in the range 0..=31");
+        assert!(bits <= 31, "Storage bits must be in the range 0..=31");
 
         let capacity = 1 << bits;
         // let mut data = vec![Entry::default(); capacity];
@@ -181,7 +180,7 @@ impl<T> Table<T> {
     pub fn drop(&mut self, index: usize) {
         assert_ne!(index, 0, "Index is 0");
 
-        self.data[index].occupied = false;
+        self.data[index].set_occupied(false);
         self.min_free = min(self.min_free, index);
         self.real_size -= 1;
     }
@@ -191,7 +190,7 @@ impl<T> Table<T> {
         let index = self.alloc();
 
         self.data[index].value = value;
-        self.data[index].next = 0;
+        self.data[index].set_next(0);
 
         index
     }
