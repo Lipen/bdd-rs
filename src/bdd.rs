@@ -712,6 +712,12 @@ impl Bdd {
                 } else {
                     self.cofactor_cube(f0, &cube[1..])
                 }
+                // let res = if xu > 0 {
+                //     self.high_node(f)
+                // } else {
+                //     self.low_node(f)
+                // };
+                // self.cofactor_cube(res, &cube[1..])
             }
             Ordering::Less => {
                 // `t < u`: `u` is not the top variable of 'f'
