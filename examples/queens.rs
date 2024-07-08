@@ -117,6 +117,10 @@ fn main() -> color_eyre::Result<()> {
     println!("bdd = {:?}", bdd);
     println!("res of size {} = {}", bdd.size(res), bdd.to_bracket_string(res));
 
+    println!("cache hits: {}", bdd.cache().hits());
+    println!("cache faults: {}", bdd.cache().faults());
+    println!("cache misses: {}", bdd.cache().misses());
+
     let time_total = time_total.elapsed();
     println!("Done in {:.3} s", time_total.as_secs_f64());
 
