@@ -28,6 +28,9 @@ jobs:
       - name: Run tests
         run: cargo test --workspace
 
+      - name: Run N-queens (n=8) example
+        run: cargo run --release --example queens -- 8
+
   test-windows:
     name: Test on Windows
     runs-on: windows-latest
@@ -50,6 +53,9 @@ jobs:
 
       - name: Run tests
         run: cargo test --workspace
+
+      - name: Run N-queens (n=8) example
+        run: cargo run --release --example queens -- 8
 
   fmt:
     name: Rustfmt
