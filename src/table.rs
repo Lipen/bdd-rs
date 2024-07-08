@@ -12,10 +12,7 @@ struct Entry<T> {
 impl<T> Entry<T> {
     /// Create a new cell with the given value.
     pub const fn new(value: T) -> Self {
-        Self {
-            value,
-            next : 0 ,
-        }
+        Self { value, next: 0 }
     }
 }
 
