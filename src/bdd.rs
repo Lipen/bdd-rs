@@ -683,50 +683,64 @@ impl Bdd {
     }
 
     pub fn cofactor_cube(&self, f: Ref, cube: &[i32]) -> Ref {
-        debug!("cofactor_cube(f = {}, cube = {:?})", f, cube);
+        let mut cache = HashMap::new();
+        self.cofactor_cube_(f, cube, &mut cache)
+    }
+
+    fn cofactor_cube_(&self, f: Ref, cube: &[i32], cache: &mut HashMap<(usize, Ref), Ref>) -> Ref {
+        // debug!("cofactor_cube(f = {}, cube = {:?})", f, cube);
 
         if cube.is_empty() {
-            debug!("cube is empty");
+            // debug!("cube is empty");
             return f;
         }
 
         if self.is_terminal(f) {
-            debug!("f is terminal");
+            // debug!("f is terminal");
             return f;
+        }
+
+        let key = (cube.len(), f);
+        if let Some(&res) = cache.get(&key) {
+            return res;
         }
 
         let t = self.variable(f.index()); // top variable of `f`
         let xu = cube[0];
         let u = xu.unsigned_abs();
 
-        match t.cmp(&u) {
+        let res = match t.cmp(&u) {
             Ordering::Greater => {
                 // `t > u`: `f` does not depend on `u`
-                self.cofactor_cube(f, &cube[1..])
+                self.cofactor_cube_(f, &cube[1..], cache)
             }
             Ordering::Equal => {
                 // `t == u`: `u` is the top variable of `f`
-                let (f0, f1) = self.top_cofactors(f, u);
-                if xu > 0 {
-                    self.cofactor_cube(f1, &cube[1..])
-                } else {
-                    self.cofactor_cube(f0, &cube[1..])
-                }
-                // let res = if xu > 0 {
-                //     self.high_node(f)
+                // let (f0, f1) = self.top_cofactors(f, u);
+                // if xu > 0 {
+                //     self.cofactor_cube_(f1, &cube[1..], cache)
                 // } else {
-                //     self.low_node(f)
-                // };
-                // self.cofactor_cube(res, &cube[1..])
+                //     self.cofactor_cube_(f0, &cube[1..], cache)
+                // }
+                let res = if xu > 0 {
+                    self.high_node(f)
+                } else {
+                    self.low_node(f)
+                };
+                self.cofactor_cube_(res, &cube[1..], cache)
             }
             Ordering::Less => {
                 // `t < u`: `u` is not the top variable of 'f'
-                let (f0, f1) = self.top_cofactors(f, t);
-                let low = self.cofactor_cube(f0, cube);
-                let high = self.cofactor_cube(f1, cube);
+                // let (f0, f1) = self.top_cofactors(f, t);
+                let f0 = self.low_node(f);
+                let f1 = self.high_node(f);
+                let low = self.cofactor_cube_(f0, cube, cache);
+                let high = self.cofactor_cube_(f1, cube, cache);
                 self.mk_node(t, low, high)
             }
-        }
+        };
+        cache.insert(key, res);
+        res
     }
 
     // f|v<-g
