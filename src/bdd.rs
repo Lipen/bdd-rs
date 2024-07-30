@@ -907,13 +907,12 @@ impl Bdd {
     pub fn descendants(&self, nodes: impl IntoIterator<Item = Ref>) -> HashSet<u32> {
         let mut visited = HashSet::new();
         visited.insert(self.one.index());
-        let mut queue = VecDeque::from_iter(nodes);
+        let mut queue = VecDeque::from_iter(nodes.into_iter().map(|node| node.index()));
 
-        while let Some(node) = queue.pop_front() {
-            let i = node.index();
+        while let Some(i) = queue.pop_front() {
             if visited.insert(i) {
-                queue.push_back(self.low(i));
-                queue.push_back(self.high(i));
+                queue.push_back(self.low(i).index());
+                queue.push_back(self.high(i).index());
             }
         }
 
