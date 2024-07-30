@@ -162,19 +162,19 @@ impl Bdd {
     }
 
     pub fn mk_node(&self, v: u32, low: Ref, high: Ref) -> Ref {
-        debug!("mk(v = {}, low = {}, high = {})", v, low, high);
+        // debug!("mk(v = {}, low = {}, high = {})", v, low, high);
 
         assert_ne!(v, 0, "Variable index should not be zero");
 
         // Handle canonicity
         if high.is_negated() {
-            debug!("mk: restoring canonicity");
+            // debug!("mk: restoring canonicity");
             return -self.mk_node(v, -low, -high);
         }
 
         // Handle duplicates
         if low == high {
-            debug!("mk: duplicates {} == {}", low, high);
+            // debug!("mk: duplicates {} == {}", low, high);
             return low;
         }
 
