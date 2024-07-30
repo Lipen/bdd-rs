@@ -6,7 +6,7 @@ use crate::utils::MyHash;
 #[derive(Clone)]
 struct Entry<T> {
     value: T,
-    next: u32, // 1 bit (MSB) for the occupied flag, and the rest 31 bits (LSB) for the index
+    next: u32, // 31 bits (MSB) for the index, 1 bit (LSB) for the occupied flag
 }
 
 impl<T> Entry<T> {
@@ -41,21 +41,21 @@ impl<T> Entry<T> {
 
     /// Get the index of the next cell.
     pub const fn next(&self) -> usize {
-        (self.next & 0x7fffffff) as usize
+        (self.next >> 1) as usize
     }
     /// Set the index of the next cell.
     pub fn set_next(&mut self, next: usize) {
-        debug_assert!((next as u32) < 0x7fffffff, "Index is too large");
-        self.next = (self.next & 0x80000000) | (next as u32);
+        assert!(next < 0x8000_0000, "Index is too large");
+        self.next = ((next as u32) << 1) | (self.next & 0x1);
     }
 
     /// Check if the cell is occupied.
     pub const fn occupied(&self) -> bool {
-        (self.next & 0x80000000) != 0
+        (self.next & 0x1) != 0
     }
     /// Set the occupied flag.
     pub fn set_occupied(&mut self, occupied: bool) {
-        self.next = (self.next & 0x7fffffff) | ((occupied as u32) << 31);
+        self.next = (self.next & !1) | (occupied as u32);
     }
 }
 
@@ -119,33 +119,33 @@ impl<T> Table<T> {
 
     /// Get the reference to the value at the given index.
     pub fn value(&self, index: usize) -> &T {
-        debug_assert_ne!(index, 0, "Index is 0");
+        assert_ne!(index, 0, "Index is 0");
         self.data[index].value()
     }
     /// Get the mutable reference to the value at the given index.
     pub fn value_mut(&mut self, index: usize) -> &mut T {
-        debug_assert_ne!(index, 0, "Index is 0");
+        assert_ne!(index, 0, "Index is 0");
         self.data[index].value_mut()
     }
     /// Set the value at the given index.
     pub fn set_value(&mut self, index: usize, value: T) {
-        debug_assert_ne!(index, 0, "Index is 0");
+        assert_ne!(index, 0, "Index is 0");
         self.data[index].set_value(value);
     }
 
     /// Check if the cell at the given index is occupied.
     pub fn is_occupied(&self, index: usize) -> bool {
-        debug_assert_ne!(index, 0, "Index is 0");
+        assert_ne!(index, 0, "Index is 0");
         self.data[index].occupied()
     }
     /// Get the index of the next cell.
     pub fn next(&self, index: usize) -> usize {
-        debug_assert_ne!(index, 0, "Index is 0");
+        assert_ne!(index, 0, "Index is 0");
         self.data[index].next()
     }
     /// Set the index of the next cell.
     pub fn set_next(&mut self, index: usize, next: usize) {
-        debug_assert_ne!(index, 0, "Index is 0");
+        assert_ne!(index, 0, "Index is 0");
         self.data[index].set_next(next);
     }
 
@@ -184,7 +184,7 @@ impl<T> Table<T> {
 
     /// Drop the value at the given index.
     pub fn drop(&mut self, index: usize) {
-        debug_assert_ne!(index, 0, "Index is 0");
+        assert_ne!(index, 0, "Index is 0");
 
         self.data[index].set_occupied(false);
         self.min_free = min(self.min_free, index);
@@ -226,7 +226,7 @@ where
         }
 
         loop {
-            debug_assert!(index > 0);
+            assert!(index > 0);
 
             if value == *self.value(index) {
                 // The node already exists.
