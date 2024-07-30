@@ -6,7 +6,7 @@ use crate::utils::MyHash;
 #[derive(Clone)]
 struct Entry<T> {
     value: T,
-    next: u32, // 31 bits (MSB) for the index, 1 bit (LSB) for the occupied flag
+    next: u32, // 1 bit (MSB) for the occupied flag, and the rest 31 bits (LSB) for the index
 }
 
 impl<T> Entry<T> {
@@ -34,24 +34,28 @@ impl<T> Entry<T> {
     pub fn value_mut(&mut self) -> &mut T {
         &mut self.value
     }
+    /// Set the value.
+    pub fn set_value(&mut self, value: T) {
+        self.value = value;
+    }
 
     /// Get the index of the next cell.
     pub const fn next(&self) -> usize {
-        (self.next >> 1) as usize
+        (self.next & 0x7fffffff) as usize
     }
     /// Set the index of the next cell.
     pub fn set_next(&mut self, next: usize) {
-        debug_assert!((next as u32) < (1 << 31), "Index is too large");
-        self.next = ((next as u32) << 1) | (self.next & 1)
+        debug_assert!((next as u32) < 0x7fffffff, "Index is too large");
+        self.next = (self.next & 0x80000000) | (next as u32);
     }
 
     /// Check if the cell is occupied.
     pub const fn occupied(&self) -> bool {
-        (self.next & 1) != 0
+        (self.next & 0x80000000) != 0
     }
     /// Set the occupied flag.
     pub fn set_occupied(&mut self, occupied: bool) {
-        self.next = (self.next & !1) | occupied as u32;
+        self.next = (self.next & 0x7fffffff) | ((occupied as u32) << 31);
     }
 }
 
@@ -115,13 +119,18 @@ impl<T> Table<T> {
 
     /// Get the reference to the value at the given index.
     pub fn value(&self, index: usize) -> &T {
-        assert_ne!(index, 0, "Index is 0");
+        debug_assert_ne!(index, 0, "Index is 0");
         self.data[index].value()
     }
     /// Get the mutable reference to the value at the given index.
     pub fn value_mut(&mut self, index: usize) -> &mut T {
-        assert_ne!(index, 0, "Index is 0");
+        debug_assert_ne!(index, 0, "Index is 0");
         self.data[index].value_mut()
+    }
+    /// Set the value at the given index.
+    pub fn set_value(&mut self, index: usize, value: T) {
+        debug_assert_ne!(index, 0, "Index is 0");
+        self.data[index].set_value(value);
     }
 
     /// Check if the cell at the given index is occupied.
@@ -131,12 +140,12 @@ impl<T> Table<T> {
     }
     /// Get the index of the next cell.
     pub fn next(&self, index: usize) -> usize {
-        assert_ne!(index, 0, "Index is 0");
+        debug_assert_ne!(index, 0, "Index is 0");
         self.data[index].next()
     }
     /// Set the index of the next cell.
     pub fn set_next(&mut self, index: usize, next: usize) {
-        assert_ne!(index, 0, "Index is 0");
+        debug_assert_ne!(index, 0, "Index is 0");
         self.data[index].set_next(next);
     }
 
@@ -186,7 +195,7 @@ impl<T> Table<T> {
     pub fn add(&mut self, value: T) -> usize {
         let index = self.alloc();
 
-        self.data[index].value = value;
+        self.data[index].set_value(value);
         self.data[index].set_next(0);
 
         index
