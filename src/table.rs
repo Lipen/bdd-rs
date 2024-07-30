@@ -135,7 +135,7 @@ impl<T> Table<T> {
 
     /// Check if the cell at the given index is occupied.
     pub fn is_occupied(&self, index: usize) -> bool {
-        assert_ne!(index, 0, "Index is 0");
+        debug_assert_ne!(index, 0, "Index is 0");
         self.data[index].occupied()
     }
     /// Get the index of the next cell.
@@ -184,7 +184,7 @@ impl<T> Table<T> {
 
     /// Drop the value at the given index.
     pub fn drop(&mut self, index: usize) {
-        assert_ne!(index, 0, "Index is 0");
+        debug_assert_ne!(index, 0, "Index is 0");
 
         self.data[index].set_occupied(false);
         self.min_free = min(self.min_free, index);
@@ -226,7 +226,7 @@ where
         }
 
         loop {
-            assert!(index > 0);
+            debug_assert!(index > 0);
 
             if value == *self.value(index) {
                 // The node already exists.
