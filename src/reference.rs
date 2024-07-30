@@ -22,17 +22,11 @@ impl Ref {
         Self(-(value as i32))
     }
 
-    pub const fn inner(self) -> i32 {
-        self.0
-    }
     pub const fn index(self) -> u32 {
         self.0.unsigned_abs()
     }
     pub const fn is_negated(self) -> bool {
         self.0 < 0
-    }
-    pub const fn negate(self) -> Self {
-        Self(-self.0)
     }
 
     pub(crate) const fn hashy(self) -> u64 {
@@ -46,7 +40,7 @@ impl Neg for Ref {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        self.negate()
+        Self(-self.0)
     }
 }
 
