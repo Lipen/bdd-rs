@@ -722,11 +722,7 @@ impl Bdd {
                 // } else {
                 //     self.cofactor_cube_(f0, &cube[1..], cache)
                 // }
-                let res = if xu > 0 {
-                    self.high_node(f)
-                } else {
-                    self.low_node(f)
-                };
+                let res = if xu > 0 { self.high_node(f) } else { self.low_node(f) };
                 self.cofactor_cube_(res, &cube[1..], cache)
             }
             Ordering::Less => {
@@ -1023,6 +1019,78 @@ impl Bdd {
             self.node_to_str(high, visited),
             self.node_to_str(low, visited),
         )
+    }
+}
+
+impl Bdd {
+    pub fn one_sat(&self, node: Ref) -> Option<Vec<i32>> {
+        self.one_sat_(node, vec![])
+    }
+
+    fn one_sat_(&self, node: Ref, path: Vec<i32>) -> Option<Vec<i32>> {
+        if self.is_one(node) {
+            return Some(path);
+        } else if self.is_zero(node) {
+            return None;
+        }
+
+        let v = self.variable(node.index()) as i32;
+
+        let high = self.high_node(node);
+        let mut path_high = path.clone();
+        path_high.push(v);
+        if let Some(res) = self.one_sat_(high, path_high) {
+            return Some(res);
+        }
+
+        let low = self.low_node(node);
+        let mut path_low = path;
+        path_low.push(-v);
+        self.one_sat_(low, path_low)
+    }
+}
+
+impl Bdd {
+    pub fn paths(&self, f: Ref) -> BddPaths {
+        BddPaths::new(self, f)
+    }
+}
+
+pub struct BddPaths<'a> {
+    bdd: &'a Bdd,
+    stack: Vec<(Ref, Vec<i32>)>,
+}
+
+impl<'a> BddPaths<'a> {
+    pub fn new(bdd: &'a Bdd, f: Ref) -> Self {
+        let stack = vec![(f, vec![])];
+        BddPaths { bdd, stack }
+    }
+}
+
+impl Iterator for BddPaths<'_> {
+    type Item = Vec<i32>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((node, path)) = self.stack.pop() {
+            if self.bdd.is_zero(node) {
+                continue;
+            } else if self.bdd.is_one(node) {
+                return Some(path);
+            } else {
+                assert!(!self.bdd.is_terminal(node));
+                let v = self.bdd.variable(node.index()) as i32;
+
+                let mut path_high = path.clone();
+                path_high.push(v);
+                self.stack.push((self.bdd.high_node(node), path_high));
+
+                let mut path_low = path;
+                path_low.push(-v);
+                self.stack.push((self.bdd.low_node(node), path_low));
+            }
+        }
+        None
     }
 }
 
@@ -1473,5 +1541,135 @@ mod tests {
         assert!(bdd.is_implies(bdd.zero, x2));
         assert!(bdd.is_implies(x1, bdd.apply_or(x1, x2)));
         assert!(bdd.is_implies(x2, bdd.apply_or(x1, x2)));
+    }
+
+    #[test]
+    fn test_one_sat() {
+        let bdd = Bdd::default();
+
+        let f = bdd.cube([1, -2, -3]);
+        println!("f = {} of size {}", f, bdd.size(f));
+        let model = bdd.one_sat(f);
+        println!("model = {:?}", model);
+        assert_eq!(model, Some(vec![1, -2, -3]));
+
+        let g = bdd.apply_and(f, -bdd.cube(model.unwrap()));
+        println!("g = {} of size {}", g, bdd.size(g));
+        let model = bdd.one_sat(g);
+        println!("model = {:?}", model);
+        assert_eq!(model, None);
+    }
+
+    #[test]
+    fn test_one_sat_many() {
+        let bdd = Bdd::default();
+
+        let mut all_cubes = Vec::new();
+
+        for &s1 in &[1, -1] {
+            for &s2 in &[1, -1] {
+                for &s3 in &[1, -1] {
+                    all_cubes.push([1 * s1, 2 * s2, 3 * s3]);
+                }
+            }
+        }
+
+        for cube in all_cubes {
+            println!("Testing cube: {:?}", cube);
+
+            let f = bdd.cube(cube);
+            println!("f = {} of size {}", f, bdd.size(f));
+            let model = bdd.one_sat(f);
+            println!("model = {:?}", model);
+            assert_eq!(model, Some(cube.to_vec()));
+
+            let g = bdd.apply_and(f, -bdd.cube(model.unwrap()));
+            println!("g = {} of size {}", g, bdd.size(g));
+            let model = bdd.one_sat(g);
+            println!("model = {:?}", model);
+            assert_eq!(model, None);
+        }
+    }
+
+    #[test]
+    fn test_all_paths_1() {
+        let bdd = Bdd::default();
+
+        let f = bdd.cube([1, -2, 3]);
+        println!("f = {} of size {}", f, bdd.size(f));
+        let paths = bdd.paths(f).collect::<Vec<_>>();
+        println!("paths: {}", paths.len());
+        for path in paths.iter() {
+            println!("path = {:?}", path);
+        }
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], vec![1, -2, 3]);
+    }
+
+    #[test]
+    fn test_all_paths_2() {
+        let bdd = Bdd::default();
+
+        let c1 = bdd.cube([1, -2, 3]);
+        let c2 = bdd.cube([1, 2, -3]);
+        let f = bdd.apply_or(c1, c2);
+        println!("f = {} of size {}", f, bdd.size(f));
+        let paths = bdd.paths(f).collect::<Vec<_>>();
+        println!("paths: {}", paths.len());
+        for path in paths.iter() {
+            println!("path = {:?}", path);
+        }
+        assert_eq!(paths.len(), 2);
+        assert!(paths.contains(&vec![1, -2, 3]));
+        assert!(paths.contains(&vec![1, 2, -3]));
+    }
+
+    #[test]
+    fn test_all_paths_one() {
+        let bdd = Bdd::default();
+
+        let f = bdd.one;
+        println!("f = {} of size {}", f, bdd.size(f));
+        let paths = bdd.paths(f).collect::<Vec<_>>();
+        println!("paths: {}", paths.len());
+        for path in paths.iter() {
+            println!("path = {:?}", path);
+        }
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], vec![]);
+    }
+
+    #[test]
+    fn test_all_paths_zero() {
+        let bdd = Bdd::default();
+
+        let f = bdd.zero;
+        println!("f = {} of size {}", f, bdd.size(f));
+        let paths = bdd.paths(f).collect::<Vec<_>>();
+        println!("paths: {}", paths.len());
+        for path in paths.iter() {
+            println!("path = {:?}", path);
+        }
+        assert_eq!(paths.len(), 0);
+    }
+
+    #[test]
+    fn test_all_paths_to_zero() {
+        let bdd = Bdd::default();
+
+        let f = bdd.cube([-1, -2, -3]);
+        println!("f = {} of size {}", bdd.to_bracket_string(f), bdd.size(f));
+        println!("~f = {} of size {}", bdd.to_bracket_string(-f), bdd.size(-f));
+        let paths = bdd.paths(-f).collect::<Vec<_>>();
+        println!("paths to one for {}: {}", -f, paths.len());
+        for path in paths.iter() {
+            println!("path = {:?}", path);
+        }
+
+        let paths = bdd.paths(f).collect::<Vec<_>>();
+        println!("paths to one for {}: {}", f, paths.len());
+        for path in paths.iter() {
+            println!("path = {:?}", path);
+        }
     }
 }
