@@ -1007,9 +1007,10 @@ impl Bdd {
             return format!("{}", node);
         }
 
-        let v = self.variable(node.index());
-        let low = self.low_node(node);
-        let high = self.high_node(node);
+        let index = node.index();
+        let v = self.variable(index);
+        let low = self.low(index);
+        let high = self.high(index);
 
         format!(
             "{}:(x{}, {}, {})",
