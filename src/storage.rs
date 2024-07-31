@@ -2,7 +2,7 @@ use crate::node::Node;
 use crate::reference::Ref;
 use crate::table::Table;
 
-pub(crate) type Storage = Table<Node>;
+pub type Storage = Table<Node>;
 
 impl Storage {
     pub fn node(&self, index: usize) -> &Node {
