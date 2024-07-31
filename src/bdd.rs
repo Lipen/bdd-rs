@@ -6,69 +6,10 @@ use std::fmt::Debug;
 use log::debug;
 
 use crate::cache::Cache;
+use crate::node::Node;
 use crate::reference::Ref;
-use crate::table::Table;
-use crate::utils::MyHash;
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct Node {
-    variable: u32,
-    low: Ref,
-    high: Ref,
-}
-
-impl Default for Node {
-    fn default() -> Self {
-        Self {
-            variable: 0,
-            low: Ref::ZERO,
-            high: Ref::ZERO,
-        }
-    }
-}
-
-impl MyHash for Node {
-    fn hash(&self) -> u64 {
-        let x = self.variable as u64;
-        let y = MyHash::hash(&self.low);
-        let z = MyHash::hash(&self.high);
-        MyHash::hash(&(x, y, z))
-    }
-}
-
-type Storage = Table<Node>;
-
-impl Storage {
-    pub fn node(&self, index: usize) -> Node {
-        *self.value(index)
-    }
-    pub fn variable(&self, index: usize) -> u32 {
-        self.value(index).variable
-    }
-    pub fn low(&self, index: usize) -> Ref {
-        self.value(index).low
-    }
-    pub fn high(&self, index: usize) -> Ref {
-        self.value(index).high
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum OpKey {
-    Ite(Ref, Ref, Ref),
-    Constrain(Ref, Ref),
-    Restrict(Ref, Ref),
-}
-
-impl MyHash for OpKey {
-    fn hash(&self) -> u64 {
-        match *self {
-            OpKey::Ite(f, g, h) => MyHash::hash(&(f, g, h)),
-            OpKey::Constrain(f, g) => MyHash::hash(&(f, g)),
-            OpKey::Restrict(f, g) => MyHash::hash(&(f, g)),
-        }
-    }
-}
+use crate::storage::Storage;
+use crate::utils::OpKey;
 
 pub struct Bdd {
     storage: RefCell<Storage>,
@@ -120,6 +61,9 @@ impl Debug for Bdd {
 }
 
 impl Bdd {
+    pub fn storage(&self) -> std::cell::Ref<'_, Storage> {
+        self.storage.borrow()
+    }
     pub fn cache(&self) -> std::cell::Ref<'_, Cache<OpKey, Ref>> {
         self.cache.borrow()
     }

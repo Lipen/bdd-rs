@@ -98,6 +98,23 @@ impl MyHash for (Ref, Ref, Ref) {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum OpKey {
+    Ite(Ref, Ref, Ref),
+    Constrain(Ref, Ref),
+    Restrict(Ref, Ref),
+}
+
+impl MyHash for OpKey {
+    fn hash(&self) -> u64 {
+        match *self {
+            OpKey::Ite(f, g, h) => MyHash::hash(&(f, g, h)),
+            OpKey::Constrain(f, g) => MyHash::hash(&(f, g)),
+            OpKey::Restrict(f, g) => MyHash::hash(&(f, g)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
