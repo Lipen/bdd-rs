@@ -1,5 +1,8 @@
 = Binary Decision Diagrams for Rust
 
+image:https://github.com/Lipen/bdd-rs/actions/workflows/ci.yml/badge.svg?branch=master["CI",link="https://github.com/Lipen/bdd-rs/actions"]
+image:https://hitsofcode.com/github/Lipen/bdd-rs["Hits-of-Code",link="https://hitsofcode.com/view/github/Lipen/bdd-rs"]
+
 > This crate provides a simple implementation of Binary Decision Diagrams (BDDs) in Rust. BDDs are a data structure used to represent boolean functions, and are commonly used in formal verification and other areas of computer science.
 
 == Installation
