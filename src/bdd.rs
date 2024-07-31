@@ -931,6 +931,32 @@ impl Bdd {
         size
     }
 
+    pub fn one_sat(&self, node: Ref) -> Option<Vec<i32>> {
+        self._one_sat(node, vec![])
+    }
+
+    fn _one_sat(&self, node: Ref, path: Vec<i32>) -> Option<Vec<i32>> {
+        if self.is_one(node) {
+            return Some(path);
+        } else if self.is_zero(node) {
+            return None;
+        }
+
+        let v = self.variable(node.index()) as i32;
+
+        let high = self.high_node(node);
+        let mut path_high = path.clone();
+        path_high.push(v);
+        if let Some(res) = self._one_sat(high, path_high) {
+            return Some(res);
+        }
+
+        let low = self.low_node(node);
+        let mut path_low = path;
+        path_low.push(-v);
+        self._one_sat(low, path_low)
+    }
+
     pub fn collect_garbage(&self, roots: &[Ref]) {
         debug!("Collecting garbage...");
 
@@ -1019,78 +1045,6 @@ impl Bdd {
             self.node_to_str(high, visited),
             self.node_to_str(low, visited),
         )
-    }
-}
-
-impl Bdd {
-    pub fn one_sat(&self, node: Ref) -> Option<Vec<i32>> {
-        self.one_sat_(node, vec![])
-    }
-
-    fn one_sat_(&self, node: Ref, path: Vec<i32>) -> Option<Vec<i32>> {
-        if self.is_one(node) {
-            return Some(path);
-        } else if self.is_zero(node) {
-            return None;
-        }
-
-        let v = self.variable(node.index()) as i32;
-
-        let high = self.high_node(node);
-        let mut path_high = path.clone();
-        path_high.push(v);
-        if let Some(res) = self.one_sat_(high, path_high) {
-            return Some(res);
-        }
-
-        let low = self.low_node(node);
-        let mut path_low = path;
-        path_low.push(-v);
-        self.one_sat_(low, path_low)
-    }
-}
-
-impl Bdd {
-    pub fn paths(&self, f: Ref) -> BddPaths {
-        BddPaths::new(self, f)
-    }
-}
-
-pub struct BddPaths<'a> {
-    bdd: &'a Bdd,
-    stack: Vec<(Ref, Vec<i32>)>,
-}
-
-impl<'a> BddPaths<'a> {
-    pub fn new(bdd: &'a Bdd, f: Ref) -> Self {
-        let stack = vec![(f, vec![])];
-        BddPaths { bdd, stack }
-    }
-}
-
-impl Iterator for BddPaths<'_> {
-    type Item = Vec<i32>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        while let Some((node, path)) = self.stack.pop() {
-            if self.bdd.is_zero(node) {
-                continue;
-            } else if self.bdd.is_one(node) {
-                return Some(path);
-            } else {
-                assert!(!self.bdd.is_terminal(node));
-                let v = self.bdd.variable(node.index()) as i32;
-
-                let mut path_high = path.clone();
-                path_high.push(v);
-                self.stack.push((self.bdd.high_node(node), path_high));
-
-                let mut path_low = path;
-                path_low.push(-v);
-                self.stack.push((self.bdd.low_node(node), path_low));
-            }
-        }
-        None
     }
 }
 

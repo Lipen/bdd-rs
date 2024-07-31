@@ -5,6 +5,7 @@ pub mod dot;
 pub mod eval;
 pub mod gate;
 pub mod network;
+pub mod paths;
 pub mod reference;
 pub mod signal;
 pub mod table;
