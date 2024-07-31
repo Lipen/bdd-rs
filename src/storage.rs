@@ -5,8 +5,8 @@ use crate::table::Table;
 pub(crate) type Storage = Table<Node>;
 
 impl Storage {
-    pub fn node(&self, index: usize) -> Node {
-        *self.value(index)
+    pub fn node(&self, index: usize) -> &Node {
+        self.value(index)
     }
     pub fn variable(&self, index: usize) -> u32 {
         self.value(index).variable

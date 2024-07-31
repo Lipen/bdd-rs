@@ -69,7 +69,7 @@ impl Bdd {
     }
 
     pub fn node(&self, index: u32) -> Node {
-        self.storage.borrow().node(index as usize)
+        *self.storage.borrow().node(index as usize)
     }
     pub fn variable(&self, index: u32) -> u32 {
         self.storage.borrow().variable(index as usize)
