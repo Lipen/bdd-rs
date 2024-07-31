@@ -250,7 +250,7 @@ impl Bdd {
     /// Apply the ITE operation to the arguments.
     ///
     /// ```text
-    /// ITE(x, y, z) = (x ∧ y) ∨ (¬x ∧ z)
+    /// ITE(x, y, z) == (x ∧ y) ∨ (¬x ∧ z) == (x -> y) ∧ (¬x -> z)
     /// ```
     ///
     /// # Examples
