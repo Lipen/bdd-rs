@@ -11,7 +11,7 @@ use crate::table::Table;
 use crate::utils::MyHash;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-struct Node {
+pub struct Node {
     variable: u32,
     low: Ref,
     high: Ref,
@@ -39,6 +39,9 @@ impl MyHash for Node {
 type Storage = Table<Node>;
 
 impl Storage {
+    pub fn node(&self, index: usize) -> Node {
+        *self.value(index)
+    }
     pub fn variable(&self, index: usize) -> u32 {
         self.value(index).variable
     }
@@ -121,6 +124,9 @@ impl Bdd {
         self.cache.borrow()
     }
 
+    pub fn node(&self, index: u32) -> Node {
+        self.storage.borrow().node(index as usize)
+    }
     pub fn variable(&self, index: u32) -> u32 {
         self.storage.borrow().variable(index as usize)
     }
