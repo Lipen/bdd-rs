@@ -1,0 +1,21 @@
+= Binary Decision Diagrams for Rust
+
+> This crate provides a simple implementation of Binary Decision Diagrams (BDDs) in Rust. BDDs are a data structure used to represent boolean functions, and are commonly used in formal verification and other areas of computer science.
+
+== Installation
+
+To use this crate in your project, add the following to your `Cargo.toml`:
+
+[source,toml]
+----
+[dependencies]
+bdd = "0.1.0"
+----
+
+== Usage
+
+TODO
+
+== License
+
+This crate is licensed under the link:LICENSE[MIT License].
