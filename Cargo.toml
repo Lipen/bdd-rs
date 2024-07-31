@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["Konstantin Chukharev <lipen00@gmail.com>"]
 edition = "2021"
 license = "MIT"
+readme = "README.adoc"
+repository = "https://github.com/Lipen/bdd-rs"
 
 [dependencies]
 log = "0.4"
