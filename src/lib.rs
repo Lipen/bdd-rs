@@ -7,6 +7,7 @@ pub mod gate;
 pub mod network;
 pub mod node;
 pub mod paths;
+pub mod raw;
 pub mod reference;
 pub mod sat;
 pub mod signal;
