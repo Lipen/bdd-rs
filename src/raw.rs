@@ -79,7 +79,9 @@ impl<T> RawTable<T> {
             let occupied = slot.is_occupied();
             slot.status = FREE;
             if occupied {
-                unsafe { slot.value.assume_init_drop(); }
+                unsafe {
+                    slot.value.assume_init_drop();
+                }
                 self.len -= 1;
                 if self.len == 0 {
                     return;
