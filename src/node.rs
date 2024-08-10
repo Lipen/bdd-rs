@@ -23,6 +23,6 @@ impl MyHash for Node {
         let x = self.variable as u64;
         let y = MyHash::hash(&self.low);
         let z = MyHash::hash(&self.high);
-        MyHash::hash(&(x, y, z))
+        MyHash::hash(&(y, z, x))
     }
 }
