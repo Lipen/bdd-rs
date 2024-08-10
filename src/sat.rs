@@ -7,10 +7,10 @@ impl Bdd {
     }
 
     fn _one_sat(&self, node: Ref, path: Vec<i32>) -> Option<Vec<i32>> {
-        if self.is_one(node) {
-            return Some(path);
-        } else if self.is_zero(node) {
+        if self.is_zero(node) {
             return None;
+        } else if self.is_one(node) {
+            return Some(path);
         }
 
         let v = self.variable(node.index()) as i32;
