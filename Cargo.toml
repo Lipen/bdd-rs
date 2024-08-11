@@ -10,6 +10,7 @@ repository = "https://github.com/Lipen/bdd-rs"
 
 [dependencies]
 log = "0.4"
+num-bigint = "0.4"
 
 [dev-dependencies]
 color-eyre = "0.6"
