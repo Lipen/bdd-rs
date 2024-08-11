@@ -60,11 +60,7 @@ impl Bdd {
         let count_high = self._sat_count(high, max, cache);
 
         let count: BigUint = (count_low.clone() + count_high.clone()) >> 1;
-        let count = if node.is_negated() {
-            max - count
-        } else {
-            count
-        };
+        let count = if node.is_negated() { max - count } else { count };
 
         cache.insert(node, count.clone());
         // log::info!("_sat_count(node={} (var={}, low={}, high={})) -> ({} + {}) / 2 =  {}", node, self.variable(node.index()), self.low(node.index()), self.high(node.index()), count_low, count_high, count);
