@@ -35,9 +35,9 @@ fn main() -> color_eyre::Result<()> {
     println!("args = {:?}", args);
 
     // Note:
-    // - 20 bits (default) are enough to encode at most n=8 queens (time=0.1s).
-    // - 22 bits are required (size=2169111) for n=9 queens (time=4s).
-    // - 24 bits are required (size=7590122) for n=10 queens (time=100s).
+    // - 20 bits (default) are enough to encode at most n=10 queens (time=0.4s).
+    // - 23 bits are required for n=11 queens (time=15s).
+    // - 25 bits are required for n=12 queens (time=720s).
 
     let bdd = Bdd::new(args.size);
     println!("bdd = {:?}", bdd);
@@ -49,74 +49,14 @@ fn main() -> color_eyre::Result<()> {
     // - No two queens on the same diagonal
     let n = args.n;
     println!("Encoding n-queens problem with n = {}", n);
-    let mut queens = vec![];
-    for i in 0..n {
-        let mut row = vec![];
-        for j in 0..n {
-            row.push(bdd.mk_var((i * n + j + 1) as u32));
-        }
-        queens.push(row);
-    }
 
-    let mut constraints: Vec<Ref> = vec![];
+    let res = encode_queens_board(&bdd, n, args.gc);
+    println!("res = {} of size {}", res, bdd.size(res));
 
-    // One queen per row
-    for i in 0..n {
-        let mut row = bdd.zero;
-        for j in 0..n {
-            row = bdd.apply_or(row, queens[i][j]);
-        }
-        constraints.push(row);
-    }
-
-    // One queen per column
-    for j in 0..n {
-        let mut col = bdd.zero;
-        for i in 0..n {
-            col = bdd.apply_or(col, queens[i][j]);
-        }
-        constraints.push(col);
-    }
-
-    // No two queens on the same diagonal
-    for i in 0..n as i32 {
-        for j in 0..n as i32 {
-            for k in 0..n as i32 {
-                for l in 0..n as i32 {
-                    if i != k && j != l && i + j != k + l && i - j != k - l {
-                        let i = i as usize;
-                        let j = j as usize;
-                        let k = k as usize;
-                        let l = l as usize;
-                        let not_diag = bdd.apply_not(bdd.apply_and(queens[i][j], queens[k][l]));
-                        constraints.push(not_diag);
-                    }
-                }
-            }
-        }
-    }
-
-    println!(
-        "Total {} constraints of total size {}",
-        constraints.len(),
-        bdd.descendants(constraints.iter().copied()).len()
-    );
-    // for &f in &constraints {
-    //     println!("constraint of size {} = {}", bdd.size(f), bdd.to_bracket_string(f));
-    // }
+    let num_solutions = bdd.sat_count(res, n * n);
+    println!("solutions: {}", num_solutions);
 
     println!("bdd = {:?}", bdd);
-    if args.gc {
-        println!("GC...");
-        bdd.collect_garbage(&constraints);
-        println!("bdd = {:?}", bdd);
-    }
-
-    println!("Merging constraints...");
-    let res = bdd.apply_and_many(constraints.iter().copied());
-    println!("bdd = {:?}", bdd);
-    println!("res of size {} = {}", bdd.size(res), bdd.to_bracket_string(res));
-
     println!("cache hits: {}", bdd.cache().hits());
     println!("cache faults: {}", bdd.cache().faults());
     println!("cache misses: {}", bdd.cache().misses());
@@ -125,4 +65,82 @@ fn main() -> color_eyre::Result<()> {
     println!("Done in {:.3} s", time_total.as_secs_f64());
 
     Ok(())
+}
+
+fn queen(n: usize, row: usize, col: usize) -> u32 {
+    (row * n + col + 1) as u32
+}
+
+fn encode_queens_square(bdd: &Bdd, n: usize, i: usize, j: usize) -> Ref {
+    // println!("Encoding square ({}, {})...", i, j);
+    let mut node = bdd.one;
+
+    for row in (0..n).rev() {
+        for col in (0..n).rev() {
+            let var = queen(n, row, col);
+
+            assert!(bdd.is_terminal(node) || var < bdd.variable(node.index()));
+
+            // Queen must be placed here
+            if row == i && col == j {
+                let low = bdd.zero;
+                let high = node;
+                node = bdd.mk_node(var, low, high);
+                continue;
+            }
+
+            // Conflicting row, column, or diagonal with Queen placement
+            let row_diff = (row as i32 - i as i32).abs();
+            let col_diff = (col as i32 - j as i32).abs();
+
+            if row == i || col == j || (row_diff == col_diff) {
+                let low = node;
+                let high = bdd.zero;
+                node = bdd.mk_node(var, low, high);
+                continue;
+            }
+
+            // No conflicts
+            node = bdd.mk_node(var, node, node);
+        }
+    }
+
+    node
+}
+
+fn encode_queens_row(bdd: &Bdd, n: usize, r: usize) -> Ref {
+    // println!("Encoding row {}...", r);
+    let mut node = bdd.zero;
+
+    for c in 0..n {
+        let square = encode_queens_square(bdd, n, r, c);
+        // println!("Merging column {}...", c);
+        node = bdd.apply_or(node, square);
+    }
+
+    node
+}
+
+fn encode_queens_board(bdd: &Bdd, n: usize, gc: bool) -> Ref {
+    // println!("Encoding board of size n = {}...", n);
+    let mut node = bdd.one;
+
+    for r in 0..n {
+        let row = encode_queens_row(bdd, n, r);
+        println!(
+            "Merging row {}... size for far = {}, solutions = {}",
+            r,
+            bdd.size(node),
+            bdd.sat_count(node, n * n)
+        );
+        node = bdd.apply_and(node, row);
+
+        if gc {
+            // println!("bdd before GC = {:?}", bdd);
+            bdd.collect_garbage(&[node]);
+            // println!("bdd after GC = {:?}", bdd);
+        }
+    }
+
+    node
 }
