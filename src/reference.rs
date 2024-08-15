@@ -10,6 +10,7 @@ impl Ref {
 
     pub const fn new(index: u32, negated: bool) -> Self {
         debug_assert!(index < 0x8000_0000, "Index is too large");
+        debug_assert!(index != 0, "Index is zero, use Ref::ZERO instead");
         Self((index << 1) | (negated as u32))
     }
     pub const fn positive(index: u32) -> Self {

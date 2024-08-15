@@ -44,3 +44,90 @@ impl Iterator for BddPaths<'_> {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_all_paths_1() {
+        let bdd = Bdd::default();
+
+        let f = bdd.cube([1, -2, 3]);
+        println!("f = {} of size {}", f, bdd.size(f));
+        let paths = bdd.paths(f).collect::<Vec<_>>();
+        println!("paths: {}", paths.len());
+        for path in paths.iter() {
+            println!("path = {:?}", path);
+        }
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], vec![1, -2, 3]);
+    }
+
+    #[test]
+    fn test_all_paths_2() {
+        let bdd = Bdd::default();
+
+        let c1 = bdd.cube([1, -2, 3]);
+        let c2 = bdd.cube([1, 2, -3]);
+        let f = bdd.apply_or(c1, c2);
+        println!("f = {} of size {}", f, bdd.size(f));
+        let paths = bdd.paths(f).collect::<Vec<_>>();
+        println!("paths: {}", paths.len());
+        for path in paths.iter() {
+            println!("path = {:?}", path);
+        }
+        assert_eq!(paths.len(), 2);
+        assert!(paths.contains(&vec![1, -2, 3]));
+        assert!(paths.contains(&vec![1, 2, -3]));
+    }
+
+    #[test]
+    fn test_all_paths_one() {
+        let bdd = Bdd::default();
+
+        let f = bdd.one;
+        println!("f = {} of size {}", f, bdd.size(f));
+        let paths = bdd.paths(f).collect::<Vec<_>>();
+        println!("paths: {}", paths.len());
+        for path in paths.iter() {
+            println!("path = {:?}", path);
+        }
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], vec![]);
+    }
+
+    #[test]
+    fn test_all_paths_zero() {
+        let bdd = Bdd::default();
+
+        let f = bdd.zero;
+        println!("f = {} of size {}", f, bdd.size(f));
+        let paths = bdd.paths(f).collect::<Vec<_>>();
+        println!("paths: {}", paths.len());
+        for path in paths.iter() {
+            println!("path = {:?}", path);
+        }
+        assert_eq!(paths.len(), 0);
+    }
+
+    #[test]
+    fn test_all_paths_to_zero() {
+        let bdd = Bdd::default();
+
+        let f = bdd.cube([-1, -2, -3]);
+        println!("f = {} of size {}", bdd.to_bracket_string(f), bdd.size(f));
+        println!("~f = {} of size {}", bdd.to_bracket_string(-f), bdd.size(-f));
+        let paths = bdd.paths(-f).collect::<Vec<_>>();
+        println!("paths to one for {}: {}", -f, paths.len());
+        for path in paths.iter() {
+            println!("path = {:?}", path);
+        }
+
+        let paths = bdd.paths(f).collect::<Vec<_>>();
+        println!("paths to one for {}: {}", f, paths.len());
+        for path in paths.iter() {
+            println!("path = {:?}", path);
+        }
+    }
+}

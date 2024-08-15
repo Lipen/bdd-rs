@@ -98,11 +98,25 @@ impl MyHash for (Ref, Ref, Ref) {
     }
 }
 
+impl MyHash for (Ref, u32) {
+    fn hash(&self) -> u64 {
+        let x = MyHash::hash(&self.0);
+        let y = self.1 as u64;
+        MyHash::hash(&(x, y))
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum OpKey {
     Ite(Ref, Ref, Ref),
     Constrain(Ref, Ref),
     Restrict(Ref, Ref),
+    Offset(Ref, u32),
+    Onset(Ref, u32),
+    Change(Ref, u32),
+    Union(Ref, Ref),
+    Intersect(Ref, Ref),
+    Diff(Ref, Ref),
 }
 
 impl MyHash for OpKey {
@@ -111,6 +125,12 @@ impl MyHash for OpKey {
             OpKey::Ite(f, g, h) => MyHash::hash(&(f, g, h)),
             OpKey::Constrain(f, g) => MyHash::hash(&(f, g)),
             OpKey::Restrict(f, g) => MyHash::hash(&(f, g)),
+            OpKey::Offset(f, v) => MyHash::hash(&(f, v)),
+            OpKey::Onset(f, v) => MyHash::hash(&(f, v)),
+            OpKey::Change(f, v) => MyHash::hash(&(f, v)),
+            OpKey::Union(f, g) => MyHash::hash(&(f, g)),
+            OpKey::Intersect(f, g) => MyHash::hash(&(f, g)),
+            OpKey::Diff(f, g) => MyHash::hash(&(f, g)),
         }
     }
 }

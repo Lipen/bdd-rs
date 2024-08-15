@@ -64,24 +64,31 @@ impl Bdd {
     pub fn storage(&self) -> std::cell::Ref<'_, Storage> {
         self.storage.borrow()
     }
+    fn storage_mut(&self) -> std::cell::RefMut<'_, Storage> {
+        self.storage.borrow_mut()
+    }
+
     pub fn cache(&self) -> std::cell::Ref<'_, Cache<OpKey, Ref>> {
         self.cache.borrow()
     }
+    fn cache_mut(&self) -> std::cell::RefMut<'_, Cache<OpKey, Ref>> {
+        self.cache.borrow_mut()
+    }
 
     pub fn node(&self, index: u32) -> Node {
-        *self.storage.borrow().node(index as usize)
+        *self.storage().node(index as usize)
     }
     pub fn variable(&self, index: u32) -> u32 {
-        self.storage.borrow().variable(index as usize)
+        self.storage().variable(index as usize)
     }
     pub fn low(&self, index: u32) -> Ref {
-        self.storage.borrow().low(index as usize)
+        self.storage().low(index as usize)
     }
     pub fn high(&self, index: u32) -> Ref {
-        self.storage.borrow().high(index as usize)
+        self.storage().high(index as usize)
     }
-    pub fn next(&self, index: u32) -> usize {
-        self.storage.borrow().next(index as usize)
+    pub(crate) fn next(&self, index: u32) -> usize {
+        self.storage().next(index as usize)
     }
 
     pub fn low_node(&self, node: Ref) -> Ref {
@@ -128,7 +135,7 @@ impl Bdd {
             return low;
         }
 
-        let i = self.storage.borrow_mut().put(Node { variable: v, low, high });
+        let i = self.storage_mut().put(Node { variable: v, low, high });
         Ref::positive(i as u32)
     }
 
@@ -890,17 +897,17 @@ impl Bdd {
         let alive = self.descendants(roots.iter().copied());
         debug!("Alive nodes: {:?}", alive);
 
-        let n = self.storage.borrow().num_buckets();
+        let n = self.storage().num_buckets();
         for i in 0..n {
-            let mut index = self.storage.borrow().bucket(i);
+            let mut index = self.storage().bucket(i);
 
             if index != 0 {
                 debug!("Cleaning bucket #{} pointing to {}", i, index);
 
                 while index != 0 && !alive.contains(&(index as u32)) {
-                    let next = self.storage.borrow().next(index);
+                    let next = self.storage().next(index);
                     debug!("Dropping {}, next = {}", index, next);
-                    self.storage.borrow_mut().drop(index);
+                    self.storage_mut().drop(index);
                     index = next;
                 }
 
@@ -908,32 +915,28 @@ impl Bdd {
                     "Relinking bucket #{} to {}, next = {:?}",
                     i,
                     index,
-                    if index != 0 {
-                        Some(self.storage.borrow().next(index))
-                    } else {
-                        None
-                    }
+                    if index != 0 { Some(self.storage().next(index)) } else { None }
                 );
-                self.storage.borrow_mut().set_bucket(i, index);
+                self.storage_mut().set_bucket(i, index);
 
                 let mut prev = index;
                 while prev != 0 {
-                    let mut cur = self.storage.borrow().next(prev);
+                    let mut cur = self.storage().next(prev);
                     while cur != 0 {
                         if !alive.contains(&(cur as u32)) {
-                            let next = self.storage.borrow().next(cur);
+                            let next = self.storage().next(cur);
                             debug!("Dropping {}, prev = {}, next = {}", cur, prev, next);
-                            self.storage.borrow_mut().drop(cur);
+                            self.storage_mut().drop(cur);
                             cur = next;
                         } else {
                             debug!("Keeping {}, prev = {}", cur, prev);
                             break;
                         }
                     }
-                    let next_prev = self.storage.borrow().next(prev);
+                    let next_prev = self.storage().next(prev);
                     if next_prev != cur {
                         debug!("Relinking next({}) from {} to {}", prev, next_prev, cur);
-                        self.storage.borrow_mut().set_next(prev, cur);
+                        self.storage_mut().set_next(prev, cur);
                     }
                     prev = cur;
                 }
@@ -1466,88 +1469,6 @@ mod tests {
             let model = bdd.one_sat(g);
             println!("model = {:?}", model);
             assert_eq!(model, None);
-        }
-    }
-
-    #[test]
-    fn test_all_paths_1() {
-        let bdd = Bdd::default();
-
-        let f = bdd.cube([1, -2, 3]);
-        println!("f = {} of size {}", f, bdd.size(f));
-        let paths = bdd.paths(f).collect::<Vec<_>>();
-        println!("paths: {}", paths.len());
-        for path in paths.iter() {
-            println!("path = {:?}", path);
-        }
-        assert_eq!(paths.len(), 1);
-        assert_eq!(paths[0], vec![1, -2, 3]);
-    }
-
-    #[test]
-    fn test_all_paths_2() {
-        let bdd = Bdd::default();
-
-        let c1 = bdd.cube([1, -2, 3]);
-        let c2 = bdd.cube([1, 2, -3]);
-        let f = bdd.apply_or(c1, c2);
-        println!("f = {} of size {}", f, bdd.size(f));
-        let paths = bdd.paths(f).collect::<Vec<_>>();
-        println!("paths: {}", paths.len());
-        for path in paths.iter() {
-            println!("path = {:?}", path);
-        }
-        assert_eq!(paths.len(), 2);
-        assert!(paths.contains(&vec![1, -2, 3]));
-        assert!(paths.contains(&vec![1, 2, -3]));
-    }
-
-    #[test]
-    fn test_all_paths_one() {
-        let bdd = Bdd::default();
-
-        let f = bdd.one;
-        println!("f = {} of size {}", f, bdd.size(f));
-        let paths = bdd.paths(f).collect::<Vec<_>>();
-        println!("paths: {}", paths.len());
-        for path in paths.iter() {
-            println!("path = {:?}", path);
-        }
-        assert_eq!(paths.len(), 1);
-        assert_eq!(paths[0], vec![]);
-    }
-
-    #[test]
-    fn test_all_paths_zero() {
-        let bdd = Bdd::default();
-
-        let f = bdd.zero;
-        println!("f = {} of size {}", f, bdd.size(f));
-        let paths = bdd.paths(f).collect::<Vec<_>>();
-        println!("paths: {}", paths.len());
-        for path in paths.iter() {
-            println!("path = {:?}", path);
-        }
-        assert_eq!(paths.len(), 0);
-    }
-
-    #[test]
-    fn test_all_paths_to_zero() {
-        let bdd = Bdd::default();
-
-        let f = bdd.cube([-1, -2, -3]);
-        println!("f = {} of size {}", bdd.to_bracket_string(f), bdd.size(f));
-        println!("~f = {} of size {}", bdd.to_bracket_string(-f), bdd.size(-f));
-        let paths = bdd.paths(-f).collect::<Vec<_>>();
-        println!("paths to one for {}: {}", -f, paths.len());
-        for path in paths.iter() {
-            println!("path = {:?}", path);
-        }
-
-        let paths = bdd.paths(f).collect::<Vec<_>>();
-        println!("paths to one for {}: {}", f, paths.len());
-        for path in paths.iter() {
-            println!("path = {:?}", path);
         }
     }
 }
