@@ -508,6 +508,7 @@ impl<'a> Iterator for ZddCubes<'a> {
                     let v = *var as i32;
                     if let Some(&sign) = map.get(var) {
                         if sign != 0 {
+                            assert!(sign == 1 || sign == -1);
                             cube.push(sign * v);
                         }
                     } else {
