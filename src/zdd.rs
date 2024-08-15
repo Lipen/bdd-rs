@@ -435,7 +435,7 @@ impl Zdd {
     }
 }
 
-struct ZddCombinations<'a> {
+pub struct ZddCombinations<'a> {
     zdd: &'a Zdd,
     stack: Vec<(Ref, Vec<u32>)>,
 }
@@ -451,23 +451,91 @@ impl<'a> Iterator for ZddCombinations<'a> {
     type Item = Vec<u32>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((node, path)) = self.stack.pop() {
+        while let Some((node, subset)) = self.stack.pop() {
             if self.zdd.is_zero(node) {
                 continue;
             } else if self.zdd.is_one(node) {
-                return Some(path);
+                return Some(subset);
             } else {
                 assert!(!self.zdd.is_terminal(node));
-                let v = self.zdd.variable(node.index());
 
-                let low = self.zdd.low(node.index());
-                let path_low = path.clone();
-                self.stack.push((low, path_low));
+                let index = node.index();
+                let v = self.zdd.variable(index);
+                let low = self.zdd.low(index);
+                let high = self.zdd.high(index);
 
-                let high = self.zdd.high(node.index());
-                let mut path_high = path;
-                path_high.push(v);
-                self.stack.push((high, path_high));
+                self.stack.push((low, subset.clone()));
+
+                let mut subset = subset;
+                subset.push(v);
+                self.stack.push((high, subset));
+            }
+        }
+        None
+    }
+}
+
+impl Zdd {
+    pub fn cubes(&self, node: Ref, vars: &[u32]) -> ZddCubes {
+        ZddCubes::new(self, node, vars.to_vec())
+    }
+}
+
+pub struct ZddCubes<'a> {
+    zdd: &'a Zdd,
+    vars: Vec<u32>,
+    stack: Vec<(Ref, Vec<(u32, i32)>)>,
+}
+
+impl<'a> ZddCubes<'a> {
+    pub fn new(zdd: &'a Zdd, node: Ref, vars: Vec<u32>) -> Self {
+        let stack = vec![(node, vec![])];
+        ZddCubes { zdd, vars, stack }
+    }
+}
+
+impl<'a> Iterator for ZddCubes<'a> {
+    type Item = Vec<i32>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((node, cube)) = self.stack.pop() {
+            if self.zdd.is_zero(node) {
+                continue;
+            } else if self.zdd.is_one(node) {
+                let map: HashMap<u32, i32> = cube.into_iter().collect();
+                let mut cube = Vec::new();
+                for var in self.vars.iter() {
+                    let v = *var as i32;
+                    if let Some(&sign) = map.get(var) {
+                        if sign != 0 {
+                            cube.push(sign * v);
+                        }
+                    } else {
+                        cube.push(-v);
+                    }
+                }
+                return Some(cube);
+            } else {
+                assert!(!self.zdd.is_terminal(node));
+
+                let index = node.index();
+                let v = self.zdd.variable(index);
+                let low = self.zdd.low(index);
+                let high = self.zdd.high(index);
+
+                if low != high {
+                    let mut cube_low = cube.clone();
+                    cube_low.push((v, -1));
+                    self.stack.push((low, cube_low));
+
+                    let mut cube_high = cube;
+                    cube_high.push((v, 1));
+                    self.stack.push((high, cube_high));
+                } else {
+                    let mut cube = cube;
+                    cube.push((v, 0));
+                    self.stack.push((low, cube));
+                }
             }
         }
         None
@@ -542,10 +610,18 @@ mod tests {
         println!("f = {} with count {}", f, zdd.count(f));
         println!("f = {}", zdd.to_bracket_string(f));
         assert_eq!(zdd.count(f), 3);
+
         println!("combinations for {}:", f);
         for c in zdd.combinations(f) {
             println!("  {:?}", c);
         }
         assert_eq!(zdd.combinations(f).count(), 3);
+
+        let vars = vec![1, 2, 3];
+        println!("cubes over vars {:?} for {}:", vars, f);
+        for c in zdd.cubes(f, &vars) {
+            println!("  {:?}", c);
+        }
+        assert_eq!(zdd.cubes(f, &vars).count(), 2);
     }
 }
