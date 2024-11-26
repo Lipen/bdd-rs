@@ -64,24 +64,36 @@ impl Bdd {
     pub fn storage(&self) -> std::cell::Ref<'_, Storage> {
         self.storage.borrow()
     }
+    fn storage_mut(&self) -> std::cell::RefMut<'_, Storage> {
+        self.storage.borrow_mut()
+    }
     pub fn cache(&self) -> std::cell::Ref<'_, Cache<OpKey, Ref>> {
         self.cache.borrow()
     }
+    fn cache_mut(&self) -> std::cell::RefMut<'_, Cache<OpKey, Ref>> {
+        self.cache.borrow_mut()
+    }
+    pub fn size_cache(&self) -> std::cell::Ref<'_, Cache<Ref, u64>> {
+        self.size_cache.borrow()
+    }
+    fn size_cache_mut(&self) -> std::cell::RefMut<'_, Cache<Ref, u64>> {
+        self.size_cache.borrow_mut()
+    }
 
     pub fn node(&self, index: u32) -> Node {
-        *self.storage.borrow().node(index as usize)
+        *self.storage().node(index as usize)
     }
     pub fn variable(&self, index: u32) -> u32 {
-        self.storage.borrow().variable(index as usize)
+        self.storage().variable(index as usize)
     }
     pub fn low(&self, index: u32) -> Ref {
-        self.storage.borrow().low(index as usize)
+        self.storage().low(index as usize)
     }
     pub fn high(&self, index: u32) -> Ref {
-        self.storage.borrow().high(index as usize)
+        self.storage().high(index as usize)
     }
     pub fn next(&self, index: u32) -> usize {
-        self.storage.borrow().next(index as usize)
+        self.storage().next(index as usize)
     }
 
     pub fn low_node(&self, node: Ref) -> Ref {
@@ -128,7 +140,7 @@ impl Bdd {
             return low;
         }
 
-        let i = self.storage.borrow_mut().put(Node { variable: v, low, high });
+        let i = self.storage_mut().put(Node { variable: v, low, high });
         Ref::positive(i as u32)
     }
 
@@ -351,7 +363,7 @@ impl Bdd {
 
         let key = OpKey::Ite(f, g, h);
         debug!("key = {:?}", key);
-        if let Some(&res) = self.cache.borrow().get(&key) {
+        if let Some(&res) = self.cache().get(&key) {
             debug!("cache: apply_ite(f = {}, g = {}, h = {}) -> {}", f, g, h, res);
             return if n { -res } else { res };
         }
@@ -380,8 +392,12 @@ impl Bdd {
 
         let res = self.mk_node(m, e, t);
         debug!("computed: apply_ite(f = {}, g = {}, h = {}) -> {}", f, g, h, res);
-        self.cache.borrow_mut().insert(key, res);
-        return if n { -res } else { res };
+        self.cache_mut().insert(key, res);
+        if n {
+            -res
+        } else {
+            res
+        }
     }
 
     fn maybe_constant(&self, node: Ref) -> Option<bool> {
@@ -463,7 +479,7 @@ impl Bdd {
         // TODO: standard triples?
 
         let key = OpKey::Ite(f, g, h);
-        if let Some(&res) = self.cache.borrow().get(&key) {
+        if let Some(&res) = self.cache().get(&key) {
             debug!("cache: ite_constant(f = {}, g = {}, h = {}) -> {}", f, g, h, res);
             assert!(!self.is_terminal(res));
             return None;
@@ -766,7 +782,7 @@ impl Bdd {
         }
 
         let key = OpKey::Constrain(f, g);
-        if let Some(&res) = self.cache.borrow().get(&key) {
+        if let Some(&res) = self.cache().get(&key) {
             debug!("cache: constrain(f = {}, g = {}) -> {}", f, g, res);
             return res;
         }
@@ -802,7 +818,7 @@ impl Bdd {
         let res = self.mk_node(v, low, high);
         debug!("computed: constrain(f = {}, g = {}) -> {}", f, g, res);
 
-        self.cache.borrow_mut().insert(key, res);
+        self.cache_mut().insert(key, res);
         res
     }
 
@@ -824,7 +840,7 @@ impl Bdd {
         }
 
         let key = OpKey::Restrict(f, g);
-        if let Some(&res) = self.cache.borrow().get(&key) {
+        if let Some(&res) = self.cache().get(&key) {
             debug!("cache: restrict(f = {}, g = {}) -> {}", f, g, res);
             return res;
         }
@@ -850,7 +866,7 @@ impl Bdd {
         } else {
             self.restrict(f, self.apply_ite(g1, self.one, g0))
         };
-        self.cache.borrow_mut().insert(key, res);
+        self.cache_mut().insert(key, res);
         res
     }
 
@@ -871,36 +887,36 @@ impl Bdd {
 
     pub fn size(&self, f: Ref) -> u64 {
         debug!("size(f = {})", f);
-        if let Some(&size) = self.size_cache.borrow().get(&f) {
+        if let Some(&size) = self.size_cache().get(&f) {
             debug!("cache: size({}) -> {}", f, size);
             return size;
         }
         let size = self.descendants([f]).len() as u64;
         debug!("computed: size({}) -> {}", f, size);
-        self.size_cache.borrow_mut().insert(f, size);
+        self.size_cache_mut().insert(f, size);
         size
     }
 
     pub fn collect_garbage(&self, roots: &[Ref]) {
         debug!("Collecting garbage...");
 
-        self.cache.borrow_mut().clear();
-        self.size_cache.borrow_mut().clear();
+        self.cache_mut().clear();
+        self.size_cache_mut().clear();
 
         let alive = self.descendants(roots.iter().copied());
         debug!("Alive nodes: {:?}", alive);
 
-        let n = self.storage.borrow().num_buckets();
+        let n = self.storage().num_buckets();
         for i in 0..n {
-            let mut index = self.storage.borrow().bucket(i);
+            let mut index = self.storage().bucket(i);
 
             if index != 0 {
                 debug!("Cleaning bucket #{} pointing to {}", i, index);
 
                 while index != 0 && !alive.contains(&(index as u32)) {
-                    let next = self.storage.borrow().next(index);
+                    let next = self.storage().next(index);
                     debug!("Dropping {}, next = {}", index, next);
-                    self.storage.borrow_mut().drop(index);
+                    self.storage_mut().drop(index);
                     index = next;
                 }
 
@@ -908,32 +924,28 @@ impl Bdd {
                     "Relinking bucket #{} to {}, next = {:?}",
                     i,
                     index,
-                    if index != 0 {
-                        Some(self.storage.borrow().next(index))
-                    } else {
-                        None
-                    }
+                    if index != 0 { Some(self.storage().next(index)) } else { None }
                 );
-                self.storage.borrow_mut().set_bucket(i, index);
+                self.storage_mut().set_bucket(i, index);
 
                 let mut prev = index;
                 while prev != 0 {
-                    let mut cur = self.storage.borrow().next(prev);
+                    let mut cur = self.storage().next(prev);
                     while cur != 0 {
                         if !alive.contains(&(cur as u32)) {
-                            let next = self.storage.borrow().next(cur);
+                            let next = self.storage().next(cur);
                             debug!("Dropping {}, prev = {}, next = {}", cur, prev, next);
-                            self.storage.borrow_mut().drop(cur);
+                            self.storage_mut().drop(cur);
                             cur = next;
                         } else {
                             debug!("Keeping {}, prev = {}", cur, prev);
                             break;
                         }
                     }
-                    let next_prev = self.storage.borrow().next(prev);
+                    let next_prev = self.storage().next(prev);
                     if next_prev != cur {
                         debug!("Relinking next({}) from {} to {}", prev, next_prev, cur);
-                        self.storage.borrow_mut().set_next(prev, cur);
+                        self.storage_mut().set_next(prev, cur);
                     }
                     prev = cur;
                 }
