@@ -55,21 +55,20 @@ impl Bdd {
                 continue;
             }
 
-            // Note: use " " (space) label to avoid an overlap with "-1" label
-
             let high = self.high(id);
             assert!(!high.is_negated());
-            writeln!(dot, "{} -- {} [label=\" \"];", id, high.index())?;
+            writeln!(dot, "{} -- {};", id, high.index())?;
 
             let low = self.low(id);
             if low.is_negated() {
                 if low.index() == 1 {
-                    writeln!(dot, "{} -- 0 [label=\" \", style=dashed];", id)?;
+                    assert_eq!(low, self.zero);
+                    writeln!(dot, "{} -- 0 [style=dashed];", id)?;
                 } else {
-                    writeln!(dot, "{} -- {} [label=\"-1\", style=dotted];", id, low.index())?;
+                    writeln!(dot, "{} -- {} [style=dotted, dir=forward, arrowhead=odot];", id, low.index())?;
                 }
             } else {
-                writeln!(dot, "{} -- {} [label=\" \", style=dashed];", id, low.index())?;
+                writeln!(dot, "{} -- {} [style=dashed];", id, low.index())?;
             }
         }
 
@@ -84,9 +83,9 @@ impl Bdd {
         for (i, &root) in roots.iter().enumerate() {
             if root.is_negated() {
                 if root.index() == 1 {
-                    writeln!(dot, "r{} -- 0 [style=dashed];", i)?;
+                    writeln!(dot, "r{} -- 0;", i)?;
                 } else {
-                    writeln!(dot, "r{} -- {} [style=dashed];", i, root.index())?;
+                    writeln!(dot, "r{} -- {} [dir=forward, arrowhead=odot];", i, root.index())?;
                 }
             } else {
                 writeln!(dot, "r{} -- {};", i, root.index())?;
@@ -95,5 +94,35 @@ impl Bdd {
 
         writeln!(dot, "}}")?;
         Ok(dot)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    //noinspection RsConstantConditionIf
+    #[test]
+    fn test_to_dot() {
+        let bdd = Bdd::default();
+
+        let f = bdd.cube([-1, 2, 3]);
+        println!("f = {}", bdd.to_bracket_string(f));
+
+        let dot = bdd.to_dot(&[f, bdd.zero, bdd.one]).unwrap();
+        println!("DOT for f:");
+        print!("{}", dot);
+
+        if false {
+            std::fs::write("bdd.dot", dot).unwrap();
+            for format in ["png", "pdf"] {
+                std::process::Command::new("dot")
+                    .arg(format!("-T{}", format))
+                    .arg("-O")
+                    .arg("bdd.dot")
+                    .status()
+                    .unwrap();
+            }
+        }
     }
 }
