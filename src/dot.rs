@@ -51,7 +51,7 @@ impl Bdd {
 
         // Edges
         for &id in all_nodes.iter() {
-            if id == 1 {
+            if id == self.zero.index() {
                 continue;
             }
             let high = self.high(id);
@@ -60,7 +60,7 @@ impl Bdd {
 
             let low = self.low(id);
             if low.is_negated() {
-                if low.index() == 1 {
+                if low == self.zero {
                     writeln!(dot, "{} -- 0 [style=dashed];", id)?;
                 } else {
                     writeln!(dot, "{} -- {} [label=\"-1\", style=dotted];", id, low.index())?;
