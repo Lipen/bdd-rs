@@ -1563,4 +1563,40 @@ mod tests {
             println!("path = {:?}", path);
         }
     }
+
+    #[test]
+    fn test_to_bracket_string_terminal() {
+        let bdd = Bdd::default();
+
+        println!("zero = {}", bdd.to_bracket_string(bdd.zero));
+        assert_eq!(bdd.to_bracket_string(bdd.zero), "⊥");
+
+        println!("one = {}", bdd.to_bracket_string(bdd.one));
+        assert_eq!(bdd.to_bracket_string(bdd.one), "⊤");
+    }
+
+    #[test]
+    fn test_to_bracket_string_1() {
+        let bdd = Bdd::default();
+
+        // x1 ∧ x2
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let f = bdd.apply_and(x1, x2);
+        println!("f = x1 ∧ x2 = {}", bdd.to_bracket_string(f));
+        assert_eq!(bdd.to_bracket_string(f), "@4:(x1, @3:(x2, ⊤, ⊥), ⊥)");
+    }
+
+    #[test]
+    fn test_to_bracket_string_2() {
+        let bdd = Bdd::default();
+
+        // ~x1 ∨ (~x2 ∧ x3)
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+        let f = bdd.apply_or(-x1, bdd.apply_and(-x2, x3));
+        println!("f = ~x1 ∨ (~x2 ∧ x3) = {}", bdd.to_bracket_string(f));
+        assert_eq!(bdd.to_bracket_string(f), "~@6:(x1, @5:(x2, ⊤, ~@4:(x3, ⊤, ⊥)), ⊥)");
+    }
 }
