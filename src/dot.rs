@@ -54,19 +54,22 @@ impl Bdd {
             if id == self.zero.index() {
                 continue;
             }
+
+            // Note: use " " (space) label to avoid an overlap with "-1" label
+
             let high = self.high(id);
             assert!(!high.is_negated());
-            writeln!(dot, "{} -- {};", id, high.index())?;
+            writeln!(dot, "{} -- {} [label=\" \"];", id, high.index())?;
 
             let low = self.low(id);
             if low.is_negated() {
                 if low == self.zero {
-                    writeln!(dot, "{} -- 0 [style=dashed];", id)?;
+                    writeln!(dot, "{} -- 0 [label=\" \", style=dashed];", id)?;
                 } else {
                     writeln!(dot, "{} -- {} [label=\"-1\", style=dotted];", id, low.index())?;
                 }
             } else {
-                writeln!(dot, "{} -- {} [style=dashed];", id, low.index())?;
+                writeln!(dot, "{} -- {} [label=\" \", style=dashed];", id, low.index())?;
             }
         }
 
