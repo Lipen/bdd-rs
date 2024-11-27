@@ -1,3 +1,4 @@
+use std::cell;
 use std::cell::RefCell;
 use std::cmp::{min, Ordering};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -61,22 +62,22 @@ impl Debug for Bdd {
 }
 
 impl Bdd {
-    pub fn storage(&self) -> std::cell::Ref<'_, Storage> {
+    pub fn storage(&self) -> cell::Ref<'_, Storage> {
         self.storage.borrow()
     }
-    fn storage_mut(&self) -> std::cell::RefMut<'_, Storage> {
+    fn storage_mut(&self) -> cell::RefMut<'_, Storage> {
         self.storage.borrow_mut()
     }
-    pub fn cache(&self) -> std::cell::Ref<'_, Cache<OpKey, Ref>> {
+    pub fn cache(&self) -> cell::Ref<'_, Cache<OpKey, Ref>> {
         self.cache.borrow()
     }
-    fn cache_mut(&self) -> std::cell::RefMut<'_, Cache<OpKey, Ref>> {
+    fn cache_mut(&self) -> cell::RefMut<'_, Cache<OpKey, Ref>> {
         self.cache.borrow_mut()
     }
-    pub fn size_cache(&self) -> std::cell::Ref<'_, Cache<Ref, u64>> {
+    pub fn size_cache(&self) -> cell::Ref<'_, Cache<Ref, u64>> {
         self.size_cache.borrow()
     }
-    fn size_cache_mut(&self) -> std::cell::RefMut<'_, Cache<Ref, u64>> {
+    fn size_cache_mut(&self) -> cell::RefMut<'_, Cache<Ref, u64>> {
         self.size_cache.borrow_mut()
     }
 
