@@ -1,0 +1,7 @@
+[package]
+name = "eda"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bdd-rs = { path = "../.." }

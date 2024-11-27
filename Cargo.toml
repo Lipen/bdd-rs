@@ -8,6 +8,11 @@ license = "MIT"
 readme = "README.adoc"
 repository = "https://github.com/Lipen/bdd-rs"
 
+[workspace]
+members = [
+    "examples/eda",
+]
+
 [dependencies]
 log = "0.4"
 num-bigint = "0.4"
