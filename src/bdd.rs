@@ -192,15 +192,16 @@ impl Bdd {
         }
 
         let index = node_ref.index();
-        if v < self.variable(index) {
+        let node = self.node(index);
+        if v < node.variable {
             // 'node' does not depend on 'v'
             return (node_ref, node_ref);
         }
-        assert_eq!(v, self.variable(index));
+        assert_eq!(v, node.variable);
         if node_ref.is_negated() {
-            (-self.low(index), -self.high(index))
+            (-node.low, -node.high)
         } else {
-            (self.low(index), self.high(index))
+            (node.low, node.high)
         }
     }
 
@@ -734,8 +735,8 @@ impl Bdd {
         }
 
         let res = if v == i {
-            let index = f.index();
-            let res = self.apply_ite(g, self.high(index), self.low(index));
+            let node = self.node(f.index());
+            let res = self.apply_ite(g, node.high, node.low);
             if f.is_negated() {
                 -res
             } else {
