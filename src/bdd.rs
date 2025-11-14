@@ -55,7 +55,7 @@
 use std::cell;
 use std::cell::RefCell;
 use std::cmp::{min, Ordering};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 
 use log::debug;
@@ -1372,13 +1372,13 @@ impl Bdd {
     pub fn descendants(&self, nodes: impl IntoIterator<Item = Ref>) -> HashSet<u32> {
         let mut visited = HashSet::new();
         visited.insert(self.one.index());
-        let mut queue = VecDeque::from_iter(nodes.into_iter().map(|node_ref| node_ref.index()));
+        let mut stack = Vec::from_iter(nodes.into_iter().map(|node_ref| node_ref.index()));
 
-        while let Some(i) = queue.pop_front() {
+        while let Some(i) = stack.pop() {
             if visited.insert(i) {
                 let node = self.node(i);
-                queue.push_back(node.low.index());
-                queue.push_back(node.high.index());
+                stack.push(node.low.index());
+                stack.push(node.high.index());
             }
         }
 
