@@ -1377,8 +1377,14 @@ impl Bdd {
         while let Some(i) = stack.pop() {
             if visited.insert(i) {
                 let node = self.node(i);
-                stack.push(node.low.index());
-                stack.push(node.high.index());
+                let low = node.low.index();
+                if low != 1 {
+                    stack.push(low);
+                }
+                let high = node.high.index();
+                if high != 1 {
+                    stack.push(high);
+                }
             }
         }
 
