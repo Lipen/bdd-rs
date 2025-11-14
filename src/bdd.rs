@@ -2121,6 +2121,211 @@ mod tests {
     }
 
     #[test]
+    fn test_descendants_terminal() {
+        let bdd = Bdd::default();
+
+        // Terminal zero (index 1) has no descendants except itself
+        let desc = bdd.descendants([bdd.zero]);
+        println!("descendants of zero: {:?}", desc);
+        assert_eq!(desc.len(), 1);
+        assert!(desc.contains(&1));
+
+        // Terminal one (index 1) has itself as descendant
+        let desc = bdd.descendants([bdd.one]);
+        println!("descendants of one: {:?}", desc);
+        assert_eq!(desc.len(), 1);
+        assert!(desc.contains(&1));
+
+        // Both terminals together
+        let desc = bdd.descendants([bdd.zero, bdd.one]);
+        assert_eq!(desc.len(), 1);
+        assert!(desc.contains(&1));
+    }
+
+    #[test]
+    fn test_descendants_single_var() {
+        let bdd = Bdd::default();
+
+        let x = bdd.mk_var(1);
+        // Variable node x1 points to: high=one (1), low=zero (negated 1)
+        // So descendants should be: x.index() and 1 (terminal)
+        let desc = bdd.descendants([x]);
+        assert_eq!(desc.len(), 2);
+        assert!(desc.contains(&x.index()));
+        assert!(desc.contains(&1)); // terminal
+    }
+
+    #[test]
+    fn test_descendants_negated_var() {
+        let bdd = Bdd::default();
+
+        let x = bdd.mk_var(1);
+        let not_x = -x;
+
+        // Negated reference points to same node, so descendants are the same
+        let desc = bdd.descendants([not_x]);
+        assert_eq!(desc.len(), 2);
+        assert!(desc.contains(&x.index()));
+        assert!(desc.contains(&1)); // terminal
+    }
+
+    #[test]
+    fn test_descendants_and() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let f = bdd.apply_and(x1, x2);
+
+        // f = x1 AND x2 creates a structure:
+        // f_node -> (low=negated 1, high=x2_node)
+        // x2_node -> (low=negated 1, high=1)
+        let desc = bdd.descendants([f]);
+
+        // Should include: f's index, x2's index, and terminal (1)
+        assert!(desc.contains(&f.index()));
+        assert!(desc.contains(&x2.index()));
+        assert!(desc.contains(&1));
+
+        // Should be at least 3 nodes
+        assert!(desc.len() >= 3);
+    }
+
+    #[test]
+    fn test_descendants_or() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let f = bdd.apply_or(x1, x2);
+
+        let desc = bdd.descendants([f]);
+
+        // Should include the root and all reachable nodes
+        assert!(desc.contains(&f.index()));
+        assert!(desc.contains(&1)); // terminal
+        assert!(desc.len() >= 2);
+    }
+
+    #[test]
+    fn test_descendants_cube() {
+        let bdd = Bdd::default();
+
+        let f = bdd.mk_cube([1, 2, 3]);
+        let desc = bdd.descendants([f]);
+
+        // Cube x1 AND x2 AND x3 creates a chain:
+        // x1_node -> x2_node -> x3_node -> terminal
+        assert!(desc.contains(&f.index()));
+        assert!(desc.contains(&1)); // terminal
+
+        // Should have at least 4 nodes: 3 variable nodes + 1 terminal
+        assert!(desc.len() >= 4);
+    }
+
+    #[test]
+    fn test_descendants_multiple_roots() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+
+        let f1 = bdd.apply_and(x1, x2);
+        let f2 = bdd.apply_and(x2, x3);
+
+        // Get descendants from both roots
+        let desc = bdd.descendants([f1, f2]);
+
+        // Should include nodes from both formulas
+        assert!(desc.contains(&f1.index()));
+        assert!(desc.contains(&f2.index()));
+        assert!(desc.contains(&x2.index())); // shared node
+        assert!(desc.contains(&1)); // terminal
+    }
+
+    #[test]
+    fn test_descendants_shared_structure() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+
+        let f1 = bdd.apply_and(x1, x2);
+        let f2 = bdd.apply_or(x1, x2);
+
+        // Both formulas share x1 and x2 nodes
+        let desc1 = bdd.descendants([f1]);
+        let desc2 = bdd.descendants([f2]);
+        let desc_both = bdd.descendants([f1, f2]);
+
+        // Union should not double-count shared nodes
+        let union_size = desc1.union(&desc2).count();
+        assert_eq!(desc_both.len(), union_size);
+    }
+
+    #[test]
+    fn test_descendants_empty() {
+        let bdd = Bdd::default();
+
+        // Empty iterator should return just the terminal 1 (added by default)
+        let desc = bdd.descendants(std::iter::empty());
+        assert_eq!(desc.len(), 1);
+        assert!(desc.contains(&1));
+    }
+
+    #[test]
+    fn test_descendants_complex_formula() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+
+        // (x1 XOR x2) AND x3
+        let xor = bdd.apply_xor(x1, x2);
+        let f = bdd.apply_and(xor, x3);
+
+        let desc = bdd.descendants([f]);
+
+        // Should include all nodes in the formula
+        assert!(desc.contains(&f.index()));
+        assert!(desc.contains(&1)); // terminal
+
+        // XOR creates a larger structure
+        assert!(desc.len() >= 4);
+    }
+
+    #[test]
+    fn test_descendants_size_consistency() {
+        let bdd = Bdd::default();
+
+        let f = bdd.mk_cube([1, 2, 3]);
+
+        // descendants should return the same count as size
+        let desc = bdd.descendants([f]);
+        let size = bdd.size(f);
+
+        assert_eq!(desc.len() as u64, size);
+    }
+
+    #[test]
+    fn test_descendants_negated_edges() {
+        let bdd = Bdd::default();
+
+        // Create a formula with negations
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let f = bdd.apply_and(-x1, -x2);
+
+        let desc = bdd.descendants([f]);
+
+        // Negated edges don't create new nodes, just traverse to existing ones
+        assert!(desc.contains(&f.index()));
+        assert!(desc.contains(&1)); // terminal
+    }
+
+    #[test]
     fn test_to_bracket_string_terminal() {
         let bdd = Bdd::default();
 
