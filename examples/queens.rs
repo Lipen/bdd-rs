@@ -1,7 +1,6 @@
-use clap::Parser;
-
 use bdd_rs::bdd::Bdd;
 use bdd_rs::reference::Ref;
+use clap::Parser;
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
