@@ -1255,6 +1255,80 @@ impl Bdd {
         res
     }
 
+    /// Computes the generalized cofactor (constrain operator): `f|g`.
+    ///
+    /// The constrain operator restricts function `f` to the domain where `g` is true,
+    /// simplifying `f` while preserving its behavior on inputs satisfying `g`.
+    /// This is also known as the *generalized cofactor* of `f` with respect to `g`.
+    ///
+    /// # Mathematical Definition
+    ///
+    /// The constrain operator `f|g` is defined as:
+    /// - `f|1 = f` (no restriction)
+    /// - `f|0 = 0` (empty domain)
+    /// - `f|g` simplifies `f` by assuming `g` is true
+    ///
+    /// For any assignment where `g = 1`, we have `(f|g) = f`.
+    /// For assignments where `g = 0`, the value of `(f|g)` is don't-care.
+    ///
+    /// # Properties
+    ///
+    /// - `f|1 = f`
+    /// - `f|0 = 0`
+    /// - `f|f = 1`
+    /// - `f|~f = 0`
+    /// - If `f` is a terminal, `f|g = f`
+    ///
+    /// # Parameters
+    ///
+    /// * `f` - The function to be constrained
+    /// * `g` - The constraint (domain restriction)
+    ///
+    /// # Returns
+    ///
+    /// A BDD reference representing `f|g` (f constrained by g).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    ///
+    /// // Example 1: Basic properties
+    /// let x = bdd.mk_var(1);
+    /// let f = bdd.mk_var(2);
+    ///
+    /// // f|1 = f
+    /// assert_eq!(bdd.constrain(f, bdd.one), f);
+    ///
+    /// // f|0 = 0
+    /// assert_eq!(bdd.constrain(f, bdd.zero), bdd.zero);
+    ///
+    /// // f|f = 1
+    /// assert_eq!(bdd.constrain(x, x), bdd.one);
+    ///
+    /// // Example 2: Simplification
+    /// // f = x1*x3 + ~x1*(x2^x3)
+    /// // g = x1*x2 + ~x2*~x3
+    /// // f|g = x1*x2*x3 (simplified form of f restricted to g's domain)
+    /// let x1 = bdd.mk_var(1);
+    /// let x2 = bdd.mk_var(2);
+    /// let x3 = bdd.mk_var(3);
+    ///
+    /// let f = bdd.apply_or(
+    ///     bdd.apply_and(x1, x3),
+    ///     bdd.apply_and(-x1, bdd.apply_xor(x2, x3))
+    /// );
+    /// let g = bdd.apply_or(
+    ///     bdd.apply_and(x1, x2),
+    ///     bdd.apply_and(-x2, -x3)
+    /// );
+    ///
+    /// let fg = bdd.constrain(f, g);
+    /// let expected = bdd.mk_cube([1, 2, 3]); // x1*x2*x3
+    /// assert_eq!(fg, expected);
+    /// ```
     pub fn constrain(&self, f: Ref, g: Ref) -> Ref {
         debug!("constrain(f = {}, g = {})", f, g);
 
