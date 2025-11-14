@@ -878,8 +878,9 @@ impl Bdd {
 
         while let Some(i) = queue.pop_front() {
             if visited.insert(i) {
-                queue.push_back(self.low(i).index());
-                queue.push_back(self.high(i).index());
+                let node = self.node(i);
+                queue.push_back(node.low.index());
+                queue.push_back(node.high.index());
             }
         }
 
