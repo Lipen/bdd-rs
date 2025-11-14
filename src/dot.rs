@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn test_to_dot_basic() {
         let bdd = Bdd::default();
-        let f = bdd.cube([-1, 2, 3]);
+        let f = bdd.mk_cube([-1, 2, 3]);
 
         // Should generate valid DOT string without panicking
         let dot = bdd.to_dot(&[f]).unwrap();

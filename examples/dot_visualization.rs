@@ -131,7 +131,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("\nExample 7: Cube (conjunction of literals)");
         let name = "example7_cube";
         let bdd = Bdd::default();
-        let cube = bdd.cube([-1, 2, -3]);
+        let cube = bdd.mk_cube([-1, 2, -3]);
         println!("  Formula: ¬x1 ∧ x2 ∧ ¬x3");
         println!("  BDD size: {}", bdd.size(cube));
         let dot = bdd.to_dot(&[cube])?;

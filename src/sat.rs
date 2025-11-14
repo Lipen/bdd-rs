@@ -104,7 +104,7 @@ mod tests {
     fn test_sat_count_cube() {
         let bdd = Bdd::default();
 
-        let f = bdd.cube([1, 2]);
+        let f = bdd.mk_cube([1, 2]);
         println!("f = {} of size {}", f, bdd.size(f));
         println!("sat_count(f, 2) = {}", bdd.sat_count(f, 2));
 
@@ -118,7 +118,7 @@ mod tests {
     fn test_sat_count_clause() {
         let bdd = Bdd::default();
 
-        let f = bdd.clause([1, 2]);
+        let f = bdd.mk_clause([1, 2]);
         println!("f = {} of size {}", f, bdd.size(f));
         println!("sat_count(f, 2) = {}", bdd.sat_count(f, 2));
 
@@ -136,7 +136,7 @@ mod tests {
     fn test_sat_count_not_cube() {
         let bdd = Bdd::default();
 
-        let f = -bdd.cube([1, 2]);
+        let f = -bdd.mk_cube([1, 2]);
         println!("f = {} of size {}", f, bdd.size(f));
         println!("sat_count(f, 2) = {}", bdd.sat_count(f, 2));
 

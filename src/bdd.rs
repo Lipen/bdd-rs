@@ -150,7 +150,7 @@ impl Bdd {
         self.mk_node(v, self.zero, self.one)
     }
 
-    pub fn cube(&self, literals: impl IntoIterator<Item = i32>) -> Ref {
+    pub fn mk_cube(&self, literals: impl IntoIterator<Item = i32>) -> Ref {
         let mut literals = literals.into_iter().collect::<Vec<_>>();
         literals.sort_by_key(|&v| v.abs());
         debug!("cube(literals = {:?})", literals);
@@ -167,7 +167,7 @@ impl Bdd {
         current
     }
 
-    pub fn clause(&self, literals: impl IntoIterator<Item = i32>) -> Ref {
+    pub fn mk_clause(&self, literals: impl IntoIterator<Item = i32>) -> Ref {
         let mut literals = literals.into_iter().collect::<Vec<_>>();
         literals.sort_by_key(|&v| v.abs());
         debug!("clause(literals = {:?})", literals);
@@ -1044,11 +1044,11 @@ mod tests {
         let x3 = bdd.mk_var(3);
 
         let f = bdd.apply_and(bdd.apply_and(x1, x2), x3);
-        let cube = bdd.cube([1, 2, 3]);
+        let cube = bdd.mk_cube([1, 2, 3]);
         assert_eq!(f, cube);
 
         let f = bdd.apply_and(bdd.apply_and(x1, -x2), -x3);
-        let cube = bdd.cube([1, -2, -3]);
+        let cube = bdd.mk_cube([1, -2, -3]);
         assert_eq!(f, cube);
     }
 
@@ -1061,11 +1061,11 @@ mod tests {
         let x3 = bdd.mk_var(3);
 
         let f = bdd.apply_or(bdd.apply_or(x1, x2), x3);
-        let clause = bdd.clause([1, 2, 3]);
+        let clause = bdd.mk_clause([1, 2, 3]);
         assert_eq!(f, clause);
 
         let f = bdd.apply_or(bdd.apply_or(x1, -x2), -x3);
-        let clause = bdd.clause([1, -2, -3]);
+        let clause = bdd.mk_clause([1, -2, -3]);
         assert_eq!(f, clause);
     }
 
@@ -1152,19 +1152,19 @@ mod tests {
     fn test_cofactor_cube() {
         let bdd = Bdd::default();
 
-        let f = bdd.cube([1, 2, 3]);
+        let f = bdd.mk_cube([1, 2, 3]);
         println!("f = {}", bdd.to_bracket_string(f));
 
-        assert_eq!(bdd.cofactor_cube(f, &[1]), bdd.cube([2, 3]));
-        assert_eq!(bdd.cofactor_cube(f, &[2]), bdd.cube([1, 3]));
-        assert_eq!(bdd.cofactor_cube(f, &[3]), bdd.cube([1, 2]));
+        assert_eq!(bdd.cofactor_cube(f, &[1]), bdd.mk_cube([2, 3]));
+        assert_eq!(bdd.cofactor_cube(f, &[2]), bdd.mk_cube([1, 3]));
+        assert_eq!(bdd.cofactor_cube(f, &[3]), bdd.mk_cube([1, 2]));
         assert_eq!(bdd.cofactor_cube(f, &[-1]), bdd.zero);
         assert_eq!(bdd.cofactor_cube(f, &[-2]), bdd.zero);
         assert_eq!(bdd.cofactor_cube(f, &[-3]), bdd.zero);
 
-        assert_eq!(bdd.cofactor_cube(f, &[1, 2]), bdd.cube([3]));
-        assert_eq!(bdd.cofactor_cube(f, &[1, 3]), bdd.cube([2]));
-        assert_eq!(bdd.cofactor_cube(f, &[2, 3]), bdd.cube([1]));
+        assert_eq!(bdd.cofactor_cube(f, &[1, 2]), bdd.mk_cube([3]));
+        assert_eq!(bdd.cofactor_cube(f, &[1, 3]), bdd.mk_cube([2]));
+        assert_eq!(bdd.cofactor_cube(f, &[2, 3]), bdd.mk_cube([1]));
         assert_eq!(bdd.cofactor_cube(f, &[1, -2]), bdd.zero);
         assert_eq!(bdd.cofactor_cube(f, &[1, -3]), bdd.zero);
         assert_eq!(bdd.cofactor_cube(f, &[2, -3]), bdd.zero);
@@ -1279,7 +1279,7 @@ mod tests {
         let g = bdd.apply_or(bdd.apply_and(x1, x2), bdd.apply_and(-x2, -x3));
 
         // h = x1*x2*x3
-        let h = bdd.cube([1, 2, 3]);
+        let h = bdd.mk_cube([1, 2, 3]);
 
         // f|g == h
         let fg = bdd.constrain(f, g);
@@ -1438,13 +1438,13 @@ mod tests {
     fn test_one_sat() {
         let bdd = Bdd::default();
 
-        let f = bdd.cube([1, -2, -3]);
+        let f = bdd.mk_cube([1, -2, -3]);
         println!("f = {} of size {}", f, bdd.size(f));
         let model = bdd.one_sat(f);
         println!("model = {:?}", model);
         assert_eq!(model, Some(vec![1, -2, -3]));
 
-        let g = bdd.apply_and(f, -bdd.cube(model.unwrap()));
+        let g = bdd.apply_and(f, -bdd.mk_cube(model.unwrap()));
         println!("g = {} of size {}", g, bdd.size(g));
         let model = bdd.one_sat(g);
         println!("model = {:?}", model);
@@ -1468,13 +1468,13 @@ mod tests {
         for cube in all_cubes {
             println!("Testing cube: {:?}", cube);
 
-            let f = bdd.cube(cube);
+            let f = bdd.mk_cube(cube);
             println!("f = {} of size {}", f, bdd.size(f));
             let model = bdd.one_sat(f);
             println!("model = {:?}", model);
             assert_eq!(model, Some(cube.to_vec()));
 
-            let g = bdd.apply_and(f, -bdd.cube(model.unwrap()));
+            let g = bdd.apply_and(f, -bdd.mk_cube(model.unwrap()));
             println!("g = {} of size {}", g, bdd.size(g));
             let model = bdd.one_sat(g);
             println!("model = {:?}", model);
@@ -1486,7 +1486,7 @@ mod tests {
     fn test_all_paths_1() {
         let bdd = Bdd::default();
 
-        let f = bdd.cube([1, -2, 3]);
+        let f = bdd.mk_cube([1, -2, 3]);
         println!("f = {} of size {}", f, bdd.size(f));
         let paths = bdd.paths(f).collect::<Vec<_>>();
         println!("paths: {}", paths.len());
@@ -1501,8 +1501,8 @@ mod tests {
     fn test_all_paths_2() {
         let bdd = Bdd::default();
 
-        let c1 = bdd.cube([1, -2, 3]);
-        let c2 = bdd.cube([1, 2, -3]);
+        let c1 = bdd.mk_cube([1, -2, 3]);
+        let c2 = bdd.mk_cube([1, 2, -3]);
         let f = bdd.apply_or(c1, c2);
         println!("f = {} of size {}", f, bdd.size(f));
         let paths = bdd.paths(f).collect::<Vec<_>>();
@@ -1548,7 +1548,7 @@ mod tests {
     fn test_all_paths_to_zero() {
         let bdd = Bdd::default();
 
-        let f = bdd.cube([-1, -2, -3]);
+        let f = bdd.mk_cube([-1, -2, -3]);
         println!("f = {} of size {}", bdd.to_bracket_string(f), bdd.size(f));
         println!("~f = {} of size {}", bdd.to_bracket_string(-f), bdd.size(-f));
         let paths = bdd.paths(-f).collect::<Vec<_>>();
