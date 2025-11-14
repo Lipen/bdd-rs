@@ -1145,6 +1145,30 @@ impl Bdd {
         res
     }
 
+    /// Computes the cofactor of a BDD with respect to a cube.
+    ///
+    /// A cube is a conjunction of literals. This operation substitutes each
+    /// variable in the cube with its corresponding value (positive = true, negative = false).
+    ///
+    /// # Parameters
+    ///
+    /// * `f` - The BDD to cofactor
+    /// * `cube` - Array of signed variable indices (positive for true, negative for false)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let f = bdd.apply_or(x, y);
+    ///
+    /// // Cofactor with respect to x=true, y=false
+    /// let result = bdd.cofactor_cube(f, &[1, -2]);
+    /// assert_eq!(result, bdd.one); // true OR false = true
+    /// ```
     pub fn cofactor_cube(&self, f: Ref, cube: &[i32]) -> Ref {
         let mut cache = HashMap::new();
         self.cofactor_cube_(f, cube, &mut cache)
