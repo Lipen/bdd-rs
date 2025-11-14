@@ -1078,6 +1078,34 @@ impl Bdd {
         res
     }
 
+    /// Substitutes multiple variables with boolean values simultaneously.
+    ///
+    /// This is equivalent to applying [`substitute`](Bdd::substitute) multiple times,
+    /// but more efficient as it performs all substitutions in a single traversal.
+    ///
+    /// # Parameters
+    ///
+    /// * `f` - The BDD to substitute variables in
+    /// * `values` - A map from variable indices to their boolean values
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    /// use std::collections::HashMap;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let f = bdd.apply_and(x, y);
+    ///
+    /// let mut values = HashMap::new();
+    /// values.insert(1, true);  // x = true
+    /// values.insert(2, false); // y = false
+    ///
+    /// let result = bdd.substitute_multi(f, &values);
+    /// assert_eq!(result, bdd.zero); // true AND false = false
+    /// ```
     pub fn substitute_multi(&self, f: Ref, values: &HashMap<u32, bool>) -> Ref {
         let mut cache = HashMap::new();
         self.substitute_multi_(f, values, &mut cache)
