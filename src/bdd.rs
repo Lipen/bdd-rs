@@ -1,3 +1,57 @@
+//! Binary Decision Diagram (BDD) implementation.
+//!
+//! This module provides a canonical, reduced ordered BDD implementation with efficient
+//! caching and operation support. BDDs are a compact data structure for representing
+//! and manipulating Boolean functions.
+//!
+//! # Terminology
+//!
+//! - **BDD**: A directed acyclic graph representing a Boolean function.
+//!   In this crate, "BDD" often refers to a reference ([`Ref`]) to the root of such a graph.
+//! - **BDD Manager** ([`Bdd`]): The central structure that manages the shared pool of nodes,
+//!   maintains canonicity, and provides operations.
+//!   All BDD operations go through the manager.
+//! - **Node** ([`Node`]): The building block of a BDD graph.
+//!   Each node represents a decision on a Boolean variable and has two outgoing edges.
+//! - **Reference** ([`Ref`]): A lightweight handle to a BDD node.
+//!   References can be negated (complement edges) without creating new nodes.
+//! - **Terminal node**: A leaf node representing a constant value.
+//!   This implementation uses two terminals: `zero` (false) and `one` (true).
+//! - **Low/High edges**: The two outgoing edges from a decision node.
+//!   The **low edge** is followed when the variable is false, the **high edge** when true.
+//! - **Complement edge**: A negated reference (indicated by a flag).
+//!   Following a complement edge logically negates the function at the target node.
+//!   Only low edges can be complemented.
+//! - **Variable ordering**: BDD nodes are ordered by their variable indices.
+//!   This ordering is crucial for canonicity and reduction.
+//!
+//! # Key Features
+//!
+//! - **Canonical representation**: Each Boolean function has a unique BDD representation
+//! - **Automatic reduction**: Duplicate and redundant nodes are eliminated
+//! - **Operation caching**: Results of operations are cached for performance
+//! - **Complement edges**: Negation is handled efficiently using edge attributes
+//!
+//! # Examples
+//!
+//! ```
+//! use bdd_rs::bdd::Bdd;
+//!
+//! let bdd = Bdd::default();
+//!
+//! // Create variables
+//! let x = bdd.mk_var(1);
+//! let y = bdd.mk_var(2);
+//!
+//! // Perform Boolean operations
+//! let and = bdd.apply_and(x, y);  // x ∧ y
+//! let or = bdd.apply_or(x, y);    // x ∨ y
+//! let xor = bdd.apply_xor(x, y);  // x ⊕ y
+//!
+//! // Check properties
+//! assert!(bdd.size(and) <= bdd.size(or));
+//! ```
+
 use std::cell;
 use std::cell::RefCell;
 use std::cmp::{min, Ordering};
@@ -12,6 +66,34 @@ use crate::reference::Ref;
 use crate::storage::Storage;
 use crate::utils::OpKey;
 
+/// A Binary Decision Diagram (BDD) manager.
+///
+/// This structure manages a shared pool of BDD nodes with automatic deduplication
+/// and caching. All BDD operations are performed through this manager.
+///
+/// # Representation
+///
+/// - `zero` and `one`: Terminal nodes representing false and true
+/// - Internal nodes: Decision nodes with a variable and two children (low/high)
+/// - Complement edges: Negation is handled by marking edges rather than creating new nodes
+///
+/// # Memory Management
+///
+/// The BDD uses a hash table for node storage with configurable capacity.
+/// Call [`collect_garbage`](Bdd::collect_garbage) to reclaim unused nodes.
+///
+/// # Examples
+///
+/// ```
+/// use bdd_rs::bdd::Bdd;
+///
+/// // Create a BDD manager with default capacity (2^20 nodes)
+/// let bdd = Bdd::default();
+///
+/// // Or specify custom capacity
+/// let bdd = Bdd::new(10); // 2^10 nodes capacity
+/// assert_eq!(bdd.storage().capacity(), 1024);
+/// ```
 pub struct Bdd {
     storage: RefCell<Storage>,
     cache: RefCell<Cache<OpKey, Ref>>,
@@ -21,6 +103,35 @@ pub struct Bdd {
 }
 
 impl Bdd {
+    /// Creates a new BDD manager with the specified storage capacity.
+    ///
+    /// The capacity is specified in bits, so the actual number of nodes is `2^storage_bits`.
+    /// The cache size is automatically configured to `min(storage_bits, 16)` bits.
+    ///
+    /// # Arguments
+    ///
+    /// * `storage_bits` - Storage capacity in bits (must be ≤ 31). Typical values:
+    ///   - 16: 65K nodes (small problems)
+    ///   - 20: 1M nodes (default, medium problems)
+    ///   - 24: 16M nodes (large problems)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `storage_bits > 31`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// // Small BDD for simple problems
+    /// let small_bdd = Bdd::new(16);
+    /// assert_eq!(small_bdd.storage().capacity(), 1 << 16);
+    ///
+    /// // Large BDD for complex problems
+    /// let large_bdd = Bdd::new(24);
+    /// assert_eq!(large_bdd.storage().capacity(), 1 << 24);
+    /// ```
     pub fn new(storage_bits: usize) -> Self {
         assert!(storage_bits <= 31, "Storage bits should be in the range 0..=31");
 
@@ -114,12 +225,60 @@ impl Bdd {
         }
     }
 
+    /// Checks if a BDD node represents the constant false.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// assert!(bdd.is_zero(bdd.zero));
+    /// assert!(!bdd.is_zero(bdd.one));
+    ///
+    /// let x = bdd.mk_var(1);
+    /// let contradiction = bdd.apply_and(x, -x);
+    /// assert!(bdd.is_zero(contradiction));
+    /// ```
     pub fn is_zero(&self, node_ref: Ref) -> bool {
         node_ref == self.zero
     }
+
+    /// Checks if a BDD node represents the constant true.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// assert!(bdd.is_one(bdd.one));
+    /// assert!(!bdd.is_one(bdd.zero));
+    ///
+    /// let x = bdd.mk_var(1);
+    /// let tautology = bdd.apply_or(x, -x);
+    /// assert!(bdd.is_one(tautology));
+    /// ```
     pub fn is_one(&self, node_ref: Ref) -> bool {
         node_ref == self.one
     }
+
+    /// Checks if a BDD node is a terminal (constant) node.
+    ///
+    /// Returns true if the node is either zero (false) or one (true).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// assert!(bdd.is_terminal(bdd.zero));
+    /// assert!(bdd.is_terminal(bdd.one));
+    ///
+    /// let x = bdd.mk_var(1);
+    /// assert!(!bdd.is_terminal(x));
+    /// ```
     pub fn is_terminal(&self, node_ref: Ref) -> bool {
         self.is_zero(node_ref) || self.is_one(node_ref)
     }
@@ -145,11 +304,72 @@ impl Bdd {
         Ref::positive(i as u32)
     }
 
+    /// Creates a BDD representing a single Boolean variable.
+    ///
+    /// Returns a BDD that is true when the variable is true and false otherwise.
+    /// This is the primary way to introduce variables into BDD expressions.
+    ///
+    /// # Arguments
+    ///
+    /// * `v` - Variable index (must be non-zero)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `v == 0`. Variable indices must start from 1.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x1 = bdd.mk_var(1);
+    /// let x2 = bdd.mk_var(2);
+    ///
+    /// // Variables can be negated
+    /// let not_x1 = -x1;
+    ///
+    /// // And combined with operations
+    /// let f = bdd.apply_and(x1, x2);
+    /// ```
     pub fn mk_var(&self, v: u32) -> Ref {
         assert_ne!(v, 0, "Variable index should not be zero");
         self.mk_node(v, self.zero, self.one)
     }
 
+    /// Creates a BDD representing a conjunction (AND) of literals.
+    ///
+    /// A cube is a conjunction of positive or negative literals.
+    /// This is more efficient than manually creating multiple AND operations.
+    ///
+    /// # Arguments
+    ///
+    /// * `literals` - Iterator of signed integers where:
+    ///   - Positive values represent positive literals (e.g., `1` = x₁)
+    ///   - Negative values represent negative literals (e.g., `-2` = ¬x₂)
+    ///   - Zero is not allowed
+    ///
+    /// # Returns
+    ///
+    /// A BDD representing the conjunction of all literals.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    ///
+    /// // Create x₁ ∧ ¬x₂ ∧ x₃
+    /// let cube = bdd.mk_cube([1, -2, 3]);
+    ///
+    /// // Equivalent to:
+    /// let x1 = bdd.mk_var(1);
+    /// let x2 = bdd.mk_var(2);
+    /// let x3 = bdd.mk_var(3);
+    /// let manual = bdd.apply_and(bdd.apply_and(x1, -x2), x3);
+    /// assert_eq!(cube, manual);
+    /// ```
     pub fn mk_cube(&self, literals: impl IntoIterator<Item = i32>) -> Ref {
         let mut literals = literals.into_iter().collect::<Vec<_>>();
         literals.sort_by_key(|&v| v.abs());
@@ -167,6 +387,39 @@ impl Bdd {
         current
     }
 
+    /// Creates a BDD representing a disjunction (OR) of literals.
+    ///
+    /// A clause is a disjunction of positive or negative literals.
+    /// This is more efficient than manually creating multiple OR operations.
+    ///
+    /// # Arguments
+    ///
+    /// * `literals` - Iterator of signed integers where:
+    ///   - Positive values represent positive literals (e.g., `1` = x₁)
+    ///   - Negative values represent negative literals (e.g., `-2` = ¬x₂)
+    ///   - Zero is not allowed
+    ///
+    /// # Returns
+    ///
+    /// A BDD representing the disjunction of all literals.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    ///
+    /// // Create x₁ ∨ ¬x₂ ∨ x₃
+    /// let clause = bdd.mk_clause([1, -2, 3]);
+    ///
+    /// // Equivalent to:
+    /// let x1 = bdd.mk_var(1);
+    /// let x2 = bdd.mk_var(2);
+    /// let x3 = bdd.mk_var(3);
+    /// let manual = bdd.apply_or(bdd.apply_or(x1, -x2), x3);
+    /// assert_eq!(clause, manual);
+    /// ```
     pub fn mk_clause(&self, literals: impl IntoIterator<Item = i32>) -> Ref {
         let mut literals = literals.into_iter().collect::<Vec<_>>();
         literals.sort_by_key(|&v| v.abs());
@@ -526,36 +779,197 @@ impl Bdd {
         self.ite_constant(f, g, self.one) == Some(true)
     }
 
+    /// Returns the negation of a BDD.
+    ///
+    /// This operation is performed in constant time by flipping the complement bit.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let not_x = bdd.apply_not(x);
+    ///
+    /// // Equivalent to unary negation
+    /// assert_eq!(not_x, -x);
+    ///
+    /// // Double negation
+    /// assert_eq!(bdd.apply_not(not_x), x);
+    /// ```
     pub fn apply_not(&self, f: Ref) -> Ref {
         debug!("apply_not(f = {})", f);
         -f
     }
 
+    /// Computes the conjunction (AND) of two BDDs: `u ∧ v`.
+    ///
+    /// Implemented using [`apply_ite`](Bdd::apply_ite).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// let and = bdd.apply_and(x, y);
+    ///
+    /// // AND is commutative
+    /// assert_eq!(bdd.apply_and(x, y), bdd.apply_and(y, x));
+    ///
+    /// // AND with constants
+    /// assert_eq!(bdd.apply_and(x, bdd.one), x);
+    /// assert!(bdd.is_zero(bdd.apply_and(x, bdd.zero)));
+    /// ```
     pub fn apply_and(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_and(u = {}, v = {})", u, v);
         self.apply_ite(u, v, self.zero)
     }
 
+    /// Computes the disjunction (OR) of two BDDs: `u ∨ v`.
+    ///
+    /// Implemented using [`apply_ite`](Bdd::apply_ite).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// let or = bdd.apply_or(x, y);
+    ///
+    /// // OR is commutative
+    /// assert_eq!(bdd.apply_or(x, y), bdd.apply_or(y, x));
+    ///
+    /// // OR with constants
+    /// assert_eq!(bdd.apply_or(x, bdd.zero), x);
+    /// assert!(bdd.is_one(bdd.apply_or(x, bdd.one)));
+    /// ```
     pub fn apply_or(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_or(u = {}, v = {})", u, v);
         self.apply_ite(u, self.one, v)
     }
 
+    /// Computes the exclusive OR (XOR) of two BDDs: `u ⊕ v`.
+    ///
+    /// True when exactly one operand is true.
+    ///
+    /// Implemented using [`apply_ite`](Bdd::apply_ite).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// let xor = bdd.apply_xor(x, y);
+    ///
+    /// // XOR is commutative
+    /// assert_eq!(bdd.apply_xor(x, y), bdd.apply_xor(y, x));
+    ///
+    /// // XOR with itself is false
+    /// assert!(bdd.is_zero(bdd.apply_xor(x, x)));
+    ///
+    /// // XOR is equivalent to inequality
+    /// let neq = bdd.apply_and(bdd.apply_or(x, y), bdd.apply_not(bdd.apply_and(x, y)));
+    /// assert_eq!(xor, neq);
+    /// ```
     pub fn apply_xor(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_xor(u = {}, v = {})", u, v);
         self.apply_ite(u, -v, v)
     }
 
+    /// Computes the equivalence (XNOR) of two BDDs: `u <=> v`.
+    ///
+    /// True when both operands have the same value.
+    ///
+    /// Implemented using [`apply_ite`](Bdd::apply_ite).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// let eq = bdd.apply_eq(x, y);
+    ///
+    /// // Equivalence with itself is true
+    /// assert!(bdd.is_one(bdd.apply_eq(x, x)));
+    ///
+    /// // Equivalence is the negation of XOR
+    /// assert_eq!(eq, bdd.apply_not(bdd.apply_xor(x, y)));
+    /// ```
     pub fn apply_eq(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_eq(u = {}, v = {})", u, v);
         self.apply_ite(u, v, -v)
     }
 
+    /// Computes the implication of two BDDs: `u -> v`.
+    ///
+    /// Equivalent to `¬u ∨ v`.
+    ///
+    /// Implemented using [`apply_ite`](Bdd::apply_ite).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// let implies = bdd.apply_imply(x, y);
+    ///
+    /// // x implies x is always true
+    /// assert!(bdd.is_one(bdd.apply_imply(x, x)));
+    ///
+    /// // Equivalent to NOT x OR y
+    /// let equivalent = bdd.apply_or(-x, y);
+    /// assert_eq!(implies, equivalent);
+    /// ```
     pub fn apply_imply(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_imply(u = {}, v = {})", u, v);
         self.apply_ite(u, v, self.one)
     }
 
+    /// Computes the conjunction (AND) of multiple BDDs.
+    ///
+    /// More convenient than chaining multiple [`apply_and`](Bdd::apply_and) calls.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let z = bdd.mk_var(3);
+    ///
+    /// // AND of multiple variables
+    /// let and_all = bdd.apply_and_many([x, y, z]);
+    ///
+    /// // Equivalent to:
+    /// let manual = bdd.apply_and(bdd.apply_and(x, y), z);
+    /// assert_eq!(and_all, manual);
+    ///
+    /// // Also equivalent to cube
+    /// assert_eq!(and_all, bdd.mk_cube([1, 2, 3]));
+    /// ```
     pub fn apply_and_many(&self, nodes: impl IntoIterator<Item = Ref>) -> Ref {
         debug!("apply_and_many(...)");
         let mut res = self.one;
@@ -565,6 +979,30 @@ impl Bdd {
         res
     }
 
+    /// Computes the disjunction (OR) of multiple BDDs.
+    ///
+    /// More convenient than chaining multiple [`apply_or`](Bdd::apply_or) calls.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let z = bdd.mk_var(3);
+    ///
+    /// // OR of multiple variables
+    /// let or_all = bdd.apply_or_many([x, y, z]);
+    ///
+    /// // Equivalent to:
+    /// let manual = bdd.apply_or(bdd.apply_or(x, y), z);
+    /// assert_eq!(or_all, manual);
+    ///
+    /// // Also equivalent to clause
+    /// assert_eq!(or_all, bdd.mk_clause([1, 2, 3]));
+    /// ```
     pub fn apply_or_many(&self, nodes: impl IntoIterator<Item = Ref>) -> Ref {
         debug!("apply_or_many(...)");
         let mut res = self.zero;
@@ -574,6 +1012,35 @@ impl Bdd {
         res
     }
 
+    /// Substitutes a variable with a Boolean constant.
+    ///
+    /// Returns a new BDD where all occurrences of variable `v` are replaced with
+    /// the constant `b`. This is also called the cofactor operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - The BDD to substitute in
+    /// * `v` - Variable index to substitute (must be non-zero)
+    /// * `b` - Boolean value to substitute (true or false)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let f = bdd.apply_or(bdd.apply_eq(x, y), x); // (x = y) ∨ x
+    ///
+    /// // Substitute x with true
+    /// let f_x_true = bdd.substitute(f, 1, true);
+    /// assert!(bdd.is_one(f_x_true)); // Result is always true
+    ///
+    /// // Substitute y with false
+    /// let f_y_false = bdd.substitute(f, 2, false);
+    /// // Result depends only on x now
+    /// ```
     // f|v<-b
     pub fn substitute(&self, f: Ref, v: u32, b: bool) -> Ref {
         let mut cache = HashMap::new();
@@ -707,6 +1174,36 @@ impl Bdd {
         res
     }
 
+    /// Composes a BDD by substituting a variable with another BDD.
+    ///
+    /// Returns a new BDD where all occurrences of variable `v` in `f` are replaced
+    /// with the BDD `g`. This is also known as functional composition.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - The BDD to compose
+    /// * `v` - Variable index to substitute (must be non-zero)
+    /// * `g` - BDD to substitute for the variable
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let z = bdd.mk_var(3);
+    ///
+    /// // f = x AND z
+    /// let f = bdd.apply_and(x, z);
+    ///
+    /// // Replace x with (y XOR z)
+    /// let g = bdd.apply_xor(y, z);
+    /// let result = bdd.compose(f, 1, g);
+    ///
+    /// // Result is (y XOR z) AND z, which simplifies to (y AND NOT z)
+    /// ```
     // f|v<-g
     pub fn compose(&self, f: Ref, v: u32, g: Ref) -> Ref {
         let mut cache = Cache::new(16);
@@ -888,18 +1385,71 @@ impl Bdd {
         visited
     }
 
-    pub fn size(&self, f: Ref) -> u64 {
-        debug!("size(f = {})", f);
-        if let Some(&size) = self.size_cache().get(&f) {
-            debug!("cache: size({}) -> {}", f, size);
+    /// Returns the number of nodes in a BDD.
+    ///
+    /// This counts all unique nodes reachable from the given node, including the terminal.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// // Single variable
+    /// assert_eq!(bdd.size(x), 2);
+    ///
+    /// // AND of two variables
+    /// let and = bdd.apply_and(x, y);
+    /// assert_eq!(bdd.size(and), 3);
+    ///
+    /// // Tautology (just the terminal)
+    /// assert_eq!(bdd.size(bdd.one), 1);
+    /// ```
+    pub fn size(&self, node_ref: Ref) -> u64 {
+        debug!("size(f = {})", node_ref);
+        if let Some(&size) = self.size_cache().get(&node_ref) {
+            debug!("cache: size({}) -> {}", node_ref, size);
             return size;
         }
-        let size = self.descendants([f]).len() as u64;
-        debug!("computed: size({}) -> {}", f, size);
-        self.size_cache_mut().insert(f, size);
+        let size = self.descendants([node_ref]).len() as u64;
+        debug!("computed: size({}) -> {}", node_ref, size);
+        self.size_cache_mut().insert(node_ref, size);
         size
     }
 
+    /// Performs garbage collection to reclaim unused BDD nodes.
+    ///
+    /// This removes all nodes that are not reachable from the provided roots.
+    /// The operation also clears all caches. Only call this when you have identified
+    /// all BDD nodes that should be kept.
+    ///
+    /// # Arguments
+    ///
+    /// * `roots` - Slice of BDD references that should be preserved
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// // Create some temporary BDDs
+    /// let _temp1 = bdd.apply_and(x, y);
+    /// let _temp2 = bdd.apply_or(x, y);
+    ///
+    /// // Keep only the important result
+    /// let important = bdd.apply_xor(x, y);
+    ///
+    /// // Collect garbage, keeping only 'important'
+    /// bdd.collect_garbage(&[important]);
+    /// // Nodes from temp1 and temp2 are now reclaimed
+    /// ```
     pub fn collect_garbage(&self, roots: &[Ref]) {
         debug!("Collecting garbage...");
 
