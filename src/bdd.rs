@@ -97,31 +97,31 @@ impl Bdd {
         self.storage().next(index as usize)
     }
 
-    pub fn low_node(&self, node: Ref) -> Ref {
-        let low = self.low(node.index());
-        if node.is_negated() {
+    pub fn low_node(&self, node_ref: Ref) -> Ref {
+        let low = self.low(node_ref.index());
+        if node_ref.is_negated() {
             -low
         } else {
             low
         }
     }
-    pub fn high_node(&self, node: Ref) -> Ref {
-        let high = self.high(node.index());
-        if node.is_negated() {
+    pub fn high_node(&self, node_ref: Ref) -> Ref {
+        let high = self.high(node_ref.index());
+        if node_ref.is_negated() {
             -high
         } else {
             high
         }
     }
 
-    pub fn is_zero(&self, node: Ref) -> bool {
-        node == self.zero
+    pub fn is_zero(&self, node_ref: Ref) -> bool {
+        node_ref == self.zero
     }
-    pub fn is_one(&self, node: Ref) -> bool {
-        node == self.one
+    pub fn is_one(&self, node_ref: Ref) -> bool {
+        node_ref == self.one
     }
-    pub fn is_terminal(&self, node: Ref) -> bool {
-        self.is_zero(node) || self.is_one(node)
+    pub fn is_terminal(&self, node_ref: Ref) -> bool {
+        self.is_zero(node_ref) || self.is_one(node_ref)
     }
 
     pub fn mk_node(&self, v: u32, low: Ref, high: Ref) -> Ref {
@@ -184,20 +184,20 @@ impl Bdd {
         current
     }
 
-    pub fn top_cofactors(&self, node: Ref, v: u32) -> (Ref, Ref) {
+    pub fn top_cofactors(&self, node_ref: Ref, v: u32) -> (Ref, Ref) {
         assert_ne!(v, 0, "Variable index should not be zero");
 
-        if self.is_terminal(node) {
-            return (node, node);
+        if self.is_terminal(node_ref) {
+            return (node_ref, node_ref);
         }
 
-        let index = node.index();
+        let index = node_ref.index();
         if v < self.variable(index) {
             // 'node' does not depend on 'v'
-            return (node, node);
+            return (node_ref, node_ref);
         }
         assert_eq!(v, self.variable(index));
-        if node.is_negated() {
+        if node_ref.is_negated() {
             (-self.low(index), -self.high(index))
         } else {
             (self.low(index), self.high(index))
@@ -401,10 +401,10 @@ impl Bdd {
         }
     }
 
-    fn maybe_constant(&self, node: Ref) -> Option<bool> {
-        if self.is_zero(node) {
+    fn maybe_constant(&self, node_ref: Ref) -> Option<bool> {
+        if self.is_zero(node_ref) {
             Some(false)
-        } else if self.is_one(node) {
+        } else if self.is_one(node_ref) {
             Some(true)
         } else {
             None
@@ -558,8 +558,8 @@ impl Bdd {
     pub fn apply_and_many(&self, nodes: impl IntoIterator<Item = Ref>) -> Ref {
         debug!("apply_and_many(...)");
         let mut res = self.one;
-        for node in nodes.into_iter() {
-            res = self.apply_and(res, node);
+        for node_ref in nodes.into_iter() {
+            res = self.apply_and(res, node_ref);
         }
         res
     }
@@ -567,8 +567,8 @@ impl Bdd {
     pub fn apply_or_many(&self, nodes: impl IntoIterator<Item = Ref>) -> Ref {
         debug!("apply_or_many(...)");
         let mut res = self.zero;
-        for node in nodes.into_iter() {
-            res = self.apply_or(res, node);
+        for node_ref in nodes.into_iter() {
+            res = self.apply_or(res, node_ref);
         }
         res
     }
@@ -874,7 +874,7 @@ impl Bdd {
     pub fn descendants(&self, nodes: impl IntoIterator<Item = Ref>) -> HashSet<u32> {
         let mut visited = HashSet::new();
         visited.insert(self.one.index());
-        let mut queue = VecDeque::from_iter(nodes.into_iter().map(|node| node.index()));
+        let mut queue = VecDeque::from_iter(nodes.into_iter().map(|node_ref| node_ref.index()));
 
         while let Some(i) = queue.pop_front() {
             if visited.insert(i) {
@@ -955,31 +955,29 @@ impl Bdd {
         }
     }
 
-    pub fn to_bracket_string(&self, node: Ref) -> String {
+    pub fn to_bracket_string(&self, node_ref: Ref) -> String {
         let mut visited = HashSet::new();
-        self.node_to_str(node, &mut visited)
+        self.node_to_str(node_ref, &mut visited)
     }
 
-    fn node_to_str(&self, node: Ref, visited: &mut HashSet<u32>) -> String {
-        if self.is_zero(node) {
+    fn node_to_str(&self, node_ref: Ref, visited: &mut HashSet<u32>) -> String {
+        if self.is_zero(node_ref) {
             return "⊥".to_string();
-        } else if self.is_one(node) {
+        } else if self.is_one(node_ref) {
             return "⊤".to_string();
         }
 
-        if !visited.insert(node.index()) {
-            return format!("{}", node);
+        if !visited.insert(node_ref.index()) {
+            return format!("{}", node_ref);
         }
 
-        let index = node.index();
-        let v = self.variable(index);
-        let low = self.low(index);
-        let high = self.high(index);
+        let index = node_ref.index();
+        let Node { variable, low, high } = self.node(index);
 
         format!(
             "{}:(x{}, {}, {})",
-            node,
-            v,
+            node_ref,
+            variable,
             self.node_to_str(high, visited),
             self.node_to_str(low, visited),
         )
