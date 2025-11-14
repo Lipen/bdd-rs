@@ -1394,6 +1394,44 @@ impl Bdd {
         res
     }
 
+    /// Restricts a BDD by setting variables where the constraint is constant.
+    ///
+    /// The restrict operator `f↓g` simplifies `f` by setting variables to constants
+    /// based on `g`. Unlike [`constrain`](Bdd::constrain), restrict only substitutes
+    /// variables that are constant in `g`, making it a partial evaluation.
+    ///
+    /// # Properties
+    ///
+    /// - `f↓1 = f`
+    /// - `f↓0 = 0`
+    /// - `f↓f = 1`
+    /// - `f↓~f = 0`
+    ///
+    /// # Parameters
+    ///
+    /// * `f` - The function to restrict
+    /// * `g` - The constraint defining variable assignments
+    ///
+    /// # Returns
+    ///
+    /// A BDD representing `f` restricted by `g`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// // f = x OR y
+    /// let f = bdd.apply_or(x, y);
+    ///
+    /// // Restrict f by setting x = true
+    /// let result = bdd.restrict(f, x);
+    /// assert_eq!(result, bdd.one); // (true OR y) = true
+    /// ```
     pub fn restrict(&self, f: Ref, g: Ref) -> Ref {
         debug!("restrict(f = {}, g = {})", f, g);
 
