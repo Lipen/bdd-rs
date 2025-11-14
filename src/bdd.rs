@@ -1174,7 +1174,7 @@ impl Bdd {
         res
     }
 
-    /// Composes a BDD by substituting a variable with another BDD.
+    /// Composes a BDD by substituting a variable with another BDD: `f|v<-g`.
     ///
     /// Returns a new BDD where all occurrences of variable `v` in `f` are replaced
     /// with the BDD `g`. This is also known as functional composition.
@@ -1204,7 +1204,6 @@ impl Bdd {
     ///
     /// // Result is (y XOR z) AND z, which simplifies to (y AND NOT z)
     /// ```
-    // f|v<-g
     pub fn compose(&self, f: Ref, v: u32, g: Ref) -> Ref {
         let mut cache = Cache::new(16);
         self.compose_(f, v, g, &mut cache)
