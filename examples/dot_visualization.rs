@@ -26,102 +26,162 @@ use bdd_rs::bdd::Bdd;
 use bdd_rs::dot::DotConfig;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let bdd = Bdd::default();
-
     // Create output directory in examples folder
     let output_dir = env::current_dir()?.join("examples").join("dot_output");
     fs::create_dir_all(&output_dir)?;
 
     println!("=== BDD to DOT Visualization Examples ===");
-    println!("Output directory: {}\n", output_dir.display());
+    println!("Output directory: {}", output_dir.display());
+
+    let mut examples = Vec::new();
 
     // Example 1: Simple variable
-    println!("Example 1: Single variable");
-    let x = bdd.mk_var(1);
-    let dot = bdd.to_dot(&[x])?;
-    fs::write(output_dir.join("example1_var.dot"), &dot)?;
-    println!("  Formula: x1\n");
+    {
+        println!("\nExample 1: Single variable");
+        let name = "example1_var";
+        let bdd = Bdd::default();
+        let x = bdd.mk_var(1);
+        println!("  Formula: x1");
+        println!("  BDD size: {}", bdd.size(x));
+        let dot = bdd.to_dot(&[x])?;
+        fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
+        examples.push(name);
+    }
 
     // Example 2: AND operation
-    println!("Example 2: AND operation");
-    let x1 = bdd.mk_var(1);
-    let x2 = bdd.mk_var(2);
-    let and = bdd.apply_and(x1, x2);
-    let dot = bdd.to_dot(&[and])?;
-    fs::write(output_dir.join("example2_and.dot"), &dot)?;
-    println!("  Formula: x1 ∧ x2\n");
+    {
+        println!("\nExample 2: AND operation");
+        let name = "example2_and";
+        let bdd = Bdd::default();
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let and = bdd.apply_and(x1, x2);
+        println!("  Formula: x1 ∧ x2");
+        println!("  BDD size: {}", bdd.size(and));
+        let dot = bdd.to_dot(&[and])?;
+        fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
+        examples.push(name);
+    }
 
     // Example 3: OR operation
-    println!("Example 3: OR operation");
-    let or = bdd.apply_or(x1, x2);
-    let dot = bdd.to_dot(&[or])?;
-    fs::write(output_dir.join("example3_or.dot"), &dot)?;
-    println!("  Formula: x1 ∨ x2\n");
+    {
+        println!("\nExample 3: OR operation");
+        let name = "example3_or";
+        let bdd = Bdd::default();
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let or = bdd.apply_or(x1, x2);
+        println!("  Formula: x1 ∨ x2");
+        println!("  BDD size: {}", bdd.size(or));
+        let dot = bdd.to_dot(&[or])?;
+        fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
+        examples.push(name);
+    }
 
     // Example 4: XOR operation
-    println!("Example 4: XOR operation");
-    let xor = bdd.apply_xor(x1, x2);
-    let dot = bdd.to_dot(&[xor])?;
-    fs::write(output_dir.join("example4_xor.dot"), &dot)?;
-    println!("  Formula: x1 ⊕ x2\n");
+    {
+        println!("\nExample 4: XOR operation");
+        let name = "example4_xor";
+        let bdd = Bdd::default();
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let xor = bdd.apply_xor(x1, x2);
+        println!("  Formula: x1 ⊕ x2");
+        println!("  BDD size: {}", bdd.size(xor));
+        let dot = bdd.to_dot(&[xor])?;
+        fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
+        examples.push(name);
+    }
 
     // Example 5: Complex formula
-    println!("Example 5: Complex formula");
-    let x3 = bdd.mk_var(3);
-    let complex = bdd.apply_or(bdd.apply_and(x1, x2), bdd.apply_and(-x1, x3));
-    let dot = bdd.to_dot(&[complex])?;
-    fs::write(output_dir.join("example5_complex.dot"), &dot)?;
-    println!("  Formula: (x1 ∧ x2) ∨ (¬x1 ∧ x3)\n");
+    {
+        println!("\nExample 5: Complex formula");
+        let name = "example5_complex";
+        let bdd = Bdd::default();
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+        let complex = bdd.apply_or(bdd.apply_and(x1, x2), bdd.apply_and(-x1, x3));
+        println!("  Formula: (x1 ∧ x2) ∨ (¬x1 ∧ x3)");
+        println!("  BDD size: {}", bdd.size(complex));
+        let dot = bdd.to_dot(&[complex])?;
+        fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
+        examples.push(name);
+    }
 
     // Example 6: Multiple functions (shared nodes)
-    println!("Example 6: Multiple functions with shared nodes");
-    let dot = bdd.to_dot(&[and, or, xor])?;
-    fs::write(output_dir.join("example6_multiple.dot"), &dot)?;
-    println!("  Formulas: AND, OR, XOR of x1 and x2\n");
+    {
+        println!("\nExample 6: Multiple functions with shared nodes");
+        let name = "example6_multiple";
+        let bdd = Bdd::default();
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let and = bdd.apply_and(x1, x2);
+        let or = bdd.apply_or(x1, x2);
+        let xor = bdd.apply_xor(x1, x2);
+        println!("  Formulas: AND, OR, XOR of x1 and x2");
+        println!("  BDD sizes: AND={}, OR={}, XOR={}", bdd.size(and), bdd.size(or), bdd.size(xor));
+        let dot = bdd.to_dot(&[and, or, xor])?;
+        fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
+        examples.push(name);
+    }
 
     // Example 7: Cube (conjunction of literals)
-    println!("Example 7: Cube (conjunction of literals)");
-    let cube = bdd.cube([-1, 2, -3]);
-    let dot = bdd.to_dot(&[cube])?;
-    fs::write(output_dir.join("example7_cube.dot"), &dot)?;
-    println!("  Formula: ¬x1 ∧ x2 ∧ ¬x3\n");
+    {
+        println!("\nExample 7: Cube (conjunction of literals)");
+        let name = "example7_cube";
+        let bdd = Bdd::default();
+        let cube = bdd.cube([-1, 2, -3]);
+        println!("  Formula: ¬x1 ∧ x2 ∧ ¬x3");
+        println!("  BDD size: {}", bdd.size(cube));
+        let dot = bdd.to_dot(&[cube])?;
+        fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
+        examples.push(name);
+    }
 
     // Example 8: Custom configuration
-    println!("Example 8: Custom visualization style");
-    let config = DotConfig {
-        node_shape: "ellipse",
-        terminal_shape: "box",
-        root_shape: "diamond",
-        use_html_labels: true,
-        ..DotConfig::default()
-    };
-    let dot = bdd.to_dot_with_config(&[complex], &config)?;
-    fs::write(output_dir.join("example8_custom.dot"), &dot)?;
-    println!("  Custom shapes and plain text labels\n");
+    {
+        println!("\nExample 8: Custom visualization style");
+        let name = "example8_custom";
+        let bdd = Bdd::default();
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+        let complex = bdd.apply_or(bdd.apply_and(x1, x2), bdd.apply_and(-x1, x3));
+        println!("  Formula: (x1 ∧ x2) ∨ (¬x1 ∧ x3)");
+        println!("  BDD size: {}", bdd.size(complex));
+        println!("  Custom shapes and plain text labels");
+        let config = DotConfig {
+            node_shape: "ellipse",
+            terminal_shape: "box",
+            root_shape: "diamond",
+            use_html_labels: false,
+            ..DotConfig::default()
+        };
+        let dot = bdd.to_dot_with_config(&[complex], &config)?;
+        fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
+        examples.push(name);
+    }
 
     // Example 9: ITE (if-then-else)
-    println!("Example 9: ITE operation");
-    let x4 = bdd.mk_var(4);
-    let ite = bdd.apply_ite(x1, x2, x4);
-    let dot = bdd.to_dot(&[ite])?;
-    fs::write(output_dir.join("example9_ite.dot"), &dot)?;
-    println!("  Formula: ITE(x1, x2, x4) = (x1 → x2) ∧ (¬x1 → x4)\n");
+    {
+        println!("\nExample 9: ITE operation");
+        let name = "example9_ite";
+        let bdd = Bdd::default();
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x4 = bdd.mk_var(4);
+        let ite = bdd.apply_ite(x1, x2, x4);
+        println!("  Formula: ITE(x1, x2, x4) = (x1 -> x2) ∧ (¬x1 -> x4)");
+        println!("  BDD size: {}", bdd.size(ite));
+        let dot = bdd.to_dot(&[ite])?;
+        fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
+        examples.push(name);
+    }
 
     // Render images if requested
     if env::args().any(|arg| arg == "--render") {
         println!("\n=== Rendering images with Graphviz ===\n");
-
-        let examples = [
-            "example1_var",
-            "example2_and",
-            "example3_or",
-            "example4_xor",
-            "example5_complex",
-            "example6_multiple",
-            "example7_cube",
-            "example8_custom",
-            "example9_ite",
-        ];
 
         let mut svg_files = Vec::new();
 
