@@ -437,6 +437,40 @@ impl Bdd {
         current
     }
 
+    /// Returns the top cofactors (Shannon expansion) with respect to a variable.
+    ///
+    /// For a BDD `f` and variable `v`, returns `(f₀, f₁)` where:
+    /// - `f₀` is the negative cofactor (`f` with `v = false`)
+    /// - `f₁` is the positive cofactor (`f` with `v = true`)
+    ///
+    /// This corresponds to the Shannon expansion: `f = (¬v ∧ f₀) ∨ (v ∧ f₁)`
+    ///
+    /// # Parameters
+    ///
+    /// * `node_ref` - The BDD to compute cofactors for
+    /// * `v` - Variable index (must be non-zero and ≤ top variable of `node_ref`)
+    ///
+    /// # Returns
+    ///
+    /// A tuple `(f₀, f₁)` of the negative and positive cofactors.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// // f = x AND y
+    /// let f = bdd.apply_and(x, y);
+    ///
+    /// // Cofactors with respect to x
+    /// let (f0, f1) = bdd.top_cofactors(f, 1);
+    /// assert_eq!(f0, bdd.zero);  // x=false: false AND y = false
+    /// assert_eq!(f1, y);         // x=true: true AND y = y
+    /// ```
     pub fn top_cofactors(&self, node_ref: Ref, v: u32) -> (Ref, Ref) {
         assert_ne!(v, 0, "Variable index should not be zero");
 
