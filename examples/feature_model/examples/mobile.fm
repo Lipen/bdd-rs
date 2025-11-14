@@ -1,0 +1,36 @@
+# Simple Mobile Phone Feature Model
+# This represents a basic smartphone configuration
+
+feature 1 Base
+feature 2 Screen
+feature 3 Camera
+feature 4 FrontCamera
+feature 5 RearCamera
+feature 6 GPS
+feature 7 Bluetooth
+feature 8 WiFi
+feature 9 Storage32GB
+feature 10 Storage64GB
+feature 11 Storage128GB
+
+# Base device is mandatory
+root 1
+
+# Screen is mandatory
+mandatory 2
+
+# Camera is optional, but if selected, must have at least one camera type
+# This is encoded as: Camera implies (FrontCamera OR RearCamera)
+requires 3 4
+requires 3 5
+
+# Can't have both storage options
+excludes 9 10
+excludes 9 11
+excludes 10 11
+
+# Must have exactly one storage option
+atleastone 9 10 11
+
+# Connectivity features are optional
+# No constraints on GPS, Bluetooth, WiFi

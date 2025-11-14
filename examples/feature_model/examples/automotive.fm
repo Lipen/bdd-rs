@@ -1,0 +1,52 @@
+# Automotive Feature Model
+# Represents features in a car configuration
+
+feature 1 BaseCar
+feature 2 Engine
+feature 3 PetrolEngine
+feature 4 DieselEngine
+feature 5 ElectricEngine
+feature 6 Transmission
+feature 7 ManualTransmission
+feature 8 AutomaticTransmission
+feature 9 Interior
+feature 10 LeatherSeats
+feature 11 ClothSeats
+feature 12 HeatedSeats
+feature 13 Safety
+feature 14 ABS
+feature 15 Airbags
+feature 16 LaneAssist
+
+# Base car is mandatory
+root 1
+
+# Engine is mandatory
+mandatory 2
+
+# Must have exactly one engine type
+exactlyone 3 4 5
+
+# Transmission is mandatory
+mandatory 6
+
+# Must have exactly one transmission type
+exactlyone 7 8
+
+# Manual transmission not available with electric engine
+excludes 7 5
+
+# Interior is mandatory
+mandatory 9
+
+# Must have exactly one seat type
+exactlyone 10 11
+
+# Heated seats require leather seats
+requires 12 10
+
+# Safety is optional, but if selected, must have at least ABS
+requires 13 14
+
+# Lane assist requires safety package
+requires 16 13

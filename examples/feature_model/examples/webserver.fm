@@ -1,0 +1,43 @@
+# Web Server Feature Model
+# Configuration options for a web server
+
+feature 1 WebServer
+feature 2 HTTPModule
+feature 3 HTTPSModule
+feature 4 Database
+feature 5 MySQL
+feature 6 PostgreSQL
+feature 7 Caching
+feature 8 Redis
+feature 9 Memcached
+feature 10 LoadBalancer
+feature 11 Logging
+feature 12 FileLogging
+feature 13 SyslogLogging
+
+# Web server is mandatory
+root 1
+
+# At least one HTTP module required
+atleastone 2 3
+
+# Database is optional, but if enabled, must choose one
+requires 4 5
+
+# Can't have both database types
+excludes 5 6
+
+# Caching is optional, but if enabled, must choose implementation
+requires 7 8
+
+# Can't have both cache types
+excludes 8 9
+
+# HTTPS requires logging for security audit
+requires 3 11
+
+# Logging requires at least one log destination
+requires 11 12
+
+# Can use multiple log destinations simultaneously
+# (no exclusion between FileLogging and SyslogLogging)

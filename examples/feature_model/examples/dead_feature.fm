@@ -1,0 +1,18 @@
+# Simple example to demonstrate dead features
+
+feature 1 Base
+feature 2 FeatureA
+feature 3 FeatureB
+feature 4 DeadFeature
+
+# Base is mandatory
+mandatory 1
+
+# FeatureA and FeatureB are mutually exclusive
+excludes 2 3
+
+# DeadFeature requires both A and B (impossible!)
+requires 4 2
+requires 4 3
+
+# Result: DeadFeature can never be selected (it's dead)
