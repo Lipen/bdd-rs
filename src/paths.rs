@@ -2,7 +2,7 @@ use crate::bdd::Bdd;
 use crate::reference::Ref;
 
 impl Bdd {
-    pub fn paths(&self, f: Ref) -> BddPaths {
+    pub fn paths(&self, f: Ref) -> BddPaths<'_> {
         BddPaths::new(self, f)
     }
 }
