@@ -1369,6 +1369,62 @@ impl Bdd {
         res
     }
 
+    /// Returns all node indices reachable from the given BDD references.
+    ///
+    /// This performs a depth-first traversal from the root nodes to collect all reachable
+    /// node indices. The terminal node (index 1) is always included in the result.
+    ///
+    /// # Arguments
+    ///
+    /// * `nodes` - An iterable collection of BDD references to start the traversal from
+    ///
+    /// # Returns
+    ///
+    /// A `HashSet<u32>` containing all unique node indices reachable from the given roots,
+    /// including the terminal node (index 1).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// // Single variable: the variable node + terminal
+    /// let desc = bdd.descendants([x]);
+    /// assert_eq!(desc.len(), 2);
+    /// assert!(desc.contains(&x.index()));
+    /// assert!(desc.contains(&1)); // terminal
+    ///
+    /// // AND of two variables
+    /// let f = bdd.apply_and(x, y);
+    /// let desc = bdd.descendants([f]);
+    /// assert!(desc.contains(&f.index()));
+    /// assert!(desc.contains(&y.index()));
+    /// assert!(desc.contains(&1)); // terminal
+    /// ```
+    ///
+    /// # Multiple Roots
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let z = bdd.mk_var(3);
+    ///
+    /// let f1 = bdd.apply_and(x, y);
+    /// let f2 = bdd.apply_and(y, z);
+    ///
+    /// // Descendants from multiple roots (shared nodes counted once)
+    /// let desc = bdd.descendants([f1, f2]);
+    /// assert!(desc.contains(&f1.index()));
+    /// assert!(desc.contains(&f2.index()));
+    /// assert!(desc.contains(&y.index())); // shared
+    /// ```
     pub fn descendants(&self, nodes: impl IntoIterator<Item = Ref>) -> HashSet<u32> {
         let mut visited = HashSet::new();
         visited.insert(self.one.index());
