@@ -31,6 +31,8 @@ pub enum Instruction {
     Assume(Expr),
     /// Throw exception
     Throw(Expr),
+    /// Catch exception: optionally bind to variable
+    Catch(Option<Var>),
 }
 
 impl fmt::Display for Instruction {
@@ -40,6 +42,8 @@ impl fmt::Display for Instruction {
             Instruction::Assert(e) => write!(f, "assert {}", e),
             Instruction::Assume(e) => write!(f, "assume {}", e),
             Instruction::Throw(e) => write!(f, "throw {}", e),
+            Instruction::Catch(Some(v)) => write!(f, "catch ({})", v),
+            Instruction::Catch(None) => write!(f, "catch"),
         }
     }
 }
@@ -341,6 +345,8 @@ impl CfgBuilder {
 
                     // Build catch block if present - also goes to finally
                     if let Some(cb) = catch_block {
+                        // Insert Catch instruction at the beginning of catch block
+                        self.add_instruction(Instruction::Catch(catch_var.clone()));
                         self.build_stmts(catch_body, cb, finally_block.unwrap_or(after_block));
                         if !self.current_instructions.is_empty() {
                             self.flush_block(cb, Terminator::Goto(finally_block.unwrap_or(after_block)));

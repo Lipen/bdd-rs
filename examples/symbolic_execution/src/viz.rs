@@ -544,6 +544,7 @@ pub fn cfg_to_dot(cfg: &ControlFlowGraph, name: &str) -> String {
                     crate::cfg::Instruction::Assume(_) => ("purple", "white"),
                     crate::cfg::Instruction::Assign(_, _) => ("lightblue", "black"),
                     crate::cfg::Instruction::Throw(_) => ("red", "white"),
+                    crate::cfg::Instruction::Catch(_) => ("coral", "black"),
                 };
 
                 writeln!(
@@ -680,16 +681,10 @@ pub fn cfg_to_dot(cfg: &ControlFlowGraph, name: &str) -> String {
                     format!("bb{}_missing", catch_target)
                 };
 
-                let catch_label = if let Some(var) = &trap_ctx.catch_variable {
-                    format!("catch ({})", var)
-                } else {
-                    "catch".to_string()
-                };
-
                 writeln!(
                     dot,
-                    "  {} -> {} [label=\"{}\", style=dashed, color=red, ltail=cluster_bb{}, lhead=cluster_bb{}];",
-                    term_node, catch_entry, catch_label, id, catch_target
+                    "  {} -> {} [label=\"exc\", style=dashed, color=red, ltail=cluster_bb{}, lhead=cluster_bb{}];",
+                    term_node, catch_entry, id, catch_target
                 )
                 .unwrap();
             }
