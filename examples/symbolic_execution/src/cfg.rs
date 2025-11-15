@@ -160,7 +160,7 @@ impl fmt::Display for ControlFlowGraph {
 
         for id in block_ids {
             let block = &self.blocks[&id];
-            writeln!(f, "\nbb{}:", id)?;
+            writeln!(f, "bb{}:", id)?;
             for instr in &block.instructions {
                 writeln!(f, "  {}", instr)?;
             }
