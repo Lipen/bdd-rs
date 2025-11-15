@@ -196,7 +196,11 @@ fn visualize_example(name: &str, viz_type: VizType, output: Option<&str>) -> Res
 }
 
 fn example_simple() -> Program {
-    // x = true; y = x; assert y
+    // ```
+    // x = true;
+    // y = x;
+    // assert y;
+    // ```
     Program::new(
         "simple",
         vec![
@@ -208,7 +212,15 @@ fn example_simple() -> Program {
 }
 
 fn example_branch() -> Program {
-    // if x { y = true } else { y = false }; assert (x == y)
+    // Example with branching:
+    // ```
+    // if x {
+    //   y = true;
+    // } else {
+    //   y = false;
+    // }
+    // assert x == y;
+    // ```
     Program::new(
         "branch",
         vec![
@@ -223,7 +235,11 @@ fn example_branch() -> Program {
 }
 
 fn example_xor() -> Program {
-    // z = x ^ y; assert (z == ((x || y) && !(x && y)))
+    // Example with XOR:
+    // ```
+    // z = x ^ y;
+    // assert z == ((x || y) && !(x && y)); // XOR definition
+    // ```
     Program::new(
         "xor",
         vec![
@@ -254,7 +270,7 @@ fn example_mutex() -> Program {
     //   // Thread 1 checks and acquires:
     //   if !locked { locked = true; in_cs1 = true; }
     // }
-    // Property: mutual exclusion - !(in_cs1 && in_cs2)
+    // assert !(in_cs1 && in_cs2); // mutual exclusion
     Program::new(
         "mutex",
         vec![
@@ -293,18 +309,24 @@ fn example_mutex() -> Program {
 }
 
 fn example_loop() -> Program {
+    // Example with loop:
     // ```
-    // x = false
-    // i = 0
+    // x = false;
+    // i = 0;
     // while i < 3 {
-    //   x = !x
-    //   i = i + 1
+    //   x = !x;
+    //   i = i + 1;
     // }
-    // assert !x
+    // assert !x;
     // ```
+    //
     // Simplified for boolean domain:
-    // x = false; while sym_i { x = !x }; assert !x
-    // (sym_i represents symbolic iteration count)
+    // ```
+    // x = false;
+    // // sym_i represents symbolic iteration count
+    // while sym_i { x = !x; }
+    // assert !x;
+    // ```
     Program::new(
         "loop",
         vec![
@@ -316,7 +338,8 @@ fn example_loop() -> Program {
 }
 
 fn example_exception() -> Program {
-    // Example with try-catch-finally
+    // Example with try-catch-finally:
+    // ```
     // try {
     //   x = true;
     //   if (error) { throw x; }
@@ -327,6 +350,7 @@ fn example_exception() -> Program {
     //   z = y;
     // }
     // assert (error => z);
+    // ```
     Program::new(
         "exception",
         vec![
@@ -346,7 +370,8 @@ fn example_exception() -> Program {
 }
 
 fn example_nested_exception() -> Program {
-    // Nested try-catch example
+    // Nested try-catch example:
+    // ```
     // try {
     //   x = true;
     //   try {
@@ -360,6 +385,7 @@ fn example_nested_exception() -> Program {
     //   x = e2;
     // }
     // assert x;
+    // ```
     Program::new(
         "nested_exception",
         vec![
@@ -385,7 +411,8 @@ fn example_nested_exception() -> Program {
 }
 
 fn example_nested_finally() -> Program {
-    // Nested try-catch-finally example
+    // Nested try-catch-finally example:
+    // ```
     // try {
     //   x = true;
     //   try {
@@ -404,6 +431,7 @@ fn example_nested_finally() -> Program {
     // }
     // assert inner_finally;
     // assert outer_finally;
+    // ```
     Program::new(
         "nested_finally",
         vec![
@@ -432,7 +460,8 @@ fn example_nested_finally() -> Program {
 }
 
 fn example_finally_in_catch() -> Program {
-    // Try-catch where catch block contains try-finally
+    // Try-catch where catch block contains try-finally:
+    // ```
     // try {
     //   x = true;
     //   if (error) { throw x; }
@@ -448,6 +477,7 @@ fn example_finally_in_catch() -> Program {
     //   }
     // }
     // assert (error => nested_finally);
+    // ```
     Program::new(
         "finally_in_catch",
         vec![
@@ -476,7 +506,8 @@ fn example_finally_in_catch() -> Program {
 }
 
 fn example_multiple_finally() -> Program {
-    // Multiple sequential try-finally blocks in an outer try-finally
+    // Multiple sequential try-finally blocks in an outer try-finally:
+    // ```
     // try {
     //   try {
     //     x = true;
@@ -492,6 +523,7 @@ fn example_multiple_finally() -> Program {
     //   outer_finally = true;
     // }
     // assert (finally1 && finally2 && outer_finally);
+    // ```
     Program::new(
         "multiple_finally",
         vec![
@@ -527,6 +559,20 @@ fn print_results(result: &ExecutionResult) {
     println!("Assertion failures: {}", result.num_failures());
     println!();
 
+    // Print final states:
+    for (i, state) in result.final_states.iter().enumerate() {
+        println!("Final State #{}:", i + 1);
+        for var in state.vars() {
+            let value_str = match state.get_concrete_value(var) {
+                Some(true) => "true",
+                Some(false) => "false",
+                None => "symbolic",
+            };
+            println!("  {} = {}", var, value_str);
+        }
+        println!();
+    }
+
     if result.all_assertions_passed() {
         println!("✓ All assertions PASSED");
     } else {
@@ -539,20 +585,12 @@ fn print_results(result: &ExecutionResult) {
             // Show symbolic values
             println!("  Variable values on failing path:");
             for var in state.vars() {
-                if let Some(val) = state.get(var) {
-                    let is_must_true = state.bdd().is_one(val);
-                    let is_must_false = state.bdd().is_zero(val);
-
-                    let value_str = if is_must_true {
-                        "true"
-                    } else if is_must_false {
-                        "false"
-                    } else {
-                        "symbolic"
-                    };
-
-                    println!("    {} = {}", var, value_str);
-                }
+                let value_str = match state.get_concrete_value(var) {
+                    Some(true) => "true",
+                    Some(false) => "false",
+                    None => "symbolic",
+                };
+                println!("    {} = {}", var, value_str);
             }
         }
     }

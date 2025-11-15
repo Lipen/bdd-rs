@@ -134,6 +134,30 @@ impl SymbolicState {
         !self.bdd().is_zero(self.path_condition)
     }
 
+    /// Get the concrete value of a variable under the current path condition
+    /// Returns Some(true) if the variable must be true on this path,
+    /// Some(false) if it must be false, or None if it's truly symbolic
+    pub fn get_concrete_value(&self, var: &Var) -> Option<bool> {
+        if let Some(val) = self.get(var) {
+            let bdd = self.bdd();
+            let pc = self.path_condition;
+
+            // Check if variable is constrained to a specific value under the path condition
+            // var is true if: (val & pc) == pc (i.e., whenever pc holds, val holds)
+            // var is false if: (val & pc) == 0 (i.e., val is always false when pc holds)
+            let val_and_pc = bdd.apply_and(val, pc);
+            if val_and_pc == pc {
+                Some(true)
+            } else if bdd.is_zero(val_and_pc) {
+                Some(false)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     /// Evaluate an expression to a BDD
     pub fn eval_expr(&mut self, expr: &Expr) -> Ref {
         match expr {
