@@ -234,18 +234,60 @@ fn example_xor() -> Program {
 }
 
 fn example_mutex() -> Program {
-    // Mutual exclusion protocol
-    // req1 = true; if req2 { wait } else { acquire1 = true };
-    // req2 = true; if req1 { wait } else { acquire2 = true };
-    // assert !(acquire1 && acquire2)
+    // Mutual exclusion protocol with symbolic thread interleaving
+    // Two threads trying to acquire a lock:
+    // Thread 1: if !locked { locked = true; in_cs1 = true; }
+    // Thread 2: if !locked { locked = true; in_cs2 = true; }
+    //
+    // We model this with symbolic choice of execution order:
+    // // Initialize:
+    // in_cs1 = false
+    // in_cs2 = false
+    // if thread1_first {
+    //   // Thread 1 checks and acquires:
+    //   if !locked { locked = true; in_cs1 = true; }
+    //   // Thread 2 checks and acquires:
+    //   if !locked { locked = true; in_cs2 = true; }
+    // } else {
+    //   // Thread 2 checks and acquires:
+    //   if !locked { locked = true; in_cs2 = true; }
+    //   // Thread 1 checks and acquires:
+    //   if !locked { locked = true; in_cs1 = true; }
+    // }
+    // Property: mutual exclusion - !(in_cs1 && in_cs2)
     Program::new(
         "mutex",
         vec![
-            Stmt::assign("req1", Expr::Lit(true)),
-            Stmt::if_then_else(Expr::var("req2"), vec![Stmt::Skip], vec![Stmt::assign("acquire1", Expr::Lit(true))]),
-            Stmt::assign("req2", Expr::Lit(true)),
-            Stmt::if_then_else(Expr::var("req1"), vec![Stmt::Skip], vec![Stmt::assign("acquire2", Expr::Lit(true))]),
-            Stmt::assert(Expr::var("acquire1").and(Expr::var("acquire2")).not()),
+            Stmt::assign("in_cs1", Expr::Lit(false)),
+            Stmt::assign("in_cs2", Expr::Lit(false)),
+            Stmt::if_then_else(
+                Expr::var("thread1_first"),
+                vec![
+                    // Thread 1 executes first
+                    Stmt::if_then(
+                        Expr::var("locked").not(),
+                        vec![Stmt::assign("locked", Expr::Lit(true)), Stmt::assign("in_cs1", Expr::Lit(true))],
+                    ),
+                    // Then thread 2
+                    Stmt::if_then(
+                        Expr::var("locked").not(),
+                        vec![Stmt::assign("locked", Expr::Lit(true)), Stmt::assign("in_cs2", Expr::Lit(true))],
+                    ),
+                ],
+                vec![
+                    // Thread 2 executes first
+                    Stmt::if_then(
+                        Expr::var("locked").not(),
+                        vec![Stmt::assign("locked", Expr::Lit(true)), Stmt::assign("in_cs2", Expr::Lit(true))],
+                    ),
+                    // Then thread 1
+                    Stmt::if_then(
+                        Expr::var("locked").not(),
+                        vec![Stmt::assign("locked", Expr::Lit(true)), Stmt::assign("in_cs1", Expr::Lit(true))],
+                    ),
+                ],
+            ),
+            Stmt::assert(Expr::var("in_cs1").and(Expr::var("in_cs2")).not()),
         ],
     )
 }
