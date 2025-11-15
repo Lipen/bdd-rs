@@ -1,7 +1,7 @@
 //! Symbolic state representation using BDDs.
 //!
 //! A symbolic state consists of:
-//! - Variable mapping: each program variable is mapped to a BDD variable index
+//! - Variable mapping: bidirectional mapping between program variables and BDD variable indices
 //! - Symbolic store: each program variable has an associated BDD expression
 //! - Path condition: a BDD representing constraints on the execution path
 
@@ -12,7 +12,7 @@ use bdd_rs::reference::Ref;
 
 use crate::ast::{Expr, Var};
 
-/// Maps program variables to BDD variable indices
+/// Bidirectional mapping between program variables and BDD variable indices (compact 1..n)
 #[derive(Debug, Clone)]
 pub struct VarMap {
     var_to_index: HashMap<Var, u32>,
@@ -25,11 +25,11 @@ impl VarMap {
         VarMap {
             var_to_index: HashMap::new(),
             index_to_var: HashMap::new(),
-            next_index: 1, // BDD indices start at 1
+            next_index: 1, // BDD variable indices start at 1
         }
     }
 
-    /// Get or create a BDD variable index for a program variable
+    /// Get or allocate a BDD variable index for a program variable
     pub fn get_or_create(&mut self, var: &Var) -> u32 {
         if let Some(&idx) = self.var_to_index.get(var) {
             idx
@@ -42,19 +42,14 @@ impl VarMap {
         }
     }
 
-    /// Get BDD variable index for a program variable
-    pub fn get(&self, var: &Var) -> Option<u32> {
+    /// Get the BDD variable index for a program variable (if it exists)
+    pub fn get_index(&self, var: &Var) -> Option<u32> {
         self.var_to_index.get(var).copied()
     }
 
-    /// Get program variable name for a BDD index
+    /// Get the program variable for a BDD variable index (if it exists)
     pub fn get_var(&self, index: u32) -> Option<&Var> {
         self.index_to_var.get(&index)
-    }
-
-    /// Get all variables
-    pub fn vars(&self) -> impl Iterator<Item = &Var> {
-        self.var_to_index.keys()
     }
 }
 
@@ -68,6 +63,7 @@ impl Default for VarMap {
 #[derive(Debug, Clone)]
 pub struct SymbolicState {
     bdd: *const Bdd,
+    /// Bidirectional mapping between program variables and BDD variable indices
     var_map: VarMap,
     /// Maps program variables to their symbolic values (BDD refs)
     store: HashMap<Var, Ref>,
@@ -90,19 +86,14 @@ impl SymbolicState {
         unsafe { &*self.bdd }
     }
 
-    /// Get the variable map
-    pub fn var_map(&self) -> &VarMap {
-        &self.var_map
+    /// Get or allocate a BDD variable index for a program variable
+    pub fn get_or_create_index(&mut self, var: &Var) -> u32 {
+        self.var_map.get_or_create(var)
     }
 
-    /// Get mutable variable map
-    pub fn var_map_mut(&mut self) -> &mut VarMap {
-        &mut self.var_map
-    }
-
-    /// Get the path condition
-    pub fn path_condition(&self) -> Ref {
-        self.path_condition
+    /// Get the program variable name for a BDD variable index (if it exists)
+    pub fn get_var_for_index(&self, index: u32) -> Option<&Var> {
+        self.var_map.get_var(index)
     }
 
     /// Get symbolic value of a variable
@@ -113,6 +104,11 @@ impl SymbolicState {
     /// Set symbolic value of a variable
     pub fn set(&mut self, var: Var, value: Ref) {
         self.store.insert(var, value);
+    }
+
+    /// Get the path condition
+    pub fn path_condition(&self) -> Ref {
+        self.path_condition
     }
 
     /// Add a constraint to the path condition
@@ -135,9 +131,9 @@ impl SymbolicState {
                 if let Some(val) = self.get(v) {
                     val
                 } else {
-                    // Create fresh symbolic variable
-                    let idx = self.var_map.get_or_create(v);
-                    let var_ref = self.bdd().mk_var(idx);
+                    // Allocate BDD variable for this program variable
+                    let bdd_var = self.get_or_create_index(v);
+                    let var_ref = self.bdd().mk_var(bdd_var);
                     self.set(v.clone(), var_ref);
                     var_ref
                 }
@@ -186,6 +182,6 @@ impl SymbolicState {
 
     /// Get all program variables
     pub fn vars(&self) -> impl Iterator<Item = &Var> {
-        self.var_map.vars()
+        self.store.keys()
     }
 }

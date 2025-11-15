@@ -7,7 +7,8 @@ use std::collections::VecDeque;
 
 use bdd_rs::bdd::Bdd;
 
-use crate::ast::{Expr, Stmt};
+use crate::ast::Expr;
+use crate::cfg::{BlockId, ControlFlowGraph, Instruction, Terminator};
 use crate::state::SymbolicState;
 
 /// Result of symbolic execution
@@ -86,29 +87,15 @@ impl<'a> SymbolicExecutor<'a> {
         SymbolicExecutor { bdd, config }
     }
 
-    /// Execute a statement symbolically from an initial state
-    pub fn execute(&self, stmt: &Stmt) -> ExecutionResult {
-        self.execute_stmts(&[stmt.clone()])
-    }
-
-    /// Execute a list of statements symbolically
-    pub fn execute_stmts(&self, stmts: &[Stmt]) -> ExecutionResult {
-        let initial_state = SymbolicState::new(self.bdd);
-        self.execute_stmts_from_state(stmts, initial_state)
-    }
-
-    /// Execute from a given initial state
-    pub fn execute_from_state(&self, stmt: &Stmt, initial_state: SymbolicState) -> ExecutionResult {
-        self.execute_stmts_from_state(&[stmt.clone()], initial_state)
-    }
-
-    /// Execute a list of statements from a given initial state
-    pub fn execute_stmts_from_state(&self, stmts: &[Stmt], initial_state: SymbolicState) -> ExecutionResult {
+    /// Execute a CFG symbolically from an initial state
+    pub fn execute(&self, cfg: &ControlFlowGraph, initial_state: SymbolicState) -> ExecutionResult {
         let mut result = ExecutionResult::new();
-        let mut worklist: VecDeque<(Vec<Stmt>, SymbolicState)> = VecDeque::new();
-        worklist.push_back((stmts.to_vec(), initial_state));
 
-        while let Some((current_stmts, mut state)) = worklist.pop_front() {
+        // Worklist: (current_block_id, state)
+        let mut worklist: VecDeque<(BlockId, SymbolicState)> = VecDeque::new();
+        worklist.push_back((cfg.entry, initial_state));
+
+        while let Some((block_id, mut state)) = worklist.pop_front() {
             if result.paths_explored >= self.config.max_paths {
                 eprintln!("Warning: Reached maximum path limit ({})", self.config.max_paths);
                 break;
@@ -117,152 +104,109 @@ impl<'a> SymbolicExecutor<'a> {
             result.paths_explored += 1;
 
             if !state.is_feasible() {
-                // Infeasible path, skip
                 continue;
             }
 
             result.feasible_paths += 1;
 
-            // Process statements one by one
-            if current_stmts.is_empty() {
-                // Empty statement list - we're done with this path
-                result.final_states.push(state);
+            let block = match cfg.get_block(block_id) {
+                Some(b) => b,
+                None => {
+                    eprintln!("Warning: Block {} not found", block_id);
+                    continue;
+                }
+            };
+
+            // Execute all instructions in the block
+            let mut should_continue = true;
+            for instruction in &block.instructions {
+                match instruction {
+                    Instruction::Assign(var, expr) => {
+                        let value = state.eval_expr(expr);
+                        state.set(var.clone(), value);
+                    }
+                    Instruction::Assume(expr) => {
+                        let assumption = state.eval_expr(expr);
+                        state.add_constraint(assumption);
+                        if !state.is_feasible() {
+                            should_continue = false;
+                            break;
+                        }
+                    }
+                    Instruction::Assert(expr) => {
+                        let assertion = state.eval_expr(expr);
+                        let failure_condition = self.bdd.apply_and(state.path_condition(), self.bdd.apply_not(assertion));
+
+                        if !self.bdd.is_zero(failure_condition) {
+                            result.assertion_failures.push((state.clone_state(), expr.clone()));
+                        }
+
+                        state.add_constraint(assertion);
+                        if !state.is_feasible() {
+                            should_continue = false;
+                            break;
+                        }
+                    }
+                    Instruction::Catch(catch_var) => {
+                        // Catch instruction marks entry to catch block
+                        // Bind catch variable to symbolic exception value
+                        if let Some(var) = catch_var {
+                            // Create symbolic exception variable - allocate fresh BDD variable
+                            let exception_var = format!("_exception_{}", block_id);
+                            let exception_bdd_var = state.get_or_create_index(&exception_var.into());
+                            let exception_bdd = self.bdd.mk_var(exception_bdd_var);
+                            state.set(var.clone(), exception_bdd);
+                        }
+                    }
+                    Instruction::Throw(expr) => {
+                        // Throw: evaluate exception value and jump to catch handler
+                        let _exception_value = state.eval_expr(expr);
+
+                        // Jump to catch block if trap context exists
+                        if let Some(trap_ctx) = &block.trap_context {
+                            if let Some(catch_block) = trap_ctx.catch_target {
+                                worklist.push_back((catch_block, state.clone_state()));
+                            }
+                        }
+                        // After throw, don't continue normal flow
+                        should_continue = false;
+                        break;
+                    }
+                }
+            }
+
+            if !should_continue {
                 continue;
             }
 
-            let (first, rest) = current_stmts.split_first().unwrap();
-
-            match first {
-                Stmt::Skip => {
-                    // Just continue with remaining statements
-                    worklist.push_back((rest.to_vec(), state));
+            // Process terminator
+            match &block.terminator {
+                Terminator::Return => {
+                    result.final_states.push(state);
                 }
-
-                Stmt::Assign(ref var, ref expr) => {
-                    let value = state.eval_expr(expr);
-                    state.set(var.clone(), value);
-                    worklist.push_back((rest.to_vec(), state));
+                Terminator::Goto(target) => {
+                    worklist.push_back((*target, state));
                 }
-
-                Stmt::If {
-                    ref condition,
-                    ref then_body,
-                    ref else_body,
+                Terminator::Branch {
+                    condition,
+                    true_target,
+                    false_target,
                 } => {
                     let cond_bdd = state.eval_expr(condition);
 
-                    // Then branch: assume condition is true
-                    let mut then_state = state.clone_state();
-                    then_state.add_constraint(cond_bdd);
-                    if then_state.is_feasible() {
-                        // Execute then_body, then continue with rest
-                        let mut then_stmts = then_body.clone();
-                        then_stmts.extend_from_slice(rest);
-                        worklist.push_back((then_stmts, then_state));
+                    // True branch
+                    let mut true_state = state.clone_state();
+                    true_state.add_constraint(cond_bdd);
+                    if true_state.is_feasible() {
+                        worklist.push_back((*true_target, true_state));
                     }
 
-                    // Else branch: assume condition is false
-                    let mut else_state = state;
-                    else_state.add_constraint(self.bdd.apply_not(cond_bdd));
-                    if else_state.is_feasible() {
-                        // Execute else_body, then continue with rest
-                        let mut else_stmts = else_body.clone();
-                        else_stmts.extend_from_slice(rest);
-                        worklist.push_back((else_stmts, else_state));
+                    // False branch
+                    let mut false_state = state;
+                    false_state.add_constraint(self.bdd.apply_not(cond_bdd));
+                    if false_state.is_feasible() {
+                        worklist.push_back((*false_target, false_state));
                     }
-                }
-
-                Stmt::While { ref condition, ref body } => {
-                    // Simple loop unrolling: replace while with nested if statements
-                    let mut unrolled_stmts = vec![];
-
-                    // Build: if cond { body; ... nested ... } else { skip }
-                    let mut current_if = Stmt::Skip;
-                    for _ in 0..self.config.max_loop_unroll {
-                        current_if = Stmt::if_then_else(
-                            condition.clone(),
-                            {
-                                let mut body_stmts = body.clone();
-                                body_stmts.push(current_if);
-                                body_stmts
-                            },
-                            vec![],
-                        );
-                    }
-
-                    unrolled_stmts.push(current_if);
-                    unrolled_stmts.extend_from_slice(rest);
-                    worklist.push_back((unrolled_stmts, state));
-                }
-
-                Stmt::Assert(ref expr) => {
-                    let assertion = state.eval_expr(expr);
-                    // Check if assertion can fail
-                    let failure_condition = self.bdd.apply_and(state.path_condition(), self.bdd.apply_not(assertion));
-
-                    if !self.bdd.is_zero(failure_condition) {
-                        // Assertion can fail on this path
-                        result.assertion_failures.push((state.clone_state(), expr.clone()));
-                    }
-
-                    // Continue execution assuming assertion holds
-                    state.add_constraint(assertion);
-                    if state.is_feasible() {
-                        worklist.push_back((rest.to_vec(), state));
-                    }
-                }
-
-                Stmt::Assume(ref expr) => {
-                    let assumption = state.eval_expr(expr);
-                    state.add_constraint(assumption);
-                    if state.is_feasible() {
-                        worklist.push_back((rest.to_vec(), state));
-                    }
-                }
-
-                Stmt::Try {
-                    ref try_body,
-                    ref catch_var,
-                    ref catch_body,
-                    ref finally_body,
-                } => {
-                    // Execute try block - if throw occurs, execution jumps to catch
-                    // For now, we explore both paths:
-                    // 1. Normal execution (no exception)
-                    // 2. Exception path (if catch exists)
-
-                    // Normal path: try -> finally -> rest
-                    let mut normal_stmts = try_body.clone();
-                    normal_stmts.extend_from_slice(finally_body);
-                    normal_stmts.extend_from_slice(rest);
-                    worklist.push_back((normal_stmts, state.clone_state()));
-
-                    // Exception path: catch -> finally -> rest (if catch exists)
-                    if !catch_body.is_empty() {
-                        let mut exception_state = state;
-                        // If there's a catch variable, assign some symbolic exception value
-                        if let Some(var) = catch_var {
-                            // Create a fresh symbolic variable for the exception
-                            let exception_var = format!("_exception_{}", result.assertion_failures.len());
-                            let exception_idx = exception_state.var_map_mut().get_or_create(&exception_var.into());
-                            let exception_bdd = self.bdd.mk_var(exception_idx);
-                            exception_state.set(var.clone(), exception_bdd);
-                        }
-                        let mut exception_stmts = catch_body.clone();
-                        exception_stmts.extend_from_slice(finally_body);
-                        exception_stmts.extend_from_slice(rest);
-                        worklist.push_back((exception_stmts, exception_state));
-                    }
-                }
-
-                Stmt::Throw(ref expr) => {
-                    // Throw terminates current execution path
-                    // In a real implementation, this would propagate to the nearest catch
-                    // For now, we treat it as a path terminator
-                    // The exception value is evaluated but not used further
-                    let _exception_value = state.eval_expr(expr);
-                    // Path ends here - throw propagates upward
-                    // TODO: If we're in a try-catch context, jump to catch handler
                 }
             }
         }

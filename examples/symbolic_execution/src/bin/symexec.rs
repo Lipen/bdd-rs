@@ -91,8 +91,13 @@ fn run_example(bdd: &Bdd, name: &str) -> Result<()> {
     println!("=== Example: {} ===\n", program.name);
     println!("{}", program);
 
+    // Build CFG
+    let cfg = ControlFlowGraph::from_stmts(&program.body);
+
+    // Execute CFG
     let executor = SymbolicExecutor::new(bdd);
-    let result = executor.execute_stmts(&program.body);
+    let initial_state = SymbolicState::new(bdd);
+    let result = executor.execute(&cfg, initial_state);
 
     print_results(&result);
 
@@ -355,6 +360,7 @@ fn example_nested_finally() -> Program {
     // } finally {
     //   outer_finally = true;
     // }
+    // assert inner_finally;
     // assert outer_finally;
     Program::new(
         "nested_finally",
@@ -377,6 +383,7 @@ fn example_nested_finally() -> Program {
                 vec![Stmt::assign("outer_catch", Expr::Lit(true))],
                 vec![Stmt::assign("outer_finally", Expr::Lit(true))],
             ),
+            Stmt::assert(Expr::var("inner_finally")),
             Stmt::assert(Expr::var("outer_finally")),
         ],
     )
