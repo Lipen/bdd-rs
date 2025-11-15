@@ -405,7 +405,7 @@ fn example_finally_in_catch() -> Program {
     //     nested_finally = true;
     //   }
     // }
-    // assert nested_finally;
+    // assert (error => nested_finally);
     Program::new(
         "finally_in_catch",
         vec![
@@ -428,7 +428,7 @@ fn example_finally_in_catch() -> Program {
                     ),
                 ],
             ),
-            Stmt::assert(Expr::var("nested_finally")),
+            Stmt::assert(Expr::var("error").implies(Expr::var("nested_finally"))),
         ],
     )
 }
