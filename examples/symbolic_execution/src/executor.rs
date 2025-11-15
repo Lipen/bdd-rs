@@ -149,23 +149,31 @@ impl<'a> SymbolicExecutor<'a> {
                     }
                     Instruction::Catch(catch_var) => {
                         // Catch instruction marks entry to catch block
-                        // Bind catch variable to symbolic exception value
+                        // Bind catch variable to the thrown exception value
                         if let Some(var) = catch_var {
-                            // Create symbolic exception variable - allocate fresh BDD variable
-                            let exception_var = format!("_exception_{}", block_id);
-                            let exception_bdd_var = state.get_or_create_index(&exception_var.into());
-                            let exception_bdd = self.bdd.mk_var(exception_bdd_var);
-                            state.set(var.clone(), exception_bdd);
+                            // Get the exception value that was thrown
+                            if let Some(exception_value) = state.take_exception_value() {
+                                state.set(var.clone(), exception_value);
+                            } else {
+                                // If no exception value was set (shouldn't happen), create symbolic
+                                let exception_var = format!("_exception_{}", block_id);
+                                let exception_bdd_var = state.get_or_create_index(&exception_var.into());
+                                let exception_bdd = self.bdd.mk_var(exception_bdd_var);
+                                state.set(var.clone(), exception_bdd);
+                            }
                         }
                     }
                     Instruction::Throw(expr) => {
                         // Throw: evaluate exception value and jump to catch handler
-                        let _exception_value = state.eval_expr(expr);
+                        let exception_value = state.eval_expr(expr);
 
                         // Jump to catch block if trap context exists
                         if let Some(trap_ctx) = &block.trap_context {
                             if let Some(catch_block) = trap_ctx.catch_target {
-                                worklist.push_back((catch_block, state.clone_state()));
+                                // Store the exception value in the state
+                                let mut catch_state = state.clone_state();
+                                catch_state.set_exception_value(exception_value);
+                                worklist.push_back((catch_block, catch_state));
                             }
                         }
                         // After throw, don't continue normal flow

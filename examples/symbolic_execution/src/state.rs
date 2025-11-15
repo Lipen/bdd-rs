@@ -69,6 +69,8 @@ pub struct SymbolicState {
     store: HashMap<Var, Ref>,
     /// Path condition: conjunction of all branch conditions taken
     path_condition: Ref,
+    /// Exception value thrown (used when jumping to catch block)
+    exception_value: Option<Ref>,
 }
 
 impl SymbolicState {
@@ -78,6 +80,7 @@ impl SymbolicState {
             var_map: VarMap::new(),
             store: HashMap::new(),
             path_condition: bdd.one,
+            exception_value: None,
         }
     }
 
@@ -94,6 +97,16 @@ impl SymbolicState {
     /// Get the program variable name for a BDD variable index (if it exists)
     pub fn get_var_for_index(&self, index: u32) -> Option<&Var> {
         self.var_map.get_var(index)
+    }
+
+    /// Set the exception value (used when throwing)
+    pub fn set_exception_value(&mut self, value: Ref) {
+        self.exception_value = Some(value);
+    }
+
+    /// Take the exception value (consumes it)
+    pub fn take_exception_value(&mut self) -> Option<Ref> {
+        self.exception_value.take()
     }
 
     /// Get symbolic value of a variable
@@ -177,6 +190,7 @@ impl SymbolicState {
             var_map: self.var_map.clone(),
             store: self.store.clone(),
             path_condition: self.path_condition,
+            exception_value: self.exception_value,
         }
     }
 
