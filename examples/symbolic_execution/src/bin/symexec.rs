@@ -109,6 +109,10 @@ fn visualize_example(name: &str, viz_type: VizType, output: Option<&str>) -> Res
     println!("=== Example: {} ===\n", program.name);
     println!("{}", program);
 
+    // Print CFG
+    let cfg = ControlFlowGraph::from_stmts(&program.body);
+    println!("{}", cfg);
+
     // Create temp directory
     let temp_dir = std::env::temp_dir().join("symexec_viz");
     fs::create_dir_all(&temp_dir)?;
@@ -153,7 +157,6 @@ fn visualize_example(name: &str, viz_type: VizType, output: Option<&str>) -> Res
 
     // Generate CFG visualization
     if do_cfg {
-        let cfg = ControlFlowGraph::from_stmts(&program.body);
         let dot = cfg_to_dot(&cfg, &program.name);
         let dot_file = temp_dir.join(format!("{}_cfg.dot", base_name));
         let svg_file = temp_dir.join(format!("{}_cfg.svg", base_name));
