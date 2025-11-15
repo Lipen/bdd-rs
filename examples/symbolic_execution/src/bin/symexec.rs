@@ -70,18 +70,19 @@ fn get_example(name: &str) -> Option<Program> {
         "mutex" => Some(example_mutex()),
         "loop" => Some(example_loop()),
         "exception" => Some(example_exception()),
-        _ => None,
+        "nested_exception" => Some(example_nested_exception()),
+        _ => {
+            eprintln!("Unknown example: {}", name);
+            eprintln!("Available: simple, branch, xor, mutex, loop, exception, nested_exception");
+            None
+        }
     }
 }
 
 fn run_example(bdd: &Bdd, name: &str) -> Result<()> {
     let program = match get_example(name) {
         Some(p) => p,
-        None => {
-            eprintln!("Unknown example: {}", name);
-            eprintln!("Available: simple, branch, xor, mutex, loop, exception");
-            return Ok(());
-        }
+        None => return Ok(()),
     };
 
     println!("=== Example: {} ===\n", program.name);
@@ -98,10 +99,7 @@ fn run_example(bdd: &Bdd, name: &str) -> Result<()> {
 fn visualize_example(name: &str, viz_type: VizType, output: Option<&str>) -> Result<()> {
     let program = match get_example(name) {
         Some(p) => p,
-        None => {
-            eprintln!("Unknown example: {}", name);
-            return Ok(());
-        }
+        None => return Ok(()),
     };
 
     // Print the program
@@ -290,6 +288,45 @@ fn example_exception() -> Program {
                 vec![Stmt::assign("z", Expr::var("y"))],
             ),
             Stmt::assert(Expr::var("z")),
+        ],
+    )
+}
+
+fn example_nested_exception() -> Program {
+    // Nested try-catch example
+    // try {
+    //   x = true;
+    //   try {
+    //     y = true;
+    //     if (inner_error) { throw y; }
+    //   } catch (e1) {
+    //     y = e1;
+    //   }
+    //   if (outer_error) { throw x; }
+    // } catch (e2) {
+    //   x = e2;
+    // }
+    // assert x;
+    Program::new(
+        "nested_exception",
+        vec![
+            Stmt::try_catch(
+                vec![
+                    Stmt::assign("x", Expr::Lit(true)),
+                    Stmt::try_catch(
+                        vec![
+                            Stmt::assign("y", Expr::Lit(true)),
+                            Stmt::if_then(Expr::var("inner_error"), vec![Stmt::throw(Expr::var("y"))]),
+                        ],
+                        Some("e1".into()),
+                        vec![Stmt::assign("y", Expr::var("e1"))],
+                    ),
+                    Stmt::if_then(Expr::var("outer_error"), vec![Stmt::throw(Expr::var("x"))]),
+                ],
+                Some("e2".into()),
+                vec![Stmt::assign("x", Expr::var("e2"))],
+            ),
+            Stmt::assert(Expr::var("x")),
         ],
     )
 }

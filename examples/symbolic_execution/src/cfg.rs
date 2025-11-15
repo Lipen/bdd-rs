@@ -178,6 +178,8 @@ struct CfgBuilder {
     entry: BlockId,
     /// Instructions accumulated for the current block being built
     current_instructions: Vec<Instruction>,
+    /// Current trap context (for nested try-catch)
+    current_trap_context: Option<TrapContext>,
 }
 
 impl CfgBuilder {
@@ -188,6 +190,7 @@ impl CfgBuilder {
             blocks: HashMap::new(),
             entry,
             current_instructions: Vec::new(),
+            current_trap_context: None,
         }
     }
 
@@ -287,38 +290,44 @@ impl CfgBuilder {
                     catch_body,
                     finally_body,
                 } => {
-                    // Flush any pending instructions to current block
-                    let try_entry = if self.current_instructions.is_empty() {
+                    // Determine the try block entry point
+                    let try_block = if self.current_instructions.is_empty() {
+                        // Reuse current block as try block (no need for transition)
                         current
                     } else {
-                        let bb = self.fresh_block();
-                        self.flush_block(current, Terminator::Goto(bb));
-                        bb
+                        // Flush pending instructions and create fresh try block
+                        let try_bb = self.fresh_block();
+                        self.flush_block(current, Terminator::Goto(try_bb));
+                        try_bb
                     };
 
-                    // Create blocks for try, catch, finally, and after
-                    let try_block = self.fresh_block();
+                    // Create blocks for catch, finally, and after
                     let catch_block = if !catch_body.is_empty() { Some(self.fresh_block()) } else { None };
                     let finally_block = if !finally_body.is_empty() { Some(self.fresh_block()) } else { None };
                     let after_block = if is_last { exit } else { self.fresh_block() };
 
-                    // Build trap context for try block
+                    // Build trap context for try block, with parent set to current outer context
+                    let parent_catch_block = self.current_trap_context.as_ref().and_then(|ctx| ctx.catch_target);
                     let trap_context = TrapContext {
                         catch_variable: catch_var.clone(),
                         catch_target: catch_block,
                         finally_target: finally_block,
-                        parent: None, // TODO: support nested try-catch
+                        parent: parent_catch_block,
                     };
-
-                    // Entry jumps to try block
-                    self.set_terminator(try_entry, Terminator::Goto(try_block));
 
                     // Remember which blocks existed before building try body
                     let existing_blocks: std::collections::HashSet<_> = self.blocks.keys().copied().collect();
 
+                    // Save current trap context and set new one for nested try blocks
+                    let saved_trap_context = self.current_trap_context.clone();
+                    self.current_trap_context = Some(trap_context.clone());
+
                     // Build try block - normal exit goes to finally if present, otherwise after
                     let try_exit = finally_block.unwrap_or(after_block);
                     self.build_stmts(try_body, try_block, try_exit);
+
+                    // Restore previous trap context
+                    self.current_trap_context = saved_trap_context;
 
                     // Flush any remaining instructions
                     if !self.current_instructions.is_empty() {
@@ -716,5 +725,69 @@ mod tests {
             .values()
             .any(|b| b.instructions.iter().any(|i| matches!(i, Instruction::Throw(_))));
         assert!(has_throw, "Should have throw instruction");
+    }
+
+    #[test]
+    fn test_nested_try_catch() {
+        // try {
+        //   x = true;
+        //   try {
+        //     y = true;
+        //     if inner_error { throw y; }
+        //   } catch (e1) {
+        //     y = e1;
+        //   }
+        //   if outer_error { throw x; }
+        // } catch (e2) {
+        //   x = e2;
+        // }
+        let stmts = vec![Stmt::Try {
+            try_body: vec![
+                Stmt::Assign("x".into(), Expr::Lit(true)),
+                Stmt::Try {
+                    try_body: vec![
+                        Stmt::Assign("y".into(), Expr::Lit(true)),
+                        Stmt::if_then(Expr::Var("inner_error".into()), vec![Stmt::Throw(Expr::Var("y".into()))]),
+                    ],
+                    catch_var: Some("e1".into()),
+                    catch_body: vec![Stmt::Assign("y".into(), Expr::Var("e1".into()))],
+                    finally_body: vec![],
+                },
+                Stmt::if_then(Expr::Var("outer_error".into()), vec![Stmt::Throw(Expr::Var("x".into()))]),
+            ],
+            catch_var: Some("e2".into()),
+            catch_body: vec![Stmt::Assign("x".into(), Expr::Var("e2".into()))],
+            finally_body: vec![],
+        }];
+
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
+        println!("\n{}", cfg);
+
+        // Verify we have blocks with trap context
+        let trap_blocks: Vec<_> = cfg.blocks.values().filter(|b| b.trap_context.is_some()).collect();
+        assert!(!trap_blocks.is_empty(), "Should have blocks with trap context");
+
+        // Verify nested structure: inner try blocks should have parent pointing to outer catch
+        let mut found_nested_context = false;
+        for block in &trap_blocks {
+            if let Some(trap_ctx) = &block.trap_context {
+                if trap_ctx.parent.is_some() {
+                    found_nested_context = true;
+                    // Verify parent points to a valid catch block
+                    let parent_id = trap_ctx.parent.unwrap();
+                    assert!(cfg.blocks.contains_key(&parent_id), "Parent catch block should exist");
+                }
+            }
+        }
+        assert!(found_nested_context, "Should have nested trap context with parent set");
+
+        // Verify we have two catch blocks (one for inner, one for outer)
+        let catch_instruction_count = cfg
+            .blocks
+            .values()
+            .flat_map(|b| &b.instructions)
+            .filter(|i| matches!(i, Instruction::Catch(_)))
+            .count();
+        assert_eq!(catch_instruction_count, 2, "Should have 2 catch instructions");
     }
 }
