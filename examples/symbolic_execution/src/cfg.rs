@@ -113,9 +113,14 @@ impl ControlFlowGraph {
 
     /// Build a CFG from an AST statement
     pub fn from_stmt(stmt: &Stmt) -> Self {
+        Self::from_stmts(&[stmt.clone()])
+    }
+
+    /// Build a CFG from a list of statements
+    pub fn from_stmts(stmts: &[Stmt]) -> Self {
         let mut builder = CfgBuilder::new();
         let exit = builder.fresh_block();
-        builder.build_stmt(stmt, builder.entry, exit);
+        builder.build_stmts(stmts, builder.entry, exit);
 
         // Flush any remaining instructions at entry
         if !builder.current_instructions.is_empty() {
@@ -208,172 +213,130 @@ impl CfgBuilder {
         }
     }
 
-    /// Build CFG from statement, connecting entry to exit
-    fn build_stmt(&mut self, stmt: &Stmt, entry: BlockId, exit: BlockId) {
-        match stmt {
-            Stmt::Skip => {
-                // Flush any pending instructions and connect to exit
-                if !self.current_instructions.is_empty() {
-                    self.flush_block(entry, Terminator::Goto(exit));
-                } else {
-                    self.set_terminator(entry, Terminator::Goto(exit));
+    /// Build CFG from a list of statements, connecting entry to exit
+    fn build_stmts(&mut self, stmts: &[Stmt], entry: BlockId, exit: BlockId) {
+        if stmts.is_empty() {
+            // Empty body, just connect entry to exit
+            if !self.current_instructions.is_empty() {
+                self.flush_block(entry, Terminator::Goto(exit));
+            } else {
+                self.set_terminator(entry, Terminator::Goto(exit));
+            }
+            return;
+        }
+
+        let mut current = entry;
+
+        for (i, stmt) in stmts.iter().enumerate() {
+            let is_last = i == stmts.len() - 1;
+            match stmt {
+                Stmt::Skip => {
+                    // No-op, continue
                 }
-            }
 
-            Stmt::Assign(var, expr) => {
-                // Accumulate assignment in current block
-                self.add_instruction(Instruction::Assign(var.clone(), expr.clone()));
-            }
-
-            Stmt::Assert(expr) => {
-                // Accumulate assertion in current block
-                self.add_instruction(Instruction::Assert(expr.clone()));
-            }
-
-            Stmt::Assume(expr) => {
-                // Accumulate assumption in current block
-                self.add_instruction(Instruction::Assume(expr.clone()));
-            }
-
-            Stmt::Seq(s1, s2) => {
-                // Process both statements, only creating intermediate blocks for control flow
-                match (&**s1, &**s2) {
-                    // If both are straight-line, accumulate in same block
-                    (Stmt::Skip | Stmt::Assign(_, _) | Stmt::Assert(_) | Stmt::Assume(_),
-                     Stmt::Skip | Stmt::Assign(_, _) | Stmt::Assert(_) | Stmt::Assume(_)) => {
-                        self.build_stmt(s1, entry, exit);
-                        self.build_stmt(s2, entry, exit);
-                    }
-                    // If s1 is straight-line and s2 is control flow
-                    (Stmt::Skip | Stmt::Assign(_, _) | Stmt::Assert(_) | Stmt::Assume(_),
-                     Stmt::If(_, _, _) | Stmt::While(_, _) | Stmt::Seq(_, _)) => {
-                        // Accumulate s1, then handle s2
-                        self.build_stmt(s1, entry, exit);
-                        // Now flush and continue with s2
-                        let mid = self.fresh_block();
-                        self.flush_block(entry, Terminator::Goto(mid));
-                        self.build_stmt(s2, mid, exit);
-                        // Flush s2 if needed
-                        if !self.current_instructions.is_empty() {
-                            self.flush_block(mid, Terminator::Goto(exit));
-                        }
-                    }
-                    // If s1 is control flow
-                    _ => {
-                        // Need intermediate block for merge point
-                        let mid = self.fresh_block();
-                        self.build_stmt(s1, entry, mid);
-                        // After s1 completes, continue with s2 from mid
-                        self.build_stmt(s2, mid, exit);
-                        // Flush s2 if needed
-                        if !self.current_instructions.is_empty() {
-                            self.flush_block(mid, Terminator::Goto(exit));
-                        }
-                    }
+                Stmt::Assign(var, expr) => {
+                    self.add_instruction(Instruction::Assign(var.clone(), expr.clone()));
                 }
-            }
 
-            Stmt::If(cond, then_stmt, else_stmt) => {
-                // Flush any pending instructions to entry block
-                if !self.current_instructions.is_empty() {
-                    let cond_block = self.fresh_block();
-                    self.flush_block(entry, Terminator::Goto(cond_block));
+                Stmt::Assert(expr) => {
+                    self.add_instruction(Instruction::Assert(expr.clone()));
+                }
 
-                    // Branch from the new block
+                Stmt::Assume(expr) => {
+                    self.add_instruction(Instruction::Assume(expr.clone()));
+                }
+
+                Stmt::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
+                    // Flush any pending instructions to current block
+                    let branch_block = if self.current_instructions.is_empty() {
+                        current
+                    } else {
+                        let bb = self.fresh_block();
+                        self.flush_block(current, Terminator::Goto(bb));
+                        bb
+                    };
+
                     let then_block = self.fresh_block();
                     let else_block = self.fresh_block();
+                    let merge_block = if is_last { exit } else { self.fresh_block() };
+
                     self.set_terminator(
-                        cond_block,
+                        branch_block,
                         Terminator::Branch {
-                            condition: cond.clone(),
+                            condition: condition.clone(),
                             true_target: then_block,
                             false_target: else_block,
                         },
                     );
 
-                    self.build_stmt(then_stmt, then_block, exit);
-                    // Flush then branch
+                    self.build_stmts(then_body, then_block, merge_block);
+                    // Always ensure then block exists, even if empty
                     if !self.current_instructions.is_empty() {
-                        self.flush_block(then_block, Terminator::Goto(exit));
+                        self.flush_block(then_block, Terminator::Goto(merge_block));
+                    } else if !self.blocks.contains_key(&then_block) {
+                        self.set_terminator(then_block, Terminator::Goto(merge_block));
                     }
 
-                    self.build_stmt(else_stmt, else_block, exit);
-                    // Flush else branch
+                    self.build_stmts(else_body, else_block, merge_block);
+                    // Always ensure else block exists, even if empty
                     if !self.current_instructions.is_empty() {
-                        self.flush_block(else_block, Terminator::Goto(exit));
-                    }
-                } else {
-                    // Entry block is empty, use it for the branch
-                    let then_block = self.fresh_block();
-                    let else_block = self.fresh_block();
-
-                    self.set_terminator(
-                        entry,
-                        Terminator::Branch {
-                            condition: cond.clone(),
-                            true_target: then_block,
-                            false_target: else_block,
-                        },
-                    );
-
-                    self.build_stmt(then_stmt, then_block, exit);
-                    // Flush then branch
-                    if !self.current_instructions.is_empty() {
-                        self.flush_block(then_block, Terminator::Goto(exit));
+                        self.flush_block(else_block, Terminator::Goto(merge_block));
+                    } else if !self.blocks.contains_key(&else_block) {
+                        self.set_terminator(else_block, Terminator::Goto(merge_block));
                     }
 
-                    self.build_stmt(else_stmt, else_block, exit);
-                    // Flush else branch
-                    if !self.current_instructions.is_empty() {
-                        self.flush_block(else_block, Terminator::Goto(exit));
-                    }
+                    current = merge_block;
                 }
-            }
 
-            Stmt::While(cond, body) => {
-                // Flush any pending instructions to entry block
-                if !self.current_instructions.is_empty() {
-                    let loop_header = self.fresh_block();
-                    self.flush_block(entry, Terminator::Goto(loop_header));
+                Stmt::While { condition, body } => {
+                    // Flush any pending instructions to current block
+                    let loop_header = if self.current_instructions.is_empty() {
+                        current
+                    } else {
+                        let bb = self.fresh_block();
+                        self.flush_block(current, Terminator::Goto(bb));
+                        bb
+                    };
 
-                    // Loop header evaluates condition
                     let body_block = self.fresh_block();
+                    let after_loop = if is_last { exit } else { self.fresh_block() };
+
                     self.set_terminator(
                         loop_header,
                         Terminator::Branch {
-                            condition: cond.clone(),
+                            condition: condition.clone(),
                             true_target: body_block,
-                            false_target: exit,
+                            false_target: after_loop,
                         },
                     );
 
-                    // Body loops back to header
-                    self.build_stmt(body, body_block, loop_header);
-                    // Flush body
+                    self.build_stmts(body, body_block, loop_header);
+                    // Always ensure body block exists, even if empty
                     if !self.current_instructions.is_empty() {
                         self.flush_block(body_block, Terminator::Goto(loop_header));
+                    } else if !self.blocks.contains_key(&body_block) {
+                        self.set_terminator(body_block, Terminator::Goto(loop_header));
                     }
-                } else {
-                    // Entry becomes loop header
-                    let body_block = self.fresh_block();
-                    self.set_terminator(
-                        entry,
-                        Terminator::Branch {
-                            condition: cond.clone(),
-                            true_target: body_block,
-                            false_target: exit,
-                        },
-                    );
 
-                    // Body loops back to header
-                    self.build_stmt(body, body_block, entry);
-                    // Flush body
-                    if !self.current_instructions.is_empty() {
-                        self.flush_block(body_block, Terminator::Goto(entry));
-                    }
+                    current = after_loop;
                 }
             }
         }
+
+        // Flush any remaining instructions
+        if !self.current_instructions.is_empty() {
+            self.flush_block(current, Terminator::Goto(exit));
+        }
+    }
+
+    /// Build CFG from statement (legacy compatibility)
+    #[allow(dead_code)]
+    fn build_stmt(&mut self, stmt: &Stmt, entry: BlockId, exit: BlockId) {
+        self.build_stmts(std::slice::from_ref(stmt), entry, exit);
     }
 
     /// Finalize the CFG construction
@@ -391,31 +354,29 @@ mod tests {
 
     #[test]
     fn test_simple_sequence() {
-        // x = true
-        // y = false
-        let stmt = Stmt::Assign("x".into(), Expr::Lit(true)).seq(Stmt::Assign("y".into(), Expr::Lit(false)));
+        // x = true; y = false
+        let stmts = vec![
+            Stmt::Assign("x".into(), Expr::Lit(true)),
+            Stmt::Assign("y".into(), Expr::Lit(false)),
+        ];
 
-        let cfg = ControlFlowGraph::from_stmt(&stmt);
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
 
-        // Should have entry block with x=true, intermediate with y=false, and exit
+        // Should have entry block with both assignments, and exit
         assert!(cfg.blocks.len() >= 2);
         assert_eq!(cfg.entry, 0);
     }
 
     #[test]
     fn test_if_statement() {
-        // if x {
-        //   y = true
-        // } else {
-        //   y = false
-        // }
-        let stmt = Stmt::If(
+        // if x { y = true } else { y = false }
+        let stmts = vec![Stmt::if_then_else(
             Expr::Var("x".into()),
-            Box::new(Stmt::Assign("y".into(), Expr::Lit(true))),
-            Box::new(Stmt::Assign("y".into(), Expr::Lit(false))),
-        );
+            vec![Stmt::Assign("y".into(), Expr::Lit(true))],
+            vec![Stmt::Assign("y".into(), Expr::Lit(false))],
+        )];
 
-        let cfg = ControlFlowGraph::from_stmt(&stmt);
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
 
         // Entry should be a branch
         let entry_block = cfg.get_block(cfg.entry).unwrap();
@@ -427,15 +388,13 @@ mod tests {
 
     #[test]
     fn test_while_loop() {
-        // while x {
-        //   y = !y
-        // }
-        let stmt = Stmt::While(
+        // while x { y = !y }
+        let stmts = vec![Stmt::while_do(
             Expr::Var("x".into()),
-            Box::new(Stmt::Assign("y".into(), Expr::Not(Box::new(Expr::Var("y".into()))))),
-        );
+            vec![Stmt::Assign("y".into(), Expr::Not(Box::new(Expr::Var("y".into()))))],
+        )];
 
-        let cfg = ControlFlowGraph::from_stmt(&stmt);
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
 
         // Entry (loop header) should be a branch
         let entry_block = cfg.get_block(cfg.entry).unwrap();
@@ -451,22 +410,16 @@ mod tests {
 
     #[test]
     fn test_nested_if() {
-        // if x {
-        //   if y {
-        //     z = true
-        //   }
-        // }
-        let stmt = Stmt::If(
+        // if x { if y { z = true } }
+        let stmts = vec![Stmt::if_then(
             Expr::Var("x".into()),
-            Box::new(Stmt::If(
+            vec![Stmt::if_then(
                 Expr::Var("y".into()),
-                Box::new(Stmt::Assign("z".into(), Expr::Lit(true))),
-                Box::new(Stmt::Skip),
-            )),
-            Box::new(Stmt::Skip),
-        );
+                vec![Stmt::Assign("z".into(), Expr::Lit(true))],
+            )],
+        )];
 
-        let cfg = ControlFlowGraph::from_stmt(&stmt);
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
 
         // Should have multiple branch points
         let mut branch_count = 0;
@@ -480,25 +433,16 @@ mod tests {
 
     #[test]
     fn test_nested_if_then_only() {
-        // if a {
-        //   if b { x = true }
-        //   y = false
-        // }
-        // Nested if with then-only, followed by assignment
-        let stmt = Stmt::If(
+        // if a { if b { x = true }; y = false }
+        let stmts = vec![Stmt::if_then(
             Expr::Var("a".into()),
-            Box::new(
-                Stmt::If(
-                    Expr::Var("b".into()),
-                    Box::new(Stmt::Assign("x".into(), Expr::Lit(true))),
-                    Box::new(Stmt::Skip),
-                )
-                .seq(Stmt::Assign("y".into(), Expr::Lit(false))),
-            ),
-            Box::new(Stmt::Skip),
-        );
+            vec![
+                Stmt::if_then(Expr::Var("b".into()), vec![Stmt::Assign("x".into(), Expr::Lit(true))]),
+                Stmt::Assign("y".into(), Expr::Lit(false)),
+            ],
+        )];
 
-        let cfg = ControlFlowGraph::from_stmt(&stmt);
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
 
         // Verify we have 2 branches
         let mut branch_count = 0;
@@ -510,36 +454,27 @@ mod tests {
         assert_eq!(branch_count, 2, "Should have 2 branch points");
 
         // Verify y=false appears in the CFG
-        let has_y_assign = cfg.blocks.values().any(|b| {
-            b.instructions
-                .iter()
-                .any(|i| matches!(i, Instruction::Assign(v, _) if v == "y"))
-        });
+        let has_y_assign = cfg
+            .blocks
+            .values()
+            .any(|b| b.instructions.iter().any(|i| matches!(i, Instruction::Assign(v, _) if v == "y")));
         assert!(has_y_assign, "Should have y = false assignment");
     }
 
     #[test]
     fn test_nested_if_then_else() {
-        // if a {
-        //   if b {
-        //     x = true
-        //   } else {
-        //     x = false
-        //   }
-        // } else {
-        //   x = z
-        // }
-        let stmt = Stmt::If(
+        // if a { if b { x = true } else { x = false } } else { x = z }
+        let stmts = vec![Stmt::if_then_else(
             Expr::Var("a".into()),
-            Box::new(Stmt::If(
+            vec![Stmt::if_then_else(
                 Expr::Var("b".into()),
-                Box::new(Stmt::Assign("x".into(), Expr::Lit(true))),
-                Box::new(Stmt::Assign("x".into(), Expr::Lit(false))),
-            )),
-            Box::new(Stmt::Assign("x".into(), Expr::Var("z".into()))),
-        );
+                vec![Stmt::Assign("x".into(), Expr::Lit(true))],
+                vec![Stmt::Assign("x".into(), Expr::Lit(false))],
+            )],
+            vec![Stmt::Assign("x".into(), Expr::Var("z".into()))],
+        )];
 
-        let cfg = ControlFlowGraph::from_stmt(&stmt);
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
 
         // Should have 2 branch points
         let mut branch_count = 0;
@@ -548,10 +483,7 @@ mod tests {
                 branch_count += 1;
             }
         }
-        assert_eq!(
-            branch_count, 2,
-            "Should have 2 branch points for nested if-then-else"
-        );
+        assert_eq!(branch_count, 2, "Should have 2 branch points for nested if-then-else");
 
         // Should have 3 assignments to x (one in each path)
         let x_assign_count = cfg
@@ -565,24 +497,13 @@ mod tests {
 
     #[test]
     fn test_if_followed_by_if() {
-        // if a {
-        //   x = true
-        // }
-        // if b {
-        //   y = true
-        // }
-        let stmt = Stmt::If(
-            Expr::Var("a".into()),
-            Box::new(Stmt::Assign("x".into(), Expr::Lit(true))),
-            Box::new(Stmt::Skip),
-        )
-        .seq(Stmt::If(
-            Expr::Var("b".into()),
-            Box::new(Stmt::Assign("y".into(), Expr::Lit(true))),
-            Box::new(Stmt::Skip),
-        ));
+        // if a { x = true }; if b { y = true }
+        let stmts = vec![
+            Stmt::if_then(Expr::Var("a".into()), vec![Stmt::Assign("x".into(), Expr::Lit(true))]),
+            Stmt::if_then(Expr::Var("b".into()), vec![Stmt::Assign("y".into(), Expr::Lit(true))]),
+        ];
 
-        let cfg = ControlFlowGraph::from_stmt(&stmt);
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
 
         // Should have 2 separate branch points
         let mut branch_count = 0;
@@ -591,58 +512,43 @@ mod tests {
                 branch_count += 1;
             }
         }
-        assert_eq!(
-            branch_count, 2,
-            "Should have 2 branch points for sequential ifs"
-        );
+        assert_eq!(branch_count, 2, "Should have 2 branch points for sequential ifs");
 
         // Check both variables appear
-        let has_x = cfg.blocks.values().any(|b| {
-            b.instructions
-                .iter()
-                .any(|i| matches!(i, Instruction::Assign(v, _) if v == "x"))
-        });
-        let has_y = cfg.blocks.values().any(|b| {
-            b.instructions
-                .iter()
-                .any(|i| matches!(i, Instruction::Assign(v, _) if v == "y"))
-        });
+        let has_x = cfg
+            .blocks
+            .values()
+            .any(|b| b.instructions.iter().any(|i| matches!(i, Instruction::Assign(v, _) if v == "x")));
+        let has_y = cfg
+            .blocks
+            .values()
+            .any(|b| b.instructions.iter().any(|i| matches!(i, Instruction::Assign(v, _) if v == "y")));
         assert!(has_x, "Should have x assignment");
         assert!(has_y, "Should have y assignment");
     }
 
     #[test]
     fn test_mutex_cfg() {
-        // req1 = true
-        // if req2 {
-        //   skip
-        // } else {
-        //   acquire1 = true
-        // }
-        // req2 = true
-        // if req1 {
-        //   skip
-        // } else {
-        //   acquire2 = true
-        // }
+        // req1 = true; if req2 { skip } else { acquire1 = true };
+        // req2 = true; if req1 { skip } else { acquire2 = true };
         // assert !(acquire1 && acquire2)
-        let thread1 = Stmt::Assign("req1".into(), Expr::Lit(true)).seq(Stmt::If(
-            Expr::Var("req2".into()),
-            Box::new(Stmt::Skip),
-            Box::new(Stmt::Assign("acquire1".into(), Expr::Lit(true))),
-        ));
+        let stmts = vec![
+            Stmt::Assign("req1".into(), Expr::Lit(true)),
+            Stmt::if_then_else(
+                Expr::Var("req2".into()),
+                vec![Stmt::Skip],
+                vec![Stmt::Assign("acquire1".into(), Expr::Lit(true))],
+            ),
+            Stmt::Assign("req2".into(), Expr::Lit(true)),
+            Stmt::if_then_else(
+                Expr::Var("req1".into()),
+                vec![Stmt::Skip],
+                vec![Stmt::Assign("acquire2".into(), Expr::Lit(true))],
+            ),
+            Stmt::Assert(Expr::Var("acquire1".into()).and(Expr::Var("acquire2".into())).not()),
+        ];
 
-        let thread2 = Stmt::Assign("req2".into(), Expr::Lit(true)).seq(Stmt::If(
-            Expr::Var("req1".into()),
-            Box::new(Stmt::Skip),
-            Box::new(Stmt::Assign("acquire2".into(), Expr::Lit(true))),
-        ));
-
-        let stmt = thread1
-            .seq(thread2)
-            .seq(Stmt::Assert(Expr::Var("acquire1".into()).and(Expr::Var("acquire2".into())).not()));
-
-        let cfg = ControlFlowGraph::from_stmt(&stmt);
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
         println!("\n{}", cfg);
 
         // Verify structure

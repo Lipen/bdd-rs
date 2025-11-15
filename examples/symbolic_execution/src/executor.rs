@@ -88,17 +88,27 @@ impl<'a> SymbolicExecutor<'a> {
 
     /// Execute a statement symbolically from an initial state
     pub fn execute(&self, stmt: &Stmt) -> ExecutionResult {
+        self.execute_stmts(&[stmt.clone()])
+    }
+
+    /// Execute a list of statements symbolically
+    pub fn execute_stmts(&self, stmts: &[Stmt]) -> ExecutionResult {
         let initial_state = SymbolicState::new(self.bdd);
-        self.execute_from_state(stmt, initial_state)
+        self.execute_stmts_from_state(stmts, initial_state)
     }
 
     /// Execute from a given initial state
     pub fn execute_from_state(&self, stmt: &Stmt, initial_state: SymbolicState) -> ExecutionResult {
-        let mut result = ExecutionResult::new();
-        let mut worklist: VecDeque<(Stmt, SymbolicState)> = VecDeque::new();
-        worklist.push_back((stmt.clone(), initial_state));
+        self.execute_stmts_from_state(&[stmt.clone()], initial_state)
+    }
 
-        while let Some((current_stmt, mut state)) = worklist.pop_front() {
+    /// Execute a list of statements from a given initial state
+    pub fn execute_stmts_from_state(&self, stmts: &[Stmt], initial_state: SymbolicState) -> ExecutionResult {
+        let mut result = ExecutionResult::new();
+        let mut worklist: VecDeque<(Vec<Stmt>, SymbolicState)> = VecDeque::new();
+        worklist.push_back((stmts.to_vec(), initial_state));
+
+        while let Some((current_stmts, mut state)) = worklist.pop_front() {
             if result.paths_explored >= self.config.max_paths {
                 eprintln!("Warning: Reached maximum path limit ({})", self.config.max_paths);
                 break;
@@ -113,57 +123,76 @@ impl<'a> SymbolicExecutor<'a> {
 
             result.feasible_paths += 1;
 
-            match current_stmt {
+            // Process statements one by one
+            if current_stmts.is_empty() {
+                // Empty statement list - we're done with this path
+                result.final_states.push(state);
+                continue;
+            }
+
+            let (first, rest) = current_stmts.split_first().unwrap();
+
+            match first {
                 Stmt::Skip => {
-                    result.final_states.push(state);
+                    // Just continue with remaining statements
+                    worklist.push_back((rest.to_vec(), state));
                 }
 
                 Stmt::Assign(ref var, ref expr) => {
                     let value = state.eval_expr(expr);
                     state.set(var.clone(), value);
-                    result.final_states.push(state);
+                    worklist.push_back((rest.to_vec(), state));
                 }
 
-                Stmt::Seq(ref s1, ref s2) => {
-                    // Execute s1, then s2 for each resulting state
-                    let intermediate_result = self.execute_from_state(s1, state);
-                    for intermediate_state in intermediate_result.final_states {
-                        worklist.push_back((*s2.clone(), intermediate_state));
-                    }
-                    // Propagate assertion failures
-                    result.assertion_failures.extend(intermediate_result.assertion_failures);
-                }
-
-                Stmt::If(ref cond, ref then_branch, ref else_branch) => {
-                    let cond_bdd = state.eval_expr(cond);
+                Stmt::If {
+                    ref condition,
+                    ref then_body,
+                    ref else_body,
+                } => {
+                    let cond_bdd = state.eval_expr(condition);
 
                     // Then branch: assume condition is true
                     let mut then_state = state.clone_state();
                     then_state.add_constraint(cond_bdd);
                     if then_state.is_feasible() {
-                        worklist.push_back((*then_branch.clone(), then_state));
+                        // Execute then_body, then continue with rest
+                        let mut then_stmts = then_body.clone();
+                        then_stmts.extend_from_slice(rest);
+                        worklist.push_back((then_stmts, then_state));
                     }
 
                     // Else branch: assume condition is false
                     let mut else_state = state;
                     else_state.add_constraint(self.bdd.apply_not(cond_bdd));
                     if else_state.is_feasible() {
-                        worklist.push_back((*else_branch.clone(), else_state));
+                        // Execute else_body, then continue with rest
+                        let mut else_stmts = else_body.clone();
+                        else_stmts.extend_from_slice(rest);
+                        worklist.push_back((else_stmts, else_state));
                     }
                 }
 
-                Stmt::While(ref cond, ref body) => {
-                    // Simple loop unrolling
-                    let mut unrolled = Stmt::Skip;
+                Stmt::While { ref condition, ref body } => {
+                    // Simple loop unrolling: replace while with nested if statements
+                    let mut unrolled_stmts = vec![];
+
+                    // Build: if cond { body; ... nested ... } else { skip }
+                    let mut current_if = Stmt::Skip;
                     for _ in 0..self.config.max_loop_unroll {
-                        // if cond { body; continue } else { break }
-                        unrolled = Stmt::If(
-                            cond.clone(),
-                            Box::new(Stmt::Seq(body.clone(), Box::new(unrolled))),
-                            Box::new(Stmt::Skip),
+                        current_if = Stmt::if_then_else(
+                            condition.clone(),
+                            {
+                                let mut body_stmts = body.clone();
+                                body_stmts.push(current_if);
+                                body_stmts
+                            },
+                            vec![],
                         );
                     }
-                    worklist.push_back((unrolled, state));
+
+                    unrolled_stmts.push(current_if);
+                    unrolled_stmts.extend_from_slice(rest);
+                    worklist.push_back((unrolled_stmts, state));
                 }
 
                 Stmt::Assert(ref expr) => {
@@ -179,7 +208,7 @@ impl<'a> SymbolicExecutor<'a> {
                     // Continue execution assuming assertion holds
                     state.add_constraint(assertion);
                     if state.is_feasible() {
-                        result.final_states.push(state);
+                        worklist.push_back((rest.to_vec(), state));
                     }
                 }
 
@@ -187,7 +216,7 @@ impl<'a> SymbolicExecutor<'a> {
                     let assumption = state.eval_expr(expr);
                     state.add_constraint(assumption);
                     if state.is_feasible() {
-                        result.final_states.push(state);
+                        worklist.push_back((rest.to_vec(), state));
                     }
                 }
             }

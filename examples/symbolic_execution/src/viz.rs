@@ -10,7 +10,7 @@ use crate::ast::{Expr, Stmt};
 use crate::cfg::ControlFlowGraph;
 
 /// Generate DOT representation of an AST
-pub fn ast_to_dot(stmt: &Stmt, name: &str) -> String {
+pub fn ast_to_dot(stmts: &[Stmt], name: &str) -> String {
     let mut dot = String::new();
     writeln!(dot, "digraph AST_{} {{", name.replace(' ', "_")).unwrap();
     writeln!(dot, "  node [shape=box, style=rounded];").unwrap();
@@ -18,7 +18,29 @@ pub fn ast_to_dot(stmt: &Stmt, name: &str) -> String {
     writeln!(dot).unwrap();
 
     let mut counter = 0;
-    ast_stmt_to_dot(stmt, &mut dot, &mut counter, None);
+
+    if stmts.is_empty() {
+        // Empty program
+        writeln!(dot, "  n0 [label=\"empty\", fillcolor=lightgray, style=\"filled,rounded\"];").unwrap();
+    } else if stmts.len() == 1 {
+        // Single statement
+        ast_stmt_to_dot(&stmts[0], &mut dot, &mut counter, None);
+    } else {
+        // Multiple statements - create a root node
+        let root = counter;
+        counter += 1;
+        writeln!(
+            dot,
+            "  n{} [label=\"program\", fillcolor=lightyellow, style=\"filled,rounded\"];",
+            root
+        )
+        .unwrap();
+
+        for stmt in stmts {
+            let stmt_id = ast_stmt_to_dot(stmt, &mut dot, &mut counter, Some(root));
+            writeln!(dot, "  n{} -> n{};", root, stmt_id).unwrap();
+        }
+    }
 
     writeln!(dot, "}}").unwrap();
     dot
@@ -42,28 +64,36 @@ fn ast_stmt_to_dot(stmt: &Stmt, dot: &mut String, counter: &mut usize, parent: O
             let expr_id = ast_expr_to_dot(expr, dot, counter);
             writeln!(dot, "  n{} -> n{} [label=\"value\"];", id, expr_id).unwrap();
         }
-        Stmt::Seq(s1, s2) => {
-            writeln!(dot, "  n{} [label=\"seq\", fillcolor=lightyellow, style=\"filled,rounded\"];", id).unwrap();
-            let s1_id = ast_stmt_to_dot(s1, dot, counter, Some(id));
-            let s2_id = ast_stmt_to_dot(s2, dot, counter, Some(id));
-            writeln!(dot, "  n{} -> n{} [label=\"first\"];", id, s1_id).unwrap();
-            writeln!(dot, "  n{} -> n{} [label=\"then\"];", id, s2_id).unwrap();
-        }
-        Stmt::If(cond, then_branch, else_branch) => {
+        Stmt::If {
+            condition,
+            then_body,
+            else_body,
+        } => {
             writeln!(dot, "  n{} [label=\"if\", fillcolor=lightgreen, style=\"filled,rounded\"];", id).unwrap();
-            let cond_id = ast_expr_to_dot(cond, dot, counter);
-            let then_id = ast_stmt_to_dot(then_branch, dot, counter, Some(id));
-            let else_id = ast_stmt_to_dot(else_branch, dot, counter, Some(id));
+            let cond_id = ast_expr_to_dot(condition, dot, counter);
             writeln!(dot, "  n{} -> n{} [label=\"cond\"];", id, cond_id).unwrap();
-            writeln!(dot, "  n{} -> n{} [label=\"then\"];", id, then_id).unwrap();
-            writeln!(dot, "  n{} -> n{} [label=\"else\"];", id, else_id).unwrap();
+
+            // Then body
+            if !then_body.is_empty() {
+                let then_id = ast_stmts_to_dot(then_body, dot, counter, Some(id), "then");
+                writeln!(dot, "  n{} -> n{} [label=\"then\"];", id, then_id).unwrap();
+            }
+
+            // Else body
+            if !else_body.is_empty() {
+                let else_id = ast_stmts_to_dot(else_body, dot, counter, Some(id), "else");
+                writeln!(dot, "  n{} -> n{} [label=\"else\"];", id, else_id).unwrap();
+            }
         }
-        Stmt::While(cond, body) => {
+        Stmt::While { condition, body } => {
             writeln!(dot, "  n{} [label=\"while\", fillcolor=orange, style=\"filled,rounded\"];", id).unwrap();
-            let cond_id = ast_expr_to_dot(cond, dot, counter);
-            let body_id = ast_stmt_to_dot(body, dot, counter, Some(id));
+            let cond_id = ast_expr_to_dot(condition, dot, counter);
             writeln!(dot, "  n{} -> n{} [label=\"cond\"];", id, cond_id).unwrap();
-            writeln!(dot, "  n{} -> n{} [label=\"body\"];", id, body_id).unwrap();
+
+            if !body.is_empty() {
+                let body_id = ast_stmts_to_dot(body, dot, counter, Some(id), "body");
+                writeln!(dot, "  n{} -> n{} [label=\"body\"];", id, body_id).unwrap();
+            }
         }
         Stmt::Assert(expr) => {
             writeln!(
@@ -92,6 +122,36 @@ fn ast_stmt_to_dot(stmt: &Stmt, dot: &mut String, counter: &mut usize, parent: O
     }
 
     id
+}
+
+fn ast_stmts_to_dot(stmts: &[Stmt], dot: &mut String, counter: &mut usize, parent: Option<usize>, label: &str) -> usize {
+    if stmts.is_empty() {
+        let id = *counter;
+        *counter += 1;
+        writeln!(dot, "  n{} [label=\"skip\", fillcolor=lightgray, style=\"filled,rounded\"];", id).unwrap();
+        return id;
+    }
+
+    if stmts.len() == 1 {
+        return ast_stmt_to_dot(&stmts[0], dot, counter, parent);
+    }
+
+    // Multiple statements - create a sequence node
+    let seq_id = *counter;
+    *counter += 1;
+    writeln!(
+        dot,
+        "  n{} [label=\"{}\", fillcolor=lightyellow, style=\"filled,rounded\"];",
+        seq_id, label
+    )
+    .unwrap();
+
+    for stmt in stmts {
+        let stmt_id = ast_stmt_to_dot(stmt, dot, counter, Some(seq_id));
+        writeln!(dot, "  n{} -> n{};", seq_id, stmt_id).unwrap();
+    }
+
+    seq_id
 }
 
 fn ast_expr_to_dot(expr: &Expr, dot: &mut String, counter: &mut usize) -> usize {
@@ -211,13 +271,12 @@ impl DotCfg {
                 self.add_edge(entry, stmt_id, None);
                 self.add_edge(stmt_id, exit, None);
             }
-            Stmt::Seq(s1, s2) => {
-                let mid_id = self.add_node(CfgNode::Statement("•".to_string()));
-                self.build_stmt(s1, entry, mid_id);
-                self.build_stmt(s2, mid_id, exit);
-            }
-            Stmt::If(cond, then_branch, else_branch) => {
-                let cond_id = self.add_node(CfgNode::Condition(format!("{}", cond)));
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                let cond_id = self.add_node(CfgNode::Condition(format!("{}", condition)));
                 self.add_edge(entry, cond_id, None);
 
                 let then_id = self.add_node(CfgNode::Statement("•".to_string()));
@@ -226,17 +285,17 @@ impl DotCfg {
                 self.add_edge(cond_id, then_id, Some("true".to_string()));
                 self.add_edge(cond_id, else_id, Some("false".to_string()));
 
-                self.build_stmt(then_branch, then_id, exit);
-                self.build_stmt(else_branch, else_id, exit);
+                self.build_stmts(then_body, then_id, exit);
+                self.build_stmts(else_body, else_id, exit);
             }
-            Stmt::While(cond, body) => {
-                let cond_id = self.add_node(CfgNode::Condition(format!("{}", cond)));
+            Stmt::While { condition, body } => {
+                let cond_id = self.add_node(CfgNode::Condition(format!("{}", condition)));
                 self.add_edge(entry, cond_id, None);
 
                 let body_entry = self.add_node(CfgNode::Statement("•".to_string()));
                 self.add_edge(cond_id, body_entry, Some("true".to_string()));
 
-                self.build_stmt(body, body_entry, cond_id);
+                self.build_stmts(body, body_entry, cond_id);
                 self.add_edge(cond_id, exit, Some("false".to_string()));
             }
             Stmt::Assert(expr) => {
@@ -249,6 +308,30 @@ impl DotCfg {
                 self.add_edge(entry, assume_id, None);
                 self.add_edge(assume_id, exit, None);
             }
+        }
+    }
+
+    fn build_stmts(&mut self, stmts: &[Stmt], entry: usize, exit: usize) {
+        if stmts.is_empty() {
+            self.add_edge(entry, exit, None);
+            return;
+        }
+
+        if stmts.len() == 1 {
+            self.build_stmt(&stmts[0], entry, exit);
+            return;
+        }
+
+        let mut current = entry;
+        for (i, stmt) in stmts.iter().enumerate() {
+            let is_last = i == stmts.len() - 1;
+            let next = if is_last {
+                exit
+            } else {
+                self.add_node(CfgNode::Statement("•".to_string()))
+            };
+            self.build_stmt(stmt, current, next);
+            current = next;
         }
     }
 
@@ -376,11 +459,7 @@ pub fn cfg_to_dot(cfg: &ControlFlowGraph, name: &str) -> String {
         // Create a node for each instruction
         if block.instructions.is_empty() {
             let node_id = format!("bb{}_empty", id);
-            writeln!(
-                dot,
-                "    {} [label=\"(empty)\", shape=plaintext, fontcolor=gray];",
-                node_id
-            ).unwrap();
+            writeln!(dot, "    {} [label=\"(empty)\", shape=plaintext, fontcolor=gray];", node_id).unwrap();
         } else {
             for (i, instr) in block.instructions.iter().enumerate() {
                 let node_id = format!("bb{}_{}", id, i);
@@ -397,7 +476,8 @@ pub fn cfg_to_dot(cfg: &ControlFlowGraph, name: &str) -> String {
                     dot,
                     "    {} [label=\"{}\", fillcolor={}, style=filled, fontcolor={}];",
                     node_id, label, color, font_color
-                ).unwrap();
+                )
+                .unwrap();
 
                 // Connect instructions within the block
                 if i > 0 {
@@ -426,7 +506,8 @@ pub fn cfg_to_dot(cfg: &ControlFlowGraph, name: &str) -> String {
             dot,
             "    {} [label=\"{}\", shape={}, fillcolor={}, style=filled];",
             term_node_id, term_label, term_shape, term_color
-        ).unwrap();
+        )
+        .unwrap();
 
         // Connect last instruction to terminator
         if !block.instructions.is_empty() {
@@ -458,13 +539,15 @@ pub fn cfg_to_dot(cfg: &ControlFlowGraph, name: &str) -> String {
                     eprintln!("Warning: Goto target bb{} does not exist", target);
                     continue;
                 };
-                writeln!(dot, "  {} -> {} [ltail=cluster_bb{}, lhead=cluster_bb{}];",
-                    term_node, target_entry, id, target).unwrap();
+                writeln!(
+                    dot,
+                    "  {} -> {} [ltail=cluster_bb{}, lhead=cluster_bb{}];",
+                    term_node, target_entry, id, target
+                )
+                .unwrap();
             }
             crate::cfg::Terminator::Branch {
-                true_target,
-                false_target,
-                ..
+                true_target, false_target, ..
             } => {
                 // Check if target blocks exist
                 let true_entry = if let Some(block) = cfg.blocks.get(true_target) {
@@ -493,12 +576,14 @@ pub fn cfg_to_dot(cfg: &ControlFlowGraph, name: &str) -> String {
                     dot,
                     "  {} -> {} [label=\"true\", color=green, ltail=cluster_bb{}, lhead=cluster_bb{}];",
                     term_node, true_entry, id, true_target
-                ).unwrap();
+                )
+                .unwrap();
                 writeln!(
                     dot,
                     "  {} -> {} [label=\"false\", color=red, ltail=cluster_bb{}, lhead=cluster_bb{}];",
                     term_node, false_entry, id, false_target
-                ).unwrap();
+                )
+                .unwrap();
             }
             crate::cfg::Terminator::Return => {
                 // No outgoing edges

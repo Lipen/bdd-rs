@@ -85,14 +85,16 @@ impl fmt::Display for Expr {
 pub enum Stmt {
     /// Skip (no-op)
     Skip,
-    /// Sequence: stmt1; stmt2
-    Seq(Box<Stmt>, Box<Stmt>),
     /// Assignment: var = expr
     Assign(Var, Expr),
-    /// Conditional: if expr then stmt1 else stmt2
-    If(Expr, Box<Stmt>, Box<Stmt>),
-    /// Loop: while expr do stmt
-    While(Expr, Box<Stmt>),
+    /// Conditional: if expr then stmts else stmts
+    If {
+        condition: Expr,
+        then_body: Vec<Stmt>,
+        else_body: Vec<Stmt>,
+    },
+    /// Loop: while expr do stmts
+    While { condition: Expr, body: Vec<Stmt> },
     /// Assertion: assert expr
     Assert(Expr),
     /// Assume: assume expr (strengthen path condition)
@@ -101,24 +103,28 @@ pub enum Stmt {
 
 // Constructors
 impl Stmt {
-    pub fn seq(self, other: Stmt) -> Self {
-        Stmt::Seq(Box::new(self), Box::new(other))
-    }
-
     pub fn assign(var: impl Into<String>, expr: Expr) -> Self {
         Stmt::Assign(var.into(), expr)
     }
 
-    pub fn if_then_else(cond: Expr, then_stmt: Stmt, else_stmt: Stmt) -> Self {
-        Stmt::If(cond, Box::new(then_stmt), Box::new(else_stmt))
+    pub fn if_then_else(cond: Expr, then_body: Vec<Stmt>, else_body: Vec<Stmt>) -> Self {
+        Stmt::If {
+            condition: cond,
+            then_body,
+            else_body,
+        }
     }
 
-    pub fn if_then(cond: Expr, then_stmt: Stmt) -> Self {
-        Stmt::If(cond, Box::new(then_stmt), Box::new(Stmt::Skip))
+    pub fn if_then(cond: Expr, then_body: Vec<Stmt>) -> Self {
+        Stmt::If {
+            condition: cond,
+            then_body,
+            else_body: vec![],
+        }
     }
 
-    pub fn while_do(cond: Expr, body: Stmt) -> Self {
-        Stmt::While(cond, Box::new(body))
+    pub fn while_do(cond: Expr, body: Vec<Stmt>) -> Self {
+        Stmt::While { condition: cond, body }
     }
 
     pub fn assert(expr: Expr) -> Self {
@@ -142,22 +148,28 @@ impl Stmt {
         match self {
             Stmt::Skip => writeln!(f, "{}skip;", ind),
             Stmt::Assign(v, e) => writeln!(f, "{}{} = {};", ind, v, e),
-            Stmt::Seq(s1, s2) => {
-                s1.fmt_indent(f, indent)?;
-                s2.fmt_indent(f, indent)
-            }
-            Stmt::If(e, t, els) => {
-                writeln!(f, "{}if {} {{", ind, e)?;
-                t.fmt_indent(f, indent + 1)?;
-                if **els != Stmt::Skip {
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                writeln!(f, "{}if {} {{", ind, condition)?;
+                for stmt in then_body {
+                    stmt.fmt_indent(f, indent + 1)?;
+                }
+                if !else_body.is_empty() {
                     writeln!(f, "{}}} else {{", ind)?;
-                    els.fmt_indent(f, indent + 1)?;
+                    for stmt in else_body {
+                        stmt.fmt_indent(f, indent + 1)?;
+                    }
                 }
                 writeln!(f, "{}}}", ind)
             }
-            Stmt::While(e, body) => {
-                writeln!(f, "{}while {} {{", ind, e)?;
-                body.fmt_indent(f, indent + 1)?;
+            Stmt::While { condition, body } => {
+                writeln!(f, "{}while {} {{", ind, condition)?;
+                for stmt in body {
+                    stmt.fmt_indent(f, indent + 1)?;
+                }
                 writeln!(f, "{}}}", ind)
             }
             Stmt::Assert(e) => writeln!(f, "{}assert {};", ind, e),
@@ -166,23 +178,25 @@ impl Stmt {
     }
 }
 
-/// A program is just a statement with an optional name
+/// A program is a named sequence of statements
 #[derive(Debug, Clone)]
 pub struct Program {
     pub name: String,
-    pub stmt: Stmt,
+    pub body: Vec<Stmt>,
 }
 
 impl Program {
-    pub fn new(name: impl Into<String>, stmt: Stmt) -> Self {
-        Program { name: name.into(), stmt }
+    pub fn new(name: impl Into<String>, body: Vec<Stmt>) -> Self {
+        Program { name: name.into(), body }
     }
 }
 
 impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "program {} {{", self.name)?;
-        self.stmt.fmt_indent(f, 1)?;
+        for stmt in &self.body {
+            stmt.fmt_indent(f, 1)?;
+        }
         writeln!(f, "}}")
     }
 }

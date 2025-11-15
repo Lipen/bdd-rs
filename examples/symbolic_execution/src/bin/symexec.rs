@@ -63,7 +63,7 @@ fn main() -> Result<()> {
 }
 
 fn run_example(bdd: &Bdd, name: &str) -> Result<()> {
-    let (prog_name, stmt) = match name {
+    let program = match name {
         "simple" => example_simple(),
         "branch" => example_branch(),
         "xor" => example_xor(),
@@ -76,11 +76,11 @@ fn run_example(bdd: &Bdd, name: &str) -> Result<()> {
         }
     };
 
-    println!("=== Example: {} ===\n", prog_name);
-    println!("{}\n", Program::new(&prog_name, stmt.clone()));
+    println!("=== Example: {} ===\n", program.name);
+    println!("{}\n", program);
 
     let executor = SymbolicExecutor::new(bdd);
-    let result = executor.execute(&stmt);
+    let result = executor.execute_stmts(&program.body);
 
     print_results(&result);
 
@@ -88,7 +88,7 @@ fn run_example(bdd: &Bdd, name: &str) -> Result<()> {
 }
 
 fn visualize_example(name: &str, viz_type: VizType, output: Option<&str>) -> Result<()> {
-    let (prog_name, stmt) = match name {
+    let program = match name {
         "simple" => example_simple(),
         "branch" => example_branch(),
         "xor" => example_xor(),
@@ -101,8 +101,8 @@ fn visualize_example(name: &str, viz_type: VizType, output: Option<&str>) -> Res
     };
 
     // Print the program
-    println!("=== Example: {} ===\n", prog_name);
-    println!("{}\n", Program::new(&prog_name, stmt.clone()));
+    println!("=== Example: {} ===\n", program.name);
+    println!("{}\n", program);
 
     // Create temp directory
     let temp_dir = std::env::temp_dir().join("symexec_viz");
@@ -116,7 +116,7 @@ fn visualize_example(name: &str, viz_type: VizType, output: Option<&str>) -> Res
 
     // Generate AST visualization
     if do_ast {
-        let dot = ast_to_dot(&stmt, &prog_name);
+        let dot = ast_to_dot(&program.body, &program.name);
         let dot_file = temp_dir.join(format!("{}_ast.dot", base_name));
         let svg_file = temp_dir.join(format!("{}_ast.svg", base_name));
         let pdf_file = temp_dir.join(format!("{}_ast.pdf", base_name));
@@ -148,8 +148,8 @@ fn visualize_example(name: &str, viz_type: VizType, output: Option<&str>) -> Res
 
     // Generate CFG visualization
     if do_cfg {
-        let cfg = ControlFlowGraph::from_stmt(&stmt);
-        let dot = cfg_to_dot(&cfg, &prog_name);
+        let cfg = ControlFlowGraph::from_stmts(&program.body);
+        let dot = cfg_to_dot(&cfg, &program.name);
         let dot_file = temp_dir.join(format!("{}_cfg.dot", base_name));
         let svg_file = temp_dir.join(format!("{}_cfg.svg", base_name));
         let pdf_file = temp_dir.join(format!("{}_cfg.pdf", base_name));
@@ -182,62 +182,76 @@ fn visualize_example(name: &str, viz_type: VizType, output: Option<&str>) -> Res
     Ok(())
 }
 
-fn example_simple() -> (String, Stmt) {
+fn example_simple() -> Program {
     // x = true; y = x; assert y
-    let stmt = Stmt::assign("x", Expr::Lit(true))
-        .seq(Stmt::assign("y", Expr::var("x")))
-        .seq(Stmt::assert(Expr::var("y")));
-
-    ("simple".to_string(), stmt)
-}
-
-fn example_branch() -> (String, Stmt) {
-    // if x { y = true } else { y = false }; assert (x == y)
-    let stmt = Stmt::if_then_else(
-        Expr::var("x"),
-        Stmt::assign("y", Expr::Lit(true)),
-        Stmt::assign("y", Expr::Lit(false)),
+    Program::new(
+        "simple",
+        vec![
+            Stmt::assign("x", Expr::Lit(true)),
+            Stmt::assign("y", Expr::var("x")),
+            Stmt::assert(Expr::var("y")),
+        ],
     )
-    .seq(Stmt::assert(Expr::var("x").eq(Expr::var("y"))));
-
-    ("branch".to_string(), stmt)
 }
 
-fn example_xor() -> (String, Stmt) {
+fn example_branch() -> Program {
+    // if x { y = true } else { y = false }; assert (x == y)
+    Program::new(
+        "branch",
+        vec![
+            Stmt::if_then_else(
+                Expr::var("x"),
+                vec![Stmt::assign("y", Expr::Lit(true))],
+                vec![Stmt::assign("y", Expr::Lit(false))],
+            ),
+            Stmt::assert(Expr::var("x").eq(Expr::var("y"))),
+        ],
+    )
+}
+
+fn example_xor() -> Program {
     // z = x ^ y; assert (z == ((x || y) && !(x && y)))
-    let stmt = Stmt::assign("z", Expr::var("x").xor(Expr::var("y"))).seq(Stmt::assert(
-        Expr::var("z").eq(Expr::var("x").or(Expr::var("y")).and(Expr::var("x").and(Expr::var("y")).not())),
-    ));
-
-    ("xor".to_string(), stmt)
+    Program::new(
+        "xor",
+        vec![
+            Stmt::assign("z", Expr::var("x").xor(Expr::var("y"))),
+            Stmt::assert(
+                Expr::var("z").eq(
+                    Expr::var("x")
+                        .or(Expr::var("y"))
+                        .and(Expr::var("x").and(Expr::var("y")).not()),
+                ),
+            ),
+        ],
+    )
 }
 
-fn example_mutex() -> (String, Stmt) {
+fn example_mutex() -> Program {
     // Mutual exclusion protocol
     // req1 = true; if req2 { wait } else { acquire1 = true };
     // req2 = true; if req1 { wait } else { acquire2 = true };
     // assert !(acquire1 && acquire2)
-
-    let thread1 = Stmt::assign("req1", Expr::Lit(true)).seq(Stmt::if_then_else(
-        Expr::var("req2"),
-        Stmt::Skip,
-        Stmt::assign("acquire1", Expr::Lit(true)),
-    ));
-
-    let thread2 = Stmt::assign("req2", Expr::Lit(true)).seq(Stmt::if_then_else(
-        Expr::var("req1"),
-        Stmt::Skip,
-        Stmt::assign("acquire2", Expr::Lit(true)),
-    ));
-
-    let stmt = thread1
-        .seq(thread2)
-        .seq(Stmt::assert(Expr::var("acquire1").and(Expr::var("acquire2")).not()));
-
-    ("mutex".to_string(), stmt)
+    Program::new(
+        "mutex",
+        vec![
+            Stmt::assign("req1", Expr::Lit(true)),
+            Stmt::if_then_else(
+                Expr::var("req2"),
+                vec![Stmt::Skip],
+                vec![Stmt::assign("acquire1", Expr::Lit(true))],
+            ),
+            Stmt::assign("req2", Expr::Lit(true)),
+            Stmt::if_then_else(
+                Expr::var("req1"),
+                vec![Stmt::Skip],
+                vec![Stmt::assign("acquire2", Expr::Lit(true))],
+            ),
+            Stmt::assert(Expr::var("acquire1").and(Expr::var("acquire2")).not()),
+        ],
+    )
 }
 
-fn example_loop() -> (String, Stmt) {
+fn example_loop() -> Program {
     // ```
     // x = false
     // i = 0
@@ -250,12 +264,17 @@ fn example_loop() -> (String, Stmt) {
     // Simplified for boolean domain:
     // x = false; while sym_i { x = !x }; assert !x
     // (sym_i represents symbolic iteration count)
-
-    let stmt = Stmt::assign("x", Expr::Lit(false))
-        .seq(Stmt::while_do(Expr::var("sym_i"), Stmt::assign("x", Expr::var("x").not())))
-        .seq(Stmt::assert(Expr::var("x").not()));
-
-    ("loop".to_string(), stmt)
+    Program::new(
+        "loop",
+        vec![
+            Stmt::assign("x", Expr::Lit(false)),
+            Stmt::while_do(
+                Expr::var("sym_i"),
+                vec![Stmt::assign("x", Expr::var("x").not())],
+            ),
+            Stmt::assert(Expr::var("x").not()),
+        ],
+    )
 }
 
 fn print_results(result: &ExecutionResult) {
