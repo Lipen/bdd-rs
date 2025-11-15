@@ -205,12 +205,7 @@ impl CfgBuilder {
     }
 
     /// Flush accumulated instructions into a block with terminator and trap context
-    fn flush_block_with_trap(
-        &mut self,
-        block_id: BlockId,
-        terminator: Terminator,
-        trap_context: Option<TrapContext>,
-    ) {
+    fn flush_block_with_trap(&mut self, block_id: BlockId, terminator: Terminator, trap_context: Option<TrapContext>) {
         let instructions = std::mem::take(&mut self.current_instructions);
         let block = BasicBlock {
             id: block_id,
@@ -227,12 +222,7 @@ impl CfgBuilder {
     }
 
     /// Set terminator with trap context for a block
-    fn set_terminator_with_trap(
-        &mut self,
-        block_id: BlockId,
-        terminator: Terminator,
-        trap_context: Option<TrapContext>,
-    ) {
+    fn set_terminator_with_trap(&mut self, block_id: BlockId, terminator: Terminator, trap_context: Option<TrapContext>) {
         if let Some(block) = self.blocks.get_mut(&block_id) {
             block.terminator = terminator;
             block.trap_context = trap_context;
@@ -304,16 +294,8 @@ impl CfgBuilder {
 
                     // Create blocks for try, catch, finally, and after
                     let try_block = self.fresh_block();
-                    let catch_block = if !catch_body.is_empty() {
-                        Some(self.fresh_block())
-                    } else {
-                        None
-                    };
-                    let finally_block = if !finally_body.is_empty() {
-                        Some(self.fresh_block())
-                    } else {
-                        None
-                    };
+                    let catch_block = if !catch_body.is_empty() { Some(self.fresh_block()) } else { None };
+                    let finally_block = if !finally_body.is_empty() { Some(self.fresh_block()) } else { None };
                     let after_block = if is_last { exit } else { self.fresh_block() };
 
                     // Build trap context for try block
@@ -707,11 +689,7 @@ mod tests {
         println!("\n{}", cfg);
 
         // Verify try block has trap context
-        let try_blocks: Vec<_> = cfg
-            .blocks
-            .values()
-            .filter(|b| b.trap_context.is_some())
-            .collect();
+        let try_blocks: Vec<_> = cfg.blocks.values().filter(|b| b.trap_context.is_some()).collect();
         assert!(!try_blocks.is_empty(), "Should have blocks with trap context");
 
         // Verify structure has try, catch, finally blocks
@@ -721,20 +699,16 @@ mod tests {
     #[test]
     fn test_simple_throw() {
         // x = true; throw x
-        let stmts = vec![
-            Stmt::Assign("x".into(), Expr::Lit(true)),
-            Stmt::Throw(Expr::Var("x".into())),
-        ];
+        let stmts = vec![Stmt::Assign("x".into(), Expr::Lit(true)), Stmt::Throw(Expr::Var("x".into()))];
 
         let cfg = ControlFlowGraph::from_stmts(&stmts);
         println!("\n{}", cfg);
 
         // Verify throw instruction exists
-        let has_throw = cfg.blocks.values().any(|b| {
-            b.instructions
-                .iter()
-                .any(|i| matches!(i, Instruction::Throw(_)))
-        });
+        let has_throw = cfg
+            .blocks
+            .values()
+            .any(|b| b.instructions.iter().any(|i| matches!(i, Instruction::Throw(_))));
         assert!(has_throw, "Should have throw instruction");
     }
 }

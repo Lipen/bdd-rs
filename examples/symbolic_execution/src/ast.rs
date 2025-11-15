@@ -144,12 +144,7 @@ impl Stmt {
         Stmt::Assume(expr)
     }
 
-    pub fn try_catch_finally(
-        try_body: Vec<Stmt>,
-        catch_var: Option<Var>,
-        catch_body: Vec<Stmt>,
-        finally_body: Vec<Stmt>,
-    ) -> Self {
+    pub fn try_catch_finally(try_body: Vec<Stmt>, catch_var: Option<Var>, catch_body: Vec<Stmt>, finally_body: Vec<Stmt>) -> Self {
         Stmt::Try {
             try_body,
             catch_var,

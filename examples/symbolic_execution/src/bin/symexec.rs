@@ -219,13 +219,7 @@ fn example_xor() -> Program {
         "xor",
         vec![
             Stmt::assign("z", Expr::var("x").xor(Expr::var("y"))),
-            Stmt::assert(
-                Expr::var("z").eq(
-                    Expr::var("x")
-                        .or(Expr::var("y"))
-                        .and(Expr::var("x").and(Expr::var("y")).not()),
-                ),
-            ),
+            Stmt::assert(Expr::var("z").eq(Expr::var("x").or(Expr::var("y")).and(Expr::var("x").and(Expr::var("y")).not()))),
         ],
     )
 }
@@ -239,17 +233,9 @@ fn example_mutex() -> Program {
         "mutex",
         vec![
             Stmt::assign("req1", Expr::Lit(true)),
-            Stmt::if_then_else(
-                Expr::var("req2"),
-                vec![Stmt::Skip],
-                vec![Stmt::assign("acquire1", Expr::Lit(true))],
-            ),
+            Stmt::if_then_else(Expr::var("req2"), vec![Stmt::Skip], vec![Stmt::assign("acquire1", Expr::Lit(true))]),
             Stmt::assign("req2", Expr::Lit(true)),
-            Stmt::if_then_else(
-                Expr::var("req1"),
-                vec![Stmt::Skip],
-                vec![Stmt::assign("acquire2", Expr::Lit(true))],
-            ),
+            Stmt::if_then_else(Expr::var("req1"), vec![Stmt::Skip], vec![Stmt::assign("acquire2", Expr::Lit(true))]),
             Stmt::assert(Expr::var("acquire1").and(Expr::var("acquire2")).not()),
         ],
     )
@@ -272,10 +258,7 @@ fn example_loop() -> Program {
         "loop",
         vec![
             Stmt::assign("x", Expr::Lit(false)),
-            Stmt::while_do(
-                Expr::var("sym_i"),
-                vec![Stmt::assign("x", Expr::var("x").not())],
-            ),
+            Stmt::while_do(Expr::var("sym_i"), vec![Stmt::assign("x", Expr::var("x").not())]),
             Stmt::assert(Expr::var("x").not()),
         ],
     )
@@ -299,10 +282,7 @@ fn example_exception() -> Program {
             Stmt::try_catch_finally(
                 vec![
                     Stmt::assign("x", Expr::Lit(true)),
-                    Stmt::if_then(
-                        Expr::var("error"),
-                        vec![Stmt::throw(Expr::var("x"))],
-                    ),
+                    Stmt::if_then(Expr::var("error"), vec![Stmt::throw(Expr::var("x"))]),
                     Stmt::assign("y", Expr::Lit(false)),
                 ],
                 Some("e".into()),
