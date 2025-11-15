@@ -89,7 +89,7 @@ fn run_example(bdd: &Bdd, name: &str) -> Result<()> {
     };
 
     println!("=== Example: {} ===\n", program.name);
-    println!("{}\n", program);
+    println!("{}", program);
 
     let executor = SymbolicExecutor::new(bdd);
     let result = executor.execute_stmts(&program.body);
@@ -107,7 +107,7 @@ fn visualize_example(name: &str, viz_type: VizType, output: Option<&str>) -> Res
 
     // Print the program
     println!("=== Example: {} ===\n", program.name);
-    println!("{}\n", program);
+    println!("{}", program);
 
     // Create temp directory
     let temp_dir = std::env::temp_dir().join("symexec_viz");
