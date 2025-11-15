@@ -14,6 +14,7 @@ pub struct BasicBlock {
     pub id: BlockId,
     pub instructions: Vec<Instruction>,
     pub terminator: Terminator,
+    pub trap_context: Option<TrapContext>,
 }
 
 /// Unique identifier for a basic block
@@ -28,6 +29,8 @@ pub enum Instruction {
     Assert(Expr),
     /// Assumption: assume expr
     Assume(Expr),
+    /// Throw exception
+    Throw(Expr),
 }
 
 impl fmt::Display for Instruction {
@@ -36,6 +39,7 @@ impl fmt::Display for Instruction {
             Instruction::Assign(v, e) => write!(f, "{} = {}", v, e),
             Instruction::Assert(e) => write!(f, "assert {}", e),
             Instruction::Assume(e) => write!(f, "assume {}", e),
+            Instruction::Throw(e) => write!(f, "throw {}", e),
         }
     }
 }
@@ -67,6 +71,14 @@ impl fmt::Display for Terminator {
             Terminator::Return => write!(f, "return"),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct TrapContext {
+    pub catch_variable: Option<Var>,
+    pub catch_target: Option<BlockId>,
+    pub finally_target: Option<BlockId>,
+    pub parent: Option<BlockId>, // for nested try
 }
 
 /// Control Flow Graph: a collection of basic blocks
@@ -189,25 +201,48 @@ impl CfgBuilder {
 
     /// Flush accumulated instructions into a block with the given terminator
     fn flush_block(&mut self, block_id: BlockId, terminator: Terminator) {
+        self.flush_block_with_trap(block_id, terminator, None);
+    }
+
+    /// Flush accumulated instructions into a block with terminator and trap context
+    fn flush_block_with_trap(
+        &mut self,
+        block_id: BlockId,
+        terminator: Terminator,
+        trap_context: Option<TrapContext>,
+    ) {
         let instructions = std::mem::take(&mut self.current_instructions);
         let block = BasicBlock {
             id: block_id,
             instructions,
             terminator,
+            trap_context,
         };
         self.blocks.insert(block_id, block);
     }
 
     /// Set terminator for a block (assumes no instructions pending)
     fn set_terminator(&mut self, block_id: BlockId, terminator: Terminator) {
+        self.set_terminator_with_trap(block_id, terminator, None);
+    }
+
+    /// Set terminator with trap context for a block
+    fn set_terminator_with_trap(
+        &mut self,
+        block_id: BlockId,
+        terminator: Terminator,
+        trap_context: Option<TrapContext>,
+    ) {
         if let Some(block) = self.blocks.get_mut(&block_id) {
             block.terminator = terminator;
+            block.trap_context = trap_context;
         } else {
             // Block doesn't exist yet, create it empty
             let block = BasicBlock {
                 id: block_id,
                 instructions: Vec::new(),
                 terminator,
+                trap_context,
             };
             self.blocks.insert(block_id, block);
         }
@@ -244,6 +279,105 @@ impl CfgBuilder {
 
                 Stmt::Assume(expr) => {
                     self.add_instruction(Instruction::Assume(expr.clone()));
+                }
+
+                Stmt::Throw(expr) => {
+                    // Throw is an instruction that will be handled during execution
+                    // The trap_context in the containing block determines where control flows
+                    self.add_instruction(Instruction::Throw(expr.clone()));
+                }
+
+                Stmt::Try {
+                    try_body,
+                    catch_var,
+                    catch_body,
+                    finally_body,
+                } => {
+                    // Flush any pending instructions to current block
+                    let try_entry = if self.current_instructions.is_empty() {
+                        current
+                    } else {
+                        let bb = self.fresh_block();
+                        self.flush_block(current, Terminator::Goto(bb));
+                        bb
+                    };
+
+                    // Create blocks for try, catch, finally, and after
+                    let try_block = self.fresh_block();
+                    let catch_block = if !catch_body.is_empty() {
+                        Some(self.fresh_block())
+                    } else {
+                        None
+                    };
+                    let finally_block = if !finally_body.is_empty() {
+                        Some(self.fresh_block())
+                    } else {
+                        None
+                    };
+                    let after_block = if is_last { exit } else { self.fresh_block() };
+
+                    // Build trap context for try block
+                    let trap_context = TrapContext {
+                        catch_variable: catch_var.clone(),
+                        catch_target: catch_block,
+                        finally_target: finally_block,
+                        parent: None, // TODO: support nested try-catch
+                    };
+
+                    // Entry jumps to try block
+                    self.set_terminator(try_entry, Terminator::Goto(try_block));
+
+                    // Remember which blocks existed before building try body
+                    let existing_blocks: std::collections::HashSet<_> = self.blocks.keys().copied().collect();
+
+                    // Build try block - normal exit goes to finally if present, otherwise after
+                    let try_exit = finally_block.unwrap_or(after_block);
+                    self.build_stmts(try_body, try_block, try_exit);
+
+                    // Flush any remaining instructions
+                    if !self.current_instructions.is_empty() {
+                        self.flush_block(try_block, Terminator::Goto(try_exit));
+                    } else if !self.blocks.contains_key(&try_block) {
+                        self.set_terminator(try_block, Terminator::Goto(try_exit));
+                    }
+
+                    // Apply trap_context to ALL new blocks created during try body construction
+                    // (excluding catch, finally, and after blocks which are handlers/continuation)
+                    for (&block_id, block) in self.blocks.iter_mut() {
+                        // Skip blocks that existed before, and handler/continuation blocks
+                        if existing_blocks.contains(&block_id) {
+                            continue;
+                        }
+                        if Some(block_id) == catch_block || Some(block_id) == finally_block || block_id == after_block {
+                            continue;
+                        }
+                        // Apply trap context if not already set
+                        if block.trap_context.is_none() {
+                            block.trap_context = Some(trap_context.clone());
+                        }
+                    }
+
+                    // Build catch block if present - also goes to finally
+                    if let Some(cb) = catch_block {
+                        self.build_stmts(catch_body, cb, finally_block.unwrap_or(after_block));
+                        if !self.current_instructions.is_empty() {
+                            self.flush_block(cb, Terminator::Goto(finally_block.unwrap_or(after_block)));
+                        } else if !self.blocks.contains_key(&cb) {
+                            self.set_terminator(cb, Terminator::Goto(finally_block.unwrap_or(after_block)));
+                        }
+                    }
+
+                    // Build finally block if present
+                    if let Some(fb) = finally_block {
+                        self.build_stmts(finally_body, fb, after_block);
+                        if !self.current_instructions.is_empty() {
+                            self.flush_block(fb, Terminator::Goto(after_block));
+                        } else if !self.blocks.contains_key(&fb) {
+                            self.set_terminator(fb, Terminator::Goto(after_block));
+                        }
+                    }
+
+                    current = after_block;
                 }
 
                 Stmt::If {
@@ -553,5 +687,54 @@ mod tests {
 
         // Verify structure
         assert!(cfg.blocks.len() > 5, "Should have multiple blocks");
+    }
+
+    #[test]
+    fn test_try_catch_finally() {
+        // try { x = true; if error { throw x; } y = false; } catch (e) { y = e; } finally { z = y; }
+        let stmts = vec![Stmt::Try {
+            try_body: vec![
+                Stmt::Assign("x".into(), Expr::Lit(true)),
+                Stmt::if_then(Expr::Var("error".into()), vec![Stmt::Throw(Expr::Var("x".into()))]),
+                Stmt::Assign("y".into(), Expr::Lit(false)),
+            ],
+            catch_var: Some("e".into()),
+            catch_body: vec![Stmt::Assign("y".into(), Expr::Var("e".into()))],
+            finally_body: vec![Stmt::Assign("z".into(), Expr::Var("y".into()))],
+        }];
+
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
+        println!("\n{}", cfg);
+
+        // Verify try block has trap context
+        let try_blocks: Vec<_> = cfg
+            .blocks
+            .values()
+            .filter(|b| b.trap_context.is_some())
+            .collect();
+        assert!(!try_blocks.is_empty(), "Should have blocks with trap context");
+
+        // Verify structure has try, catch, finally blocks
+        assert!(cfg.blocks.len() >= 5, "Should have multiple blocks for try-catch-finally");
+    }
+
+    #[test]
+    fn test_simple_throw() {
+        // x = true; throw x
+        let stmts = vec![
+            Stmt::Assign("x".into(), Expr::Lit(true)),
+            Stmt::Throw(Expr::Var("x".into())),
+        ];
+
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
+        println!("\n{}", cfg);
+
+        // Verify throw instruction exists
+        let has_throw = cfg.blocks.values().any(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i, Instruction::Throw(_)))
+        });
+        assert!(has_throw, "Should have throw instruction");
     }
 }

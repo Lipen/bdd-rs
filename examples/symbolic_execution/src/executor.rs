@@ -219,6 +219,51 @@ impl<'a> SymbolicExecutor<'a> {
                         worklist.push_back((rest.to_vec(), state));
                     }
                 }
+
+                Stmt::Try {
+                    ref try_body,
+                    ref catch_var,
+                    ref catch_body,
+                    ref finally_body,
+                } => {
+                    // Execute try block - if throw occurs, execution jumps to catch
+                    // For now, we explore both paths:
+                    // 1. Normal execution (no exception)
+                    // 2. Exception path (if catch exists)
+
+                    // Normal path: try -> finally -> rest
+                    let mut normal_stmts = try_body.clone();
+                    normal_stmts.extend_from_slice(finally_body);
+                    normal_stmts.extend_from_slice(rest);
+                    worklist.push_back((normal_stmts, state.clone_state()));
+
+                    // Exception path: catch -> finally -> rest (if catch exists)
+                    if !catch_body.is_empty() {
+                        let mut exception_state = state;
+                        // If there's a catch variable, assign some symbolic exception value
+                        if let Some(var) = catch_var {
+                            // Create a fresh symbolic variable for the exception
+                            let exception_var = format!("_exception_{}", result.assertion_failures.len());
+                            let exception_idx = exception_state.var_map_mut().get_or_create(&exception_var.into());
+                            let exception_bdd = self.bdd.mk_var(exception_idx);
+                            exception_state.set(var.clone(), exception_bdd);
+                        }
+                        let mut exception_stmts = catch_body.clone();
+                        exception_stmts.extend_from_slice(finally_body);
+                        exception_stmts.extend_from_slice(rest);
+                        worklist.push_back((exception_stmts, exception_state));
+                    }
+                }
+
+                Stmt::Throw(ref expr) => {
+                    // Throw terminates current execution path
+                    // In a real implementation, this would propagate to the nearest catch
+                    // For now, we treat it as a path terminator
+                    // The exception value is evaluated but not used further
+                    let _exception_value = state.eval_expr(expr);
+                    // Path ends here - throw propagates upward
+                    // TODO: If we're in a try-catch context, jump to catch handler
+                }
             }
         }
 

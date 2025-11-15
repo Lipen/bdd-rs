@@ -115,6 +115,47 @@ fn ast_stmt_to_dot(stmt: &Stmt, dot: &mut String, counter: &mut usize, parent: O
             let expr_id = ast_expr_to_dot(expr, dot, counter);
             writeln!(dot, "  n{} -> n{} [label=\"constraint\"];", id, expr_id).unwrap();
         }
+        Stmt::Try {
+            try_body,
+            catch_var,
+            catch_body,
+            finally_body,
+        } => {
+            writeln!(dot, "  n{} [label=\"try\", fillcolor=orange, style=\"filled,rounded\"];", id).unwrap();
+
+            // Try body
+            if !try_body.is_empty() {
+                let try_id = ast_stmts_to_dot(try_body, dot, counter, Some(id), "try");
+                writeln!(dot, "  n{} -> n{} [label=\"try\"];", id, try_id).unwrap();
+            }
+
+            // Catch body
+            if !catch_body.is_empty() {
+                let catch_label = if let Some(var) = catch_var {
+                    format!("catch ({})", var)
+                } else {
+                    "catch".to_string()
+                };
+                let catch_id = ast_stmts_to_dot(catch_body, dot, counter, Some(id), &catch_label);
+                writeln!(dot, "  n{} -> n{} [label=\"exception\"];", id, catch_id).unwrap();
+            }
+
+            // Finally body
+            if !finally_body.is_empty() {
+                let finally_id = ast_stmts_to_dot(finally_body, dot, counter, Some(id), "finally");
+                writeln!(dot, "  n{} -> n{} [label=\"finally\"];", id, finally_id).unwrap();
+            }
+        }
+        Stmt::Throw(expr) => {
+            writeln!(
+                dot,
+                "  n{} [label=\"throw\", fillcolor=red, style=\"filled,rounded\", fontcolor=white];",
+                id
+            )
+            .unwrap();
+            let expr_id = ast_expr_to_dot(expr, dot, counter);
+            writeln!(dot, "  n{} -> n{} [label=\"exception\"];", id, expr_id).unwrap();
+        }
     }
 
     if let Some(_parent_id) = parent {
@@ -308,6 +349,38 @@ impl DotCfg {
                 self.add_edge(entry, assume_id, None);
                 self.add_edge(assume_id, exit, None);
             }
+            Stmt::Try {
+                try_body,
+                catch_var: _,
+                catch_body,
+                finally_body,
+            } => {
+                let try_id = self.add_node(CfgNode::Statement("try".to_string()));
+                self.add_edge(entry, try_id, None);
+
+                if !finally_body.is_empty() {
+                    let finally_id = self.add_node(CfgNode::Statement("finally".to_string()));
+                    self.build_stmts(try_body, try_id, finally_id);
+                    if !catch_body.is_empty() {
+                        let catch_id = self.add_node(CfgNode::Statement("catch".to_string()));
+                        self.add_edge(try_id, catch_id, Some("exception".to_string()));
+                        self.build_stmts(catch_body, catch_id, finally_id);
+                    }
+                    self.build_stmts(finally_body, finally_id, exit);
+                } else if !catch_body.is_empty() {
+                    let catch_id = self.add_node(CfgNode::Statement("catch".to_string()));
+                    self.add_edge(try_id, catch_id, Some("exception".to_string()));
+                    self.build_stmts(try_body, try_id, exit);
+                    self.build_stmts(catch_body, catch_id, exit);
+                } else {
+                    self.build_stmts(try_body, try_id, exit);
+                }
+            }
+            Stmt::Throw(expr) => {
+                let throw_id = self.add_node(CfgNode::Statement(format!("throw {}", expr)));
+                self.add_edge(entry, throw_id, None);
+                // Throw doesn't connect to exit - it propagates upward
+            }
         }
     }
 
@@ -470,6 +543,7 @@ pub fn cfg_to_dot(cfg: &ControlFlowGraph, name: &str) -> String {
                     crate::cfg::Instruction::Assert(_) => ("orange", "black"),
                     crate::cfg::Instruction::Assume(_) => ("purple", "white"),
                     crate::cfg::Instruction::Assign(_, _) => ("lightblue", "black"),
+                    crate::cfg::Instruction::Throw(_) => ("red", "white"),
                 };
 
                 writeln!(
@@ -587,6 +661,37 @@ pub fn cfg_to_dot(cfg: &ControlFlowGraph, name: &str) -> String {
             }
             crate::cfg::Terminator::Return => {
                 // No outgoing edges
+            }
+        }
+
+        // Add exceptional control flow edges from trap_context
+        // Note: Finally is NOT shown here because it's in the normal control flow
+        // (try blocks already exit to finally). Only catch is exceptional flow.
+        if let Some(trap_ctx) = &block.trap_context {
+            if let Some(catch_target) = trap_ctx.catch_target {
+                let catch_entry = if let Some(block) = cfg.blocks.get(&catch_target) {
+                    if block.instructions.is_empty() {
+                        format!("bb{}_empty", catch_target)
+                    } else {
+                        format!("bb{}_0", catch_target)
+                    }
+                } else {
+                    eprintln!("Warning: Catch target bb{} does not exist", catch_target);
+                    format!("bb{}_missing", catch_target)
+                };
+
+                let catch_label = if let Some(var) = &trap_ctx.catch_variable {
+                    format!("catch ({})", var)
+                } else {
+                    "catch".to_string()
+                };
+
+                writeln!(
+                    dot,
+                    "  {} -> {} [label=\"{}\", style=dashed, color=red, ltail=cluster_bb{}, lhead=cluster_bb{}];",
+                    term_node, catch_entry, catch_label, id, catch_target
+                )
+                .unwrap();
             }
         }
     }

@@ -99,6 +99,15 @@ pub enum Stmt {
     Assert(Expr),
     /// Assume: assume expr (strengthen path condition)
     Assume(Expr),
+    /// Try-catch-finally block
+    Try {
+        try_body: Vec<Stmt>,
+        catch_var: Option<Var>,
+        catch_body: Vec<Stmt>,
+        finally_body: Vec<Stmt>,
+    },
+    /// Throw expression (raises exception)
+    Throw(Expr),
 }
 
 // Constructors
@@ -133,6 +142,33 @@ impl Stmt {
 
     pub fn assume(expr: Expr) -> Self {
         Stmt::Assume(expr)
+    }
+
+    pub fn try_catch_finally(
+        try_body: Vec<Stmt>,
+        catch_var: Option<Var>,
+        catch_body: Vec<Stmt>,
+        finally_body: Vec<Stmt>,
+    ) -> Self {
+        Stmt::Try {
+            try_body,
+            catch_var,
+            catch_body,
+            finally_body,
+        }
+    }
+
+    pub fn try_catch(try_body: Vec<Stmt>, catch_var: Option<Var>, catch_body: Vec<Stmt>) -> Self {
+        Stmt::Try {
+            try_body,
+            catch_var,
+            catch_body,
+            finally_body: vec![],
+        }
+    }
+
+    pub fn throw(expr: Expr) -> Self {
+        Stmt::Throw(expr)
     }
 }
 
@@ -174,6 +210,35 @@ impl Stmt {
             }
             Stmt::Assert(e) => writeln!(f, "{}assert {};", ind, e),
             Stmt::Assume(e) => writeln!(f, "{}assume {};", ind, e),
+            Stmt::Try {
+                try_body,
+                catch_var,
+                catch_body,
+                finally_body,
+            } => {
+                writeln!(f, "{}try {{", ind)?;
+                for stmt in try_body {
+                    stmt.fmt_indent(f, indent + 1)?;
+                }
+                if !catch_body.is_empty() {
+                    if let Some(var) = catch_var {
+                        writeln!(f, "{}}} catch ({}) {{", ind, var)?;
+                    } else {
+                        writeln!(f, "{}}} catch {{", ind)?;
+                    }
+                    for stmt in catch_body {
+                        stmt.fmt_indent(f, indent + 1)?;
+                    }
+                }
+                if !finally_body.is_empty() {
+                    writeln!(f, "{}}} finally {{", ind)?;
+                    for stmt in finally_body {
+                        stmt.fmt_indent(f, indent + 1)?;
+                    }
+                }
+                writeln!(f, "{}}}", ind)
+            }
+            Stmt::Throw(e) => writeln!(f, "{}throw {};", ind, e),
         }
     }
 }

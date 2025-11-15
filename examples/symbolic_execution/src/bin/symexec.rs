@@ -62,16 +62,24 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+fn get_example(name: &str) -> Option<Program> {
+    match name {
+        "simple" => Some(example_simple()),
+        "branch" => Some(example_branch()),
+        "xor" => Some(example_xor()),
+        "mutex" => Some(example_mutex()),
+        "loop" => Some(example_loop()),
+        "exception" => Some(example_exception()),
+        _ => None,
+    }
+}
+
 fn run_example(bdd: &Bdd, name: &str) -> Result<()> {
-    let program = match name {
-        "simple" => example_simple(),
-        "branch" => example_branch(),
-        "xor" => example_xor(),
-        "mutex" => example_mutex(),
-        "loop" => example_loop(),
-        _ => {
+    let program = match get_example(name) {
+        Some(p) => p,
+        None => {
             eprintln!("Unknown example: {}", name);
-            eprintln!("Available: simple, branch, xor, mutex, loop");
+            eprintln!("Available: simple, branch, xor, mutex, loop, exception");
             return Ok(());
         }
     };
@@ -88,13 +96,9 @@ fn run_example(bdd: &Bdd, name: &str) -> Result<()> {
 }
 
 fn visualize_example(name: &str, viz_type: VizType, output: Option<&str>) -> Result<()> {
-    let program = match name {
-        "simple" => example_simple(),
-        "branch" => example_branch(),
-        "xor" => example_xor(),
-        "mutex" => example_mutex(),
-        "loop" => example_loop(),
-        _ => {
+    let program = match get_example(name) {
+        Some(p) => p,
+        None => {
             eprintln!("Unknown example: {}", name);
             return Ok(());
         }
@@ -273,6 +277,39 @@ fn example_loop() -> Program {
                 vec![Stmt::assign("x", Expr::var("x").not())],
             ),
             Stmt::assert(Expr::var("x").not()),
+        ],
+    )
+}
+
+fn example_exception() -> Program {
+    // Example with try-catch-finally
+    // try {
+    //   x = true;
+    //   if (error) { throw x; }
+    //   y = false;
+    // } catch (e) {
+    //   y = e;
+    // } finally {
+    //   z = y;
+    // }
+    // assert z;
+    Program::new(
+        "exception",
+        vec![
+            Stmt::try_catch_finally(
+                vec![
+                    Stmt::assign("x", Expr::Lit(true)),
+                    Stmt::if_then(
+                        Expr::var("error"),
+                        vec![Stmt::throw(Expr::var("x"))],
+                    ),
+                    Stmt::assign("y", Expr::Lit(false)),
+                ],
+                Some("e".into()),
+                vec![Stmt::assign("y", Expr::var("e"))],
+                vec![Stmt::assign("z", Expr::var("y"))],
+            ),
+            Stmt::assert(Expr::var("z")),
         ],
     )
 }
