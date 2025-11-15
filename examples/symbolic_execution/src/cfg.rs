@@ -790,4 +790,260 @@ mod tests {
             .count();
         assert_eq!(catch_instruction_count, 2, "Should have 2 catch instructions");
     }
+
+    #[test]
+    fn test_nested_finally() {
+        // try {
+        //   x = true;
+        //   try {
+        //     y = true;
+        //   } catch (e1) {
+        //     z = e1;
+        //   } finally {
+        //     inner_finally = true;
+        //   }
+        //   after_inner = true;
+        // } catch (e2) {
+        //   outer_catch = true;
+        // } finally {
+        //   outer_finally = true;
+        // }
+        let stmts = vec![Stmt::Try {
+            try_body: vec![
+                Stmt::Assign("x".into(), Expr::Lit(true)),
+                Stmt::Try {
+                    try_body: vec![Stmt::Assign("y".into(), Expr::Lit(true))],
+                    catch_var: Some("e1".into()),
+                    catch_body: vec![Stmt::Assign("z".into(), Expr::Var("e1".into()))],
+                    finally_body: vec![Stmt::Assign("inner_finally".into(), Expr::Lit(true))],
+                },
+                Stmt::Assign("after_inner".into(), Expr::Lit(true)),
+            ],
+            catch_var: Some("e2".into()),
+            catch_body: vec![Stmt::Assign("outer_catch".into(), Expr::Lit(true))],
+            finally_body: vec![Stmt::Assign("outer_finally".into(), Expr::Lit(true))],
+        }];
+
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
+        println!("\n{}", cfg);
+
+        // Verify we have finally blocks
+        let has_inner_finally = cfg.blocks.values().any(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i, Instruction::Assign(v, _) if v == "inner_finally"))
+        });
+        let has_outer_finally = cfg.blocks.values().any(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i, Instruction::Assign(v, _) if v == "outer_finally"))
+        });
+        assert!(has_inner_finally, "Should have inner finally block");
+        assert!(has_outer_finally, "Should have outer finally block");
+
+        // Verify after_inner exists (comes after inner try-catch-finally)
+        let has_after_inner = cfg.blocks.values().any(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i, Instruction::Assign(v, _) if v == "after_inner"))
+        });
+        assert!(has_after_inner, "Should have after_inner assignment");
+    }
+
+    #[test]
+    fn test_finally_in_catch() {
+        // try {
+        //   x = true;
+        // } catch (e) {
+        //   in_catch = e;
+        //   try {
+        //     nested_in_catch = true;
+        //   } catch (e2) {
+        //     nested_catch = e2;
+        //   } finally {
+        //     nested_finally = true;
+        //   }
+        // }
+        let stmts = vec![Stmt::Try {
+            try_body: vec![Stmt::Assign("x".into(), Expr::Lit(true))],
+            catch_var: Some("e".into()),
+            catch_body: vec![
+                Stmt::Assign("in_catch".into(), Expr::Var("e".into())),
+                Stmt::Try {
+                    try_body: vec![Stmt::Assign("nested_in_catch".into(), Expr::Lit(true))],
+                    catch_var: Some("e2".into()),
+                    catch_body: vec![Stmt::Assign("nested_catch".into(), Expr::Var("e2".into()))],
+                    finally_body: vec![Stmt::Assign("nested_finally".into(), Expr::Lit(true))],
+                },
+            ],
+            finally_body: vec![],
+        }];
+
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
+        println!("\n{}", cfg);
+
+        // Verify all assignments are present
+        let has_in_catch = cfg.blocks.values().any(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i, Instruction::Assign(v, _) if v == "in_catch"))
+        });
+        let has_nested_finally = cfg.blocks.values().any(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i, Instruction::Assign(v, _) if v == "nested_finally"))
+        });
+
+        assert!(has_in_catch, "Should have in_catch assignment");
+        assert!(has_nested_finally, "Should have nested_finally in catch block");
+    }
+
+    #[test]
+    fn test_multiple_finally() {
+        // try {
+        //   try {
+        //     x = true;
+        //   } finally {
+        //     finally1 = true;
+        //   }
+        //   try {
+        //     y = true;
+        //   } finally {
+        //     finally2 = true;
+        //   }
+        // } finally {
+        //   outer_finally = true;
+        // }
+        let stmts = vec![Stmt::Try {
+            try_body: vec![
+                Stmt::Try {
+                    try_body: vec![Stmt::Assign("x".into(), Expr::Lit(true))],
+                    catch_var: None,
+                    catch_body: vec![],
+                    finally_body: vec![Stmt::Assign("finally1".into(), Expr::Lit(true))],
+                },
+                Stmt::Try {
+                    try_body: vec![Stmt::Assign("y".into(), Expr::Lit(true))],
+                    catch_var: None,
+                    catch_body: vec![],
+                    finally_body: vec![Stmt::Assign("finally2".into(), Expr::Lit(true))],
+                },
+            ],
+            catch_var: None,
+            catch_body: vec![],
+            finally_body: vec![Stmt::Assign("outer_finally".into(), Expr::Lit(true))],
+        }];
+
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
+        println!("\n{}", cfg);
+
+        // Verify all three finally blocks exist
+        let has_finally1 = cfg.blocks.values().any(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i, Instruction::Assign(v, _) if v == "finally1"))
+        });
+        let has_finally2 = cfg.blocks.values().any(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i, Instruction::Assign(v, _) if v == "finally2"))
+        });
+        let has_outer_finally = cfg.blocks.values().any(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i, Instruction::Assign(v, _) if v == "outer_finally"))
+        });
+
+        assert!(has_finally1, "Should have finally1 block");
+        assert!(has_finally2, "Should have finally2 block");
+        assert!(has_outer_finally, "Should have outer_finally block");
+    }
+
+    #[test]
+    fn test_finally_without_catch() {
+        // try {
+        //   x = true;
+        // } finally {
+        //   y = true;
+        // }
+        let stmts = vec![Stmt::Try {
+            try_body: vec![Stmt::Assign("x".into(), Expr::Lit(true))],
+            catch_var: None,
+            catch_body: vec![],
+            finally_body: vec![Stmt::Assign("y".into(), Expr::Lit(true))],
+        }];
+
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
+        println!("\n{}", cfg);
+
+        // Verify finally block exists even without catch
+        let has_finally = cfg
+            .blocks
+            .values()
+            .any(|b| b.instructions.iter().any(|i| matches!(i, Instruction::Assign(v, _) if v == "y")));
+        assert!(has_finally, "Should have finally block even without catch");
+
+        // Verify no catch instruction exists
+        let has_catch = cfg
+            .blocks
+            .values()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i, Instruction::Catch(_)));
+        assert!(!has_catch, "Should not have catch instruction when no catch block");
+    }
+
+    #[test]
+    fn test_exception_flow_with_finally() {
+        // Verify exception propagates through finally blocks:
+        // try {
+        //   x = true;
+        //   throw x;
+        // } catch (e) {
+        //   y = e;
+        // } finally {
+        //   z = true;
+        // }
+        let stmts = vec![Stmt::Try {
+            try_body: vec![Stmt::Assign("x".into(), Expr::Lit(true)), Stmt::Throw(Expr::Var("x".into()))],
+            catch_var: Some("e".into()),
+            catch_body: vec![Stmt::Assign("y".into(), Expr::Var("e".into()))],
+            finally_body: vec![Stmt::Assign("z".into(), Expr::Lit(true))],
+        }];
+
+        let cfg = ControlFlowGraph::from_stmts(&stmts);
+        println!("\n{}", cfg);
+
+        // Find throw block
+        let throw_block_id = cfg
+            .blocks
+            .iter()
+            .find(|(_, b)| b.instructions.iter().any(|i| matches!(i, Instruction::Throw(_))))
+            .map(|(id, _)| *id);
+        assert!(throw_block_id.is_some(), "Should have throw instruction");
+
+        // Verify throw block has trap context
+        let throw_block = cfg.get_block(throw_block_id.unwrap()).unwrap();
+        assert!(throw_block.trap_context.is_some(), "Throw block should have trap context");
+
+        // Verify trap context points to catch and finally
+        let trap_ctx = throw_block.trap_context.as_ref().unwrap();
+        assert!(trap_ctx.catch_target.is_some(), "Should have catch target");
+        assert!(trap_ctx.finally_target.is_some(), "Should have finally target");
+
+        // Verify catch and finally blocks exist and have correct instructions
+        let catch_block = cfg.get_block(trap_ctx.catch_target.unwrap()).unwrap();
+        assert!(
+            catch_block.instructions.iter().any(|i| matches!(i, Instruction::Catch(_))),
+            "Catch block should have Catch instruction"
+        );
+
+        let finally_block = cfg.get_block(trap_ctx.finally_target.unwrap()).unwrap();
+        assert!(
+            finally_block
+                .instructions
+                .iter()
+                .any(|i| matches!(i, Instruction::Assign(v, _) if v == "z")),
+            "Finally block should have z assignment"
+        );
+    }
 }

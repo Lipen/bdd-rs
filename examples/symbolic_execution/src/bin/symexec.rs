@@ -71,9 +71,12 @@ fn get_example(name: &str) -> Option<Program> {
         "loop" => Some(example_loop()),
         "exception" => Some(example_exception()),
         "nested_exception" => Some(example_nested_exception()),
+        "nested_finally" => Some(example_nested_finally()),
+        "finally_in_catch" => Some(example_finally_in_catch()),
+        "multiple_finally" => Some(example_multiple_finally()),
         _ => {
             eprintln!("Unknown example: {}", name);
-            eprintln!("Available: simple, branch, xor, mutex, loop, exception, nested_exception");
+            eprintln!("Available: simple, branch, xor, mutex, loop, exception, nested_exception, nested_finally, finally_in_catch, multiple_finally");
             None
         }
     }
@@ -327,6 +330,139 @@ fn example_nested_exception() -> Program {
                 vec![Stmt::assign("x", Expr::var("e2"))],
             ),
             Stmt::assert(Expr::var("x")),
+        ],
+    )
+}
+
+fn example_nested_finally() -> Program {
+    // Nested try-catch-finally example
+    // try {
+    //   x = true;
+    //   try {
+    //     y = true;
+    //     if (inner_error) { throw y; }
+    //   } catch (e1) {
+    //     z = e1;
+    //   } finally {
+    //     inner_finally = true;
+    //   }
+    //   after_inner = true;
+    // } catch (e2) {
+    //   outer_catch = true;
+    // } finally {
+    //   outer_finally = true;
+    // }
+    // assert outer_finally;
+    Program::new(
+        "nested_finally",
+        vec![
+            Stmt::try_catch_finally(
+                vec![
+                    Stmt::assign("x", Expr::Lit(true)),
+                    Stmt::try_catch_finally(
+                        vec![
+                            Stmt::assign("y", Expr::Lit(true)),
+                            Stmt::if_then(Expr::var("inner_error"), vec![Stmt::throw(Expr::var("y"))]),
+                        ],
+                        Some("e1".into()),
+                        vec![Stmt::assign("z", Expr::var("e1"))],
+                        vec![Stmt::assign("inner_finally", Expr::Lit(true))],
+                    ),
+                    Stmt::assign("after_inner", Expr::Lit(true)),
+                ],
+                Some("e2".into()),
+                vec![Stmt::assign("outer_catch", Expr::Lit(true))],
+                vec![Stmt::assign("outer_finally", Expr::Lit(true))],
+            ),
+            Stmt::assert(Expr::var("outer_finally")),
+        ],
+    )
+}
+
+fn example_finally_in_catch() -> Program {
+    // Try-catch where catch block contains try-finally
+    // try {
+    //   x = true;
+    //   if (error) { throw x; }
+    // } catch (e) {
+    //   in_catch = e;
+    //   try {
+    //     nested_in_catch = true;
+    //     if (nested_error) { throw nested_in_catch; }
+    //   } catch (e2) {
+    //     nested_catch = e2;
+    //   } finally {
+    //     nested_finally = true;
+    //   }
+    // }
+    // assert nested_finally;
+    Program::new(
+        "finally_in_catch",
+        vec![
+            Stmt::try_catch(
+                vec![
+                    Stmt::assign("x", Expr::Lit(true)),
+                    Stmt::if_then(Expr::var("error"), vec![Stmt::throw(Expr::var("x"))]),
+                ],
+                Some("e".into()),
+                vec![
+                    Stmt::assign("in_catch", Expr::var("e")),
+                    Stmt::try_catch_finally(
+                        vec![
+                            Stmt::assign("nested_in_catch", Expr::Lit(true)),
+                            Stmt::if_then(Expr::var("nested_error"), vec![Stmt::throw(Expr::var("nested_in_catch"))]),
+                        ],
+                        Some("e2".into()),
+                        vec![Stmt::assign("nested_catch", Expr::var("e2"))],
+                        vec![Stmt::assign("nested_finally", Expr::Lit(true))],
+                    ),
+                ],
+            ),
+            Stmt::assert(Expr::var("nested_finally")),
+        ],
+    )
+}
+
+fn example_multiple_finally() -> Program {
+    // Multiple sequential try-finally blocks in an outer try-finally
+    // try {
+    //   try {
+    //     x = true;
+    //   } finally {
+    //     finally1 = true;
+    //   }
+    //   try {
+    //     y = true;
+    //   } finally {
+    //     finally2 = true;
+    //   }
+    // } finally {
+    //   outer_finally = true;
+    // }
+    // assert (finally1 && finally2 && outer_finally);
+    Program::new(
+        "multiple_finally",
+        vec![
+            Stmt::try_catch_finally(
+                vec![
+                    Stmt::try_catch_finally(
+                        vec![Stmt::assign("x", Expr::Lit(true))],
+                        None,
+                        vec![],
+                        vec![Stmt::assign("finally1", Expr::Lit(true))],
+                    ),
+                    Stmt::try_catch_finally(
+                        vec![Stmt::assign("y", Expr::Lit(true))],
+                        None,
+                        vec![],
+                        vec![Stmt::assign("finally2", Expr::Lit(true))],
+                    ),
+                ],
+                None,
+                vec![],
+                vec![Stmt::assign("outer_finally", Expr::Lit(true))],
+            ),
+            Stmt::assert(Expr::var("finally1").and(Expr::var("finally2")).and(Expr::var("outer_finally"))),
         ],
     )
 }
