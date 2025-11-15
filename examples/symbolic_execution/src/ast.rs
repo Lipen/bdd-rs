@@ -35,33 +35,52 @@ pub enum Expr {
     Eq(Box<Expr>, Box<Expr>),
 }
 
+// Constructors and operators
 impl Expr {
     pub fn var(name: impl Into<String>) -> Self {
         Expr::Var(name.into())
     }
 
+    pub fn mk_and(lhs: Expr, rhs: Expr) -> Self {
+        Expr::And(Box::new(lhs), Box::new(rhs))
+    }
     pub fn and(self, other: Expr) -> Self {
-        Expr::And(Box::new(self), Box::new(other))
+        Self::mk_and(self, other)
     }
 
+    pub fn mk_or(lhs: Expr, rhs: Expr) -> Self {
+        Expr::Or(Box::new(lhs), Box::new(rhs))
+    }
     pub fn or(self, other: Expr) -> Self {
-        Expr::Or(Box::new(self), Box::new(other))
+        Self::mk_or(self, other)
     }
 
+    pub fn mk_not(e: Expr) -> Self {
+        Expr::Not(Box::new(e))
+    }
     pub fn not(self) -> Self {
-        Expr::Not(Box::new(self))
+        Self::mk_not(self)
     }
 
+    pub fn mk_xor(lhs: Expr, rhs: Expr) -> Self {
+        Expr::Xor(Box::new(lhs), Box::new(rhs))
+    }
     pub fn xor(self, other: Expr) -> Self {
-        Expr::Xor(Box::new(self), Box::new(other))
+        Self::mk_xor(self, other)
     }
 
+    pub fn mk_implies(lhs: Expr, rhs: Expr) -> Self {
+        Expr::Implies(Box::new(lhs), Box::new(rhs))
+    }
     pub fn implies(self, other: Expr) -> Self {
-        Expr::Implies(Box::new(self), Box::new(other))
+        Self::mk_implies(self, other)
     }
 
+    pub fn mk_eq(lhs: Expr, rhs: Expr) -> Self {
+        Expr::Eq(Box::new(lhs), Box::new(rhs))
+    }
     pub fn eq(self, other: Expr) -> Self {
-        Expr::Eq(Box::new(self), Box::new(other))
+        Self::mk_eq(self, other)
     }
 }
 
