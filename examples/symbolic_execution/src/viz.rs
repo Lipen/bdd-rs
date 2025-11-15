@@ -131,13 +131,13 @@ fn ast_stmt_to_dot(stmt: &Stmt, dot: &mut String, counter: &mut usize, parent: O
 
             // Catch body
             if !catch_body.is_empty() {
+                let catch_id = ast_stmts_to_dot(catch_body, dot, counter, Some(id), "catch");
                 let catch_label = if let Some(var) = catch_var {
                     format!("catch ({})", var)
                 } else {
                     "catch".to_string()
                 };
-                let catch_id = ast_stmts_to_dot(catch_body, dot, counter, Some(id), &catch_label);
-                writeln!(dot, "  n{} -> n{} [label=\"exception\"];", id, catch_id).unwrap();
+                writeln!(dot, "  n{} -> n{} [label=\"{}\"];", id, catch_id, catch_label).unwrap();
             }
 
             // Finally body
