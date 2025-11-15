@@ -284,7 +284,7 @@ fn example_exception() -> Program {
     // } finally {
     //   z = y;
     // }
-    // assert z;
+    // assert (error => z);
     Program::new(
         "exception",
         vec![
@@ -298,7 +298,7 @@ fn example_exception() -> Program {
                 vec![Stmt::assign("y", Expr::var("e"))],
                 vec![Stmt::assign("z", Expr::var("y"))],
             ),
-            Stmt::assert(Expr::var("z")),
+            Stmt::assert(Expr::var("error").implies(Expr::var("z"))),
         ],
     )
 }
