@@ -12,6 +12,7 @@ repository = "https://github.com/Lipen/bdd-rs"
 members = [
     "examples/eda",
     "examples/feature_model",
+    "examples/symbolic_execution",
 ]
 
 [dependencies]
