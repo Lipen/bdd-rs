@@ -1198,38 +1198,39 @@ This is one of model checking's most valuable features: not just "property fails
 During fixpoint computation, we can record *predecessor information* to reconstruct paths.
 
 *Algorithm for Safety Property* $op("AG") phi$:
+#v(-1em)
+#lovelace.pseudocode-list(hooks: 0.5em)[
+  *function* check_AG(phi):
+  + $Z := S$
+  + $"pred" := "empty_map"()$  $quad slash.double$ (maps state to predecessor)
 
-```
-check_AG(phi):
-  // Compute greatest fixpoint with predecessor tracking
-  Z := S
-  pred := empty_map()  // maps state to predecessor
+  + *loop*:
+    + $Z_"old" := Z$
+    + $Z := "SAT"(phi) inter op("AX") (Z)$
 
-  loop:
-    Z_old := Z
-    Z := SAT(phi) ∩ AX(Z)
+    + // Record predecessors for states leaving Z
+    + *for each* state $s$ in $Z_"old" without Z$:
+      + *for each* $s'$ such that $(s, s') in T$ and $s' in.not Z$:
+        + $"pred"[s'] := s$  $quad slash.double$ ($s$ can reach bad state $s'$)
 
-    // Record predecessors for states leaving Z
-    for each state s in Z_old \ Z:
-      for each s' such that (s, s') in T and s' ∉ Z:
-        pred[s'] := s  // s can reach bad state s'
+    + *if* $Z = Z_"old"$ *then* *break*
 
-    if Z = Z_old: break
-
-  // Check if property holds
-  if initial ⊆ Z:
-    return "Property holds"
-  else:
-    // Extract counterexample
-    return extract_path(initial, pred)
-
-extract_path(s, pred):
-  path := [s]
-  while s in pred:
-    s := pred[s]
-    path.append(s)
-  return path
-```
+  + // Check if property holds
+  + *if* $"initial" subset.eq Z$:
+    + *return* "Property holds"
+  + *else*:
+    + // Extract counterexample
+    + *return* $"extract_path"("initial", "pred")$
+]
+#v(-1em)
+#lovelace.pseudocode-list(hooks: 0.5em)[
+  *function* $"extract_path"(s, "pred")$:
+  + $"path" := [s]$
+  + *while* $s in "pred"$:
+    + $s := "pred"[s]$
+    + Add $s$ to $"path"$
+  + *return* $"path"$
+]
 
 #example(name: "Counterexample for Mutual Exclusion")[
   Property: $op("AG") (not ("crit"_1 and "crit"_2))$ (never both in critical section)
