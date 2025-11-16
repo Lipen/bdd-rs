@@ -1111,11 +1111,11 @@ Let's work through a complete example to see how CTL properties capture real sys
 
   Converges to $R = "states from which response is inevitable"$.
 
-  *Subformula 2:* $"request" => op("AF") "response"$ --- equivalent to $not "request" or op("AF") "response"$
+  *Subformula 2:* $("request" => op("AF") "response")$ --- equivalent to $(not "request" or op("AF") "response")$
 
   $ phi_"rr" = (not "request") or R $
 
-  *Main formula:* $op("AG") phi_"rr"$ --- always holds
+  *Main formula:* $(op("AG") phi_"rr")$ --- always holds
 
   Using $op("AG") phi = nu Z. thin phi and op("AX") Z$:
 
