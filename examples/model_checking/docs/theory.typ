@@ -147,13 +147,18 @@ For a system with $n$ boolean variables, the state space size grows as:
 
 $ |S| = 2^n $
 
-This exponential growth with the number of variables makes exhaustive enumeration quickly infeasible:
-- 10 variables $=>$ 1,024 states
-- 20 variables $=>$ 1,048,576 states
-- 30 variables $=>$ 1,073,741,824 states (over a billion)
-- 100 variables $=>$ $1.27 times 10^30$ states (impossible to enumerate)
+This exponential growth makes exhaustive enumeration quickly infeasible.
+Consider how rapidly the numbers escalate:
+- 10 variables $=>$ 1,024 states (trivial)
+- 20 variables $=>$ 1,048,576 states (still manageable)
+- 30 variables $=>$ 1,073,741,824 states (over a billion — getting difficult)
+- 100 variables $=>$ $1.27 times 10^30$ states (more states than atoms in a trillion universes)
 
-Traditional _explicit-state_ model checking stores each state individually, making verification infeasible for systems with more than a few million states.
+To put this in perspective: if you could check one billion states per second, verifying a 100-variable system would take longer than the age of the universe — multiplied by $10^21$.
+
+Traditional _explicit-state_ model checking stores and manipulates each state individually.
+Even with optimizations like hash tables and efficient graph algorithms, this approach hits a wall around $10^7$ to $10^8$ states.
+Yet real systems routinely have $10^20$ states or more.
 
 Real systems easily exceed these limits:
 - A simple mutual exclusion protocol with 10 processes: $> 10^10$ states
@@ -204,9 +209,21 @@ Using *Binary Decision Diagrams (BDDs)*, we can represent these characteristic f
 
 This compression makes it possible to verify systems with $10^20$ states or more—systems that were intractable with explicit-state methods.
 
-The compression works because many real systems have _structure_: states aren't random but follow patterns determined by the system's logic.
-BDDs exploit this structure through _sharing_: common subformulas are represented once and reused throughout.
-We'll see how this works in detail in the Implementation section (Section 7).
+Why does this compression work so well in practice?
+The answer lies in the inherent _regularity_ of engineered systems.
+Real hardware and software aren't random — they're designed with regular patterns:
+- Counters increment predictably
+- Buses transfer data according to fixed protocols
+- Control logic follows structured state machines
+- Parallel components often behave symmetrically
+
+BDDs exploit this structure through two mechanisms.
+First, _sharing_: when multiple parts of the system check "is the buffer full?" or "is the counter zero?", the BDD represents that test once and all components share it.
+Second, _reduction_: redundant decisions ("does this matter?") are eliminated automatically.
+
+The result: regular structure in the system translates directly to compact BDD representation.
+The more regular your system, the better the compression.
+We'll see the precise mechanics of how this works in the Implementation section (Section 7).
 
 = Preliminaries
 
@@ -427,7 +444,18 @@ Let's build a complete transition system for a 2-bit counter that increments mod
 
 = Symbolic State Space Exploration
 
-With symbolic representations of states and transitions established, the exploration of state space requires two operations: *image* (forward reachability) and *preimage* (backward reachability).
+With symbolic representations of states and transitions in hand, we can now ask: how do we actually _explore_ the state space?
+
+Model checking requires answering reachability questions:
+- "Can the system reach an error state?"
+- "From these states, where can execution go?"
+- "Which states can lead to this condition?"
+
+In explicit-state model checking, we'd iterate through states one at a time, following transitions.
+But with symbolic representation, we can do something far more powerful: compute the successors (or predecessors) of _millions of states simultaneously_ using Boolean operations.
+
+This requires two dual operations: *image* (forward reachability — "where can we go?") and *preimage* (backward reachability — "how did we get here?").
+These are the workhorses of symbolic model checking.
 
 == Image: Forward Reachability
 
@@ -448,13 +476,30 @@ Recall from the definition above that $S(v)$ denotes the characteristic function
 
 === Computing the Image
 
-The image computation symbolically computes successor states using three steps:
+The image computation might seem abstract at first, but it's performing a simple conceptual operation: finding all successors.
+Let's break down how this works symbolically.
 
-+ *Conjunction*: $S(v) and T(v, v')$ --- combine current states (as Boolean function $S$) with transition relation $T$ (as a Boolean function over present and next state variables)
-+ *Existential quantification*: $exists v . thin (S(v) and T(v, v'))$ --- eliminate present-state variables $v = (v_1, ..., v_n)$
-+ *Variable renaming*: Rename next-state variables $v' => v$ to obtain result as function of present-state variables
+The computation proceeds in three steps:
 
-The result is a Boolean formula in variables $v$ representing the set of successor states.
++ *Conjunction*: $S(v) and T(v, v')$
+
+  This combines the current states with the transition relation.
+  Think of it as saying: "Consider all valid transitions $(v, v')$ where the source $v$ is in our current set $S$."
+  The result is a Boolean function that's true for pairs $(v, v')$ representing valid transitions from $S$.
+
++ *Existential quantification*: $exists v . thin (S(v) and T(v, v'))$
+
+  This eliminates the current-state variables $v = (v_1, ..., v_n)$, leaving only the next-state variables $v'$.
+  Conceptually: "For each potential successor $v'$, is there _some_ state in $S$ that can transition to it?"
+  If yes, include $v'$ in the result; if no, exclude it.
+
++ *Variable renaming*: Rename next-state variables $v' => v$
+
+  This is bookkeeping: we rename the primed variables back to unprimed so the result is expressed in the same variable space as the input.
+
+The result is a Boolean formula representing exactly the set of all states reachable in one step from $S$.
+
+The beauty of this approach: we compute successors for _all states in $S$ simultaneously_ using Boolean operations, never enumerating individual states.
 
 #note[
   *Understanding Existential Quantification*:
@@ -757,13 +802,24 @@ The mu-calculus notation can be initially perplexing for several reasons:
 = CTL Model Checking
 
 CTL (Computation Tree Logic) provides a formal language for specifying properties about how systems evolve over time.
-Building on the fixpoint foundations established in Section 4, CTL model checking reduces temporal reasoning to iterative set computations.
-Every CTL operator corresponds directly to a fixpoint computation, making the logic both mathematically precise and computationally tractable.
+Why do we need such a logic?
+Because the properties we care about in verification are inherently _temporal_:
+- "The system never reaches a deadlock state" (safety)
+- "Every request eventually receives a response" (liveness)
+- "If the alarm triggers, the system must eventually reset" (response)
+- "The mutex is never held by two processes simultaneously" (mutual exclusion)
+
+Ordinary propositional logic can express properties of individual states ("the light is green") but cannot express how states relate across time ("the light is _eventually_ green" or "the light is green _until_ a car arrives").
+
+CTL provides operators that quantify over possible execution paths.
+Building on the fixpoint foundations established in Section 4, CTL model checking reduces these temporal properties to iterative set computations.
+Every CTL operator corresponds directly to a fixpoint computation, making the logic both mathematically precise and computationally tractable with BDDs.
 
 == The Computation Tree
 
-From any state, multiple futures may be possible due to non-determinism.
+From any state, multiple futures may be possible due to non-determinism — different scheduling choices, environment inputs, or random events.
 This creates a tree structure where each node is a state and each path represents one possible execution sequence.
+The tree _branches_ at points where the system has choices.
 
 #example(name: "Computation Tree")[
   For a system with non-deterministic choice:
@@ -779,6 +835,12 @@ This creates a tree structure where each node is a state and each path represent
   ```
 
   Each path from root to leaves represents one possible execution.
+  From $s_0$, the system can move to either $s_1$ or $s_2$ (non-deterministic choice).
+  From $s_1$, there are again two possibilities.
+  From $s_2$, only one transition is possible.
+
+  When we verify a property, we need to specify: do we require the property to hold on _all_ paths, or is it sufficient that it holds on _some_ path?
+  This is where CTL's path quantifiers (*A* = "for all paths", *E* = "there exists a path") become essential.
 ]
 
 == CTL Syntax
@@ -803,9 +865,16 @@ This creates a tree structure where each node is a state and each path represent
 === Temporal Operators
 
 - *X* (neXt): Property holds in the immediate next state
+  Think: "tomorrow"
+
 - *F* (Finally): Property eventually becomes true (in the Future)
+  Think: "sometime in the future" — we don't know when, but it happens
+
 - *G* (Globally): Property remains true forever (Always)
+  Think: "always" — now and for all time to come
+
 - *U* (Until): First property holds until second becomes true
+  Think: "I'll keep working _until_ I finish" — the first condition persists up to the moment the second occurs
 
 === CTL Operators: Informal Semantics
 
@@ -1019,9 +1088,36 @@ Let's work through a complete example to see how CTL properties capture real sys
   State $s_2$ would _not_ be in $R$ (response inevitable), so $s_1 in.not W_"final"$, and the model checker would report this path as a counterexample.
 ]
 
+=== The Model Checking Workflow
+
+Putting it all together, model checking a CTL property $phi$ proceeds as follows:
+
++ *Build the transition system*: Encode the system as $(S, I, T, L)$ with BDDs
++ *Parse the property*: Break $phi$ into subformulas, identify which fixpoint computations are needed
++ *Compute bottom-up*: Evaluate subformulas from atomic propositions up to the full formula, each via fixpoint iteration
++ *Check initial states*: Verify whether $I subset.eq [[ phi ]]$ (all initial states satisfy $phi$)
++ *Generate counterexample* (if needed): If property fails, extract a witness path showing the violation
+
+Each fixpoint iteration uses image/preimage operations (Section 3) on BDD representations.
+The finite state space guarantees termination.
+The canonical BDD representation makes fixpoint detection trivial — just compare node pointers.
+
+This is the heart of symbolic CTL model checking: temporal logic reduces to iterated Boolean operations on compact representations.
+
 == Fixpoint Characterization
 
 The key insight for symbolic model checking is that CTL operators can be computed as fixpoints of monotone functions over sets of states.
+This connection transforms temporal questions ("will $phi$ eventually hold?") into iterative set computations ("keep expanding until we include all relevant states").
+
+Let's understand _why_ these fixpoint characterizations make sense intuitively:
+
+- $op("EF") phi = mu Z. thin phi or op("EX") Z$: "Eventually $phi$" means either $phi$ holds now, or we can reach a state where "eventually $phi$" holds. Start with states satisfying $phi$, then add states that can reach them in one step, repeat.
+
+- $op("EG") phi = nu Z. thin phi and op("EX") Z$: "Always $phi$" means $phi$ holds now _and_ we can stay in states where "always $phi$" holds. Start with all states, keep only those satisfying $phi$ with good successors.
+
+- $op("E")[phi rel("U") psi] = mu Z. thin psi or (phi and op("EX") Z)$: "$phi$ until $psi$" means either $psi$ holds now (done!), or $phi$ holds now and we can reach a state where "$phi$ until $psi$" holds.
+
+The pattern: least fixpoints ($mu$) for "eventually" properties (build up from goals), greatest fixpoints ($nu$) for "always" properties (maintain invariants).
 
 #theorem(name: "CTL Fixpoint Characterization")[
   The CTL temporal operators have the following fixpoint characterizations:
@@ -1036,6 +1132,38 @@ The key insight for symbolic model checking is that CTL operators can be compute
   $
 
   where:
+  - $mu Z. thin f(Z)$ denotes the least fixpoint (smallest set satisfying $Z = f(Z)$)
+  - $nu Z. thin f(Z)$ denotes the greatest fixpoint (largest set satisfying $Z = f(Z)$)
+]
+
+=== Understanding Through Iteration
+
+Let's see how $op("EF") "error"$ computes by examining the iteration:
+
+#example(name: "Iterative Computation of EF")[
+  Computing $op("EF") "error"$ asks: "Which states can possibly reach an error state?"
+
+  Using $op("EF") "error" = mu Z. thin "error" or op("EX") Z$:
+
+  $
+    Z_0 & = emptyset quad & "(start with empty set)" \
+    Z_1 & = "error" or op("EX") Z_0 = "error" quad & "(states where error holds now)" \
+    Z_2 & = "error" or op("EX") Z_1 quad & "(add states reaching error in 1 step)" \
+    Z_3 & = "error" or op("EX") Z_2 quad & "(add states reaching error in" <= 2 "steps)" \
+  $
+
+  This continues, expanding the set backward through the transition relation.
+  At each iteration, we add states that can reach the previous set in one step.
+
+  *Termination*: Eventually $Z_k = Z_(k+1)$ because:
+  - State space is finite
+  - Set sequence is monotonically increasing: $Z_0 subset.eq Z_1 subset.eq Z_2 subset.eq ...$
+  - Cannot grow indefinitely
+
+  When iteration stabilizes, we've found _all_ states that can possibly reach an error.
+  If the initial state is in this set, the system has a path to error.
+
+  The formula shows:
   - $mu Z. thin f(Z)$ denotes the *least fixpoint* (start from $emptyset$, iterate)
   - $nu Z. thin f(Z)$ denotes the *greatest fixpoint* (start from $S$, iterate)
 ]
@@ -1656,6 +1784,13 @@ This example demonstrates the conceptual structure of model checking:
 
 Temporal logics come in multiple flavors, each with distinct strengths.
 While this document focuses on CTL, understanding how it relates to Linear Temporal Logic (LTL) --- another major temporal logic for verification --- provides valuable perspective on expressiveness trade-offs and practical verification choices.
+
+The fundamental difference: LTL reasons about individual execution paths ("on this particular run..."), while CTL reasons about the tree of all possible executions ("on all branches..." or "on some branch...").
+This leads to complementary strengths:
+- LTL naturally expresses fairness and liveness properties ("infinitely often")
+- CTL efficiently computes using fixpoints and handles branching-time properties ("on all paths eventually, there exists a path")
+
+In practice, neither subsumes the other — each can express properties the other cannot.
 This section compares the two logics and explains when to use each.
 
 == LTL: Path-Based Logic
@@ -2186,6 +2321,9 @@ fn rename(&self, f: Ref, from_vars: &[usize], to_vars: &[usize]) -> Ref {
 
 == Reachability Analysis
 
+Reachability analysis answers the question: "Starting from the initial states, which states can the system reach through any sequence of transitions?"
+This is perhaps the most fundamental analysis in model checking.
+
 Forward reachability computes all states reachable from initial states:
 
 ```rust
@@ -2205,12 +2343,21 @@ fn reachable(&self) -> Ref {
 }
 ```
 
+The algorithm is beautifully simple:
+- Start with initial states
+- Repeatedly compute successors and add them to the reached set
+- Stop when no new states are found (fixpoint)
+
 The loop terminates because:
 + The state space $S$ is finite
 + Each iteration either adds new states or reaches a fixpoint
-+ Monotonicity: $R_i subset.eq R_(i+1)$
++ Monotonicity: $R_i subset.eq R_(i+1)$ (the reached set only grows)
++ Eventually $R_k = S$ or we reach all reachable states
 
-In practice, convergence is often fast, typically logarithmic in the diameter of the state graph.
+*Convergence rate*: In practice, convergence is often remarkably fast — typically logarithmic in the diameter of the state graph.
+Why? Because BDD operations work on large sets at once.
+Each iteration doesn't add just one state; it might add millions.
+A system with a billion reachable states might converge in 30-40 iterations.
 
 *Key insight*: Symbolic reachability avoids enumerating individual states.
 Instead of iterating over billions of states, we perform a handful of BDD operations, each manipulating sets containing millions of states.
@@ -2470,6 +2617,11 @@ This section covers the most important optimizations used in practice.
 === Early Termination
 
 Many fixpoint computations can terminate early when the answer is known.
+This seemingly simple optimization can provide orders of magnitude speedup.
+
+Why? Consider checking if an error is reachable.
+If the error is reachable in just 5 steps, why compute the full fixpoint that might take 50 iterations?
+Early termination recognizes when we've found the answer and stops immediately.
 
 #example(name: "Early Termination in EF")[
   When checking $op("EF") phi$:
@@ -2481,14 +2633,17 @@ Many fixpoint computations can terminate early when the answer is known.
       + *return* true
     + loop:
       + $Z_"new" := Z union "Pre"(Z)$
-      + *if* $Z_"new" inter "initial" != emptyset$:  $quad slash.double$ Found
+      + *if* $Z_"new" inter "initial" != emptyset$:  $quad slash.double$ Found a path!
         + *return* true
-      + *if* $Z_"new" = Z$: *break*
+      + *if* $Z_"new" = Z$: *break*  $quad slash.double$ Fixpoint reached
       + $Z := Z_"new"$
     + *return* false  $quad slash.double$ No path exists
   ]
 
-  Instead of computing entire fixpoint, stop as soon as we reach initial states.
+  Instead of computing the entire fixpoint, we stop as soon as we reach initial states.
+
+  *Practical impact*: For a bug reachable in 10 steps on a system with diameter 100, this provides a 10× speedup.
+  For safety-critical systems where errors should be rare (or absent), early termination when finding bugs is particularly valuable for debugging.
 ]
 
 #example(name: "Early Termination in AG")[
@@ -2546,6 +2701,13 @@ Instead of monolithic $T(v,v')$, use conjunctive partitioning.
 === Dynamic Variable Reordering
 
 BDD size is highly sensitive to variable ordering.
+The same Boolean function can require 40 nodes with a good ordering but over 1 million nodes with a poor ordering.
+This isn't just a performance issue — it's often the difference between success and failure.
+
+What makes an ordering "good"?
+Generally, grouping related variables together.
+Variables that frequently interact in the system logic should be close in the ordering to maximize structural sharing.
+For example, in a circuit with multiple identical modules, the variables for each module should be grouped together.
 
 #example(name: "Ordering Impact")[
   Function: $f(x_1, ..., x_n, y_1, ..., y_n) = (x_1 and y_1) or ... or (x_n and y_n)$
@@ -2745,13 +2907,22 @@ This combination makes the algorithm both theoretically sound and practically ef
 *Practical impact*:
 
 Symbolic model checking transformed verification from laboratory curiosity to industrial practice.
-Hardware companies use it routinely to verify processor designs, cache coherence protocols, and communication buses.
+The impact has been particularly profound in hardware verification, where BDD-based tools became standard practice in the 1990s and remain crucial today.
+
+Hardware companies use symbolic model checking routinely:
+- *Processor verification*: Checking instruction pipelines, branch prediction, cache consistency
+- *Cache coherence*: Verifying protocols like MESI, MOESI for multi-core processors
+- *Communication buses*: Ensuring correct arbitration, deadlock freedom
+- *Memory controllers*: Verifying correct ordering, atomicity guarantees
+
 The technique has found bugs in deployed systems that escaped years of testing.
-It provides mathematical guarantees of correctness for safety-critical components:
-- *Hardware verification*: Cache coherence protocols, processor designs
-- *Safety-critical systems*: Control systems where failure has severe consequences
-- *Concurrent systems*: Distributed algorithms, protocols, concurrent programs where testing struggles with combinatorial state explosion
-- *Bug detection*: Finding subtle corner cases that testing would miss
+These aren't just theoretical bugs — these are real defects that would have caused system failures, data corruption, or security vulnerabilities in production.
+
+Beyond hardware, symbolic model checking addresses verification challenges where testing struggles:
+- *Safety-critical control systems*: Medical devices, automotive controllers, avionics — where mathematical proof of correctness is essential
+- *Concurrent protocols*: Distributed algorithms, synchronization primitives — where the state space explodes combinatorially with the number of concurrent processes
+- *Security properties*: Access control policies, cryptographic protocols — where subtle corner-case violations have serious consequences
+- *Bug detection*: Finding rare race conditions, deadlocks, assertion violations that would take millions of random test runs to trigger
 
 == The Power of BDDs
 
@@ -2838,6 +3009,29 @@ However, on random or highly irregular logic, even sophisticated reordering heur
   This exponential difference --- from $Theta(2^n)$ to $O(n)$ --- illustrates why variable ordering is important for BDD efficiency.
   Finding optimal orderings is NP-complete, but heuristics based on system structure often work well in practice.
 ]
+
+=== Practical Guidance: When to Use BDDs
+
+*Use BDDs when your system has:*
+- Regular structure (counters, state machines, repeating patterns)
+- Control-dominated logic (not arithmetic-heavy)
+- Local dependencies (changes affect few variables)
+- Moderate symmetry (identical components behaving similarly)
+
+*Consider alternatives when facing:*
+- Heavy arithmetic (multiplication, division, modulo)
+- Irregular random logic (hash functions, cryptography)
+- Dense dependencies (every variable affects many others)
+- Unstructured problem encodings
+
+*Hybrid approaches often work best:*
+- Use BDDs for control logic, SAT for arithmetic constraints
+- Abstract arithmetic operations (e.g., increment without bit-level detail)
+- Partition the system: BDDs for well-structured parts, other methods elsewhere
+- Start with BDDs; if they fail, understand why and choose appropriate alternative
+
+The key insight: BDDs aren't a universal solution, but for the right problems --- particularly control-intensive hardware and protocols --- they're remarkably effective.
+Recognizing when you have the \"right problem\" is part of the verification engineer's craft.
 
 === Complementary Techniques
 
@@ -2968,3 +3162,33 @@ A single verification campaign might employ BDDs for control, SAT for datapaths,
   Techniques that seemed impractical decades ago --- SAT solving on millions of variables, IC3's inductive invariant synthesis --- now form the backbone of industrial verification.
   Understanding when and how to apply each technique remains as much art as science, requiring both theoretical knowledge and practical experience.
 ]
+
+= Conclusion: From Theory to Practice
+
+This document has presented the theoretical foundations of symbolic model checking with BDDs: from the basic idea of representing sets as Boolean functions, through the mechanics of image computation and fixpoint iteration, to the algorithms for CTL model checking and the practical optimizations that make it all work.
+
+The theory is elegant: temporal logic reduces to fixpoint computation, fixpoints reduce to iterated Boolean operations, and Boolean operations have efficient BDD implementations.
+This chain of reductions transforms the seemingly intractable problem of exhaustive state space exploration into practical verification of systems with $10^20$ states or more.
+
+But theory alone isn't enough.
+Successful verification requires understanding when BDDs work well (regular structure, local dependencies) and when they struggle (arithmetic, irregular logic).
+It requires knowing the right optimizations (early termination, conjunction scheduling, dynamic reordering) and recognizing when hybrid approaches combining multiple techniques yield the best results.
+
+The `bdd-rs` library provides the core BDD data structure and operations needed to implement these algorithms.
+With hash consing for canonical representation, operation caching for efficiency, and a clean API for composing operations, it gives you the building blocks to construct model checkers, equivalence checkers, and other BDD-based verification tools.
+
+What you build on top --- whether it's a CTL model checker, a reachability analyzer, or a custom verification tool tailored to your domain --- depends on understanding the theory presented here and applying it wisely to your specific verification challenges.
+
+*The journey from theory to working implementation*:
++ Understand your system's structure (is it regular? arithmetic-heavy? control-dominated?)
++ Choose appropriate encodings (variable ordering matters!)
++ Implement the core algorithms (image, fixpoint, CTL operators)
++ Add optimizations incrementally (start simple, optimize where needed)
++ Measure and iterate (BDD sizes, iteration counts, bottlenecks)
++ Know when to try alternatives (if BDDs struggle, understand why)
+
+Symbolic model checking with BDDs represents a remarkable success story in computer science: elegant theory yielding practical impact.
+Hardware bugs found, protocols verified, safety properties proven --- all made possible by the simple idea of manipulating sets symbolically.
+
+As you implement verification tools using `bdd-rs`, remember: the algorithms are straightforward, but their behavior depends critically on problem structure.
+Understanding that relationship --- between your system's nature and the BDD's performance --- is the key to effective verification.
