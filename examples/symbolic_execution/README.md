@@ -1,214 +1,252 @@
 # Symbolic Execution with BDDs
 
-A symbolic execution engine for a simple imperative language, demonstrating how BDDs can be used for formal verification.
+A symbolic execution engine for a simple imperative language that demonstrates how Binary Decision Diagrams (BDDs) enable efficient formal verification.
 
 ## Overview
 
-This tool performs symbolic execution on programs written in a simple boolean imperative language. It uses Binary Decision Diagrams (BDDs) to:
+This tool performs symbolic execution on programs written in a boolean imperative language. It leverages BDDs to:
 
-- Track symbolic states efficiently
-- Represent path conditions compactly
-- Detect assertion violations
-- Explore multiple execution paths
+- Efficiently track symbolic states across execution paths
+- Compactly represent path conditions and constraints
+- Precisely detect assertion violations without false positives
+- Explore all reachable program paths
 
 ## Language Features
 
 The language supports:
 
 - **Boolean variables** and literals (`true`, `false`)
-- **Boolean expressions**: `&&` (AND), `||` (OR), `!` (NOT), `^` (XOR), `=>` (IMPLIES), `==` (EQUALS)
+- **Boolean operators**: `&&` (AND), `||` (OR), `!` (NOT), `^` (XOR), `=>` (IMPLIES), `==` (EQUALS)
 - **Assignments**: `x = expr;`
-- **Conditionals**: `if expr { stmt } else { stmt }`
-- **Loops**: `while expr { stmt }` (bounded unrolling)
-- **Assertions**: `assert expr;` (verification property)
-- **Assumptions**: `assume expr;` (path constraint)
+- **Conditionals**: `if expr { ... } else { ... }`
+- **Loops**: `while expr { ... }` with bounded unrolling
+- **Assertions**: `assert expr;` — specify properties to verify
+- **Assumptions**: `assume expr;` — add constraints to execution paths
+- **Exceptions**: `try { ... } catch (e) { ... } finally { ... }` — exception handling with cleanup
 
 ## Usage
 
 ```bash
 # Run built-in examples
-cargo run -p symbolic_execution --bin symexec -- example <name>
+cargo run --bin symexec -- example <name>
 
-# Available examples: simple, branch, xor, mutex, loop
-cargo run -p symbolic_execution --bin symexec -- example mutex
+# Available examples
+cargo run --bin symexec -- example simple      # sequential program
+cargo run --bin symexec -- example branch      # branching logic
+cargo run --bin symexec -- example xor         # property verification
+cargo run --bin symexec -- example mutex       # concurrency verification
+cargo run --bin symexec -- example loop        # loop unrolling
+cargo run --bin symexec -- example buggy       # counterexample generation
 ```
 
 ## Examples
 
 ### 1. Simple Sequential Program
 
-```text
+```rust
 x = true;
 y = x;
 assert y;
 ```
 
-**Result**: ✓ All assertions passed (1 path)
+**Result**: ✓ All assertions passed (verified that y is always true)
 
 ### 2. Branching with Equivalence
 
-```text
+```rust
 if x {
   y = true;
 } else {
   y = false;
 }
-assert (x == y);
+assert x == y;
 ```
 
-**Result**: ✓ All assertions passed (2 paths)
+**Result**: ✓ Proved that y always equals x after this code
 
 ### 3. XOR Property Verification
 
-```text
+```rust
 z = x ^ y;
-assert (z == ((x || y) && !(x && y)));
+assert z == ((x || y) && !(x && y));
 ```
 
-**Result**: ✓ XOR equivalence verified
+**Result**: ✓ Verified XOR definition is equivalent to its logical expansion
 
-### 4. Mutual Exclusion Bug Detection
+### 4. Mutex Protocol Verification
 
-```text
-req1 = true;
-if req2 {
-  skip;
+This example models a simple mutual exclusion protocol where two threads compete for a lock. The symbolic variable `locked` represents whether the lock is initially held, and `thread1_first` determines the execution order.
+
+```rust
+in_cs1 = false;
+in_cs2 = false;
+if thread1_first {
+  if !locked {
+    locked = true;
+    in_cs1 = true;
+  }
+  if !locked {
+    locked = true;
+    in_cs2 = true;
+  }
 } else {
-  acquire1 = true;
+  if !locked {
+    locked = true;
+    in_cs2 = true;
+  }
+  if !locked {
+    locked = true;
+    in_cs1 = true;
+  }
 }
-req2 = true;
-if req1 {
-  skip;
-} else {
-  acquire2 = true;
-}
-assert !(acquire1 && acquire2);
+assert !(in_cs1 && in_cs2);
 ```
 
-**Result**: ✗ Found 2 assertion failures - detects race condition where both threads can acquire the lock!
+**Result**: ✓ Verified that both threads never simultaneously enter the critical section (mutex property holds)
 
-## Technical Details
+## How It Works
 
 ### Symbolic State
 
-Each execution state consists of:
+Each execution state tracks:
 
-- **Variable map**: Program variables → BDD variable indices
-- **Symbolic store**: Program variables → BDD expressions (their symbolic values)
-- **Path condition**: BDD representing constraints accumulated along the execution path
+- **Variable map**: Maps program variables to unique BDD indices
+- **Symbolic store**: Maps program variables to BDD expressions representing their current symbolic values
+- **Path condition**: A BDD encoding all constraints accumulated along the current execution path
 
-### Execution Strategy
+### Execution Algorithm
 
-1. **Path exploration**: Uses worklist algorithm to explore all feasible paths
-2. **Branch handling**: On conditionals, fork into two paths with complementary constraints
-3. **Loop unrolling**: Bounded unrolling (default: 10 iterations)
-4. **Assertion checking**: Tests if `path_condition ∧ ¬assertion` is satisfiable
+The engine uses a worklist-based exploration strategy:
 
-### BDD Benefits
+1. **Path enumeration**: Systematically explores all feasible execution paths through the program
+2. **Branch forking**: At each conditional, creates two states with complementary path constraints
+3. **Constraint propagation**: Prunes infeasible paths where path conditions become unsatisfiable
+4. **Loop handling**: Applies bounded unrolling (default: 10 iterations) to handle loops
+5. **Assertion checking**: Verifies that `path_condition ∧ ¬assertion` is unsatisfiable (no counterexample exists)
 
-- **Compact representation**: Equivalent states are automatically shared
-- **Efficient operations**: Boolean operations are canonical
-- **Precise reasoning**: No false positives from overapproximation
-- **Path condition management**: Implicit constraint propagation
+### Why BDDs?
 
-## Architecture
+BDDs provide several key advantages for symbolic execution:
+
+- **Canonical representation**: Equivalent boolean expressions are automatically unified, enabling efficient state comparison
+- **Compact encoding**: Path conditions with many constraints can often be represented compactly
+- **Efficient operations**: Boolean operations (AND, OR, NOT) are polynomial in BDD size
+- **Precise reasoning**: No approximation means no false positives in verification results
+- **Automatic simplification**: Constraint propagation happens implicitly through BDD operations
+
+## Project Structure
 
 ```text
-examples/symbolic_execution/
-├── src/
-│   ├── ast.rs        # Language AST (Expr, Stmt, Program)
-│   ├── state.rs      # Symbolic state (VarMap, SymbolicState)
-│   ├── executor.rs   # Symbolic execution engine
-│   ├── main.rs       # CLI tool
-│   └── lib.rs        # Module exports
-├── programs/         # Example programs
-└── Cargo.toml
+src/
+├── ast.rs              # Abstract syntax tree definitions
+├── cfg.rs              # Control flow graph representation
+├── state.rs            # Symbolic state management
+├── executor.rs         # Symbolic execution engine
+├── counterexample.rs   # Test case generation from failures
+├── lib.rs              # Public API
+└── bin/
+    └── symexec.rs      # Command-line interface
 ```
 
 ## Configuration
+
+The execution engine can be configured with:
 
 ```rust
 ExecutionConfig {
     max_loop_unroll: 10,    // Maximum loop iterations
     max_paths: 1000,        // Maximum paths to explore
+    counterexample_config: CounterexampleConfig {
+        minimize: false,    // Generate minimal test cases
+        prefer_false: true, // Prefer false for unconstrained inputs
+    }
 }
 ```
 
-## Limitations
+## Limitations & Design Choices
 
-- Boolean domain only (no integers)
-- Bounded loop unrolling (may miss bugs in deep loops)
-- No function calls or recursion
-- No concurrency primitives (interleaving must be explicit)
+- **Boolean domain only**: Currently supports only boolean variables (no integers or other types)
+- **Bounded loop unrolling**: Loops are unrolled up to a fixed limit, which may miss bugs requiring many iterations
+- **No function abstraction**: The language doesn't support function calls or recursion
+- **Explicit concurrency**: Thread interleavings must be explicitly modeled (no automatic interleaving enumeration)
 
-## Research Applications
+## Applications
 
-This demonstrates BDD usage in:
+This symbolic execution engine demonstrates practical applications of BDDs in:
 
-- **Software verification**: Detect bugs via symbolic execution
-- **Test generation**: Path conditions give test inputs
-- **Program analysis**: Compute reachable states
-- **Concurrency verification**: Detect race conditions and deadlocks
+- **Bug detection**: Automatically find inputs that violate assertions
+- **Property verification**: Prove correctness properties hold for all inputs
+- **Test generation**: Extract concrete test cases from symbolic execution traces
+- **Program analysis**: Compute reachable states and feasible paths
+- **Concurrency verification**: Verify mutual exclusion and other synchronization properties
 
 ## Counterexample Generation
 
-The engine automatically generates **test cases** (counterexamples) when assertion failures are detected:
+When an assertion can fail, the engine automatically generates **test cases** showing concrete input values that trigger the failure.
 
-### Input vs Program Variables
+### Key Concepts
 
-- **Input Variables**: Variables read before being assigned (inferred automatically)
-- **Program Variables**: Variables computed during execution
-- **Test Case**: Concrete Boolean assignments to input variables
+- **Input Variables**: Variables that are read before being assigned (automatically inferred from the program)
+- **Program Variables**: Intermediate values computed during execution
+- **Test Case**: A concrete assignment of boolean values to input variables that demonstrates the bug
 
-### Example
+### Example: Finding a Bug
 
-For this buggy program:
+Consider this buggy program where inputs get mutated:
 
 ```rust
 if x && y {
   z = true;
-  x = false;  // Mutation!
-  y = false;  // Mutation!
+  x = false;  // Bug: input mutation!
+  y = false;  // Bug: input mutation!
 } else {
   z = false;
 }
-assert !z;
+assert !z;  // This assertion fails
 ```
 
-The engine produces:
+The engine produces this output:
 
 ```text
+=== Counterexamples (Test Cases) ===
+
 Test Case #1 (triggers: assert !z):
   Input assignments:
     x = true
     y = true
 
-Variable values on failing path:
-  x = false
-  y = false
-  z = true
+=== Detailed Failure Information ===
+
+Failure #1: assert !z
+  Variable values on failing path:
+    x = false
+    y = false
+    z = true
 ```
 
-Note: The **test case** shows original input values (`x=true, y=true`) needed to trigger the bug, while the **failing path** shows final values after mutations.
+**Key insight**: The test case shows the **original input values** (`x=true, y=true`) needed to trigger the bug, while the failure information shows **final values after execution** (`x=false, y=false, z=true`). This distinction is crucial when inputs are mutated during execution.
 
-### Implementation
+### Implementation Details
 
-- Tracks original symbolic values for input variables separately
-- Queries path conditions to extract concrete input assignments
-- Handles input mutations correctly by preserving initial symbolic references
+The counterexample generator:
 
-## Future Extensions
+- Preserves original symbolic BDD references for input variables (before any mutations)
+- Queries the path condition to determine which input assignments lead to assertion failures
+- Correctly handles programs that modify their inputs during execution
+- Produces minimal test cases that developers can use to reproduce bugs
 
-- [ ] Integer/bitvector support (via bit-blasting)
-- [ ] SMT solver integration for richer theories
-- [x] Counterexample generation (concrete inputs for failures) ✓
-- [ ] Test suite generation (coverage-guided)
-- [ ] Program slicing based on relevant variables
-- [ ] Compositional verification (function summaries)
-- [ ] Concurrency: explicit thread interleaving
+## Future Directions
 
-## References
+- [ ] Integer and bitvector support via bit-blasting to boolean formulas
+- [ ] SMT solver integration for theories beyond pure boolean logic
+- [x] **Counterexample generation from assertion failures** ✓
+- [ ] Coverage-guided test suite generation (branch/path coverage)
+- [ ] Program slicing to reduce verification complexity
+- [ ] Function summaries for compositional verification
+- [ ] Automatic thread interleaving enumeration for concurrency
 
-- Symbolic Execution: Clarke, "Symbolic Model Checking" (1999)
-- BDD-based Verification: Burch et al., "Symbolic Model Checking: 10^20 States and Beyond" (1990)
-- Path Conditions: King, "Symbolic Execution and Program Testing" (1976)
+## Further Reading
+
+- **Symbolic Execution**: James C. King, "Symbolic Execution and Program Testing" (CACM 1976)
+- **BDD-based Model Checking**: J. R. Burch et al., "Symbolic Model Checking: 10^20 States and Beyond" (LICS 1990)
+- **Symbolic Model Checking**: Edmund M. Clarke et al., "Model Checking" (MIT Press 1999)
