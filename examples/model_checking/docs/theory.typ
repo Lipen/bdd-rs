@@ -1246,16 +1246,11 @@ Let's see how $op("EF") "error"$ computes by examining the iteration:
 === Least Fixpoint ($mu$)
 
 For formulas like *EF* $phi$ (exists eventually), we compute the *least fixpoint*:
-
-#v(-1em)
-#lovelace.pseudocode-list(hooks: 0.5em)[
-  + $Z_0 := emptyset$
-  + $Z_1 := phi or op("EX") Z_0 = phi$
-  + $Z_2 := phi or op("EX") Z_1$  $quad slash.double$ (states reaching $phi$ in $<=$ 1 step)
-  + $Z_3 := phi or op("EX") Z_2$  $quad slash.double$ (states reaching $phi$ in $<=$ 2 steps)
-  + $dots$
-]
-#v(-1em)
++ $Z_0 := emptyset$
++ $Z_1 := phi or op("EX") Z_0 = phi$
++ $Z_2 := phi or op("EX") Z_1$  $quad slash.double$ (states reaching $phi$ in $<=$ 1 step)
++ $Z_3 := phi or op("EX") Z_2$  $quad slash.double$ (states reaching $phi$ in $<=$ 2 steps)
++ $dots$
 
 Iteration continues until $Z_(i+1) = Z_i$ (fixpoint reached).
 
@@ -1280,15 +1275,10 @@ Iteration continues until $Z_(i+1) = Z_i$ (fixpoint reached).
 === Greatest Fixpoint ($nu$)
 
 For formulas like *AG* $phi$ (always globally), we compute the *greatest fixpoint*:
-
-#v(-1em)
-#lovelace.pseudocode-list(hooks: 0.5em)[
-  + $Z_0 := S$  $quad slash.double$ (all states)
-  + $Z_1 := phi and op("AX") Z_0 = phi$
-  + $Z_2 := phi and op("AX") Z_1$  $quad slash.double$ (states where $phi$ holds and all successors in $Z_1$)
-  + $dots$
-]
-#v(-1em)
++ $Z_0 := S$  $quad slash.double$ (all states)
++ $Z_1 := phi and op("AX") Z_0 = phi$
++ $Z_2 := phi and op("AX") Z_1$  $quad slash.double$ (states where $phi$ holds and all successors in $Z_1$)
++ $dots$
 
 #example(name: "AG Computation")[
   Check $op("AG") ("x" = 0)$ on the two-bit counter.
