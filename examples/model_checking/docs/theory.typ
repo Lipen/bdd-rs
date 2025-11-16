@@ -96,6 +96,9 @@
 #let YES = Green(sym.checkmark)
 #let NO = Red(sym.crossmark)
 
+#let rel(x) = math.class("relation", x)
+#let nrel(x) = rel(math.cancel(x))
+
 #align(center)[
   #text(size: 20pt, weight: "bold")[
     Symbolic Model Checking:\
@@ -635,7 +638,7 @@ This creates a tree structure where each node is a state and each path represent
   $
     phi & ::= p | top | bot | not phi | phi and psi | phi or psi | phi => psi \
         & | "EX" phi | "AX" phi | "EF" phi | "AF" phi | "EG" phi | "AG" phi \
-        & | "E"[phi "U" psi] | "A"[phi "U" psi]
+        & | "E"[phi rel("U") psi] | "A"[phi rel("U") psi]
   $
 
   where $p$ is an atomic proposition from the labeling function $L$.
@@ -871,12 +874,12 @@ The key insight for symbolic model checking is that CTL operators can be compute
   The CTL temporal operators have the following fixpoint characterizations:
 
   $
-            "EF" phi & = mu Z . phi or "EX" Z \
-            "AF" phi & = mu Z . phi or "AX" Z \
-            "EG" phi & = nu Z . phi and "EX" Z \
-            "AG" phi & = nu Z . phi and "AX" Z \
-    "E"[phi "U" psi] & = mu Z . psi or (phi and "EX" Z) \
-    "A"[phi "U" psi] & = mu Z . psi or (phi and "AX" Z)
+                 "EF" phi & = mu Z . phi or "EX" Z \
+                 "AF" phi & = mu Z . phi or "AX" Z \
+                 "EG" phi & = nu Z . phi and "EX" Z \
+                 "AG" phi & = nu Z . phi and "AX" Z \
+    "E"[phi rel("U") psi] & = mu Z . psi or (phi and "EX" Z) \
+    "A"[phi rel("U") psi] & = mu Z . psi or (phi and "AX" Z)
   $
 
   where:
