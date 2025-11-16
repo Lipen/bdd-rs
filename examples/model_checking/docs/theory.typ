@@ -251,10 +251,10 @@ A set $S subset.eq {0,1}^n$ is represented by its characteristic function as a B
   This can be represented by the formula $phi_"odd" (x,y) = x$, meaning "states where $x = 1$".
 
   We can verify:
-  - $phi_"odd" (0,0) = 0$ → $s_0 in.not S_"odd"$ ✓
-  - $phi_"odd" (1,0) = 1$ → $s_1 in S_"odd"$ ✓
-  - $phi_"odd" (0,1) = 0$ → $s_2 in.not S_"odd"$ ✓
-  - $phi_"odd" (1,1) = 1$ → $s_3 in S_"odd"$ ✓
+  - $phi_"odd" (0,0) = 0$ → $s_0 in.not S_"odd"$ #YES
+  - $phi_"odd" (1,0) = 1$ → $s_1 in S_"odd"$ #YES
+  - $phi_"odd" (0,1) = 0$ → $s_2 in.not S_"odd"$ #YES
+  - $phi_"odd" (1,1) = 1$ → $s_3 in S_"odd"$ #YES
 ]
 
 The power of this representation is that we can describe exponentially large sets with polynomial-sized formulas.
@@ -343,8 +343,8 @@ The formula $T(s, s')$ evaluates to 1 if and only if there is a legal transition
     stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
     [*Current ($x$)*], [*Next ($x'$)*], [*$T(x,x')$*], [*Legal?*], [*Meaning*],
     [0], [0], [0], [No], [Can't stay at 0],
-    [0], [1], [1], [Yes], [From 0 to 1 ✓],
-    [1], [0], [1], [Yes], [From 1 to 0 ✓],
+    [0], [1], [1], [Yes], [From 0 to 1 #YES],
+    [1], [0], [1], [Yes], [From 1 to 0 #YES],
     [1], [1], [0], [No], [Can't stay at 1],
   )
 ]
@@ -379,10 +379,10 @@ Let's build a complete transition system for a 2-bit counter that increments mod
   where $equiv$ denotes logical equivalence (XNOR).
 
   Verification:
-  - $(0,0)$: $x'=1$, $y'=0 xor 0=0$ → $(1,0)$ ✓
-  - $(1,0)$: $x'=0$, $y'=0 xor 1=1$ → $(0,1)$ ✓
-  - $(0,1)$: $x'=1$, $y'=1 xor 0=1$ → $(1,1)$ ✓
-  - $(1,1)$: $x'=0$, $y'=1 xor 1=0$ → $(0,0)$ ✓
+  - $(0,0)$: $x'=1$, $y'=0 xor 0=0$ → $(1,0)$ #YES
+  - $(1,0)$: $x'=0$, $y'=0 xor 1=1$ → $(0,1)$ #YES
+  - $(0,1)$: $x'=1$, $y'=1 xor 0=1$ → $(1,1)$ #YES
+  - $(1,1)$: $x'=0$, $y'=1 xor 1=0$ → $(0,0)$ #YES
 
   State diagram:
 
@@ -485,7 +485,7 @@ The result is a Boolean formula in variables $v$ representing the set of success
 
   *Step 3: Rename*
 
-  Rename $x'$ to $x$: result is $x$, which represents state $s_1$ where $x=1$. ✓
+  Rename $x'$ to $x$: result is $x$, which represents state $s_1$ where $x=1$. #YES
 
   *Conclusion*: From $x=0$, we can reach $x=1$ in one step.
 ]
@@ -582,7 +582,7 @@ The result is a Boolean formula in variables $v$ representing the set of predece
   We eliminate $x'$ by computing:
   $ (overline(x) and x')[x' <- 0] or (overline(x) and x')[x' <- 1] = 0 or overline(x) = overline(x) $
 
-  *Conclusion*: From state $s_0$ (where $x=0$), we can reach state $s_1$ in one step. ✓
+  *Conclusion*: From state $s_0$ (where $x=0$), we can reach state $s_1$ in one step. #YES
 ]
 
 #example(name: "Preimage in Two-Bit Counter")[
@@ -606,7 +606,7 @@ The result is a Boolean formula in variables $v$ representing the set of predece
 
   After eliminating $x', y'$: result is $(overline(x) and y)$, representing state $(0,1)$ (binary 10, value 2).
 
-  *Conclusion*: State $(0,1)$ can reach $(1,1)$ in one step. ✓
+  *Conclusion*: State $(0,1)$ can reach $(1,1)$ in one step. #YES
 ]
 
 === Backward Reachability Analysis
@@ -949,7 +949,7 @@ Let's work through a complete, detailed example to see how CTL properties captur
 
   *Step 3: Check initial states*
 
-  If $I subset.eq Z_"final"$, property is verified ✓
+  If $I subset.eq Z_"final"$, property is verified #YES
 
   If not, model checker produces a _counterexample_: a path $s_0 -> s_1 -> ... -> s_k$ where $s_k in "bad"$.
 ]
@@ -999,7 +999,7 @@ Let's work through a complete, detailed example to see how CTL properties captur
         & dots.v
   $
 
-  If $I subset.eq W_"final"$, the property holds: every request gets a response! ✓
+  If $I subset.eq W_"final"$, the property holds: every request gets a response! #YES
 
   *Counterexample scenario:*
   If the server has a bug where it sometimes ignores requests, there might be a path:
@@ -1153,7 +1153,7 @@ The algorithm proceeds by structural induction on $phi$:
   3. Compute $"SAT"(op("AG") (not "bad"))$ via greatest fixpoint
   4. Check if initial state $in "SAT"(op("AG") (not "bad"))$
 
-  If yes: property holds ✓ \
+  If yes: property holds #YES \
   If no: counterexample exists (extract witness path)
 ]
 
@@ -1848,7 +1848,7 @@ A BDD is a directed acyclic graph representing a Boolean function.
   Example evaluation for $x=0, y=1$:
   - At $x$: take dashed (low) edge to left $y$ node
   - At $y$: take solid (high) edge to terminal *1*
-  - Result: $0 xor 1 = 1$ ✓
+  - Result: $0 xor 1 = 1$ #YES
 ]
 
 === Reduced Ordered BDDs (ROBDDs)
@@ -1921,7 +1921,7 @@ apply(f, g, op):
   - High branch: $"apply"(1, g, and) = g$ (since $1 and g = g$)
   - Result: BDD with root $x$, low→0, high→$g$
 
-  This represents $x and y$ ✓
+  This represents $x and y$ #YES
 ]
 
 *Complexity*: $O(|f| times |g|)$ in worst case, but caching makes it efficient in practice.
