@@ -28,13 +28,26 @@
 //! let x = Var::new("x");
 //! ts.declare_var(x.clone());
 //!
-//! // Set initial state and transition relation
-//! // ... (setup code)
+//! // Initial state: x = false
+//! let x_pres = ts.var_manager().get_present(&x).unwrap();
+//! let initial = ts.bdd().apply_not(ts.bdd().mk_var(x_pres));
+//! ts.set_initial(initial);
+//!
+//! // Transition: x' = !x (toggle)
+//! let x_next = ts.var_manager().get_next(&x).unwrap();
+//! let x_pres_bdd = ts.bdd().mk_var(x_pres);
+//! let x_next_bdd = ts.bdd().mk_var(x_next);
+//! let transition = ts.bdd().apply_xor(x_pres_bdd, x_next_bdd);
+//! ts.set_transition(transition);
+//!
+//! // Add labels
+//! ts.add_label("safe".to_string(), ts.bdd().one);
 //!
 //! // Check a CTL property
 //! let checker = CtlChecker::new(&ts);
 //! let property = CtlFormula::atom("safe").ag(); // AG safe
 //! let holds = checker.holds_initially(&property);
+//! assert!(holds);
 //! ```
 
 pub mod ctl;
