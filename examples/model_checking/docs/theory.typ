@@ -1851,7 +1851,7 @@ The *apply* operation combines two BDDs using a Boolean operator ($and$, $or$, $
 #definition(name: "Apply Operation")[
   Given BDDs $f$ and $g$ and binary operator $op in {and, or, xor, =>}$:
 
-  $ "apply"(f, g, op) = h "where" h(x_1, ..., x_n) = f(x_1, ..., x_n) space op space g(x_1, ..., x_n) $
+  $ "apply"(f, g, "op") = h "where" h(x_1, ..., x_n) = f(x_1, ..., x_n) space "op" space g(x_1, ..., x_n) $
 ]
 
 *Algorithm* (recursive with memoization):
