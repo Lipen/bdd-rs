@@ -287,18 +287,18 @@ A transition system (also called a *Kripke structure*) formally models how a sys
       import cetz.draw: *
 
       circle((0, 0), radius: 0.8, stroke: 2pt, name: "s0")
-      content("s0", [*s₀* \ $x=0$])
+      content("s0", align(center)[*s₀* \ $x=0$])
 
       circle((4, 0), radius: 0.8, stroke: 2pt, fill: rgb("#ffffcc"), name: "s1")
-      content("s1", [*s₁* \ $x=1$ \ {"on"}])
+      content("s1", align(center)[*s₁* \ $x=1$ \ {"on"}])
 
       line((-1.5, 0), "s0.west", mark: (end: ">"), stroke: 1pt)
-      content((-2.2, 0.3), [start])
+      content((-1.5, 0), [start], anchor: "east", padding: 0.2)
 
-      bezier("s0.east", "s1.west", (1.5, 0.6), (2.5, 0.6), mark: (end: ">"), stroke: 1pt)
+      bezier("s0.east", "s1.west", (1.5, 0.6), (2.5, 0.6), mark: (end: ">", fill: black), stroke: 1pt)
       content((2, 0.8), [toggle])
 
-      bezier("s1.west", "s0.east", (2.5, -0.6), (1.5, -0.6), mark: (end: ">"), stroke: 1pt)
+      bezier("s1.west", "s0.east", (2.5, -0.6), (1.5, -0.6), mark: (end: ">", fill: black), stroke: 1pt)
       content((2, -0.8), [toggle])
     })
   ]
@@ -353,10 +353,10 @@ Let's build a complete transition system for a 2-bit counter that increments mod
   *Initial state*: $I = {(0,0)}$, represented by formula $overline(x) and overline(y)$
 
   *Transitions*: Increment by 1 (mod 4):
-  - $(0,0) -> (1,0)$ (0→1)
-  - $(1,0) -> (0,1)$ (1→2)
-  - $(0,1) -> (1,1)$ (2→3)
-  - $(1,1) -> (0,0)$ (3→0)
+  - $(0,0) -> (1,0)$ (0 $=>$ 1)
+  - $(1,0) -> (0,1)$ (1 $=>$ 2)
+  - $(0,1) -> (1,1)$ (2 $=>$ 3)
+  - $(1,1) -> (0,0)$ (3 $=>$ 0)
 
   *Transition relation*: How do we encode this symbolically?
 
@@ -382,16 +382,16 @@ Let's build a complete transition system for a 2-bit counter that increments mod
       content("s0", align(center)[*s₀* \ $(0,0)$ \ val=0])
 
       circle((0, -3), ..node-style, name: "s1")
-      content("s1", [*s₁* \ $(1,0)$ \ val=1])
+      content("s1", align(center)[*s₁* \ $(1,0)$ \ val=1])
 
       circle((3, -3), ..node-style, name: "s2")
-      content("s2", [*s₂* \ $(0,1)$ \ val=2])
+      content("s2", align(center)[*s₂* \ $(0,1)$ \ val=2])
 
       circle((3, 0), ..node-style, name: "s3")
-      content("s3", [*s₃* \ $(1,1)$ \ val=3])
+      content("s3", align(center)[*s₃* \ $(1,1)$ \ val=3])
 
       line((-1.5, 0), "s0.west", mark: (end: ">"), stroke: 1pt)
-      content((-1.8, 0), [start])
+      content((-1.5, 0), [start], anchor: "east", padding: 0.2)
 
       line("s0.south", "s1.north", mark: (end: ">"), stroke: 1pt)
       content((0, -1.5), [$y -> 1$], anchor: "east", padding: 0.2)
@@ -1714,6 +1714,7 @@ This combines CTL's universal path quantifier with LTL's fairness pattern.
 #table(
   columns: (auto, auto, auto),
   align: (left, center, center),
+  stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
   [*Logic*], [*Complexity*], [*Approach*],
   [CTL], [$O(|M| times |phi|)$], [Fixpoint computation],
   [LTL], [$O(|M| times 2^(|phi|))$], [Automata-theoretic],
@@ -1730,6 +1731,7 @@ This combines CTL's universal path quantifier with LTL's fairness pattern.
 #table(
   columns: (auto, auto),
   align: (left, left),
+  stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
   [*Use CTL when:*], [*Use LTL when:*],
   [• Checking branching properties], [• Checking linear properties],
   [• "Some path exists" reasoning], [• Fairness constraints],
