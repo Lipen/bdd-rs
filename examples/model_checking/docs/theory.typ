@@ -7,7 +7,7 @@
   number-align: center,
   margin: (x: 1.5cm, y: 2cm),
 )
-#set text(size: 11pt)
+#set text(size: 12pt)
 #set par(justify: true)
 #set heading(numbering: "1.")
 
@@ -26,11 +26,11 @@
 
 // Enhanced code blocks
 #show raw.where(block: true): it => block(
-  fill: rgb("#f5f5f5"),
+  fill: luma(95%),
   inset: 10pt,
   radius: 4pt,
   width: 100%,
-  text(size: 9.5pt, it),
+  text(size: 0.8em, it),
 )
 
 // Custom theorem environments with enhanced styling
@@ -1227,29 +1227,29 @@ A BDD is a directed acyclic graph representing a Boolean function.
 
       // Terminal nodes
       rect((-2.5, -3), (-1.8, -2.4), stroke: 2pt, fill: rgb("#ffcccc"), name: "f0")
-      content(((-2.5, -3), 50%, (-1.8, -2.4)), [*0*])
+      content("f0", [*0*])
 
       rect((-1.2, -3), (-0.5, -2.4), stroke: 2pt, fill: rgb("#ccffcc"), name: "t0")
-      content(((-1.2, -3), 50%, (-0.5, -2.4)), [*1*])
+      content("t0", [*1*])
 
       rect((0.5, -3), (1.2, -2.4), stroke: 2pt, fill: rgb("#ccffcc"), name: "t1")
-      content(((0.5, -3), 50%, (1.2, -2.4)), [*1*])
+      content("t1", [*1*])
 
       rect((1.8, -3), (2.5, -2.4), stroke: 2pt, fill: rgb("#ffcccc"), name: "f1")
-      content(((1.8, -3), 50%, (2.5, -2.4)), [*0*])
+      content("f1", [*0*])
 
       // Edges from x (dashed = low, solid = high)
-      line("x.south", "y0.north", stroke: (dash: "dashed", paint: black), mark: (end: ">"))
+      line("x", "y0", stroke: (dash: "dashed", paint: black), mark: (end: ">", fill: black, stroke: 1pt + black))
       content((-0.7, -0.5), [0], fill: white)
 
-      line("x.south", "y1.north", stroke: 1.5pt, mark: (end: ">"))
+      line("x", "y1", stroke: 1.5pt, mark: (end: ">", fill: black, stroke: 1pt + black))
       content((0.7, -0.5), [1], fill: white)
 
       // Edges from y nodes
-      line("y0.south", ((-2.5, -3), 50%, (-1.8, -2.4)), stroke: (dash: "dashed", paint: black), mark: (end: ">"))
-      line("y0.south", ((-1.2, -3), 50%, (-0.5, -2.4)), stroke: 1.5pt, mark: (end: ">"))
-      line("y1.south", ((0.5, -3), 50%, (1.2, -2.4)), stroke: 1.5pt, mark: (end: ">"))
-      line("y1.south", ((1.8, -3), 50%, (2.5, -2.4)), stroke: (dash: "dashed", paint: black), mark: (end: ">"))
+      line("y0", "f0", stroke: (dash: "dashed", paint: black), mark: (end: ">", fill: black, stroke: 1pt + black))
+      line("y0", "t0", stroke: 1.5pt, mark: (end: ">", fill: black, stroke: 1pt + black))
+      line("y1", "t1", stroke: 1.5pt, mark: (end: ">", fill: black, stroke: 1pt + black))
+      line("y1", "f1", stroke: (dash: "dashed", paint: black), mark: (end: ">", fill: black, stroke: 1pt + black))
     })
   ]
 
