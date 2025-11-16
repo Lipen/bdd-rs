@@ -2095,68 +2095,42 @@ This ensures:
 - Efficient quantification: We know exactly which variables to eliminate
 - Clean separation: Present and next-state variables never interfere
 
-== Image Computation Implementation
+== Image and Preimage Implementation
 
-The image operation $"Img"(S, T)$ is implemented as:
+The image and preimage operations (detailed in earlier sections) are implemented using BDD operations:
 
 ```rust
 fn image(&self, from: Ref) -> Ref {
-    // Step 1: Conjunction S(v) ∧ T(v,v')
     let conj = self.bdd.apply_and(from, self.transition);
-
-    // Step 2: Eliminate present-state variables
     let mut result = conj;
     for var in &self.present_vars {
         result = self.exists(result, *var);
     }
-
-    // Step 3: Rename next-state to present-state
     self.rename(result, &self.next_vars, &self.present_vars)
 }
-```
 
-Where `exists` is implemented via Shannon expansion:
+fn preimage(&self, to: Ref) -> Ref {
+    let to_next = self.rename(to, &self.present_vars, &self.next_vars);
+    let conj = self.bdd.apply_and(self.transition, to_next);
+    let mut result = conj;
+    for var in &self.next_vars {
+        result = self.exists(result, *var);
+    }
+    result
+}
 
-```rust
 fn exists(&self, f: Ref, var: usize) -> Ref {
-    // ∃v.f = f[v/0] ∨ f[v/1]
     let f0 = self.bdd.compose(f, var, self.bdd.zero);
     let f1 = self.bdd.compose(f, var, self.bdd.one);
     self.bdd.apply_or(f0, f1)
 }
-```
 
-And `rename` uses variable substitution:
-
-```rust
 fn rename(&self, f: Ref, from_vars: &[usize], to_vars: &[usize]) -> Ref {
     let mut result = f;
     for (from_var, to_var) in from_vars.iter().zip(to_vars) {
         let to_bdd = self.bdd.mk_var(*to_var);
         result = self.bdd.compose(result, *from_var, to_bdd);
     }
-    result
-}
-```
-
-== Preimage Computation
-
-Similarly, preimage $"Pre"(S, T)$:
-
-```rust
-fn preimage(&self, to: Ref) -> Ref {
-    // Step 1: Rename to(v) -> to(v')
-    let to_next = self.rename(to, &self.present_vars, &self.next_vars);
-
-    // Step 2: Conjunction T(v,v') ∧ to(v')
-    let conj = self.bdd.apply_and(self.transition, to_next);
-
-    // Step 3: Eliminate next-state variables
-    let mut result = conj;
-    for var in &self.next_vars {
-        result = self.exists(result, *var);
-    }
-
     result
 }
 ```
