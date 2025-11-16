@@ -71,6 +71,9 @@ pub struct SymbolicState {
     path_condition: Ref,
     /// Exception value thrown (used when jumping to catch block)
     exception_value: Option<Ref>,
+    /// Original symbolic values for input variables (before any mutations)
+    /// Maps input var -> its BDD variable (not its current value in store)
+    input_symbolic_values: HashMap<Var, Ref>,
 }
 
 impl SymbolicState {
@@ -81,6 +84,7 @@ impl SymbolicState {
             store: HashMap::new(),
             path_condition: bdd.one,
             exception_value: None,
+            input_symbolic_values: HashMap::new(),
         }
     }
 
@@ -97,6 +101,22 @@ impl SymbolicState {
     /// Get the program variable name for a BDD variable index (if it exists)
     pub fn get_var_for_index(&self, index: u32) -> Option<&Var> {
         self.var_map.get_var(index)
+    }
+
+    /// Mark a variable as an input and save its initial symbolic value
+    /// This should be called when first creating symbolic variables for inputs
+    pub fn mark_as_input(&mut self, var: &Var) {
+        if !self.input_symbolic_values.contains_key(var) {
+            // Get or create the BDD variable for this input
+            let bdd_var = self.get_or_create_index(var);
+            let symbolic_value = self.bdd().mk_var(bdd_var);
+            self.input_symbolic_values.insert(var.clone(), symbolic_value);
+        }
+    }
+
+    /// Get the original symbolic value for an input variable (before any mutations)
+    pub fn get_input_symbolic_value(&self, var: &Var) -> Option<Ref> {
+        self.input_symbolic_values.get(var).copied()
     }
 
     /// Set the exception value (used when throwing)
@@ -215,6 +235,7 @@ impl SymbolicState {
             store: self.store.clone(),
             path_condition: self.path_condition,
             exception_value: self.exception_value,
+            input_symbolic_values: self.input_symbolic_values.clone(),
         }
     }
 

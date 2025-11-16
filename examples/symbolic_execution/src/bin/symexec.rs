@@ -74,9 +74,10 @@ fn get_example(name: &str) -> Option<Program> {
         "nested_finally" => Some(example_nested_finally()),
         "finally_in_catch" => Some(example_finally_in_catch()),
         "multiple_finally" => Some(example_multiple_finally()),
+        "buggy" => Some(example_buggy()),
         _ => {
             eprintln!("Unknown example: {}", name);
-            eprintln!("Available: simple, branch, xor, mutex, loop, exception, nested_exception, nested_finally, finally_in_catch, multiple_finally");
+            eprintln!("Available: simple, branch, xor, mutex, loop, exception, nested_exception, nested_finally, finally_in_catch, multiple_finally, buggy");
             None
         }
     }
@@ -91,13 +92,19 @@ fn run_example(bdd: &Bdd, name: &str) -> Result<()> {
     println!("=== Example: {} ===\n", program.name);
     println!("{}", program);
 
+    // Infer input variables
+    let input_vars = symbolic_execution::infer_input_variables(&program);
+    if !input_vars.is_empty() {
+        println!("Input variables: {:?}\n", input_vars);
+    }
+
     // Build CFG
     let cfg = ControlFlowGraph::from_stmts(&program.body);
 
-    // Execute CFG
+    // Execute CFG with input variable tracking
     let executor = SymbolicExecutor::new(bdd);
     let initial_state = SymbolicState::new(bdd);
-    let result = executor.execute(&cfg, initial_state);
+    let result = executor.execute_with_inputs(&cfg, initial_state, input_vars);
 
     print_results(&result);
 
@@ -551,6 +558,35 @@ fn example_multiple_finally() -> Program {
     )
 }
 
+fn example_buggy() -> Program {
+    // Buggy program that fails assertion on certain inputs:
+    // ```
+    // if x && y {
+    //   z = true;
+    //   x = false;
+    //   y = false;
+    // } else {
+    //   z = false;
+    // }
+    // assert !z;  // This should fail when x && y
+    // ```
+    Program::new(
+        "buggy",
+        vec![
+            Stmt::if_then_else(
+                Expr::var("x").and(Expr::var("y")),
+                vec![
+                    Stmt::assign("z", Expr::Lit(true)),
+                    Stmt::assign("x", Expr::Lit(false)),
+                    Stmt::assign("y", Expr::Lit(false)),
+                ],
+                vec![Stmt::assign("z", Expr::Lit(false))],
+            ),
+            Stmt::assert(Expr::var("z").not()),
+        ],
+    )
+}
+
 fn print_results(result: &ExecutionResult) {
     println!("=== Execution Results ===");
     println!("Total paths explored: {}", result.paths_explored);
@@ -577,8 +613,23 @@ fn print_results(result: &ExecutionResult) {
         println!("✓ All assertions PASSED");
     } else {
         println!("✗ Found {} assertion failure(s):", result.num_failures());
+
+        // Show counterexamples (test cases)
+        if !result.counterexamples.is_empty() {
+            println!("\n=== Counterexamples (Test Cases) ===");
+            for (i, (test_case, expr)) in result.counterexamples.iter().enumerate() {
+                println!("\nTest Case #{} (triggers: assert {}):", i + 1, expr);
+                println!("  Input assignments:");
+                for (var, value) in &test_case.inputs {
+                    println!("    {} = {}", var, value);
+                }
+            }
+            println!();
+        }
+
+        println!("\n=== Detailed Failure Information ===");
         for (i, (state, expr)) in result.assertion_failures.iter().enumerate() {
-            println!("\n  Failure #{}: assert {}", i + 1, expr);
+            println!("\nFailure #{}: assert {}", i + 1, expr);
             println!("  Path condition is satisfiable:");
             println!("    Feasible: {}", state.is_feasible());
 

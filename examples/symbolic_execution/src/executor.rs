@@ -3,12 +3,14 @@
 //! This module implements symbolic execution for our imperative language.
 //! It explores execution paths and tracks path conditions using BDDs.
 
+use std::collections::HashSet;
 use std::collections::VecDeque;
 
 use bdd_rs::bdd::Bdd;
 
-use crate::ast::Expr;
+use crate::ast::{Expr, Var};
 use crate::cfg::{BlockId, ControlFlowGraph, Instruction, Terminator};
+use crate::counterexample::{extract_counterexample, CounterexampleConfig, TestCase};
 use crate::state::SymbolicState;
 
 /// Result of symbolic execution
@@ -18,6 +20,10 @@ pub struct ExecutionResult {
     pub final_states: Vec<SymbolicState>,
     /// States where assertions failed
     pub assertion_failures: Vec<(SymbolicState, Expr)>,
+    /// Counterexamples (test cases) for assertion failures
+    pub counterexamples: Vec<(TestCase, Expr)>,
+    /// Input variables inferred from the program
+    pub input_variables: HashSet<Var>,
     /// Total number of paths explored
     pub paths_explored: usize,
     /// Number of feasible paths
@@ -29,6 +35,8 @@ impl ExecutionResult {
         ExecutionResult {
             final_states: Vec::new(),
             assertion_failures: Vec::new(),
+            counterexamples: Vec::new(),
+            input_variables: HashSet::new(),
             paths_explored: 0,
             feasible_paths: 0,
         }
@@ -58,6 +66,8 @@ pub struct ExecutionConfig {
     pub max_loop_unroll: usize,
     /// Maximum number of paths to explore
     pub max_paths: usize,
+    /// Configuration for counterexample generation
+    pub counterexample_config: CounterexampleConfig,
 }
 
 impl Default for ExecutionConfig {
@@ -65,6 +75,7 @@ impl Default for ExecutionConfig {
         ExecutionConfig {
             max_loop_unroll: 10,
             max_paths: 1000,
+            counterexample_config: CounterexampleConfig::default(),
         }
     }
 }
@@ -89,7 +100,22 @@ impl<'a> SymbolicExecutor<'a> {
 
     /// Execute a CFG symbolically from an initial state
     pub fn execute(&self, cfg: &ControlFlowGraph, initial_state: SymbolicState) -> ExecutionResult {
+        self.execute_with_inputs(cfg, initial_state, HashSet::new())
+    }
+
+    /// Execute with explicit input variables for counterexample generation
+    pub fn execute_with_inputs(
+        &self,
+        cfg: &ControlFlowGraph,
+        mut initial_state: SymbolicState,
+        input_vars: HashSet<Var>,
+    ) -> ExecutionResult {
         let mut result = ExecutionResult::new();
+
+        // Mark input variables and initialize their symbolic values
+        for var in &input_vars {
+            initial_state.mark_as_input(var);
+        }
 
         // Worklist: (current_block_id, state)
         let mut worklist: VecDeque<(BlockId, SymbolicState)> = VecDeque::new();
@@ -216,6 +242,14 @@ impl<'a> SymbolicExecutor<'a> {
                         worklist.push_back((*false_target, false_state));
                     }
                 }
+            }
+        }
+
+        // Generate counterexamples for assertion failures
+        result.input_variables = input_vars.clone();
+        for (state, expr) in &result.assertion_failures {
+            if let Some(counterexample) = extract_counterexample(self.bdd, state, &input_vars, &self.config.counterexample_config) {
+                result.counterexamples.push((counterexample, expr.clone()));
             }
         }
 

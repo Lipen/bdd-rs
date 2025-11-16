@@ -150,11 +150,59 @@ This demonstrates BDD usage in:
 - **Program analysis**: Compute reachable states
 - **Concurrency verification**: Detect race conditions and deadlocks
 
+## Counterexample Generation
+
+The engine automatically generates **test cases** (counterexamples) when assertion failures are detected:
+
+### Input vs Program Variables
+
+- **Input Variables**: Variables read before being assigned (inferred automatically)
+- **Program Variables**: Variables computed during execution
+- **Test Case**: Concrete Boolean assignments to input variables
+
+### Example
+
+For this buggy program:
+
+```rust
+if x && y {
+  z = true;
+  x = false;  // Mutation!
+  y = false;  // Mutation!
+} else {
+  z = false;
+}
+assert !z;
+```
+
+The engine produces:
+
+```text
+Test Case #1 (triggers: assert !z):
+  Input assignments:
+    x = true
+    y = true
+
+Variable values on failing path:
+  x = false
+  y = false
+  z = true
+```
+
+Note: The **test case** shows original input values (`x=true, y=true`) needed to trigger the bug, while the **failing path** shows final values after mutations.
+
+### Implementation
+
+- Tracks original symbolic values for input variables separately
+- Queries path conditions to extract concrete input assignments
+- Handles input mutations correctly by preserving initial symbolic references
+
 ## Future Extensions
 
 - [ ] Integer/bitvector support (via bit-blasting)
 - [ ] SMT solver integration for richer theories
-- [ ] Counterexample generation (concrete inputs for failures)
+- [x] Counterexample generation (concrete inputs for failures) ✓
+- [ ] Test suite generation (coverage-guided)
 - [ ] Program slicing based on relevant variables
 - [ ] Compositional verification (function summaries)
 - [ ] Concurrency: explicit thread interleaving
