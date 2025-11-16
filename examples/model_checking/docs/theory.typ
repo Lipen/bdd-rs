@@ -1014,17 +1014,22 @@ The algorithm proceeds by structural induction on $phi$:
   If no: counterexample exists (extract witness path)
 ]
 
-== Programming Example: Using bdd-rs for Model Checking
+== Programming Example: Pseudocode for Model Checking
 
-Let's see how to implement model checking using the `bdd-rs` library.
-This example demonstrates building a transition system and verifying CTL properties programmatically.
+Let's see how model checking can be implemented using BDDs.
+This pseudocode demonstrates building a transition system and verifying CTL properties.
+
+#note[
+  The `bdd-rs` library in this repository provides BDD data structures and operations.
+  This example shows the conceptual structure; actual implementation would use the library's API.
+]
 
 ```rust
-use bdd::BddManager;
 use std::collections::HashMap;
 
-/// A simple model checking framework using BDDs
+/// A model checking framework using BDDs (pseudocode)
 struct ModelChecker {
+    // BDD manager for creating and manipulating BDDs
     bdd: BddManager,
     // Map variable names to BDD variable indices
     vars: HashMap<String, usize>,
@@ -1189,14 +1194,17 @@ fn main() {
 }
 ```
 
-This example demonstrates:
+This example demonstrates the conceptual structure of model checking:
 - Declaring state variables with present/next-state pairs
 - Building transition relations symbolically
 - Implementing image/preimage operations
 - Computing fixpoints for temporal operators
 - Verifying properties from initial states
 
-The actual `bdd-rs` library in this repository provides these operations through its core BDD manipulation functions.
+#note[
+  The `bdd-rs` library provides the core BDD data structure and operations needed to implement these algorithms.
+  See the library documentation for the specific API.
+]
 
 = Implementation
 
@@ -1562,7 +1570,7 @@ The key patterns that BDDs handle efficiently are:
 
 *Real-world impact*:
 
-Intel has verified cache coherence protocols with more than $10^120$ distinct states using BDD-based model checking.
+Symbolic model checking has enabled verification of cache coherence protocols with more than $10^120$ distinct states.
 For perspective, the observable universe contains merely $10^80$ atoms.
 The protocol's structure --- symmetric processes, local interactions, regular transitions --- aligned perfectly with BDD strengths, making the impossible routine.
 In modern protocol verification, handling $10^20$ states is standard practice.
@@ -1657,7 +1665,7 @@ This makes equivalence checking instantaneous --- just compare pointers!
 In practice, this means BDD operations can detect fixpoints in constant time, crucial for efficient model checking.
 
 Third, _efficiency_: because of sharing, BDD operations are polynomial in the size of the BDD, not exponential in the number of variables.
-Combining two BDDs with a million nodes each might produce a result with two million nodes (in the worst case), not $2^{1000000}$ nodes.
+Combining two BDDs with a million nodes each might produce a result with two million nodes (in the worst case), not $2^1000000$ nodes.
 This polynomial scaling --- combined with aggressive sharing --- is what makes symbolic model checking tractable.
 
 = Conclusion
@@ -1671,7 +1679,7 @@ Symbolic model checking revolutionized formal verification through several key i
 *Symbolic representation over enumeration*:
 
 The central insight is deceptively simple: don't enumerate states, _describe_ them.
-By representing state sets as Boolean formulas encoded in BDDs, we can reason about exponentially large sets --- $10^20$, $10^100$, even $10^{120}$ states --- using compact data structures that fit in ordinary computer memory.
+By representing state sets as Boolean formulas encoded in BDDs, we can reason about exponentially large sets --- $10^20$, even $10^100$ states --- using compact data structures that fit in ordinary computer memory.
 What seemed impossible for explicit enumeration becomes routine.
 
 *Image and preimage operations*:
@@ -1687,13 +1695,13 @@ The finite state space guarantees termination.
 The canonical BDD representation makes fixpoint detection instantaneous --- just compare pointers.
 This combination makes the algorithm both theoretically elegant and practically efficient.
 
-*Profound practical impact*:
+*Practical impact*:
 
-The technique has moved from academic curiosity (1990) to industrial necessity (today):
-- *Hardware*: Intel verifies cache coherence protocols in every processor design
-- *Safety-critical systems*: Aerospace and automotive industries rely on model checking where failure means loss of life
-- *Concurrent systems*: Distributed algorithms, protocols, and concurrent programs --- where testing struggles with combinatorial state explosion --- yield to exhaustive symbolic analysis
-- *Bug detection*: Catches subtle corner cases that testing would miss
+Symbolic model checking has proven effective for:
+- *Hardware verification*: Cache coherence protocols, processor designs
+- *Safety-critical systems*: Control systems where failure has severe consequences
+- *Concurrent systems*: Distributed algorithms, protocols, concurrent programs where testing struggles with combinatorial state explosion
+- *Bug detection*: Finding subtle corner cases that testing would miss
 
 == The Power of BDDs
 
@@ -1724,7 +1732,7 @@ The difference between success and failure often hinges on recognizing when BDDs
 BDDs thrive on structure.
 Regular, predictable patterns in your system translate directly to compression in the BDD.
 Counters, shift registers, and finite state machines --- systems built from repeating units with local connections --- compress beautifully.
-A 64-bit counter has $2^{64}$ states but needs only a few hundred BDD nodes to represent its transition relation.
+A 64-bit counter has $2^64$ states but needs only a few hundred BDD nodes to represent its transition relation.
 
 Control logic, especially in hardware, exhibits the kind of regularity BDDs love.
 Instruction decoders, protocol state machines, arbiter circuits --- these follow regular patterns with clear structure.
@@ -1734,15 +1742,16 @@ Locality is the other key.
 When transitions affect only a handful of variables --- a counter incrementing, a buffer inserting an element, a state machine changing mode --- the BDD stays compact because most variables remain unchanged and their sub-BDDs are shared.
 Sparse dependency graphs, where each variable depends on few others, maintain this locality and keep BDDs manageable.
 
-And of course, variable ordering matters enormously.
-- Related variables placed nearby
-- Interleaved present/next-state variables
-- Natural ordering from system structure
+And of course, variable ordering matters enormously:
+- Related variables should be placed nearby
+- Interleave present/next-state variables
+- Follow natural ordering from system structure
 
 *Characteristic examples*:
-- Cache coherence protocols: 10²⁰+ states routinely verified
-- Communication protocols: Sliding window, alternating bit
-- Hardware control units: Instruction decoders, FSMs
+- Cache coherence protocols with $10^20$+ states
+- Communication protocols (sliding window, alternating bit)
+- Hardware control units (instruction decoders, FSMs)
+- Mutual exclusion algorithms
 
 === When BDDs Struggle
 
@@ -1797,13 +1806,14 @@ _Weaknesses_:
 - Check properties up to depth $k$ by unrolling transition relation
 - Encode as SAT/SMT problem: $I(s_0) and T(s_0, s_1) and ... and T(s_(k-1), s_k) and not P(s_0, ..., s_k)$
 - Excellent for bug-finding (many bugs found at small depths)
-- Incomplete: May miss bugs beyond bound $k$
+- Trade-off: Incomplete (may miss bugs beyond bound $k$) but very effective in practice
 
 *IC3/PDR (Property Directed Reachability)*:
 - Incrementally constructs inductive invariants
-- Avoids explicit BDD representation or BMC unrolling
+- Avoids explicit BDD representation or bounded unrolling
 - Represents states using CNF clauses
-- Highly effective for safety properties on hardware
+- Effective for safety properties
+- Represents a major algorithmic advance beyond BDDs
 - Now dominates industrial hardware verification
 
 *Abstraction-Refinement (CEGAR)*:
@@ -1818,355 +1828,49 @@ _Weaknesses_:
 - Combine symbolic and explicit-state methods
 - Portfolio solvers: Run multiple techniques in parallel
 
-=== Choosing the Right Tool
+=== Choosing the Right Approach
 
 *Use BDDs when*:
 - System has regular structure (protocols, control logic)
 - Properties involve reachability, CTL model checking
 - Need canonical representation for equivalence checking
-- Transitions are local and symbolic operations efficient
+- Transitions are local and symbolic operations are efficient
 
 *Use SAT/BMC when*:
 - System has irregular structure or arithmetic
 - Bug-finding is primary goal (completeness not required)
 - Need to handle large bit-vectors or complex datapaths
-- Bounded analysis sufficient
+- Bounded analysis is sufficient
 
 *Use IC3/PDR when*:
-- Verifying safety properties on hardware
+- Verifying safety properties
 - Need complete verification without fixed bounds
-- BDD variable ordering problematic
-- Modern industrial tools available
+- BDD variable ordering is problematic
 
 *Use abstraction when*:
-- System too large for direct verification
+- System is too large for direct verification
 - Can identify relevant variables automatically
-- Iterative refinement feasible
+- Iterative refinement is feasible
 
 #note[
   In practice, modern verification tools often combine multiple techniques, leveraging the strengths of each.
   The choice depends on the system structure, property type, and available computational resources.
 ]
 
-== Historical Context
-
-The development of symbolic model checking represents one of the most significant breakthroughs in formal verification, transforming it from a theoretical curiosity into an indispensable industrial practice.
-
-=== The Early Days (1980s)
-
-*Temporal logic model checking* was independently introduced by Edmund M. Clarke and E. Allen Emerson (1981) and by Jean-Pierre Queille and Joseph Sifakis (1982).
-The initial approaches used _explicit-state_ representations, enumerating and storing each state individually.
-
-Early achievements:
-- Clarke & Emerson: Model checking for CTL on finite Kripke structures
-- Queille & Sifakis: Path quantifiers and branching-time logic
-- Practical limit: ~10⁴-10⁵ states (enough for small protocols)
-
-The state explosion problem was immediately recognized as the fundamental challenge.
-Even simple systems like communication protocols with a dozen processes would exceed the capacity of explicit-state methods.
-
-=== The BDD Revolution (1986-1990)
-
-*Randal E. Bryant's 1986 paper* "Graph-Based Algorithms for Boolean Function Manipulation" introduced _Binary Decision Diagrams_ as an efficient data structure for representing and manipulating Boolean functions.
-Bryant showed that with:
-- Fixed variable ordering
-- Reduction rules (merge isomorphic subtrees, eliminate redundant tests)
-
-Every Boolean function has a _canonical_ representation, enabling constant-time equality checking.
-
-This seemingly theoretical result had profound practical implications.
-
-=== Symbolic Model Checking is Born (1990-1993)
-
-The breakthrough came when researchers realized BDDs could represent _sets of states symbolically_:
-
-*Key insight*: Instead of storing states ${s_1, s_2, ..., s_n}$ explicitly, represent them as a Boolean formula $phi(v_1, ..., v_k)$ encoded as a BDD.
-
-*1990: Burch, Clarke, McMillan, Dill, Hwang*
-- "Symbolic Model Checking: 10²⁰ States and Beyond" (LICS 1990)
-- First symbolic model checker using BDDs
-- Verified hardware circuits with astronomically large state spaces
-- Demonstrated: Systems previously intractable now verifiable in minutes
-
-*1992-1993: Ken McMillan's SMV*
-- Symbolic Model Verifier (SMV) tool released
-- First industrial-strength symbolic model checker
-- Book: _Symbolic Model Checking_ (1993) --- foundational text
-- Successfully verified real Intel and Motorola designs
-
-*Impact*: The "10²⁰ states" milestone shattered previous limits.
-Explicit-state methods topped out at ~10⁷ states; symbolic methods routinely handled 10²⁰-10³⁰ states or more.
-
-=== Industrial Adoption (1990s-2000s)
-
-Symbolic model checking rapidly transitioned from academia to industry:
-
-*Hardware verification*:
-- Intel: Verified floating-point units, cache coherence protocols
-- IBM: Processor verification (PowerPC, POWER series)
-- AMD, Motorola, ARM: Design verification workflows
-- Industry standard: Every major hardware company adopted BDD-based tools
-
-*Tool ecosystem*:
-- SMV (McMillan, 1992): First widely-used symbolic model checker
-- VIS (UC Berkeley, 1996): Verification Interacting with Synthesis
-- NuSMV (FBK-IRST, 2000): Open-source rewrite of SMV
-- Cadence SMV: Commercial tool for hardware verification
-
-*Success stories*:
-- Verified cache coherence protocols with 10²⁰+ states
-- Found subtle bugs in processor designs before fabrication
-- Reduced verification time from weeks to hours
-
-=== Limitations and Extensions (2000s)
-
-As symbolic model checking matured, practitioners identified limitations:
-
-*BDD limitations*:
-- Sensitive to variable ordering (finding optimal ordering is NP-complete)
-- Struggle with arithmetic operations (multiplication, division)
-- Memory consumption can explode for irregular structures
-
-*Response: Complementary techniques*:
-
-*Bounded Model Checking (BMC)* (Biere et al., 1999):
-- Unroll transition relation to fixed depth $k$
-- Encode as SAT problem, solve with modern SAT solvers
-- Excels where BDDs struggle: datapaths, arithmetic, irregular logic
-- Trade-off: Only checks bounded depths (not complete), but very effective for bug-finding
-
-*SAT-based model checking*:
-- Leverages advances in SAT solving (CDCL, DPLL, learned clauses)
-- Complementary to BDDs: strong on different problem classes
-- Modern tools use hybrid approaches
-
-*IC3/PDR* (Bradley, 2011):
-- Incremental Construction of Inductive Clauses for Indubitable Correctness
-- Computes inductive invariants without BDDs or BMC unrolling
-- Represents major algorithmic breakthrough
-- Dominates modern hardware verification (especially safety properties)
-
-*Abstraction-refinement*:
-- Start with coarse abstraction, refine on counterexamples (CEGAR)
-- Enables verification of infinite-state systems (software, hybrid systems)
-- Combines symbolic and abstract interpretation techniques
-
-=== Modern Applications (2010s-Present)
-
-Symbolic model checking has expanded far beyond its hardware origins:
-
-*Software verification*:
-- _Bounded model checkers_: CBMC (C programs), SMACK, ESBMC
-- _Abstract interpretation_: Combine with BDDs for scalability
-- _Concurrency bugs_: Data races, atomicity violations, deadlocks
-
-*Cyber-physical systems*:
-- Autonomous vehicles: Verify control algorithms, sensor fusion
-- Medical devices: FDA-accepted verification for life-critical systems
-- Aerospace: Flight control systems, avionics
-
-*Security verification*:
-- Protocol verification: TLS/SSL, cryptographic protocols
-- Side-channel analysis: Verify absence of timing leaks
-- Smart contract verification: Ethereum, blockchain systems
-
-*AI/ML verification*:
-- Neural network verification: Prove robustness properties
-- Reinforcement learning: Verify learned policies
-- Autonomous systems: Certified AI for safety-critical domains
-
-*Emerging applications*:
-- Quantum circuit verification: BDD-like structures for quantum states
-- Biological systems: Verify gene regulatory networks, metabolic pathways
-- Financial systems: High-frequency trading algorithms, settlement protocols
-
-=== Impact on Computer Science
-
-Symbolic model checking's influence extends far beyond hardware verification:
-
-*Formal methods transformation*:
-
-Before the 1990s, formal verification was largely theoretical --- elegant mathematics with limited practical impact.
-Symbolic model checking changed the culture by proving that automated verification could handle real systems, not just toy examples.
-This success:
-- Energized the entire formal methods community
-- Inspired development of modern SAT and SMT solvers
-- Established foundations for today's program analysis tools
-- Made "push-button verification" a realistic goal
-
-*Hardware industry revolution*:
-
-Design teams shifted from "test until it seems right" to "formal verification first."
-The economics are compelling: catching a bug after fabrication costs millions in delays and respin, while catching it during design costs only CPU time.
-
-Today's reality:
-- Every major processor design incorporates formal verification as standard practice
-- BDD-based tools are part of the core design flow, not optional add-ons
-- Verification engineers are as essential as logic designers
-- Formal methods expertise is a competitive advantage
-
-*Software engineering adoption*:
-
-Software verification has gradually adopted symbolic techniques:
-- *Static analysis*: Tools routinely use symbolic reasoning about program behavior
-- *Model-based testing*: Generate test suites from verified models
-- *Concurrency analysis*: Find race conditions and deadlocks that testing misses
-- *Hybrid approaches*: Blur the boundary between testing and verification
-
-*Educational impact*:
-
-Model checking has become a standard CS curriculum topic worldwide:
-- Taught not just to verification specialists but to all computer scientists
-- Recognized as fundamental to understanding automated reasoning
-- Accessible through open-source tools (NuSMV, CBMC, etc.)
-- Democratized formal methods for students and practitioners
-
-=== Awards and Recognition
-
-The impact of symbolic model checking has been widely recognized:
-
-*Turing Award (2007)*:
-
-Edmund Clarke, Allen Emerson, and Joseph Sifakis received computer science's highest honor "for their role in developing model checking into a highly effective verification technology."
-
-The citation emphasizes _practical impact_ over theoretical elegance.
-Model checking transformed how hardware and software are designed, moving formal methods from academic curiosity to industrial necessity.
-The Turing Award committee recognized that this transformation mattered more than any individual technical result.
-
-*CAV Award* (Computer-Aided Verification conference):
-
-Numerous pioneers have been honored for both theoretical foundations and practical tools:
-- *Randal Bryant*: Introducing BDDs and proving their fundamental properties
-- *Ken McMillan*: Creating SMV and demonstrating symbolic model checking on real systems
-- Others: For advances in abstraction, SAT-based methods, and hybrid approaches
-
-These awards celebrate elegant mathematics that revealed deep structure _and_ practical tools that engineers actually use.
-
-*Industrial adoption --- the ultimate recognition*:
-
-Perhaps the most meaningful validation comes from industry itself:
-- Every major chip designer (Intel, AMD, IBM, ARM, etc.) considers formal verification indispensable
-- Thousands of bugs caught before fabrication, saving millions in delays and respins
-- Countless systems verified that could not have been verified any other way
-- Billions of dollars in time-to-market improvements
-
-This isn't recognition through awards or citations.
-It's recognition through adoption --- the ultimate validation that the ideas work.
-
-== Further Reading
-
-For those wanting to dive deeper, the literature on symbolic model checking is extensive and rewarding.
-
-*Foundational papers*:
-- Bryant, R. E. (1986). "Graph-based algorithms for boolean function manipulation." _IEEE Trans. on Computers_, 35(8).
-
-  The paper that introduced BDDs and proved their canonical form property --- the theoretical foundation for everything that follows.
-
-- Burch, J. R. et al. (1990). "Symbolic model checking: $10^20$ states and beyond." _LICS_.
-
-  Demonstrated that BDDs could handle real verification problems at unprecedented scale. Birth of practical symbolic model checking.
-
-- McMillan, K. L. (1993). _Symbolic Model Checking_. Kluwer Academic Publishers.
-
-  The definitive technical reference, detailing both theory and implementation with exceptional clarity.
-
-*Comprehensive textbooks*:
-- Clarke, E. M., Grumberg, O., & Peled, D. A. (1999). _Model Checking_. MIT Press.
-
-  The standard introduction, covering both explicit and symbolic approaches with numerous examples.
-
-- Baier, C. & Katoen, J. (2008). _Principles of Model Checking_. MIT Press.
-
-  More comprehensive and recent, including advances through the 2000s. Excellent for advanced study.
-
-- Huth, M. & Ryan, M. (2004). _Logic in Computer Science: Modelling and Reasoning about Systems_. Cambridge.
-
-  Beautifully connects temporal logic foundations to verification practice.
-
-*Temporal logic foundations*:
-- Emerson, E. A. (1990). "Temporal and modal logic." _Handbook of Theoretical Computer Science_.
-
-  Masterful survey of temporal logic theory and applications.
-
-- Clarke, E. M. & Emerson, E. A. (1981). "Design and synthesis of synchronization skeletons using branching time temporal logic." _LICS_.
-
-  The original CTL paper --- introduced both the logic and model checking algorithm. Landmark work.
-
-*Advanced topics*:
-- *Abstraction and refinement*: Techniques for verifying infinite-state systems through automatic abstraction
-- *Compositional verification*: Verify components separately, reason about composition
-- *CEGAR*: Counterexample-guided abstraction refinement automates the abstraction process
-- *SAT-based model checking*: Bounded model checking and its variants
-- *IC3/PDR*: Modern algorithms for safety property verification
-- *Automata-theoretic approach*: Model checking LTL via automata construction
-
-== Final Thoughts
-
-*Representation matters*:
-
-Symbolic model checking exemplifies a profound truth: sometimes, the way you _represent_ a problem matters more than how you _solve_ it.
-
-/ Explicit-state approach: Enumerate states one by one → hits a wall at ~$10^6$ states
-/ Symbolic approach: Represent state sets as formulas → routinely handles $10^20$ states and beyond
-
-Same problem, different representation, completely different feasibility.
-Choosing the right abstraction can make the difference between impossible and routine.
-
-*A unified system*:
-
-But representation alone isn't enough.
-The genius lies in how the pieces work together:
-- *BDDs*: Provide canonical, compact representation
-- *Image/preimage*: Enable set-level state space operations
-- *Fixpoint iteration*: Compute complex temporal properties
-- *Canonicity*: Makes termination detection instant (pointer comparison)
-
-Each piece reinforces the others, creating a whole greater than its parts.
-
-*Foundation for the future*:
-
-These techniques --- BDDs, symbolic state exploration, CTL model checking --- form the bedrock of modern verification.
-Understanding them deeply:
-- Helps you use existing tools more effectively
-- Prepares you to push boundaries further
-- Provides context for understanding advances (abstraction refinement, IC3/PDR, hybrid methods)
-- Gives you a platform for whatever comes next in formal methods
-
-Every modern advance in verification builds on these foundations.
-Master them, and you're ready for the frontier.
-
 = Conclusion
 
-The goal of formal verification transcends bug-finding: we seek _guarantees_ --- mathematical certainty that systems behave correctly under all possible conditions, not just the scenarios we happened to test.
-Symbolic model checking delivers on this promise, exhaustively exploring every possible execution path automatically, proving properties or producing counterexamples with equal facility.
+Symbolic model checking achieves the seemingly impossible: exhaustive verification of systems with $10^20$ states or more.
+The key insights are:
 
-*Why this matters more than ever*:
+*Symbolic representation*: Encode exponentially large state sets as compact Boolean formulas (BDDs), exploiting structure through sharing and reduction.
 
-The stakes have never been higher:
-- *Autonomous vehicles*: Split-second decisions with human lives at stake
-- *Medical devices*: Radiation therapy where incorrect doses mean tragedy
-- *Financial systems*: Trillions in daily transactions where subtle bugs trigger cascades
-- *AI systems*: Consequential decisions (loans, diagnoses, industrial control) made by systems we don't fully understand
+*Image and preimage operations*: Compute successor and predecessor states symbolically, enabling efficient state space exploration without explicit enumeration.
 
-In this world of escalating complexity and rising stakes, rigorous verification isn't a luxury --- it's a necessity.
+*Fixpoint computation*: Reduce temporal logic model checking (CTL, mu-calculus) to iterative fixpoint algorithms that leverage BDD canonicity for instant termination detection.
 
-*The foundation we've built*:
+*Implementation techniques*: Careful variable management (interleaving present/next-state variables), efficient BDD operations (apply, exists, compose), and awareness of when BDDs excel (regular structure, local transitions) versus struggle (multiplication, irregular patterns).
 
-The techniques presented here form the bedrock of trustworthy system design:
-- *Symbolic representation*: Describe exponentially large state sets compactly
-- *BDD-based operations*: Manipulate these sets efficiently
-- *Fixpoint computation*: Compute complex temporal properties automatically
-- *Canonical forms*: Enable instant equivalence checking and termination detection
-
-These aren't just theoretical constructs --- they're battle-tested in industry, catching thousands of bugs before they reach production.
-
-*Looking forward*:
-
-The path from Bryant's 1986 BDD paper to today's industrial tools took symbolic model checking from theoretical curiosity to practical necessity.
-The next decades will likely see these techniques become as fundamental to system design as testing is today --- not an afterthought, but an integral part of the engineering process from the start.
-
-As systems grow more complex and their failures more consequential, the formal methods community continues to push boundaries: hybrid techniques combining BDDs with SAT/SMT solvers, machine learning to guide verification, and extensions to probabilistic and quantum systems.
-The journey continues.
+These techniques form the theoretical foundation of modern formal verification, enabling mathematical guarantees about system correctness that testing alone cannot provide.
 
 #align(center)[
   #text(size: 10pt, style: "italic")[
