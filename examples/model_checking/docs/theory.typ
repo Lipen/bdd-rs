@@ -1455,8 +1455,8 @@ fair_EF(phi, fairness_constraints):
 
   Property: $op("AG") ("request"_1 => op("AF") "grant"_1)$
 
-  *Without fairness*: Fails (P2 can run forever)
-  *With fairness*: Holds (P1 must run infinitely often, so eventually gets grant)
+  - *Without fairness*: Fails (P2 can run forever)
+  - *With fairness*: Holds (P1 must run infinitely often, so eventually gets grant)
 ]
 
 #note[
