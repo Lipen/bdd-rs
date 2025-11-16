@@ -526,15 +526,15 @@ Fixpoints provide a elegant mathematical mechanism to handle this recursion.
   - The greatest fixpoint exists and equals: $nu Z . f(Z) = union.big {X | X subset.eq f(X)}$
 
   Moreover, these can be computed iteratively:
-  - $mu Z . f(Z) = limits(union)_(i=0)^infinity f^i (emptyset) = emptyset union f(emptyset) union f(f(emptyset)) union ...$
-  - $nu Z . f(Z) = limits(inter)_(i=0)^infinity f^i (S) = S inter f(S) inter f(f(S)) inter ...$
+  - $mu Z . f(Z) = union.big_(i=0)^infinity f^i (emptyset) = emptyset union f(emptyset) union f(f(emptyset)) union ...$
+  - $nu Z . f(Z) = inter.big_(i=0)^infinity f^i (S) = S inter f(S) inter f(f(S)) inter ...$
 ]
 
 == Intuition: Least vs Greatest Fixpoints
 
-The key difference lies in what we're trying to prove:
-
 #note[
+  The key difference lies in what we're trying to prove:
+
   *Least fixpoint ($mu$)*: "Eventually reaches the property"
   - Start from nothing ($emptyset$)
   - Iteratively add states that can reach the property
