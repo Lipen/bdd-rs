@@ -1048,13 +1048,15 @@ The key insight for symbolic model checking is that CTL operators can be compute
 
 For formulas like *EF* $phi$ (exists eventually), we compute the *least fixpoint*:
 
-```
-Z₀ := ∅
-Z₁ := φ ∨ EX Z₀ = φ
-Z₂ := φ ∨ EX Z₁  (states reaching φ in ≤1 step)
-Z₃ := φ ∨ EX Z₂  (states reaching φ in ≤2 steps)
-...
-```
+#v(-1em)
+#lovelace.pseudocode-list(hooks: 0.5em)[
+  + $Z_0 := emptyset$
+  + $Z_1 := phi or op("EX") Z_0 = phi$
+  + $Z_2 := phi or op("EX") Z_1$  $quad slash.double$ (states reaching $phi$ in $<=$ 1 step)
+  + $Z_3 := phi or op("EX") Z_2$  $quad slash.double$ (states reaching $phi$ in $<=$ 2 steps)
+  + $dots$
+]
+#v(-1em)
 
 Iteration continues until $Z_(i+1) = Z_i$ (fixpoint reached).
 
@@ -1080,12 +1082,14 @@ Iteration continues until $Z_(i+1) = Z_i$ (fixpoint reached).
 
 For formulas like *AG* $phi$ (always globally), we compute the *greatest fixpoint*:
 
-```
-Z₀ := S (all states)
-Z₁ := φ ∧ AX Z₀
-Z₂ := φ ∧ AX Z₁  (states where φ holds and all successors in Z₁)
-...
-```
+#v(-1em)
+#lovelace.pseudocode-list(hooks: 0.5em)[
+  + $Z_0 := S$  $quad slash.double$ (all states)
+  + $Z_1 := phi and op("AX") Z_0 = phi$
+  + $Z_2 := phi and op("AX") Z_1$  $quad slash.double$ (states where $phi$ holds and all successors in $Z_1$)
+  + $dots$
+]
+#v(-1em)
 
 #example(name: "AG Computation")[
   Check $op("AG") ("x" = 0)$ on the two-bit counter.
@@ -1135,24 +1139,28 @@ The algorithm proceeds by structural induction on $phi$:
   $ "SAT"(op("AX") phi) = overline("SAT"(op("EX") (not phi))) $
 
 / EF operator (least fixpoint):
-  ```
-  Z := SAT(φ)
-  loop:
-    Z_new := Z ∪ Pre(Z, T)
-    if Z_new = Z: break
-    Z := Z_new
-  return Z
-  ```
+  #v(-1em)
+  #lovelace.pseudocode-list(hooks: 0.5em)[
+    + $Z := "SAT"(phi)$
+    + *loop*
+      + $Z_"new" := Z union "Pre"(Z, T)$
+      + *if* $Z_"new" = Z$ *then* *break*
+      + $Z := Z_"new"$
+    + *return* $Z$
+  ]
+  #v(-1em)
 
 / AG operator (greatest fixpoint):
-  ```
-  Z := S (all states)
-  loop:
-    Z_new := SAT(φ) ∩ Pre(Z, T)
-    if Z_new = Z: break
-    Z := Z_new
-  return Z
-  ```
+  #v(-1em)
+  #lovelace.pseudocode-list(hooks: 0.5em)[
+    + $Z := S$
+    + *loop*
+      + $Z_"new" := "SAT"(phi) inter "Pre"(Z, T)$
+      + *if* $Z_"new" = Z$ *then* *break*
+      + $Z := Z_"new"$
+    + *return* $Z$
+  ]
+  #v(-1em)
 
 #example(name: "Complete Verification")[
   Let's verify mutual exclusion in a simple protocol.
