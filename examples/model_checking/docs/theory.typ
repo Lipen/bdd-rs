@@ -504,6 +504,120 @@ The image operation enables us to compute *all* reachable states through iterati
   Fixpoint reached! All four states are reachable.
 ]
 
+== Preimage: Backward Reachability
+
+The *preimage* (or *predecessor*) operation computes states that can reach a given set in one step.
+This is the dual of the image operation, working backwards through the transition relation.
+
+#definition(name: "Preimage Operation")[
+  Given a set of states $S$ and transition relation $T$, the *preimage* of $S$ under $T$ is:
+
+  $ "Pre"(S, T) = {s | exists s' : (s, s') in T and s' in S} $
+
+  In logical notation:
+  $ "Pre"(S, T) = exists v'_1, ..., v'_n . T(v_1, ..., v_n, v'_1, ..., v'_n) and S(v'_1, ..., v'_n) $
+]
+
+Intuitively, preimage answers: "From which states can I reach $S$ in one step?"
+
+=== Computing the Preimage
+
+The preimage computation has three steps (compare with image):
+
++ *Variable renaming*: Rename present-state variables to next-state in $S(v) arrow S(v')$
++ *Conjunction*: $S(v') and T(v, v')$ --- combine target states with transition relation
++ *Existential quantification*: $exists v' . (S(v') and T(v, v'))$ --- eliminate next-state variables
+
+#example(name: "Preimage of Toggle System")[
+  Recall the toggle system with $T(x, x') = x xor x'$.
+
+  *Question*: From which states can we reach $s_1$ (where $x=1$)?
+
+  Let $S = {s_1} = {x = 1}$, represented by formula $x$.
+
+  *Step 1: Rename* $S(x) arrow S(x')$
+
+  $ S(x') = x' $
+
+  *Step 2: Conjunction*
+
+  $
+    S(x') and T(x, x') & = x' and (x xor x') \
+                       & = x' and ((x and overline(x')) or (overline(x) and x')) \
+                       & = x' and (overline(x) and x') quad "(since" x' "is true, first term vanishes)" \
+                       & = overline(x) and x'
+  $
+
+  *Step 3: Existential Quantification*
+
+  $ exists x' . (overline(x) and x') = overline(x) $
+
+  We eliminate $x'$ by computing:
+  $ (overline(x) and x')[x' arrow 0] or (overline(x) and x')[x' arrow 1] = 0 or overline(x) = overline(x) $
+
+  *Conclusion*: From state $s_0$ (where $x=0$), we can reach state $s_1$ in one step. ✓
+]
+
+#example(name: "Preimage in Two-Bit Counter")[
+  For the counter, find predecessors of state $(1,1)$.
+
+  Target set: $S = {(1,1)}$, represented by $x and y$.
+
+  Transition: $y' = not y$, $x' = x xor y$
+
+  After renaming $S$: $x' and y'$
+
+  Transition relation:
+  $ T(x, y, x', y') = (y' equiv not y) and (x' equiv x xor y) $
+
+  Conjunction:
+  $ x' and y' and (y' equiv not y) and (x' equiv x xor y) $
+
+  From $y' = 1$ and $y' equiv not y$, we get $y = 0$.
+  From $x' = 1$ and $x' equiv x xor y$, we get $x xor y = 1$.
+  With $y = 0$: $x xor 0 = 1$, so $x = 1$.
+
+  After eliminating $x', y'$: result is $(x and not y)$, representing state $(1,0)$.
+
+  *Conclusion*: State $(1,0)$ can reach $(1,1)$ in one step. ✓
+]
+
+=== Backward Reachability Analysis
+
+Just as image enables forward reachability, preimage enables *backward reachability*:
+
+#theorem(name: "Backward Reachable States")[
+  The set of states that can reach a target set $T$ is:
+
+  $ R^*_"back"(T) = mu Z . T or "Pre"(Z, T_"rel") $
+
+  Algorithmically:
+  ```
+  R := T (target states)
+  loop:
+    R_new := R ∪ Pre(R, T_rel)
+    if R_new = R: break
+    R := R_new
+  return R
+  ```
+]
+
+This is useful for:
+- *Safety checking*: Can initial states reach bad states? $I inter R^*_"back"("Bad") eq.not emptyset$?
+- *Invariant checking*: Working backwards from violations
+- *Goal-directed search*: Start from targets, work backwards
+
+#note[
+  *Forward vs Backward*:
+  - Forward reachability: $R^* = mu Z . I or "Img"(Z)$ --- starts from initial states
+  - Backward reachability: $R^*_"back" = mu Z . T or "Pre"(Z)$ --- starts from target states
+
+  Choose based on problem:
+  - Use forward if initial states are small/simple
+  - Use backward if target states are small/simple
+  - Sometimes one direction has much smaller BDDs!
+]
+
 = The Modal Mu-Calculus: Foundation of Fixpoints
 
 Before diving into CTL, we need to understand the _modal mu-calculus_ --- the theoretical foundation underlying fixpoint-based model checking.
@@ -599,8 +713,8 @@ The mu-calculus notation can be initially perplexing for several reasons:
 #note[
   Think of $mu$ as "prove by construction" (build up the set) and $nu$ as "prove by elimination" (remove counterexamples).
 
-  - $mu Z . phi or "EX" Z$: Start with $phi$, expand to states reaching $phi$
-  - $nu Z . phi and "AX" Z$: Start with all states, keep only those satisfying $phi$ with all successors good
+  - $mu Z . phi or op("EX") Z$: Start with $phi$, expand to states reaching $phi$
+  - $nu Z . phi and op("AX") Z$: Start with all states, keep only those satisfying $phi$ with all successors good
 ]
 
 = CTL Model Checking
@@ -637,8 +751,8 @@ This creates a tree structure where each node is a state and each path represent
 
   $
     phi & ::= p | top | bot | not phi | phi and psi | phi or psi | phi => psi \
-        & | "EX" phi | "AX" phi | "EF" phi | "AF" phi | "EG" phi | "AG" phi \
-        & | "E"[phi rel("U") psi] | "A"[phi rel("U") psi]
+        & | op("EX") phi | op("AX") phi | op("EF") phi | op("AF") phi | op("EG") phi | op("AG") phi \
+        & | op("E")[phi rel("U") psi] | op("A")[phi rel("U") psi]
   $
 
   where $p$ is an atomic proposition from the labeling function $L$.
@@ -692,10 +806,10 @@ We write $M, s models phi$ to mean "state $s$ satisfies formula $phi$ in model $
 
   / Temporal operators:
   $
-    M, s models "EX" phi & <==> exists s' : (s, s') in T and M, s' models phi \
-    M, s models "AX" phi & <==> forall s' : (s, s') in T => M, s' models phi \
-    M, s models "EF" phi & <==> exists pi = s_0, s_1, ... : s_0 = s and exists i >= 0 : M, s_i models phi \
-    M, s models "AF" phi & <==> forall pi = s_0, s_1, ... : s_0 = s => exists i >= 0 : M, s_i models phi
+    M, s models op("EX") phi & <==> exists s' : (s, s') in T and M, s' models phi \
+    M, s models op("AX") phi & <==> forall s' : (s, s') in T => M, s' models phi \
+    M, s models op("EF") phi & <==> exists pi = s_0, s_1, ... : s_0 = s and exists i >= 0 : M, s_i models phi \
+    M, s models op("AF") phi & <==> forall pi = s_0, s_1, ... : s_0 = s => exists i >= 0 : M, s_i models phi
   $
 ]
 
@@ -706,52 +820,52 @@ CTL formulas typically express either _safety_ or _liveness_ properties --- the 
 #definition(name: "Safety Property")[
   A *safety property* asserts that "something bad never happens":
 
-  $ "AG"(not "bad") $
+  $ op("AG") (not "bad") $
 
   This means: on all paths, globally (always), the bad condition does not hold.
   Safety properties express _invariants_ --- conditions that must hold in every reachable state.
 ]
 
 #example(name: "Safety Properties")[
-  / Mutual exclusion: $"AG"(not ("critical"_1 and "critical"_2))$ \
+  / Mutual exclusion: $op("AG") (not ("critical"_1 and "critical"_2))$ \
     "Two processes are never simultaneously in the critical section"
 
-  / No buffer overflow: $"AG"("count" <= "capacity")$ \
+  / No buffer overflow: $op("AG") ("count" <= "capacity")$ \
     "The buffer count never exceeds capacity"
 
-  / No division by zero: $"AG"("divisor" != 0)$ \
+  / No division by zero: $op("AG") ("divisor" != 0)$ \
     "The divisor is always non-zero"
 
-  / Type safety: $"AG"(not "type-error")$ \
+  / Type safety: $op("AG") (not "type-error")$ \
     "No type errors occur during execution"
 
-  / Memory safety: $"AG"("allocated" => not "freed")$ \
+  / Memory safety: $op("AG") ("allocated" => not "freed")$ \
     "Accessing only allocated memory"
 ]
 
 #definition(name: "Liveness Property")[
   A *liveness property* asserts that "something good eventually happens":
 
-  $ "AF"("good") $
+  $ op("AF") ("good") $
 
   This means: on all paths, eventually (in the future), the good condition holds.
   Liveness properties ensure _progress_ --- the system doesn't get stuck but eventually achieves desired outcomes.
 ]
 
 #example(name: "Liveness Properties")[
-  / Termination: $"AF"("terminated")$ \
+  / Termination: $op("AF") ("terminated")$ \
     "The process eventually terminates"
 
-  / Request-response: $"AG"("request" => "AF" "response")$ \
+  / Request-response: $op("AG") ("request" => op("AF") "response")$ \
     "Every request is eventually responded to"
 
-  / Fair scheduling: $"AG"("waiting" => "AF" "granted")$ \
+  / Fair scheduling: $op("AG") ("waiting" => op("AF") "granted")$ \
     "Every waiting process is eventually granted access"
 
-  / Deadlock freedom: $"AG"("EF" "enabled")$ \
+  / Deadlock freedom: $op("AG") ("EF" "enabled")$ \
     "From every state, some action is eventually enabled"
 
-  / Message delivery: $"AG"("sent" => "AF" "received")$ \
+  / Message delivery: $op("AG") ("sent" => op("AF") "received")$ \
     "Every sent message is eventually received"
 ]
 
@@ -778,11 +892,11 @@ Let's work through a complete, detailed example to see how CTL properties captur
     columns: 2,
     stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
     [*Property*], [*CTL Formula*],
-    [*Safety*: Never both green], [$"AG"(not ("ns"_"green" and "ew"_"green"))$],
-    [*Safety*: Red before green], [$"AG"("ns"_"red" => "AX"(not "ns"_"green"))$],
-    [*Liveness*: Eventually green], [$"AG"("ns"_"red" => "AF" "ns"_"green")$],
-    [*Liveness*: Cycles through states], [$"AG"("EF" "ns"_"green" and "EF" "ew"_"green")$],
-    [*Fairness*: Both get green], [$"AG"("AF" "ns"_"green") and "AG"("AF" "ew"_"green")$],
+    [*Safety*: Never both green], [$op("AG") (not ("ns"_"green" and "ew"_"green"))$],
+    [*Safety*: Red before green], [$op("AG") ("ns"_"red" => op("AX") (not "ns"_"green"))$],
+    [*Liveness*: Eventually green], [$op("AG") ("ns"_"red" => op("AF") "ns"_"green")$],
+    [*Liveness*: Cycles through states], [$op("AG") (op("EF") "ns"_"green" and op("EF") "ew"_"green")$],
+    [*Fairness*: Both get green], [$op("AG") (op("AF") "ns"_"green") and op("AG") (op("AF") "ew"_"green")$],
   )
 
   Let's verify the first property in detail: *Never both green simultaneously*.
@@ -791,16 +905,16 @@ Let's work through a complete, detailed example to see how CTL properties captur
 
   $ "bad" = "ns"_"green" and "ew"_"green" $
 
-  *Step 2: Compute* $"AG"(not "bad")$ *via greatest fixpoint*
+  *Step 2: Compute* $op("AG") (not "bad")$ *via greatest fixpoint*
 
-  Recall: $"AG" phi = nu Z . phi and "AX" Z$
+  Recall: $op("AG") phi = nu Z . phi and op("AX") Z$
 
   $
     Z_0 & = S quad "(all states)" \
-    Z_1 & = (not "bad") and "AX" Z_0 \
+    Z_1 & = (not "bad") and op("AX") Z_0 \
         & = (not "bad") and S = (not "bad") \
         & = "states where not both green" \
-    Z_2 & = (not "bad") and "AX" Z_1 \
+    Z_2 & = (not "bad") and op("AX") Z_1 \
         & = (not "bad") and "all successors also satisfy" (not "bad")
   $
 
@@ -823,35 +937,37 @@ Let's work through a complete, detailed example to see how CTL properties captur
 
   *Desired property:* Every request eventually gets a response.
 
-  $ "AG"("request" => "AF" "response") $
+  $ op("AG") ("request" => op("AF") "response") $
 
   Reading: "Always, if there's a request, then on all future paths, eventually there's a response."
 
   Let's compute this step by step.
 
-  *Subformula 1:* $"AF" "response"$ --- states from which response is inevitable
+  *Subformula 1:* $op("AF") "response"$ --- states from which response is inevitable
 
-  Using $"AF" phi = mu Z . phi or "AX" Z$:  $ Z_0 & = emptyset \
-  Z_1 & = "response" or "AX" Z_0 = "response" \
-  Z_2 & = "response" or "AX" Z_1 \
+  Using $op("AF") phi = mu Z . phi or op("AX") Z$:  $ Z_0 & = emptyset \
+  Z_1 & = "response" or op("AX") Z_0 = "response" \
+  Z_2 & = "response" or op("AX") Z_1 \
       & = "response" or "Pre"("response") \
       & = "states where response holds or is reachable in 1 step" \
-  Z_3 & = "response" or "AX" Z_2 \
+  Z_3 & = "response" or op("AX") Z_2 \
       & = "states reaching response in" <= 2 "steps" \
       & dots.v $
 
   Converges to $R = "states from which response is inevitable"$.
 
-  *Subformula 2:* $"request" => "AF" "response"$ --- equivalent to $not "request" or "AF" "response"$
+  *Subformula 2:* $"request" => op("AF") "response"$ --- equivalent to $not "request" or op("AF") "response"$
 
   $ phi_"rr" = (not "request") or R $
 
-  *Main formula:* $"AG" phi_"rr"$ --- always holds  Using $"AG" phi = nu Z . phi and "AX" Z$:
+  *Main formula:* $op("AG") phi_"rr"$ --- always holds
+
+  Using $op("AG") phi = nu Z . phi and op("AX") Z$:
 
   $
     W_0 & = S \
-    W_1 & = phi_"rr" and "AX" W_0 = phi_"rr" \
-    W_2 & = phi_"rr" and "AX" W_1 \
+    W_1 & = phi_"rr" and op("AX") W_0 = phi_"rr" \
+    W_2 & = phi_"rr" and op("AX") W_1 \
         & = phi_"rr" and "Pre"(phi_"rr") \
         & dots.v
   $
@@ -874,12 +990,12 @@ The key insight for symbolic model checking is that CTL operators can be compute
   The CTL temporal operators have the following fixpoint characterizations:
 
   $
-                 "EF" phi & = mu Z . phi or "EX" Z \
-                 "AF" phi & = mu Z . phi or "AX" Z \
-                 "EG" phi & = nu Z . phi and "EX" Z \
-                 "AG" phi & = nu Z . phi and "AX" Z \
-    "E"[phi rel("U") psi] & = mu Z . psi or (phi and "EX" Z) \
-    "A"[phi rel("U") psi] & = mu Z . psi or (phi and "AX" Z)
+                  op("EF") phi & = mu Z . phi or op("EX") Z \
+                  op("AF") phi & = mu Z . phi or op("AX") Z \
+                  op("EG") phi & = nu Z . phi and op("EX") Z \
+                  op("AG") phi & = nu Z . phi and op("AX") Z \
+    op("E") [phi rel("U") psi] & = mu Z . psi or (phi and op("EX") Z) \
+    op("A") [phi rel("U") psi] & = mu Z . psi or (phi and op("AX") Z)
   $
 
   where:
@@ -902,21 +1018,21 @@ Z₃ := φ ∨ EX Z₂  (states reaching φ in ≤2 steps)
 Iteration continues until $Z_(i+1) = Z_i$ (fixpoint reached).
 
 #example(name: "EF Computation")[
-  Consider checking $"EF"("x" = 1)$ on the two-bit counter starting from $(0,0)$.
+  Consider checking $op("EF") ("x" = 1)$ on the two-bit counter starting from $(0,0)$.
 
   Let $phi = (x = 1) = {(1,0), (1,1)}$ (states where $x = 1$).
 
   $
     Z_0 & = emptyset \
-    Z_1 & = phi or "EX" Z_0 = {(1,0), (1,1)} or emptyset = {(1,0), (1,1)} \
-    Z_2 & = phi or "EX" Z_1 = {(1,0), (1,1)} or "Pre"({(1,0), (1,1)}) \
+    Z_1 & = phi or op("EX") Z_0 = {(1,0), (1,1)} or emptyset = {(1,0), (1,1)} \
+    Z_2 & = phi or op("EX") Z_1 = {(1,0), (1,1)} or "Pre"({(1,0), (1,1)}) \
         & = {(1,0), (1,1)} or {(0,0), (0,1)} = {(0,0), (1,0), (0,1), (1,1)} \
-    Z_3 & = phi or "EX" Z_2 = {(1,0), (1,1)} or "Pre"({(0,0), (1,0), (0,1), (1,1)}) \
+    Z_3 & = phi or op("EX") Z_2 = {(1,0), (1,1)} or "Pre"({(0,0), (1,0), (0,1), (1,1)}) \
         & = {(0,0), (1,0), (0,1), (1,1)} = Z_2
   $
 
   Fixpoint!
-  All states satisfy $"EF"("x" = 1)$, meaning $x = 1$ is reachable from all states.
+  All states satisfy $op("EF") ("x" = 1)$, meaning $x = 1$ is reachable from all states.
 ]
 
 === Greatest Fixpoint ($nu$)
@@ -931,21 +1047,21 @@ Z₂ := φ ∧ AX Z₁  (states where φ holds and all successors in Z₁)
 ```
 
 #example(name: "AG Computation")[
-  Check $"AG"("x" = 0)$ on the two-bit counter.
+  Check $op("AG") ("x" = 0)$ on the two-bit counter.
 
   Let $phi = (x = 0) = {(0,0), (0,1)}$.
 
   $
     Z_0 & = S = {(0,0), (1,0), (0,1), (1,1)} \
-    Z_1 & = phi and "AX" Z_0 = {(0,0), (0,1)} and S = {(0,0), (0,1)} \
-    Z_2 & = phi and "AX" Z_1 = {(0,0), (0,1)} and "AX"({(0,0), (0,1)}) \
+    Z_1 & = phi and op("AX") Z_0 = {(0,0), (0,1)} and S = {(0,0), (0,1)} \
+    Z_2 & = phi and op("AX") Z_1 = {(0,0), (0,1)} and op("AX") ({(0,0), (0,1)}) \
         & = {(0,0), (0,1)} and emptyset = emptyset
   $
 
   Why?
   Because $(0,0)$ transitions to $(1,0) in.not {(0,0), (0,1)}$.
 
-  Result: $emptyset$ means no state satisfies $"AG"("x" = 0)$.
+  Result: $emptyset$ means no state satisfies $op("AG") ("x" = 0)$.
   Property fails!
 ]
 
@@ -972,10 +1088,10 @@ The algorithm proceeds by structural induction on $phi$:
   $
 
 / EX operator:
-  $ "SAT"("EX" phi) = "Pre"("SAT"(phi), T) $
+  $ "SAT"(op("EX") phi) = "Pre"("SAT"(phi), T) $
 
 / AX operator:
-  $ "SAT"("AX" phi) = overline("SAT"("EX"(not phi))) $
+  $ "SAT"(op("AX") phi) = overline("SAT"(op("EX") (not phi))) $
 
 / EF operator (least fixpoint):
   ```
@@ -1002,16 +1118,302 @@ The algorithm proceeds by structural induction on $phi$:
 
   *System*: Two processes, each with three control states
 
-  *Property*: $"AG"(not ("critical"_1 and "critical"_2))$
+  *Property*: $op("AG") (not ("critical"_1 and "critical"_2))$
 
   *Steps*:
   1. Encode system as BDD transition relation
   2. Compute $"SAT"("critical"_1 and "critical"_2)$ = bad states
-  3. Compute $"SAT"("AG"(not "bad"))$ via greatest fixpoint
-  4. Check if initial state $in "SAT"("AG"(not "bad"))$
+  3. Compute $"SAT"(op("AG") (not "bad"))$ via greatest fixpoint
+  4. Check if initial state $in "SAT"(op("AG") (not "bad"))$
 
   If yes: property holds ✓ \
   If no: counterexample exists (extract witness path)
+]
+
+== Counterexample Generation
+
+When a property fails, the model checker should produce a *counterexample* --- a concrete execution trace demonstrating the violation.
+This is one of model checking's most valuable features: not just "property fails," but "here's exactly how it fails."
+
+=== What is a Counterexample?
+
+#definition(name: "Counterexample")[
+  For a property $phi$ that fails from initial state $s_0$:
+  - A *counterexample* is a path $pi = s_0 arrow s_1 arrow s_2 arrow ... arrow s_k$ where $s_k models not phi$
+  - For liveness properties (e.g., $op("AG") op("EF") p$), may need an infinite path (lasso-shaped)
+]
+
+=== Extracting Counterexamples
+
+During fixpoint computation, we can record *predecessor information* to reconstruct paths.
+
+*Algorithm for Safety Property* $op("AG") phi$:
+
+```
+check_AG(phi):
+  // Compute greatest fixpoint with predecessor tracking
+  Z := S
+  pred := empty_map()  // maps state to predecessor
+
+  loop:
+    Z_old := Z
+    Z := SAT(phi) ∩ AX(Z)
+
+    // Record predecessors for states leaving Z
+    for each state s in Z_old \ Z:
+      for each s' such that (s, s') in T and s' ∉ Z:
+        pred[s'] := s  // s can reach bad state s'
+
+    if Z = Z_old: break
+
+  // Check if property holds
+  if initial ⊆ Z:
+    return "Property holds"
+  else:
+    // Extract counterexample
+    return extract_path(initial, pred)
+
+extract_path(s, pred):
+  path := [s]
+  while s in pred:
+    s := pred[s]
+    path.append(s)
+  return path
+```
+
+#example(name: "Counterexample for Mutual Exclusion")[
+  Property: $op("AG") (not ("crit"_1 and "crit"_2))$ (never both in critical section)
+
+  If property fails, counterexample might be:
+  ```
+  s₀: (idle₁, idle₂)       // both idle
+    ↓
+  s₁: (trying₁, idle₂)      // P1 tries
+    ↓
+  s₂: (trying₁, trying₂)    // P2 tries
+    ↓
+  s₃: (crit₁, trying₂)      // P1 enters
+    ↓
+  s₄: (crit₁, crit₂)        // P2 enters - VIOLATION!
+  ```
+
+  This shows exactly how the mutual exclusion property was violated.
+]
+
+=== Liveness Counterexamples
+
+For liveness properties (e.g., $op("AG") op("EF") p$), counterexamples are *lasso-shaped*:
+- A *stem*: path from initial state to a cycle
+- A *loop*: cycle that never satisfies the property
+
+#example(name: "Liveness Counterexample")[
+  Property: $op("AG") op("EF") "request" => op("AF") "grant"$ (every request eventually granted)
+
+  Counterexample:
+  ```
+         s₀ (no request)
+          ↓
+  Stem:  s₁ (request sent)
+          ↓
+         s₂ (waiting)
+          ↓
+  Loop:  s₃ (still waiting) → s₄ (busy) → s₃  ↺
+  ```
+
+  The loop $s_3 arrow s_4 arrow s_3$ repeats forever without granting the request.
+]
+
+=== Symbolic Counterexample Extraction
+
+In symbolic model checking, we work with BDDs (sets of states), not individual states.
+
+*Challenge*: How to extract a single path from a BDD representing many states?
+
+*Solution*: Pick arbitrary representatives at each step:
+
+```
+extract_symbolic_path(bad_states, pred_map):
+  // Start with any bad state
+  current := pick_any_state(bad_states ∩ initial)
+  path := [current]
+
+  while current not in initial_states:
+    // Find predecessors of current
+    preds := pred_map[current] ∩ reachable
+
+    // Pick any predecessor
+    current := pick_any_state(preds)
+    path.prepend(current)
+
+  return path
+
+pick_any_state(state_set_bdd):
+  // Walk BDD, choosing any path to terminal 1
+  // Construct concrete state assignment
+  result := {}
+  node := state_set_bdd
+
+  while node is not terminal:
+    var := node.variable
+    // Choose either branch (prefer high for determinism)
+    if node.high != 0:
+      result[var] := 1
+      node := node.high
+    else:
+      result[var] := 0
+      node := node.low
+
+  return result
+```
+
+=== Shortest Counterexample
+
+For better debugging, prefer *shortest* counterexamples:
+
+```
+shortest_counterexample(initial, bad):
+  // BFS-like approach
+  reached := initial
+  frontier := initial
+  pred := {}
+  depth := 0
+
+  while frontier ≠ ∅:
+    // Check if we reached bad states
+    if frontier ∩ bad ≠ ∅:
+      return extract_path(pick_any(frontier ∩ bad), pred)
+
+    // Expand frontier
+    new_states := Img(frontier) \ reached
+
+    // Record predecessors
+    for each s in new_states:
+      pred[s] := frontier  // symbolic: BDD of possible preds
+
+    reached := reached ∪ new_states
+    frontier := new_states
+    depth := depth + 1
+
+  return "No counterexample exists"
+```
+
+#note[
+  *Practical Considerations*:
+  - Shortest counterexamples are easier to understand
+  - But computing them requires additional BFS-like search
+  - Trade-off: speed vs. counterexample quality
+  - Some tools offer both options
+]
+
+== Fairness Constraints
+
+Many systems require *fairness assumptions* --- constraints ensuring "infinitely often" behavior.
+Without fairness, model checking can produce unrealistic counterexamples.
+
+=== Why Fairness Matters
+
+#example(name: "Unfair Scheduler")[
+  System: Two processes competing for a resource
+
+  Property: $op("AG") ("request"_1 => op("AF") "grant"_1)$ (every request eventually granted)
+
+  *Without fairness*: Counterexample where process 2 is scheduled forever, process 1 never runs.
+  This is technically valid but unrealistic --- real schedulers are fair.
+
+  *With fairness*: "Process 1 is scheduled infinitely often"
+  Now the counterexample disappears --- if P1 runs infinitely often, it will eventually be granted.
+]
+
+=== Types of Fairness
+
+#definition(name: "Fairness Constraints")[
+
+  - *Unconditional (Strong) Fairness*:
+    $ op("GF") phi $ --- $phi$ holds infinitely often
+
+  - *Conditional (Weak) Fairness*:
+    $ op("FG") phi => op("GF") psi $ --- if $phi$ holds continuously from some point, then $psi$ holds infinitely often
+
+    Equivalently: $op("GF") phi or op("FG") psi$
+]
+
+*Common Uses*:
+- *Process fairness*: Every process runs infinitely often
+- *Communication fairness*: Every enabled transition is eventually taken
+- *Channel fairness*: Every message eventually delivered
+
+=== Fair CTL (FCTL)
+
+CTL extended with fairness:
+
+#definition(name: "Fair Paths")[
+  Given fairness constraint $F$ (typically conjunction of $op("GF") phi_i$):
+  - A path is *fair* if it satisfies $F$
+  - CTL operators quantify over fair paths only
+]
+
+*Fair CTL Semantics*:
+- $op("EF")_F phi$: exists a *fair* path where $phi$ eventually holds
+- $op("AG")_F phi$: on all *fair* paths, $phi$ always holds
+
+=== Model Checking with Fairness
+
+Fairness changes fixpoint computations:
+
+#theorem(name: "Fair EF")[
+  For fairness $F = op("GF") f_1 and ... and op("GF") f_n$:
+
+  $ op("EF")_F phi = mu Z . phi or (op("EX") Z and op("EX") (op("EF")_F f_1) and ... and op("EX") (op("EF")_F f_n)) $
+]
+
+*Intuition*: To reach $phi$ fairly, each step must be on a path that visits each $f_i$ infinitely often.
+
+#theorem(name: "Fair AG")[
+  For fairness $F = op("GF") f_1 and ... and op("GF") f_n$:
+
+  $ op("AG")_F phi = nu Z . phi and op("AX") (Z or not op("EF")_F "true") $
+]
+
+*Algorithm for Fair Reachability*:
+
+```
+fair_EF(phi, fairness_constraints):
+  // Compute states from which all fairness constraints
+  // can be satisfied infinitely often
+
+  fair_states := S
+  for each f in fairness_constraints:
+    // States from which f is reachable infinitely often
+    fair_inf := nu Z. f ∧ EX(Z) ∨ EX(EF(f))
+    fair_states := fair_states ∩ fair_inf
+
+  // Now compute EF over fair paths
+  Z := phi
+  loop:
+    Z_new := Z ∪ (Pre(Z) ∩ fair_states)
+    if Z_new = Z: break
+    Z := Z_new
+
+  return Z
+```
+
+#example(name: "Fair Mutual Exclusion")[
+  System: Two processes with mutual exclusion protocol
+
+  Fairness: $op("GF") "run"_1 and op("GF") "run"_2$ (both processes run infinitely often)
+
+  Property: $op("AG") ("request"_1 => op("AF") "grant"_1)$
+
+  *Without fairness*: Fails (P2 can run forever)
+  *With fairness*: Holds (P1 must run infinitely often, so eventually gets grant)
+]
+
+#note[
+  *Fairness Complexity*:
+  - Fair CTL model checking is more expensive than standard CTL
+  - Each fairness constraint adds nested fixpoint computations
+  - But essential for realistic verification of concurrent systems
+  - Most practical model checkers support fairness constraints
 ]
 
 == Programming Example: Pseudocode for Model Checking
@@ -1206,6 +1608,145 @@ This example demonstrates the conceptual structure of model checking:
   See the library documentation for the specific API.
 ]
 
+= Linear Temporal Logic (LTL) and CTL Comparison
+
+While this document focuses on CTL, it's important to understand how it relates to Linear Temporal Logic (LTL), another major temporal logic for verification.
+
+== LTL: Path-Based Logic
+
+LTL expresses properties of *individual paths* (linear sequences of states).
+
+#definition(name: "LTL Syntax")[
+  $ phi ::= p | not phi | phi_1 and phi_2 | op("X") phi | phi_1 rel("U") phi_2 $
+
+  Where:
+  - $p$: atomic proposition
+  - $op("X") phi$: *next* --- $phi$ holds in next state
+  - $phi_1 rel("U") phi_2$: *until* --- $phi_1$ holds until $phi_2$ holds
+
+  Derived operators:
+  - $op("F") phi equiv "true" rel("U") phi$ (eventually/finally)
+  - $op("G") phi equiv not op("F") not phi$ (globally/always)
+]
+
+#definition(name: "LTL Semantics")[
+  LTL formulas are evaluated on *infinite paths* $pi = s_0 arrow s_1 arrow s_2 arrow ...$
+
+  - $pi models p$ iff $p in L(s_0)$
+  - $pi models op("X") phi$ iff $pi^1 models phi$ (where $pi^i$ is path starting at $s_i$)
+  - $pi models phi_1 rel("U") phi_2$ iff $exists i >= 0 . (pi^i models phi_2 and forall j < i . pi^j models phi_1)$
+  - $pi models op("F") phi$ iff $exists i >= 0 . pi^i models phi$
+  - $pi models op("G") phi$ iff $forall i >= 0 . pi^i models phi$
+]
+
+== CTL: State-Based Logic
+
+CTL expresses properties about *sets of states* and quantifies over paths from each state.
+
+*Key difference*: In CTL, path quantifiers (E, A) must be immediately followed by temporal operators (X, F, G, U).
+
+== Expressiveness Comparison
+
+*Neither logic subsumes the other* --- they are incomparable.
+
+=== Properties CTL Can Express But LTL Cannot
+
+#example(name: "Potential to Reach")[
+  CTL: $op("AG") op("EF") "restart"$
+
+  "From every reachable state, there *exists* a path to restart"
+
+  This cannot be expressed in LTL because LTL quantifies over individual paths, not over existence of alternative paths from a state.
+]
+
+#example(name: "Inevitable on Some Branch")[
+  CTL: $op("EF") op("AG") "stable"$
+
+  "There exists a path leading to a state from which 'stable' holds on all continuations"
+
+  LTL cannot express this alternation of quantifiers (E followed by A).
+]
+
+=== Properties LTL Can Express But CTL Cannot
+
+#example(name: "Fairness")[
+  LTL: $op("GF") "request" => op("GF") "grant"$
+
+  "If request holds infinitely often, then grant holds infinitely often"
+
+  This *infinitely often* property cannot be expressed in CTL.
+  CTL's $op("AG") op("EF") "grant"$ is weaker --- it only says grant is *reachable* infinitely many times, not that it actually *occurs* infinitely often on the path.
+]
+
+#example(name: "Eventual Persistence")[
+  LTL: $op("F") op("G") "stable"$
+
+  "Eventually, stable holds forever"
+
+  CTL's $op("AF") op("AG") "stable"$ is different --- it means "on all paths, eventually all continuations are stable," which is stronger (requires all paths to converge).
+]
+
+=== Properties Both Can Express
+
+#example(name: "Common Ground")[
+  - $op("AG") p equiv op("G") p$ (safety)
+  - $op("AF") p equiv op("A") op("F") p$ (inevitability on all paths)
+  - $op("EF") p$ has no LTL equivalent (but $op("F") p$ is weaker)
+  - $op("EG") p$ has no LTL equivalent
+]
+
+== CTL\*: The Unified Logic
+
+#definition(name: "CTL*")[
+  CTL\* allows arbitrary mixing of path quantifiers and temporal operators.
+
+  - CTL $subset.eq$ CTL\*
+  - LTL $subset.eq$ CTL\*
+  - CTL\* is strictly more expressive than both
+]
+
+*Example CTL\* property*: $op("A") (op("G") op("F") "request" => op("G") op("F") "grant")$
+
+This combines CTL's universal path quantifier with LTL's fairness pattern.
+
+== Model Checking Complexity
+
+#table(
+  columns: (auto, auto, auto),
+  align: (left, center, center),
+  [*Logic*], [*Complexity*], [*Approach*],
+  [CTL], [$O(|M| times |phi|)$], [Fixpoint computation],
+  [LTL], [$O(|M| times 2^(|phi|))$], [Automata-theoretic],
+  [CTL\*], [$O(|M| times 2^(|phi|))$], [Automata-theoretic],
+)
+
+*Key insights*:
+- CTL is faster to check (linear in formula size)
+- LTL requires translating formula to Büchi automaton (exponential)
+- But LTL can express fairness directly
+
+== When to Use Which Logic?
+
+#table(
+  columns: (auto, auto),
+  align: (left, left),
+  [*Use CTL when:*], [*Use LTL when:*],
+  [• Checking branching properties], [• Checking linear properties],
+  [• "Some path exists" reasoning], [• Fairness constraints],
+  [• Speed is critical], [• Path-specific behavior],
+  [• Bounded path quantification], [• "Infinitely often" patterns],
+  [• Small formulas], [• Composition of properties],
+)
+
+#note[
+  *Practical Consideration*:
+  - Most industrial model checkers support both CTL and LTL
+  - For LTL, they typically convert to CTL\* or use automata-theoretic methods
+  - Choice often depends on property being verified rather than performance
+  - Symbolic (BDD-based) methods work best for CTL
+  - Explicit-state methods often preferred for LTL
+]
+
 = Implementation
 
 This section describes how symbolic model checking is implemented in practice using BDDs.
@@ -1295,6 +1836,229 @@ To ensure canonicity (same function = same BDD), we enforce two reduction rules:
 This canonicity enables:
 - *Constant-time equality checking*: Same function ↔ same BDD pointer
 - *Hash consing*: Automatic sharing of subformulas
+
+== BDD Operations
+
+BDDs support efficient operations for manipulating Boolean functions.
+All operations maintain the canonical form through reduction and hash consing.
+
+=== Apply Operation
+
+The *apply* operation combines two BDDs using a Boolean operator ($and$, $or$, $xor$, etc.).
+
+#definition(name: "Apply Operation")[
+  Given BDDs $f$ and $g$ and binary operator $op in {and, or, xor, =>}$:
+
+  $ "apply"(f, g, op) = h "where" h(x_1, ..., x_n) = f(x_1, ..., x_n) space op space g(x_1, ..., x_n) $
+]
+
+*Algorithm* (recursive with memoization):
+
+```
+apply(f, g, op):
+  // Base cases
+  if f is terminal and g is terminal:
+    return op(f, g)
+
+  // Check cache
+  if (f, g, op) in cache:
+    return cache[(f, g, op)]
+
+  // Recursive case: split on top variable
+  let v = min(var(f), var(g))
+
+  let f_low = (var(f) = v) ? low(f) : f
+  let f_high = (var(f) = v) ? high(f) : f
+  let g_low = (var(g) = v) ? low(g) : g
+  let g_high = (var(g) = v) ? high(g) : g
+
+  let h_low = apply(f_low, g_low, op)
+  let h_high = apply(f_high, g_high, op)
+
+  let result = make_node(v, h_low, h_high)
+  cache[(f, g, op)] = result
+  return result
+```
+
+#example(name: "Apply AND")[
+  Computing $f and g$ where $f = x$ and $g = y$:
+
+  - $f$ is the BDD with root $x$: low→0, high→1
+  - $g$ is the BDD with root $y$: low→0, high→1
+
+  Apply proceeds:
+  - Top variable: $x$ (assuming $x < y$ in ordering)
+  - Low branch: $"apply"(0, g, and) = 0$ (since $0 and "anything" = 0$)
+  - High branch: $"apply"(1, g, and) = g$ (since $1 and g = g$)
+  - Result: BDD with root $x$, low→0, high→$g$
+
+  This represents $x and y$ ✓
+]
+
+*Complexity*: $O(|f| times |g|)$ in worst case, but caching makes it efficient in practice.
+
+=== Restrict Operation
+
+The *restrict* operation fixes the value of a variable.
+
+#definition(name: "Restrict")[
+  $ "restrict"(f, x_i, b) = f[x_i arrow b] $
+
+  Returns a BDD representing $f$ with variable $x_i$ set to boolean value $b in {0,1}$.
+]
+
+*Algorithm*:
+```
+restrict(f, var, value):
+  if f is terminal:
+    return f
+
+  if var(f) < var:  // haven't reached var yet
+    return make_node(var(f),
+      restrict(low(f), var, value),
+      restrict(high(f), var, value))
+
+  if var(f) = var:  // found the variable
+    return value = 0 ? low(f) : high(f)
+
+  // var(f) > var: variable doesn't appear
+  return f
+```
+
+#example[
+  Given $f = x and y$ (BDD: root $x$, low→0, high→(root $y$, low→0, high→1)):
+
+  $"restrict"(f, x, 1)$ eliminates $x$ node, returns the high branch:
+  - Result: BDD for $y$ (since $1 and y = y$)
+
+  $"restrict"(f, x, 0)$ returns the low branch:
+  - Result: terminal 0 (since $0 and y = 0$)
+]
+
+=== Existential Quantification
+
+Eliminating a variable by quantifying it out:
+
+#definition(name: "Existential Quantification")[
+  $ exists x_i . f = f[x_i arrow 0] or f[x_i arrow 1] $
+
+  The result is true if $f$ is true for *any* value of $x_i$.
+]
+
+*Algorithm*:
+```
+exists(f, var):
+  f0 = restrict(f, var, 0)
+  f1 = restrict(f, var, 1)
+  return apply(f0, f1, OR)
+```
+
+#example[
+  Given $f = x and y$:
+
+  $exists x . (x and y)$:
+  - $f[x arrow 0] = 0 and y = 0$
+  - $f[x arrow 1] = 1 and y = y$
+  - Result: $0 or y = y$
+
+  This makes sense: "there exists an $x$ such that $x and y$" is equivalent to just $y$ (choosing $x=1$ works iff $y=1$).
+]
+
+*Universal quantification* is dual:
+$ forall x_i . f = f[x_i arrow 0] and f[x_i arrow 1] $
+
+=== Compose Operation
+
+Substitute a variable with a function:
+
+#definition(name: "Compose")[
+  $ "compose"(f, x_i, g) = f[x_i arrow g] $
+
+  Replace all occurrences of $x_i$ in $f$ with the function $g$.
+]
+
+This is crucial for variable renaming in model checking (e.g., $x' arrow x$).
+
+*Algorithm*:
+```
+compose(f, var, g):
+  if f is terminal:
+    return f
+
+  if var(f) < var:
+    return make_node(var(f),
+      compose(low(f), var, g),
+      compose(high(f), var, g))
+
+  if var(f) = var:
+    // Replace this node: compute f[var←g]
+    // This is: (¬g ∧ low(f)) ∨ (g ∧ high(f))
+    return ite(g, high(f), low(f))
+
+  // var(f) > var: doesn't depend on var
+  return f
+```
+
+=== ITE (If-Then-Else) Operation
+
+The fundamental BDD operation from which all others can be derived:
+
+#definition(name: "ITE Operation")[
+  $ "ite"(f, g, h) = (f and g) or (not f and h) $
+
+  "If $f$ then $g$ else $h$"
+]
+
+#note[
+  *Why ITE is universal:*
+  - $not f = "ite"(f, 0, 1)$
+  - $f and g = "ite"(f, g, 0)$
+  - $f or g = "ite"(f, 1, g)$
+  - $f xor g = "ite"(f, not g, g)$
+]
+
+*Algorithm* (similar to apply but with three arguments):
+```
+ite(f, g, h):
+  // Terminal cases
+  if f = 1: return g
+  if f = 0: return h
+  if g = h: return g
+  if g = 1 and h = 0: return f
+
+  // Check cache
+  if (f, g, h) in cache:
+    return cache[(f, g, h)]
+
+  // Recursive case
+  let v = min(var(f), var(g), var(h))
+
+  let f_v = cofactor(f, v)
+  let g_v = cofactor(g, v)
+  let h_v = cofactor(h, v)
+
+  let low = ite(f_v.low, g_v.low, h_v.low)
+  let high = ite(f_v.high, g_v.high, h_v.high)
+
+  let result = make_node(v, low, high)
+  cache[(f, g, h)] = result
+  return result
+```
+
+=== Operation Complexity Summary
+
+#table(
+  columns: 3,
+  stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
+  [*Operation*], [*Time Complexity*], [*Note*],
+  [`apply(f, g, op)`], [$O(|f| times |g|)$], [With caching],
+  [`restrict(f, x, b)`], [$O(|f|)$], [Single pass],
+  [`exists(f, x)`], [$O(|f|^2)$], [Two restricts + OR],
+  [`compose(f, x, g)`], [$O(|f| times |g|)$], [Like apply],
+  [`ite(f, g, h)`], [$O(|f| times |g| times |h|)$], [Universal operation],
+)
+
+All operations produce canonical results automatically through the BDD construction primitives.
 
 == Variable Management: Present and Next
 
@@ -1668,6 +2432,256 @@ Third, _efficiency_: because of sharing, BDD operations are polynomial in the si
 Combining two BDDs with a million nodes each might produce a result with two million nodes (in the worst case), not $2^1000000$ nodes.
 This polynomial scaling --- combined with aggressive sharing --- is what makes symbolic model checking tractable.
 
+== Optimization Techniques
+
+Practical symbolic model checking requires numerous optimizations to handle large state spaces efficiently.
+
+=== Early Termination
+
+Many fixpoint computations can terminate early when the answer is known.
+
+#example(name: "Early Termination in EF")[
+  When checking $op("EF") phi$:
+
+  ```
+  EF(phi):
+    Z := SAT(phi)
+    if Z ∩ initial ≠ ∅:  // Found a path immediately!
+      return true
+
+    loop:
+      Z_new := Z ∪ Pre(Z)
+      if Z_new ∩ initial ≠ ∅:  // Found a path!
+        return true
+      if Z_new = Z: break
+      Z := Z_new
+
+    return false  // No path exists
+  ```
+
+  Instead of computing entire fixpoint, stop as soon as we reach initial states.
+]
+
+#example(name: "Early Termination in AG")[
+  When checking $op("AG") phi$:
+
+  ```
+  AG(phi):
+    Z := SAT(phi)
+    if initial ⊈ Z:  // Violation found immediately!
+      return false
+
+    loop:
+      Z_new := Z ∩ AX(Z)
+      if initial ⊈ Z_new:  // Found violation!
+        return false
+      if Z_new = Z: break
+      Z := Z_new
+
+    return true
+  ```
+]
+
+=== Partitioned Transition Relations
+
+Instead of monolithic $T(v,v')$, use conjunctive partitioning.
+
+#definition(name: "Conjunctive Partitioning")[
+  Express transition relation as:
+  $ T(v,v') = T_1(v,v') and T_2(v,v') and ... and T_n(v,v') $
+
+  Where each $T_i$ depends on only a few variables.
+]
+
+*Advantage*: Smaller BDDs, more efficient operations.
+
+#example(name: "Variable-Based Partitioning")[
+  For system with variables $x_1, ..., x_n$:
+
+  $ T(v,v') = and.big_(i=1)^n T_i(x_i, x'_i, x_1, ..., x_(i-1)) $
+
+  Each $T_i$ defines next value of $x'_i$ in terms of current state.
+
+  For image computation:
+  ```
+  Img(S):
+    result := S
+    for i := 1 to n:
+      result := result ∧ T_i
+      result := ∃x_i. result  // Eliminate as soon as possible
+    // Rename all x'_i to x_i
+    return rename(result)
+  ```
+
+  Early quantification keeps BDD sizes small.
+]
+
+=== Dynamic Variable Reordering
+
+BDD size is *critically* sensitive to variable ordering.
+
+#example(name: "Ordering Impact")[
+  Function: $f(x_1, ..., x_n, y_1, ..., y_n) = (x_1 and y_1) or ... or (x_n and y_n)$
+
+  *Bad ordering* $x_1, x_2, ..., x_n, y_1, ..., y_n$:
+  - BDD size: $O(2^n)$ (exponential!)
+
+  *Good ordering* $x_1, y_1, x_2, y_2, ..., x_n, y_n$:
+  - BDD size: $O(n)$ (linear)
+]
+
+*Dynamic reordering*: Automatically adjust variable order during computation.
+
+*Heuristics*:
+- *Sifting*: Try moving each variable to different positions, keep best
+- *Window permutation*: Optimize small windows of adjacent variables
+- *Genetic algorithms*: Evolve good orderings over time
+
+*Trigger conditions*:
+- Reorder when BDD size exceeds threshold
+- Reorder periodically during long computations
+- Reorder on memory pressure
+
+#note[
+  Dynamic reordering can be expensive (minutes for large BDDs).
+  But it's often essential --- without it, model checking may fail entirely.
+]
+
+=== Garbage Collection
+
+BDDs require careful memory management.
+
+*Reference counting*:
+- Each BDD node tracks how many other nodes/roots reference it
+- When count reaches 0, node can be reclaimed
+
+*Mark and sweep*:
+- Periodically mark all reachable nodes from roots
+- Sweep and free unmarked nodes
+
+*Practical strategy*:
+```
+after_operation():
+  if nodes_allocated > threshold:
+    garbage_collect()
+
+  if nodes_allocated > critical_threshold:
+    force_reordering()
+```
+
+=== Caching and Memoization
+
+Most BDD operations use *computed tables* (caches).
+
+#definition(name: "Computed Table")[
+  Hash table mapping $("op", "arg1", "arg2") arrow "result"$
+
+  Before computing operation:
+  - Check if result is already cached
+  - If yes, return cached result immediately
+  - If no, compute, cache, and return
+]
+
+*Example*: Computing $f and g$:
+```
+and(f, g):
+  // Check cache
+  if ("and", f, g) in computed_table:
+    return computed_table[("and", f, g)]
+
+  // Base cases
+  if f = 0 or g = 0: return 0
+  if f = 1: return g
+  if g = 1: return f
+
+  // Recursive case
+  var := top_var(f, g)
+  low := and(f|_var=0, g|_var=0)
+  high := and(f|_var=1, g|_var=1)
+  result := make_node(var, low, high)
+
+  // Cache and return
+  computed_table[("and", f, g)] := result
+  return result
+```
+
+*Cache management*:
+- Flush when too large (keep only recent entries)
+- Preserve entries for common subexpressions
+
+=== Frontier Simplification
+
+During fixpoint computation, simplify intermediate BDDs.
+
+#example(name: "Approximate Reachability")[
+  Standard: $R_0, R_1, R_2, ...$ where $R_(i+1) = R_i union "Img"(R_i)$
+
+  Problem: $R_i$ BDDs grow large quickly
+
+  Solution: *Restrict* intermediate results to relevant regions:
+  ```
+  reach():
+    R := initial
+    loop:
+      R_new := R ∪ Img(R)
+
+      // Simplification: restrict to care set
+      R_new := R_new ∩ care_set
+
+      if R_new = R: break
+      R := R_new
+  ```
+
+  Where `care_set` might be:
+  - States satisfying certain invariants
+  - States within bounded depth
+  - States with specific properties
+]
+
+=== Abstraction and Refinement
+
+For very large systems, use abstraction.
+
+#definition(name: "Counterexample-Guided Abstraction Refinement (CEGAR)")[
+  1. *Abstract* the system (reduce state space)
+  2. *Model check* the abstraction
+  3. If property holds: done (holds in concrete system too)
+  4. If property fails:
+    - Check if counterexample is *spurious*
+    - If real: done (found bug)
+    - If spurious: *refine* abstraction, go to 2
+]
+
+*Abstraction techniques*:
+- *Predicate abstraction*: Track only selected predicates
+- *Localization reduction*: Consider only relevant variables
+- *Cone of influence*: Ignore variables not affecting property
+
+=== Compositional Verification
+
+Verify components separately, then compose results.
+
+#theorem(name: "Assume-Guarantee Reasoning")[
+  To verify $M_1 parallel M_2 models phi$:
+
+  1. Find assumption $A$ on $M_2$
+  2. Verify $M_1$ under assumption $A$ satisfies $phi$
+  3. Verify $M_2$ guarantees $A$
+
+  Then $M_1 parallel M_2 models phi$
+]
+
+*Benefit*: Avoid composing full state spaces.
+
+#note[
+  *Tool Support*:
+  - Most modern BDD packages include these optimizations
+  - Dynamic reordering is nearly universal
+  - Partitioned transition relations in tools like NuSMV, VIS
+  - CEGAR in tools like BLAST, CPAchecker
+  - User typically configures thresholds and heuristics
+]
+
 = Conclusion
 
 Symbolic model checking using BDDs represents one of the great success stories in formal methods and automated verification.
@@ -1855,25 +2869,4 @@ _Weaknesses_:
 #note[
   In practice, modern verification tools often combine multiple techniques, leveraging the strengths of each.
   The choice depends on the system structure, property type, and available computational resources.
-]
-
-= Conclusion
-
-Symbolic model checking achieves the seemingly impossible: exhaustive verification of systems with $10^20$ states or more.
-The key insights are:
-
-*Symbolic representation*: Encode exponentially large state sets as compact Boolean formulas (BDDs), exploiting structure through sharing and reduction.
-
-*Image and preimage operations*: Compute successor and predecessor states symbolically, enabling efficient state space exploration without explicit enumeration.
-
-*Fixpoint computation*: Reduce temporal logic model checking (CTL, mu-calculus) to iterative fixpoint algorithms that leverage BDD canonicity for instant termination detection.
-
-*Implementation techniques*: Careful variable management (interleaving present/next-state variables), efficient BDD operations (apply, exists, compose), and awareness of when BDDs excel (regular structure, local transitions) versus struggle (multiplication, irregular patterns).
-
-These techniques form the theoretical foundation of modern formal verification, enabling mathematical guarantees about system correctness that testing alone cannot provide.
-
-#align(center)[
-  #text(size: 10pt, style: "italic")[
-    _End of Document_
-  ]
 ]
