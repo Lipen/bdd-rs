@@ -125,6 +125,68 @@
 
 #pagebreak()
 
+== How to Use This Document
+
+*Different paths for different goals.*
+
+This document serves multiple audiences --- theorists seeking deep understanding, practitioners building verification tools, and engineers applying model checking to real systems.
+Choose your path based on your goals:
+
+*Path 1: Quick Start --- "I want to verify something NOW"*
+
+If you need practical results quickly:
++ Read Introduction (Section 1) for motivation
++ Skim Preliminaries (Section 2) --- just get the notation
++ Jump to Implementation (Section 8) --- start with hands-on exercise
++ Try the bdd-rs code examples
++ Return to theory sections as needed when you encounter concepts you don't understand
+
+_Best for_: Engineers with deadlines, learners who prefer code-first approaches
+
+*Path 2: Theoretical Foundations --- "I want to understand WHY"*
+
+If you want deep understanding:
++ Read sequentially: Sections 1-7
++ Work through all examples on paper
++ Pay attention to definitions and theorems
++ Study the fixpoint theory (Section 5) carefully
++ Then tackle Implementation (Section 8) to see theory realized
+
+_Best for_: Students, researchers, those building new verification techniques
+
+*Path 3: Practical Engineering --- "Show me solutions to real problems"*
+
+If you want to apply model checking effectively:
++ Read Introduction (Section 1) including the Intel FDIV case study
++ Understand Symbolic Exploration (Section 4) --- this is your toolkit
++ Study CTL Model Checking (Section 6) --- especially the worked examples
++ Focus on Limitations and Extensions (Section 10) --- knowing when NOT to use BDDs is crucial
++ Study the troubleshooting guide --- you'll need it
+
+_Best for_: Verification engineers, tool users, practitioners
+
+*Path 4: Tool Builder --- "I'm implementing a model checker"*
+
+If you're building verification software:
++ Understand the theory: Sections 2-6
++ Deep dive into Implementation (Section 8) --- this is your blueprint
++ Study Performance Considerations carefully
++ Review Optimizations section
++ Study alternative techniques (Section 10) for hybrid approaches
+
+_Best for_: Tool developers, compiler writers, those extending existing tools
+
+*Navigation Tips:*
+- 📙 Examples marked with yellow boxes show concrete applications
+- 📓 Definitions (gray boxes) introduce precise terminology
+- 📗 Notes (green boxes) provide intuition and practical insights
+- 📘 Theorems (blue boxes) state formal results
+
+Skip what you don't need.
+Every major concept includes examples, so you can understand through concrete cases even without full theory.
+
+#pagebreak()
+
 = Introduction
 
 _Model checking_ is an automated formal verification technique that exhaustively explores all possible behaviors of a system to determine whether it satisfies specified properties.
@@ -207,6 +269,29 @@ Using *Binary Decision Diagrams (BDDs)*, we can represent these characteristic f
 ]
 
 This compression makes it possible to verify systems with $10^20$ states or more --- systems that were intractable with explicit-state methods.
+
+#note[
+  *Real-World Impact: The \$475 Million Bug*
+
+  In 1994, Intel released the Pentium processor with a subtle bug in its floating-point division unit.
+  The FDIV bug affected certain rare combinations of inputs, producing incorrect results.
+  Intel initially dismissed the problem as insignificant, but public outcry forced a full recall.
+
+  *The Cost:* \$475 million and immeasurable damage to Intel's reputation.
+
+  *The Lesson:* This bug could have been caught by formal verification.
+  The division circuit had $10^(18)$ reachable states --- far too many for testing to cover comprehensively, but well within reach of symbolic model checking.
+
+  After the FDIV incident, Intel invested heavily in formal verification.
+  Today, every floating-point unit Intel ships is formally verified using BDD-based model checking.
+  Similar bugs have been caught and fixed before reaching customers, saving potentially billions in recalls.
+
+  The division circuit that failed in 1994? With modern BDD techniques and hardware, it can be fully verified in minutes.
+
+  *Impact on the field:* The FDIV bug transformed industrial attitudes toward formal methods.
+  What was once an academic curiosity became essential engineering practice.
+  Today, formal verification is standard in processor design, protocol verification, and safety-critical systems.
+]
 
 Why does this compression work so well in practice?
 The answer lies in the inherent _regularity_ of engineered systems.
@@ -591,29 +676,24 @@ The image operation enables us to compute *all* reachable states through iterati
 ]
 
 #note[
-  *Pause and Predict:* Before reading on, try this thought experiment.
+  *Understanding Fixpoint Convergence*
 
-  Imagine a 3-bit counter (states 0 through 7) that increments modulo 8.
-  Starting from state 0, how many iterations would you need to reach the fixpoint?
-
-  Think about it for a moment...
-
-  *Answer:* Just 3 iterations! Why?
-  Because each iteration doesn't just add the next state --- it adds _all states reachable in one step_ from the current set.
-
+  For a 3-bit counter (states 0 through 7) incrementing modulo 8, starting from state 0, the fixpoint would be reached in just 3 iterations --- not 8.
+  Each iteration adds _all states reachable in one step_ from the current set:
   - $R_0 = {0}$
   - $R_1 = {0, 1}$ (gained 1 state)
   - $R_2 = {0, 1, 2}$ (gained 1 state)
   - $R_3 = {0, 1, 2, 3}$ (gained 1 state)
 
-  Wait, that's linear!
-  But symbolic methods should be better...
+  This appears linear, which might seem disappointing for "symbolic" methods.
+  The key insight: for a simple counter, reachability convergence _is_ bounded by the longest path length (in this case, the diameter of the reachability graph).
 
-  The key insight: for a simple counter, reachability _is_ linear in the state space because we can only reach one new state per step.
-  The power of symbolic model checking shows up when the transition relation allows reaching _many_ states simultaneously --- like in systems with parallelism, non-determinism, or broadcast communication.
+  The exponential advantage of symbolic model checking emerges when the transition relation allows reaching _many_ states simultaneously.
+  Consider a system with 10 parallel processes, each with 2 states.
+  A broadcast operation might transition from one state to 512 states in a single step.
+  The fixpoint would converge in perhaps 5-10 iterations, not 512.
 
-  *Self-check:* Can you think of a system where one image operation would add 1000 states at once?
-  (Hint: think about parallel processes or broadcast protocols.)
+  This is where symbolic methods shine: handling massive branching efficiently by operating on sets rather than individual states.
 ]
 
 == Preimage: Backward Reachability
@@ -1137,6 +1217,99 @@ Let's work through a complete example to see how CTL properties capture real sys
   State $s_2$ would _not_ be in $R$ (response inevitable), so $s_1 in.not W_"final"$, and the model checker would report this path as a counterexample.
 ]
 
+=== Comparative Example: Three Ways to Verify Safety
+
+*Same system, three different verification approaches.*
+
+Consider verifying that a 2-bit counter never reaches state (1,1) from initial state (0,0).
+Property: $op("AG") not (x_1 and x_0)$
+
+Let's compare three approaches:
+
+*Approach 1: Forward Reachability to Bad States*
+
+Compute all reachable states, check if any are bad:
+```
+reachable := {(0,0)}
+loop:
+  new := reachable ∪ Image(reachable)
+  if new = reachable: break
+  reachable := new
+
+bad := {(1,1)}
+if reachable ∩ bad ≠ ∅:
+  return "Property FAILS"
+else:
+  return "Property HOLDS"
+```
+
+*Approach 2: Backward Reachability from Bad States*
+
+Compute all states that can reach bad states:
+```
+bad := {(1,1)}
+can_reach_bad := bad
+loop:
+  new := can_reach_bad ∪ Preimage(can_reach_bad)
+  if new = can_reach_bad: break
+  can_reach_bad := new
+
+initial := {(0,0)}
+if initial ∩ can_reach_bad ≠ ∅:
+  return "Property FAILS"
+else:
+  return "Property HOLDS"
+```
+
+*Approach 3: AG Greatest Fixpoint*
+
+Compute states satisfying AG φ directly:
+```
+safe := all_states  // Start with everything
+loop:
+  new := safe ∩ ¬bad ∩ Preimage(safe)
+  if new = safe: break
+  safe := new
+
+initial := {(0,0)}
+if initial ⊆ safe:
+  return "Property HOLDS"
+else:
+  return "Property FAILS"
+```
+
+*Comparison*:
+
+#table(
+  columns: 4,
+  align: (left, center, center, left),
+  stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
+  table.header([*Approach*], [*Iterations*], [*BDD Sizes*], [*Best For*]),
+
+  [Forward reach], [3], [Small $=>$ Medium], [Finding reachable states, bug detection],
+
+  [Backward reach], [2], [Medium $=>$ Small], [When bad states are localized, goal-directed search],
+
+  [AG fixpoint], [2], [Large $=>$ Small], [When property holds (converges fast), proving safety],
+)
+
+*Key Insights*:
+
++ *Backward reachability often converges faster* when bad states are few and far from initial states.
+  It grows the set from a small bad region rather than from initial states.
+
++ *AG fixpoint starts large and shrinks*, removing unsafe states.
+  This is efficient when most states satisfy the property.
+
++ *Forward reachability is most intuitive* and useful for understanding system behavior, but may explore irrelevant states.
+
+*When to use each*:
+- Use forward reachability for: general exploration, bug hunting, understanding reachable behavior
+- Use backward reachability for: localized error states, goal-directed search, counterexample generation
+- Use AG fixpoint for: proving safety when property likely holds, leveraging structure of safe states
+
+In practice, modern model checkers often combine approaches or choose adaptively based on problem characteristics.
+
 #note[
   *Test Your Understanding: CTL Property Puzzle*
 
@@ -1352,24 +1525,7 @@ The algorithm proceeds by structural induction on $phi$:
   ]
   #v(-1em)
 
-#example(name: "Complete Verification")[
-  Let's verify mutual exclusion in a simple protocol.
-
-  *System*: Two processes, each with three control states
-
-  *Property*: $op("AG") (not ("critical"_1 and "critical"_2))$
-
-  *Steps*:
-  1. Encode system as BDD transition relation
-  2. Compute $"SAT"("critical"_1 and "critical"_2)$ = bad states
-  3. Compute $"SAT"(op("AG") (not "bad"))$ via greatest fixpoint
-  4. Check if initial state $in "SAT"(op("AG") (not "bad"))$
-
-  If yes: property holds #YES \
-  If no: counterexample exists (extract witness path)
-]
-
-=== Worked Example: Mutex Protocol Verification
+=== Worked Example: Peterson's Mutex Protocol
 
 Let's walk through a complete verification from start to finish.
 This example demonstrates every step: system specification, BDD encoding, property formulation, algorithm execution, and result interpretation.
@@ -1509,9 +1665,9 @@ Check: Is $I subset.eq Z_2$?
 *What if it failed?*
 
 If the property had failed (e.g., with a buggy protocol), the model checker would:
-1. Identify $I subset.eq.not Z_k$ (initial state not in safe set)
-2. Extract a path: $s_0 -> s_1 -> ... -> s_k$ where $s_k models "pc"_1 = "crit" and "pc"_2 = "crit"$
-3. Present this as a counterexample showing exactly how both processes enter critical section
++ Identify $I subset.eq.not Z_k$ (initial state not in safe set)
++ Extract a path: $s_0 -> s_1 -> ... -> s_k$ where $s_k models "pc"_1 = "crit" and "pc"_2 = "crit"$
++ Present this as a counterexample showing exactly how both processes enter critical section
 
 This complete worked example demonstrates the full power of symbolic model checking: from system specification to verified correctness, all mechanically checked by BDD operations.
 
@@ -2763,16 +2919,16 @@ Key implementation details:
   ```
 
   *Hints*:
-  1. For transition relation, think about when each bit flips:
+  + For transition relation, think about when each bit flips:
     - Bit 0 always flips
     - Bit 1 flips when bit 0 is 1
 
-  2. The image computation needs:
+  + The image computation needs:
     - Conjunction with transition relation
     - Existential quantification over present variables
     - Renaming next' to present
 
-  3. Fixpoint detection: `if new_reach == reach { break; }`
+  + Fixpoint detection: `if new_reach == reach { break; }`
 
   *Expected output*: All 4 states (00, 01, 10, 11) should be reachable.
 
@@ -3164,10 +3320,10 @@ During fixpoint computation, simplify intermediate BDDs.
 For very large systems, use abstraction.
 
 #definition(name: "Counterexample-Guided Abstraction Refinement (CEGAR)")[
-  1. *Abstract* the system (reduce state space)
-  2. *Model check* the abstraction
-  3. If property holds: done (holds in concrete system too)
-  4. If property fails:
+  + *Abstract* the system (reduce state space)
+  + *Model check* the abstraction
+  + If property holds: done (holds in concrete system too)
+  + If property fails:
     - Check if counterexample is *spurious*
     - If real: done (found bug)
     - If spurious: *refine* abstraction, go to 2
@@ -3185,9 +3341,9 @@ Verify components separately, then compose results.
 #theorem(name: "Assume-Guarantee Reasoning")[
   To verify $M_1 parallel M_2 models phi$:
 
-  1. Find assumption $A$ on $M_2$
-  2. Verify $M_1$ under assumption $A$ satisfies $phi$
-  3. Verify $M_2$ guarantees $A$
+  + Find assumption $A$ on $M_2$
+  + Verify $M_1$ under assumption $A$ satisfies $phi$
+  + Verify $M_2$ guarantees $A$
 
   Then $M_1 parallel M_2 models phi$
 ]
@@ -3217,10 +3373,10 @@ Knowing when they excel --- and crucially, when they struggle --- is essential f
 This isn't a limitation of the theory; it's the nature of computational complexity meeting real-world problem structure.
 
 This section will help you develop intuition for:
-1. *Recognizing* when BDDs are the right tool (and when they're not)
-2. *Understanding* why certain problems resist BDD representation
-3. *Choosing* alternative or complementary techniques when needed
-4. *Combining* methods to get the best of multiple worlds
++ *Recognizing* when BDDs are the right tool (and when they're not)
++ *Understanding* why certain problems resist BDD representation
++ *Choosing* alternative or complementary techniques when needed
++ *Combining* methods to get the best of multiple worlds
 
 Let's start with the good news: understanding what makes BDDs work well.
 
@@ -3720,10 +3876,10 @@ The theoretical foundation is beautifully simple:
 This chain of reductions transforms an intractable problem (exhaustive exploration of $10^20$ states) into practical verification that completes in seconds.
 
 The key insights:
-1. *Symbolic representation supersedes enumeration*: Describe state sets with Boolean formulas rather than listing individual states
-2. *Image/preimage operations*: Compute successors and predecessors for millions of states simultaneously
-3. *Fixpoint iteration*: CTL operators reduce to iterative set expansion/contraction until stabilization
-4. *BDD compression*: Regular structure in systems translates to exponential compression through sharing and reduction
++ *Symbolic representation supersedes enumeration*: Describe state sets with Boolean formulas rather than listing individual states
++ *Image/preimage operations*: Compute successors and predecessors for millions of states simultaneously
++ *Fixpoint iteration*: CTL operators reduce to iterative set expansion/contraction until stabilization
++ *BDD compression*: Regular structure in systems translates to exponential compression through sharing and reduction
 
 == The Practical Reality
 
@@ -3776,12 +3932,12 @@ What you build on top depends on your verification challenges:
 
 *The journey from theory to working implementation:*
 
-1. *Understand your system*: Is it regular? Control-dominated? Arithmetic-heavy?
-2. *Choose encodings wisely*: Variable ordering matters critically
-3. *Implement core algorithms*: Start with image, fixpoint, basic CTL
-4. *Add optimizations incrementally*: Early termination, conjunction scheduling, caching
-5. *Measure and iterate*: Monitor BDD sizes, identify bottlenecks
-6. *Know your limits*: Recognize when BDDs struggle; have alternatives ready
++ *Understand your system*: Is it regular? Control-dominated? Arithmetic-heavy?
++ *Choose encodings wisely*: Variable ordering matters critically
++ *Implement core algorithms*: Start with image, fixpoint, basic CTL
++ *Add optimizations incrementally*: Early termination, conjunction scheduling, caching
++ *Measure and iterate*: Monitor BDD sizes, identify bottlenecks
++ *Know your limits*: Recognize when BDDs struggle; have alternatives ready
 
 == The Art and Science
 
