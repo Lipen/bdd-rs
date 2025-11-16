@@ -1426,27 +1426,21 @@ Fairness changes fixpoint computations:
 ]
 
 *Algorithm for Fair Reachability*:
-
-```
-fair_EF(phi, fairness_constraints):
-  // Compute states from which all fairness constraints
-  // can be satisfied infinitely often
-
-  fair_states := S
-  for each f in fairness_constraints:
-    // States from which f is reachable infinitely often
-    fair_inf := nu Z. f ∧ EX(Z) ∨ EX(EF(f))
-    fair_states := fair_states ∩ fair_inf
-
-  // Now compute EF over fair paths
-  Z := phi
-  loop:
-    Z_new := Z ∪ (Pre(Z) ∩ fair_states)
-    if Z_new = Z: break
-    Z := Z_new
-
-  return Z
-```
+#v(-1em)
+#lovelace.pseudocode-list(hooks: 0.5em)[
+  *function* $"fair_EF"(phi, "fairness_constraints")$:
+  + $"fair_states" := S$
+  + *for each* $f$ in $"fairness_constraints"$:
+    + $"fair_inf" := nu Z. thin f and op("EX") Z or op("EX") (op("EF") f)$
+    + $"fair_states" := "fair_states" inter "fair_inf"$
+  + $Z := phi$
+  + *loop*:
+    + $Z_"new" := Z union (op("Pre")(Z) inter "fair_states")$
+    + *if* $Z_"new" = Z$ *then* *break*
+    + $Z := Z_"new"$
+  + *return* $Z$
+]
+#v(-1em)
 
 #example(name: "Fair Mutual Exclusion")[
   System: Two processes with mutual exclusion protocol
