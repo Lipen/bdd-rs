@@ -2762,117 +2762,172 @@ Locality is the other key.
 When transitions affect only a handful of variables --- a counter incrementing, a buffer inserting an element, a state machine changing mode --- the BDD stays compact because most variables remain unchanged and their sub-BDDs are shared.
 Sparse dependency graphs, where each variable depends on few others, maintain this locality and keep BDDs manageable.
 
-And of course, variable ordering matters enormously:
-- Related variables should be placed nearby
-- Interleave present/next-state variables
-- Follow natural ordering from system structure
+Variable ordering also plays a crucial role in BDD efficiency.
+Related variables should be grouped together to exploit correlation, and present-state and next-state variables should be interleaved to minimize intermediate BDD sizes during image computation.
+Following the natural ordering suggested by the system's structure often yields good results.
 
-*Characteristic examples*:
-- Cache coherence protocols with $10^20$+ states
-- Communication protocols (sliding window, alternating bit)
-- Hardware control units (instruction decoders, FSMs)
-- Mutual exclusion algorithms
+BDDs have proven remarkably successful for cache coherence protocols with over $10^20$ states, communication protocols like sliding window and alternating bit, hardware control units including instruction decoders and finite state machines, and mutual exclusion algorithms with multiple competing processes.
 
 === When BDDs Struggle
 
-BDDs can suffer exponential blowups for:
-
-*Arithmetic operations*:
-- Integer multiplication: BDD size grows exponentially in bit-width
-- Division, modulo operations
-- General arithmetic circuits
+Despite their power, BDDs face fundamental challenges with certain problem classes.
+Arithmetic operations present the most notorious difficulty: integer multiplication requires BDD size exponential in the bit-width for most variable orderings.
+The problem stems from multiplication's intricate bit-level dependencies --- every output bit potentially depends on every input bit, creating a dense web of interactions that destroys the locality BDDs need for compression.
+Division and modulo operations suffer similar pathologies.
 
 #note[
   *Why multiplication is hard:* The function $z = x times y$ (for $n$-bit numbers) requires BDD with $Theta(2^n)$ nodes for most variable orderings.
   This is because multiplication creates intricate dependencies between all input bits --- no local structure to exploit.
 ]
 
-*Irregular patterns*:
-- Random logic (no exploitable structure)
-- Hash functions (designed to destroy regularity)
-- Cryptographic operations (intentionally complex)
+Irregular patterns also confound BDDs.
+Random logic, lacking exploitable structure, offers nothing for BDDs to compress.
+Hash functions, designed specifically to destroy regularity and distribute values uniformly, work directly against BDD compression principles.
+Cryptographic operations, intentionally complex to resist analysis, similarly resist BDD representation.
 
-*Poor variable ordering*:
-- Suboptimal ordering can cause exponential blowup
-- Finding optimal ordering is NP-complete
-- Heuristics work well for structured designs but fail on random logic
+Variable ordering sensitivity represents another critical challenge.
+While finding the optimal ordering is NP-complete, heuristics work well for structured designs.
+However, on random or highly irregular logic, even sophisticated reordering heuristics can fail, sometimes causing BDD sizes to explode from manageable to utterly intractable with seemingly minor changes in variable order.
 
-*Example: Variable ordering sensitivity*
+#example(name: "Variable Ordering Sensitivity")[
+  Consider checking bit-wise equality:
+  $
+    f(x_1, y_1, ..., x_n, y_n) = (x_1 equiv y_1) and ... and (x_n equiv y_n)
+  $
 
-Consider $f(x_1, y_1, ..., x_n, y_n) = (x_1 equiv y_1) and ... and (x_n equiv y_n)$:
+  With poor ordering $(x_1, ..., x_n, y_1, ..., y_n)$, the BDD requires $Theta(2^n)$ nodes, because each $x_i$ must be kept until all $y$ variables are processed, preventing any sharing.
 
-/ Bad ordering $(x_1, ..., x_n, y_1, ..., y_n)$: BDD has $Theta(2^n)$ nodes
-/ Good ordering $(x_1, y_1, ..., x_2, y_2, ..., x_n, y_n)$: BDD has $O(n)$ nodes
+  With optimal ordering $(x_1, y_1, x_2, y_2, ..., x_n, y_n)$, each pair can be resolved immediately, yielding only $O(n)$ nodes.
 
-This exponential difference highlights the critical importance of variable ordering.
+  This exponential difference highlights why variable ordering is so critical to BDD success.
+]
 
 === Complementary Techniques
 
-Modern verification employs a diverse toolkit, using each method where it excels:
+Modern verification has moved beyond relying solely on any single technique, instead assembling a diverse toolkit where each method excels in its natural domain.
 
-*SAT-based methods*:
+#definition(name: "SAT-Based Model Checking")[
+  SAT-based model checking encodes verification problems as propositional satisfiability instances.
+  Modern SAT solvers based on Conflict-Driven Clause Learning (CDCL) excel at handling datapaths, arithmetic circuits, and irregular logic.
+  They scale to millions of variables and dynamically learn problem structure during solving, adapting their strategy to the specific instance.
 
-_Strengths_:
-- Excellent for datapaths, arithmetic, irregular logic
-- Modern SAT solvers (CDCL) handle millions of variables
-- Conflict-driven learning exploits problem structure dynamically
+  *Key advantage*: No canonical representation needed --- solvers work directly with clauses.
 
-_Weaknesses_:
-- No canonical representation (equality checking expensive)
-- Less efficient for highly regular control logic
-- Requires unrolling or abstraction
+  *Key limitation*: Properties must be bounded or abstracted since SAT works on finite propositional formulas.
+]
 
-*Bounded Model Checking (BMC)*:
-- Check properties up to depth $k$ by unrolling transition relation
-- Encode as SAT/SMT problem: $I(s_0) and T(s_0, s_1) and ... and T(s_(k-1), s_k) and not P(s_0, ..., s_k)$
-- Excellent for bug-finding (many bugs found at small depths)
-- Trade-off: Incomplete (may miss bugs beyond bound $k$) but very effective in practice
+*Bounded Model Checking (BMC)* emerged as a pragmatic compromise between completeness and effectiveness.
+Rather than attempting unbounded verification, BMC checks whether a property can be violated within $k$ steps:
+$
+  I(s_0) and T(s_0, s_1) and T(s_1, s_2) and ... and T(s_(k-1), s_k) and not P(s_0, ..., s_k)
+$
 
-*IC3/PDR (Property Directed Reachability)*:
-- Incrementally constructs inductive invariants
-- Avoids explicit BDD representation or bounded unrolling
-- Represents states using CNF clauses
-- Effective for safety properties
-- Represents a major algorithmic advance beyond BDDs
-- Now dominates industrial hardware verification
+This formula is satisfiable if and only if a counterexample of length $<=k$ exists.
 
-*Abstraction-Refinement (CEGAR)*:
-- Start with coarse abstraction (fewer variables)
-- Model check abstraction
-- If spurious counterexample, refine and retry
-- Iterates until real counterexample or proof found
-- Enables verification of infinite-state systems
+#example(name: "BMC vs. Symbolic Model Checking")[
+  Consider verifying a mutex property on a system with $10^6$ reachable states:
 
-*Hybrid approaches*:
-- Use BDDs for control, SAT for datapaths
-- Combine symbolic and explicit-state methods
-- Portfolio solvers: Run multiple techniques in parallel
+  / BDD approach: Must compute full reachable state set (potentially expensive variable ordering, large intermediate BDDs)
+  / BMC with $k=20$: Checks only paths of length 20, typically finds bugs quickly if they exist at shallow depth
+  / Trade-off: BMC is incomplete but highly effective --- Intel reports that 90%+ of bugs are found at depth < 50
+]
 
-=== Choosing the Right Approach
+*Property Directed Reachability (IC3/PDR)* represents a major algorithmic breakthrough.
+Instead of building BDDs or unrolling circuits, IC3 incrementally constructs inductive invariants represented as CNF clauses.
 
-*Use BDDs when*:
-- System has regular structure (protocols, control logic)
-- Properties involve reachability, CTL model checking
-- Need canonical representation for equivalence checking
-- Transitions are local and symbolic operations are efficient
+#example(name: "IC3 Core Algorithm")[
+  IC3 maintains a sequence of formula frames $F_0, F_1, ..., F_k$ where each $F_i$ over-approximates states reachable in at most $i$ steps.
 
-*Use SAT/BMC when*:
-- System has irregular structure or arithmetic
-- Bug-finding is primary goal (completeness not required)
-- Need to handle large bit-vectors or complex datapaths
-- Bounded analysis is sufficient
+  *Initialization*: Let $F_0 = I$, and $F_1 = ... = F_k = top$ for some initial $k$
 
-*Use IC3/PDR when*:
-- Verifying safety properties
-- Need complete verification without fixed bounds
-- BDD variable ordering is problematic
+  *Algorithm*:
 
-*Use abstraction when*:
-- System is too large for direct verification
-- Can identify relevant variables automatically
-- Iterative refinement is feasible
+  + *Check base case*: If $I and not P$ is satisfiable, return counterexample
+
+  + *Main loop*: For each frame $i$:
+    - Try to find state $s$ in $F_i$ that can reach $not P$ in one step
+    - If found: Try to block $s$ by adding clause $c$ to earlier frames
+    - If blocking fails at $F_0$: Real counterexample found
+    - If all states blocked: Try to push clauses forward
+
+  + *Convergence check*: If $F_i = F_(i+1)$, then $F_i$ is inductive invariant $arrow.r.double$ property holds
+
+  The key insight: IC3 works backward from bad states, learning clauses that block dangerous regions.
+  These learned clauses form an inductive invariant without ever computing the full reachable state set.
+]
+
+IC3 has largely displaced BDDs in industrial hardware verification for safety properties, though BDDs retain advantages for liveness and CTL model checking.
+
+*Counterexample-Guided Abstraction Refinement (CEGAR)* tackles the problem from a different angle entirely.
+The key insight: start with a coarse abstraction using only a subset of variables, then refine only when necessary.
+
+#example(name: "CEGAR in Action")[
+  Consider a system with 100 boolean variables.
+
+  + *Iteration 1*: Abstract to 10 variables → Model check → Find counterexample
+    - *Analysis*: Counterexample is spurious (impossible in system due to missing variable `x_23`)
+
+  + *Iteration 2*: Add `x_23` to abstraction (now 11 variables) → Model check → Find counterexample
+    - *Analysis*: Counterexample is still spurious (needs `x_47`)
+
+  + *Iteration 3*: Add `x_47` (now 12 variables) → Model check → Property verified!
+
+  + *Result:* Verified using only 12 variables instead of all 100.
+]
+
+*Hybrid approaches* recognize that different system components favor different techniques.
+A processor verification might use BDDs for control logic (instruction decoder, pipeline controller) while employing SAT for the datapath (ALU, register file).
+Portfolio solvers take this further, running multiple techniques in parallel and reporting the first to finish, effectively hedging against the unpredictability of which method will work best.
+
+=== Choosing the Right Technique
+
+The choice of verification technique should match the problem's characteristics.
+
+#table(
+  columns: 4,
+  align: (left, left, left, left),
+  stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
+  table.header([*Technique*], [*Best For*], [*Strengths*], [*Limitations*]),
+
+  [BDDs],
+  [Regular control logic, protocols],
+  [Canonical form, complete reachability, CTL model checking],
+  [Variable ordering sensitivity, poor for arithmetic],
+
+  [SAT/BMC],
+  [Bug-finding, irregular logic, datapaths],
+  [Handles arithmetic, scales to millions of vars, fast],
+  [Incomplete (bounded), no canonical form],
+
+  [IC3/PDR],
+  [Safety properties, hardware verification],
+  [Complete, no ordering issues, learns invariants],
+  [Limited to safety, complex to implement],
+
+  [CEGAR],
+  [Large systems, infinite-state],
+  [Scales via abstraction, automatic refinement],
+  [Overhead from spurious counterexamples],
+)
+
+BDDs remain the method of choice when system structure is regular and transitions are local.
+Protocol verification, hardware control logic, and problems requiring canonical representation for equivalence checking typically favor BDDs.
+
+SAT-based methods and Bounded Model Checking excel when structure is irregular or arithmetic-heavy.
+Bug-finding scenarios, where completeness is less critical than quickly exposing defects, particularly benefit from BMC's pragmatic approach.
+
+IC3/PDR should be considered for safety property verification when BDD variable ordering proves problematic or when complete unbounded verification without explicit bounds is required.
+Its clause-based representation sidesteps the variable ordering problem entirely while maintaining completeness.
+
+Abstraction-refinement techniques become essential when systems are simply too large for direct verification.
+The ability to start coarse and refine only as needed makes CEGAR particularly valuable when relevant variables can be identified automatically, allowing the abstraction process to proceed without excessive manual guidance.
+
+In practice, the most sophisticated verification efforts combine multiple techniques.
+Modern tools make pragmatic choices based on problem structure, available resources, and required guarantees.
+A single verification campaign might employ BDDs for control, SAT for datapaths, and CEGAR for managing complexity --- each technique applied where it excels.
 
 #note[
-  In practice, modern verification tools often combine multiple techniques, leveraging the strengths of each.
-  The choice depends on the system structure, property type, and available computational resources.
+  The verification landscape continues to evolve.
+  Techniques that seemed impractical decades ago --- SAT solving on millions of variables, IC3's inductive invariant synthesis --- now form the backbone of industrial verification.
+  Understanding when and how to apply each technique remains as much art as science, requiring both theoretical knowledge and practical experience.
 ]
