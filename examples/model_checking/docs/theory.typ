@@ -130,7 +130,7 @@
 _Model checking_ is an automated formal verification technique that exhaustively explores all possible behaviors of a system to verify whether it satisfies specified properties.
 Unlike _testing_, which examines selected execution scenarios, or _theorem proving_, which requires manual proof construction, model checking provides a fully automated "push-button" approach to verification.
 
-The fundamental promise of model checking is compelling: *given a model of your system and a specification of desired behavior, the model checker will automatically determine whether the specification holds*.
+Model checking provides: *given a model of your system and a specification of desired behavior, the model checker will automatically determine whether the specification holds*.
 If the property holds, you get a _proof_ of correctness.
 If it fails, you get a _counterexample_ --- a concrete execution trace demonstrating the violation.
 
@@ -142,18 +142,16 @@ This makes model checking particularly valuable for:
 
 == The Challenge: State Explosion
 
-The fundamental challenge in model checking is the *state explosion problem*.
-Consider a system with $n$ boolean variables:
+The main challenge in model checking is the *state explosion problem*.
+For a system with $n$ boolean variables, the state space size grows as:
 
 $ |S| = 2^n $
 
-where $S$ is the set of all possible states.
-The number of states grows _exponentially_ with the number of variables.
-For even modest systems:
+This exponential growth with the number of variables makes exhaustive enumeration quickly infeasible:
 - 10 variables $=>$ 1,024 states
 - 20 variables $=>$ 1,048,576 states
-- 30 variables $=>$ 1,073,741,824 states (over a billion!)
-- 100 variables $=>$ $1.27 times 10^30$ states (impossible to enumerate!)
+- 30 variables $=>$ 1,073,741,824 states (over a billion)
+- 100 variables $=>$ $1.27 times 10^30$ states (impossible to enumerate)
 
 Traditional _explicit-state_ model checking stores each state individually, making verification infeasible for systems with more than a few million states.
 
@@ -167,7 +165,7 @@ The state explosion problem threatened to limit model checking to toy examples.
 == The Solution: Symbolic Representation
 
 _Symbolic model checking_ uses Boolean formulas to represent _sets of states_ rather than enumerating them individually.
-This simple idea leads to dramatic improvements in scalability.
+This simple idea leads to significant improvements in scalability.
 
 The key insight:
 
@@ -187,21 +185,23 @@ The key insight:
 Using *Binary Decision Diagrams (BDDs)*, we can represent these characteristic functions _compactly_ and perform operations _efficiently_.
 
 #example(name: "The Power of Symbolic Representation")[
-  Consider representing all even numbers from 0 to $2^100 - 1$:
+  Consider representing all even numbers from 0 to $2^100 - 1$ (i.e., all 100-bit numbers with least significant bit = 0):
 
-  - *Explicit representation*: Store $2^99$ numbers individually
-    - Memory required: $2^99 times 100$ bits $approx 10^29$ GB (impossible!)
+  - *Explicit representation*: Store $2^99$ individual numbers
+    - Memory required: $2^99 times 100$ bits $approx 10^29$ GB (utterly impossible)
+    - Time to check membership: $O(2^99)$ comparisons in worst case
 
   - *Symbolic representation*: Encode the formula "last bit = 0"
-    - BDD representation: Single node checking bit $x_0$!
+    - BDD representation: Single node testing bit $x_0$
     - Memory required: $approx$ 100 bytes
+    - Time to check membership: $O(1)$ --- traverse one node
 
-  The characteristic function is simply $chi_"even" (x_0, x_1, ..., x_99) = overline(x_0)$ where $x_0$ is the least significant bit.
+  The characteristic function is $chi_"even" (x_0, x_1, ..., x_99) = overline(x_0)$ where $x_0$ is the least significant bit.
 
-  This *exponential compression* --- representing $2^99$ states with a constant-sized BDD—is what makes symbolic model checking feasible.
+  This *exponential compression* --- representing $2^99$ states with a constant-sized BDD --- exemplifies why symbolic model checking enables verification of systems with $10^20$+ states.
 ]
 
-This dramatic compression makes it possible to verify systems with $10^20$ states or more—systems that were completely intractable with explicit-state methods.
+This compression makes it possible to verify systems with $10^20$ states or more—systems that were intractable with explicit-state methods.
 
 The compression works because many real systems have _structure_: states aren't random but follow patterns determined by the system's logic.
 BDDs exploit this structure through _sharing_: common subformulas are represented once and reused throughout.
@@ -216,7 +216,7 @@ BDDs exploit this structure through _sharing_: common subformulas are represente
 ]
 
 #example(name: "Two-Bit Counter")[
-  Consider a counter with two bits $x$ (high bit) and $y$ (low bit):
+  Consider a counter with two bits: $x$ (high bit) and $y$ (low bit).
 
   #table(
     columns: 4,
@@ -228,7 +228,7 @@ BDDs exploit this structure through _sharing_: common subformulas are represente
     [$s_3$], [1], [1], [3],
   )
 
-  Each row represents one complete state of the system.
+  Each row represents one complete assignment of values to all system variables.
 ]
 
 == Sets of States: Symbolic Representation
@@ -425,8 +425,7 @@ Let's build a complete transition system for a 2-bit counter that increments mod
 
 = Symbolic State Space Exploration
 
-Now that we can represent states and transitions symbolically, we need operations to explore the state space.
-The two fundamental operations are *image* (forward reachability) and *preimage* (backward reachability).
+With symbolic representations of states and transitions established, the exploration of state space requires two fundamental operations: *image* (forward reachability) and *preimage* (backward reachability).
 
 == Image: Forward Reachability
 
@@ -528,7 +527,8 @@ The image operation enables us to compute *all* reachable states through iterati
         & = {(0,0), (1,0), (0,1), (1,1)} = R_3
   $
 
-  Fixpoint reached! All four states are reachable.
+  Fixpoint reached!
+  All four states are reachable.
 ]
 
 == Preimage: Backward Reachability
@@ -646,18 +646,19 @@ This is useful for:
   Choose based on problem:
   - Use forward if initial states are small/simple
   - Use backward if target states are small/simple
-  - Sometimes one direction has much smaller BDDs!
+  - Sometimes one direction has much smaller BDDs.
 ]
 
 = The Modal Mu-Calculus: Foundation of Fixpoints
 
-Before diving into CTL, we need to understand the _modal mu-calculus_ --- the theoretical foundation underlying fixpoint-based model checking.
-This calculus provides the mathematical framework for expressing recursive properties through least ($mu$) and greatest ($nu$) fixpoints.
+The _modal mu-calculus_ provides the theoretical foundation for fixpoint-based model checking.
+This calculus offers the mathematical framework for expressing recursive properties through least ($mu$) and greatest ($nu$) fixpoints.
+Understanding this framework illuminates why CTL model checking algorithms work and how they compute temporal properties.
 
 == Why Fixpoints?
 
-Many temporal properties are inherently _recursive_: to determine if a property holds, we need to check both the current state and future states, which themselves require checking their futures, and so on.
-Fixpoints provide a elegant mathematical mechanism to handle this recursion.
+Many temporal properties are inherently _recursive_: determining whether a property holds requires checking both the current state and future states, which themselves require checking their futures, and so on.
+Fixpoints provide a mathematical mechanism to handle this recursion.
 
 #definition(name: "Fixpoint")[
   Let $f: 2^S -> 2^S$ be a _monotone_ function on sets of states (i.e., $X subset.eq Y => f(X) subset.eq f(Y)$).
@@ -750,9 +751,9 @@ The mu-calculus notation can be initially perplexing for several reasons:
 
 = CTL Model Checking
 
-CTL (Computation Tree Logic) is a temporal logic for specifying properties about how systems evolve over time.
-It allows us to express complex requirements about system behavior in a precise mathematical way.
-Every CTL operator can be understood as a fixpoint computation!
+CTL (Computation Tree Logic) provides a formal language for specifying properties about how systems evolve over time.
+Building on the fixpoint foundations established in the previous section, CTL model checking reduces temporal reasoning to iterative set computations.
+Every CTL operator corresponds directly to a fixpoint computation, making the logic both mathematically precise and computationally tractable.
 
 == The Computation Tree
 
@@ -902,7 +903,7 @@ CTL formulas typically express either _safety_ or _liveness_ properties --- the 
 
 == Concrete Example: Traffic Light Controller
 
-Let's work through a complete, detailed example to see how CTL properties capture real system requirements.
+Let's work through a complete example to see how CTL properties capture real system requirements.
 
 #example(name: "Traffic Light System")[
   Consider a simple traffic light controller for a two-way intersection (North-South and East-West).
@@ -949,7 +950,7 @@ Let's work through a complete, detailed example to see how CTL properties captur
         & = (not "bad") and "all successors also satisfy" (not "bad")
   $
 
-  If the transition relation is correctly designed (never transitions to both-green state), then $Z_2 = Z_1$ and the property holds!
+  If the transition relation is correctly designed (never transitions to both-green state), then $Z_2 = Z_1$ and the property holds.
 
   *Step 3: Check initial states*
 
@@ -1003,7 +1004,7 @@ Let's work through a complete, detailed example to see how CTL properties captur
         & dots.v
   $
 
-  If $I subset.eq W_"final"$, the property holds: every request gets a response! #YES
+  If $I subset.eq W_"final"$, the property holds: every request gets a response. #YES
 
   *Counterexample scenario:*
   If the server has a bug where it sometimes ignores requests, there might be a path:
@@ -1064,7 +1065,7 @@ Iteration continues until $Z_(i+1) = Z_i$ (fixpoint reached).
         & = {(0,0), (1,0), (0,1), (1,1)} = Z_2
   $
 
-  Fixpoint!
+  Fixpoint.
   All states satisfy $op("EF") ("x" = 1)$, meaning $x = 1$ is reachable from all states.
 ]
 
@@ -1097,13 +1098,13 @@ For formulas like *AG* $phi$ (always globally), we compute the *greatest fixpoin
   Because $(0,0)$ transitions to $(1,0) in.not {(0,0), (0,1)}$.
 
   Result: $emptyset$ means no state satisfies $op("AG") ("x" = 0)$.
-  Property fails!
+  Property fails.
 ]
 
 == Symbolic CTL Model Checking Algorithm
 
 #theorem(name: "Symbolic Model Checking")[
-  Given a transition system $M$ and CTL formula $phi$, we can compute the set of states satisfying $phi$:
+  Given a transition system $M$ and CTL formula $phi$, we can compute the set of states satisfying $phi$ by:
 
   $ "SAT"(phi) = {s in S | M, s models phi} $
 
@@ -1185,7 +1186,7 @@ This is one of model checking's most valuable features: not just "property fails
 
 === Extracting Counterexamples
 
-During fixpoint computation, we can record *predecessor information* to reconstruct paths.
+During fixpoint computation, *predecessor information* can be recorded to reconstruct paths.
 
 *Algorithm for Safety Property* $op("AG") phi$:
 #v(-1em)
@@ -1235,7 +1236,7 @@ During fixpoint computation, we can record *predecessor information* to reconstr
     ↓
   s₃: (crit₁, trying₂)      // P1 enters
     ↓
-  s₄: (crit₁, crit₂)        // P2 enters - VIOLATION!
+  s₄: (crit₁, crit₂)        // P2 enters - VIOLATION
   ```
 
   This shows exactly how the mutual exclusion property was violated.
@@ -1346,8 +1347,10 @@ shortest_counterexample(initial, bad):
 
 == Fairness Constraints
 
-Many systems require *fairness assumptions* --- constraints ensuring "infinitely often" behavior.
-Without fairness, model checking can produce unrealistic counterexamples.
+Realistic systems often require *fairness assumptions* to exclude unrealistic behaviors.
+Without fairness, model checking might report spurious counterexamples corresponding to executions that, while technically possible, would never occur in practice.
+For example: a scheduler that never schedules a particular process, or a communication protocol where messages are infinitely delayed.
+Fairness constraints formalize the assumption that certain events occur infinitely often.
 
 === Why Fairness Matters
 
@@ -1447,7 +1450,7 @@ Fairness changes fixpoint computations:
   *Fairness Complexity*:
   - Fair CTL model checking is more expensive than standard CTL
   - Each fairness constraint adds nested fixpoint computations
-  - But essential for realistic verification of concurrent systems
+  - Needed for realistic verification of concurrent systems
   - Most practical model checkers support fairness constraints
 ]
 
@@ -1645,7 +1648,8 @@ This example demonstrates the conceptual structure of model checking:
 
 = Linear Temporal Logic (LTL) and CTL Comparison
 
-While this document focuses on CTL, it's important to understand how it relates to Linear Temporal Logic (LTL), another major temporal logic for verification.
+Temporal logics come in multiple flavors, each with distinct strengths.
+While this document focuses on CTL, understanding how it relates to Linear Temporal Logic (LTL) --- another major temporal logic for verification --- provides valuable perspective on expressiveness trade-offs and practical verification choices.
 
 == LTL: Path-Based Logic
 
@@ -1770,7 +1774,7 @@ This combines CTL's universal path quantifier with LTL's fairness pattern.
   [*Use CTL when:*], [*Use LTL when:*],
   [• Checking branching properties], [• Checking linear properties],
   [• "Some path exists" reasoning], [• Fairness constraints],
-  [• Speed is critical], [• Path-specific behavior],
+  [• Performance is important], [• Path-specific behavior],
   [• Bounded path quantification], [• "Infinitely often" patterns],
   [• Small formulas], [• Composition of properties],
 )
@@ -1786,7 +1790,9 @@ This combines CTL's universal path quantifier with LTL's fairness pattern.
 
 = Implementation
 
-This section describes how symbolic model checking is implemented in practice using BDDs.
+Having established the theoretical foundations of symbolic model checking, this section examines how these concepts translate into efficient software implementations.
+The focus is on practical data structures, algorithms, and optimizations that make symbolic model checking viable for real-world verification problems.
+The `bdd-rs` library exemplifies these implementation techniques.
 
 == BDD Representation
 
@@ -2026,7 +2032,7 @@ Substitute a variable with a function:
   Replace all occurrences of $x_i$ in $f$ with the function $g$.
 ]
 
-This is crucial for variable renaming in model checking (e.g., $x' => x$).
+This is used for variable renaming in model checking (e.g., $x' => x$).
 
 *Algorithm* for Compose operation:
 #v(-1em)
@@ -2194,10 +2200,10 @@ fn reachable(&self) -> Ref {
 
 The loop terminates because:
 + The state space $S$ is finite
-+ Each iteration adds new states or stabilizes
++ Each iteration either adds new states or reaches a fixpoint
 + Monotonicity: $R_i subset.eq R_(i+1)$
 
-In practice, convergence is often fast (logarithmic in diameter of state graph).
+In practice, convergence is often fast, typically logarithmic in the diameter of the state graph.
 
 == CTL Model Checking Implementation
 
@@ -2304,16 +2310,16 @@ With a poor ordering that groups all $x$ variables together before the $y$ varia
 This creates an exponentially large BDD with $Theta(2^n)$ nodes, making verification impossible for even moderate $n$.
 
 But with a clever ordering that interleaves corresponding variables --- $(x_1, y_1, x_2, y_2, ..., x_n, y_n)$ --- each pair can be checked immediately and the result propagated forward.
-The BDD collapses to just $O(n)$ nodes!
+The BDD collapses to just $O(n)$ nodes.
 Same function, thousand-fold difference in representation size.
 
 For model checking, this insight translates directly: interleave present and next-state variables.
 Instead of ordering all present-state variables $x, y, z, ...$ before their next-state counterparts $x', y', z', ...$, use the pattern $x, x', y, y', z, z', ...$
-This keeps related variables close together in the decision tree, dramatically reducing BDD size for typical transition relations where each next-state variable depends primarily on its corresponding present-state variable.
+This keeps related variables close together in the decision tree, reducing BDD size for typical transition relations where each next-state variable depends primarily on its corresponding present-state variable.
 
 === When BDDs Work Well
 
-BDDs achieve dramatic compression on systems with exploitable structure.
+BDDs achieve good compression on systems with exploitable structure.
 The key patterns that BDDs handle efficiently are:
 
 *Regular structure*:
@@ -2380,7 +2386,7 @@ BDDs can blow up exponentially for certain problem classes:
   / Bad ordering $(x_1, ..., x_n, y_1, ..., y_n)$: $Theta(2^n)$ nodes
   / Good ordering $(x_1, y_1, x_2, y_2, ..., x_n, y_n)$: $O(n)$ nodes
 
-  Same function, thousand-fold difference!
+  Same function, thousand-fold difference.
 ]
 
 *Mitigation strategies*:
@@ -2427,24 +2433,26 @@ impl BddTable {
 }
 ```
 
-This hash consing technique provides three crucial guarantees.
+This hash consing technique provides three important guarantees that make symbolic model checking tractable.
 
-First, _sharing_: identical subgraphs are never duplicated.
+First, *sharing*: identical subgraphs are never duplicated.
 If two different parts of a BDD reach a node representing "$x_5 = 1 -> f$", both simply point to the same shared node.
 This sharing is automatic and pervasive, often reducing memory usage by orders of magnitude.
 
-Second, _canonicity_: given a fixed variable ordering, every Boolean function has exactly one BDD representation.
+Second, *canonicity*: given a fixed variable ordering, every Boolean function has exactly one BDD representation.
 Two BDDs represent the same function if and only if they are pointer-identical.
-This makes equivalence checking instantaneous --- just compare pointers!
-In practice, this means BDD operations can detect fixpoints in constant time, crucial for efficient model checking.
+This makes equivalence checking instantaneous --- just compare pointers.
+In practice, this means BDD operations can detect fixpoints in constant time, which is important for efficient model checking.
 
-Third, _efficiency_: because of sharing, BDD operations are polynomial in the size of the BDD, not exponential in the number of variables.
+Third, *efficiency*: because of sharing, BDD operations are polynomial in the size of the BDD, not exponential in the number of variables.
 Combining two BDDs with a million nodes each might produce a result with two million nodes (in the worst case), not $2^1000000$ nodes.
 This polynomial scaling --- combined with aggressive sharing --- is what makes symbolic model checking tractable.
 
 == Optimization Techniques
 
-Practical symbolic model checking requires numerous optimizations to handle large state spaces efficiently.
+While the basic algorithms are conceptually straightforward, practical symbolic model checking demands sophisticated optimizations.
+The difference between verifying a system in seconds versus hours --- or between success and failure --- often lies in these optimizations.
+Modern model checkers incorporate numerous techniques to improve performance and scalability.
 
 === Early Termination
 
@@ -2524,7 +2532,7 @@ Instead of monolithic $T(v,v')$, use conjunctive partitioning.
 
 === Dynamic Variable Reordering
 
-BDD size is *critically* sensitive to variable ordering.
+BDD size is highly sensitive to variable ordering.
 
 #example(name: "Ordering Impact")[
   Function: $f(x_1, ..., x_n, y_1, ..., y_n) = (x_1 and y_1) or ... or (x_n and y_n)$
@@ -2550,7 +2558,7 @@ BDD size is *critically* sensitive to variable ordering.
 
 #note[
   Dynamic reordering can be expensive (minutes for large BDDs).
-  But it's often essential --- without it, model checking may fail entirely.
+  But it's often necessary --- without it, model checking may fail entirely.
 ]
 
 === Garbage Collection
@@ -2690,21 +2698,23 @@ Verify components separately, then compose results.
 
 = Conclusion
 
-Symbolic model checking using BDDs represents one of the great success stories in formal methods and automated verification.
+Symbolic model checking using BDDs has proven to be an effective approach to formal verification.
+Representing sets symbolically rather than explicitly enables verification of systems with very large state spaces.
+This section summarizes the key techniques and their practical applications.
 
 == Key Takeaways
 
-Symbolic model checking revolutionized formal verification through several key insights:
+Symbolic model checking provides several important techniques:
 
-*Symbolic representation over enumeration*:
+*Symbolic representation supersedes enumeration*:
 
-The central insight is deceptively simple: don't enumerate states, _describe_ them.
-By representing state sets as Boolean formulas encoded in BDDs, we can reason about exponentially large sets --- $10^20$, even $10^100$ states --- using compact data structures that fit in ordinary computer memory.
+The key idea is simple: describe state sets rather than enumerate them.
+By representing state sets as Boolean formulas encoded in BDDs, reasoning about exponentially large sets --- $10^20$, even $10^100$ states --- becomes possible using compact data structures that fit in ordinary computer memory.
 What seemed impossible for explicit enumeration becomes routine.
 
 *Image and preimage operations*:
 
-These fundamental operations --- computing successors and predecessors symbolically --- form the computational heart of the technique.
+These operations --- computing successors and predecessors symbolically --- are the core of the technique.
 Built from BDD conjunction and existential quantification, they perform set-level computation that would require billions of individual state transitions if done explicitly.
 This enables reachability analysis and temporal logic model checking on massive state spaces.
 
@@ -2713,11 +2723,14 @@ This enables reachability analysis and temporal logic model checking on massive 
 CTL model checking reduces to fixpoint computation, iteratively expanding or contracting state sets until stabilization.
 The finite state space guarantees termination.
 The canonical BDD representation makes fixpoint detection instantaneous --- just compare pointers.
-This combination makes the algorithm both theoretically elegant and practically efficient.
+This combination makes the algorithm both theoretically sound and practically efficient.
 
 *Practical impact*:
 
-Symbolic model checking has proven effective for:
+Symbolic model checking transformed verification from laboratory curiosity to industrial practice.
+Hardware companies use it routinely to verify processor designs, cache coherence protocols, and communication buses.
+The technique has found bugs in deployed systems that escaped years of testing.
+It provides mathematical guarantees of correctness for safety-critical components:
 - *Hardware verification*: Cache coherence protocols, processor designs
 - *Safety-critical systems*: Control systems where failure has severe consequences
 - *Concurrent systems*: Distributed algorithms, protocols, concurrent programs where testing struggles with combinatorial state explosion
@@ -2725,13 +2738,13 @@ Symbolic model checking has proven effective for:
 
 == The Power of BDDs
 
-BDDs achieve their remarkable compression through the interplay of two simple ideas.
+BDDs achieve their compression through two key mechanisms.
 
 _Sharing_ means that common subformulas appear only once in the graph, automatically reused wherever needed.
 Imagine a transition relation where a hundred different transitions all check "is the buffer full?" before proceeding differently.
 In an explicit representation, you'd check this condition a hundred times.
 In a BDD, that test appears once; all hundred branches simply share the same node.
-The more regular your system, the more opportunities for sharing, the more dramatic the compression.
+The more regular your system, the more opportunities for sharing, and the better the compression.
 
 _Reduction_ eliminates redundancy at the node level.
 If a decision node's two branches lead to the same outcome regardless of the test, why test at all?
@@ -2740,18 +2753,20 @@ Combined with sharing, this produces _canonical_ minimal representations --- the
 
 When these mechanisms align with problem structure --- regular patterns in the system, local transitions that affect few variables, a well-chosen variable ordering --- BDDs can represent exponentially large sets with polynomial-sized graphs.
 A perfect storm of structure exploitation.
-This is why BDDs revolutionized hardware verification: digital circuits are full of regular, local patterns just begging to be compressed.
+This explains why BDDs work well for hardware verification: digital circuits contain many regular, local patterns that compress effectively.
 
 == Limitations and Extensions
 
-No tool is universal, and understanding BDD limitations is as important as knowing their strengths.
-The difference between success and failure often hinges on recognizing when BDDs are the right tool and when to reach for alternatives.
+No verification technique is universal.
+BDD-based symbolic model checking faces certain limitations that restrict its applicability.
+Recognizing when BDDs work well and when alternative approaches are needed is important practical knowledge for verification engineers.
+This section examines BDD strengths, weaknesses, and the complementary techniques that address their limitations.
 
 === When BDDs Excel
 
 BDDs thrive on structure.
 Regular, predictable patterns in your system translate directly to compression in the BDD.
-Counters, shift registers, and finite state machines --- systems built from repeating units with local connections --- compress beautifully.
+Counters, shift registers, and finite state machines --- systems built from repeating units with local connections --- compress well.
 A 64-bit counter has $2^64$ states but needs only a few hundred BDD nodes to represent its transition relation.
 
 Control logic, especially in hardware, exhibits the kind of regularity BDDs love.
@@ -2762,7 +2777,7 @@ Locality is the other key.
 When transitions affect only a handful of variables --- a counter incrementing, a buffer inserting an element, a state machine changing mode --- the BDD stays compact because most variables remain unchanged and their sub-BDDs are shared.
 Sparse dependency graphs, where each variable depends on few others, maintain this locality and keep BDDs manageable.
 
-Variable ordering also plays a crucial role in BDD efficiency.
+Variable ordering significantly affects BDD efficiency.
 Related variables should be grouped together to exploit correlation, and present-state and next-state variables should be interleaved to minimize intermediate BDD sizes during image computation.
 Following the natural ordering suggested by the system's structure often yields good results.
 
@@ -2770,7 +2785,7 @@ BDDs have proven remarkably successful for cache coherence protocols with over $
 
 === When BDDs Struggle
 
-Despite their power, BDDs face fundamental challenges with certain problem classes.
+BDDs face certain challenges with particular problem classes.
 Arithmetic operations present the most notorious difficulty: integer multiplication requires BDD size exponential in the bit-width for most variable orderings.
 The problem stems from multiplication's intricate bit-level dependencies --- every output bit potentially depends on every input bit, creating a dense web of interactions that destroys the locality BDDs need for compression.
 Division and modulo operations suffer similar pathologies.
@@ -2785,7 +2800,7 @@ Random logic, lacking exploitable structure, offers nothing for BDDs to compress
 Hash functions, designed specifically to destroy regularity and distribute values uniformly, work directly against BDD compression principles.
 Cryptographic operations, intentionally complex to resist analysis, similarly resist BDD representation.
 
-Variable ordering sensitivity represents another critical challenge.
+Variable ordering sensitivity represents another significant challenge.
 While finding the optimal ordering is NP-complete, heuristics work well for structured designs.
 However, on random or highly irregular logic, even sophisticated reordering heuristics can fail, sometimes causing BDD sizes to explode from manageable to utterly intractable with seemingly minor changes in variable order.
 
@@ -2795,11 +2810,16 @@ However, on random or highly irregular logic, even sophisticated reordering heur
     f(x_1, y_1, ..., x_n, y_n) = (x_1 equiv y_1) and ... and (x_n equiv y_n)
   $
 
-  With poor ordering $(x_1, ..., x_n, y_1, ..., y_n)$, the BDD requires $Theta(2^n)$ nodes, because each $x_i$ must be kept until all $y$ variables are processed, preventing any sharing.
+  With poor ordering $(x_1, ..., x_n, y_1, ..., y_n)$, the BDD requires $Theta(2^n)$ nodes.
+  The problem: when processing $x_i$, the BDD must \"remember\" its value until reaching $y_i$ much later.
+  All possible assignments to intermediate variables $x_(i+1), ..., x_n$ must be tracked, causing exponential blowup.
 
-  With optimal ordering $(x_1, y_1, x_2, y_2, ..., x_n, y_n)$, each pair can be resolved immediately, yielding only $O(n)$ nodes.
+  With optimal ordering $(x_1, y_1, x_2, y_2, ..., x_n, y_n)$, the BDD needs only $O(n)$ nodes.
+  Here, each pair $(x_i, y_i)$ can be resolved immediately: the BDD branches to 1 if $x_i = y_i$, and to 0 otherwise.
+  No intermediate state tracking is necessary.
 
-  This exponential difference highlights why variable ordering is so critical to BDD success.
+  This exponential difference --- from $Theta(2^n)$ to $O(n)$ --- illustrates why variable ordering is important for BDD efficiency.
+  Finding optimal orderings is NP-complete, but heuristics based on system structure often work well in practice.
 ]
 
 === Complementary Techniques
@@ -2832,7 +2852,7 @@ This formula is satisfiable if and only if a counterexample of length $<=k$ exis
   / Trade-off: BMC is incomplete but highly effective --- Intel reports that 90%+ of bugs are found at depth < 50
 ]
 
-*Property Directed Reachability (IC3/PDR)* represents a major algorithmic breakthrough.
+*Property Directed Reachability (IC3/PDR)* represents an algorithmic advance in model checking.
 Instead of building BDDs or unrolling circuits, IC3 incrementally constructs inductive invariants represented as CNF clauses.
 
 #example(name: "IC3 Core Algorithm")[
@@ -2914,12 +2934,12 @@ BDDs remain the method of choice when system structure is regular and transition
 Protocol verification, hardware control logic, and problems requiring canonical representation for equivalence checking typically favor BDDs.
 
 SAT-based methods and Bounded Model Checking excel when structure is irregular or arithmetic-heavy.
-Bug-finding scenarios, where completeness is less critical than quickly exposing defects, particularly benefit from BMC's pragmatic approach.
+Bug-finding scenarios, where completeness is less important than quickly exposing defects, benefit from BMC's pragmatic approach.
 
 IC3/PDR should be considered for safety property verification when BDD variable ordering proves problematic or when complete unbounded verification without explicit bounds is required.
 Its clause-based representation sidesteps the variable ordering problem entirely while maintaining completeness.
 
-Abstraction-refinement techniques become essential when systems are simply too large for direct verification.
+Abstraction-refinement techniques are useful when systems are too large for direct verification.
 The ability to start coarse and refine only as needed makes CEGAR particularly valuable when relevant variables can be identified automatically, allowing the abstraction process to proceed without excessive manual guidance.
 
 In practice, the most sophisticated verification efforts combine multiple techniques.
