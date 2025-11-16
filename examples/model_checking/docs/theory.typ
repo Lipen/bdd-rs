@@ -277,10 +277,10 @@ A set $S subset.eq {0,1}^n$ is represented by its characteristic function as a B
   This can be represented by the formula $phi_"odd" (x,y) = x$, i.e., the set ${(x,y) | x = 1}$.
 
   We can verify:
-  - $phi_"odd" (0,0) = 0$ → $s_0 in.not S_"odd"$ #YES
-  - $phi_"odd" (1,0) = 1$ → $s_1 in S_"odd"$ #YES
-  - $phi_"odd" (0,1) = 0$ → $s_2 in.not S_"odd"$ #YES
-  - $phi_"odd" (1,1) = 1$ → $s_3 in S_"odd"$ #YES
+  - $phi_"odd" (0,0) = 0$ $=>$ $s_0 in.not S_"odd"$ #YES
+  - $phi_"odd" (1,0) = 1$ $=>$ $s_1 in S_"odd"$ #YES
+  - $phi_"odd" (0,1) = 0$ $=>$ $s_2 in.not S_"odd"$ #YES
+  - $phi_"odd" (1,1) = 1$ $=>$ $s_3 in S_"odd"$ #YES
 ]
 
 The power of this representation is that we can describe exponentially large sets with polynomial-sized formulas.
@@ -408,10 +408,10 @@ Let's build a complete transition system for a 2-bit counter that increments mod
   where $equiv$ denotes logical equivalence (XNOR).
 
   Verification:
-  - $(0,0)$: $x'=1$, $y'=0 xor 0=0$ → $(1,0)$ #YES
-  - $(1,0)$: $x'=0$, $y'=0 xor 1=1$ → $(0,1)$ #YES
-  - $(0,1)$: $x'=1$, $y'=1 xor 0=1$ → $(1,1)$ #YES
-  - $(1,1)$: $x'=0$, $y'=1 xor 1=0$ → $(0,0)$ #YES
+  - $(0,0)$: $x'=1$, $y'=0 xor 0=0$ $=>$ $(1,0)$ #YES
+  - $(1,0)$: $x'=0$, $y'=0 xor 1=1$ $=>$ $(0,1)$ #YES
+  - $(0,1)$: $x'=1$, $y'=1 xor 0=1$ $=>$ $(1,1)$ #YES
+  - $(1,1)$: $x'=0$, $y'=1 xor 1=0$ $=>$ $(0,0)$ #YES
 
   State diagram:
 
@@ -1420,7 +1420,7 @@ The transition relation $T(v, v')$ encodes both processes' possible moves:
 
 For Process 1's transition from idle to want:
 $
-  T_1^("idle"→"want") =
+  T_1^("idle" -> "want") =
   ("pc"_1 = "idle") and
   ("pc"'_1 = "want") and
   ("flag"'_1 = 1) and
@@ -1430,7 +1430,7 @@ $
 
 For Process 1's transition from want to crit:
 $
-  T_1^("want"→"crit") =
+  T_1^("want" -> "crit") =
   ("pc"_1 = "want") and
   (not "flag"_2 or "turn" = 1) and
   ("pc"'_1 = "crit") and
@@ -1441,8 +1441,8 @@ Similar transitions for Process 2, plus exit from critical section.
 
 The complete transition relation is the disjunction of all individual transitions:
 $
-  T = T_1^("idle"→"want") or T_1^("want"→"crit") or T_1^("crit"→"idle") or
-  T_2^("idle"→"want") or T_2^("want"→"crit") or T_2^("crit"→"idle")
+  T = T_1^("idle" -> "want") or T_1^("want" -> "crit") or T_1^("crit" -> "idle") or
+  T_2^("idle" -> "want") or T_2^("want" -> "crit") or T_2^("crit" -> "idle")
 $
 
 *Property to Verify*:
@@ -2253,20 +2253,20 @@ This canonicity enables:
 
   *Step-by-step evolution*:
 
-  1. *Start*: Two single-node BDDs
+  + *Start*: Two single-node BDDs
     ```
     f:   x → (0, 1)        g:   y → (0, 1)
     ```
 
-  2. *Recursive descent*: Process from root (top variable $x$ in ordering $x < y$)
+  + *Recursive descent*: Process from root (top variable $x$ in ordering $x < y$)
     - For $x=0$ case: Compute $f|_(x=0) and g = 0 and y = 0$
     - For $x=1$ case: Compute $f|_(x=1) and g = 1 and y = y$
 
-  3. *Build result*: Create node for $x$ with:
-    - Low edge ($x=0$) → terminal 0
-    - High edge ($x=1$) → sub-BDD for $y$
+  + *Build result*: Create node for $x$ with:
+    - Low edge ($x=0$) $=>$ terminal 0
+    - High edge ($x=1$) $=>$ sub-BDD for $y$
 
-  4. *Final BDD*:
+  + *Final BDD*:
     ```
     h: x → (0, y)
              ↓
@@ -2341,14 +2341,14 @@ apply(f, g, op):
 #example(name: "Apply AND")[
   Computing $f and g$ where $f = x$ and $g = y$:
 
-  - $f$ is the BDD with root $x$: low→0, high→1
-  - $g$ is the BDD with root $y$: low→0, high→1
+  - $f$ is the BDD with root $x$ (low=0, high=1)
+  - $g$ is the BDD with root $y$ (low=0, high=1)
 
   Apply proceeds:
   - Top variable: $x$ (assuming $x < y$ in ordering)
   - Low branch: $"apply"(0, g, and) = 0$ (since $0 and "anything" = 0$)
   - High branch: $"apply"(1, g, and) = g$ (since $1 and g = g$)
-  - Result: BDD with root $x$, low→0, high→$g$
+  - Result: BDD with root $x$ (low=0, high=$g$)
 
   This represents $x and y$ #YES
 ]
@@ -2397,7 +2397,7 @@ The *restrict* operation fixes the value of a variable.
 ]
 
 #example[
-  Given $f = x and y$ (BDD: root $x$, low→0, high→(root $y$, low→0, high→1)):
+  Given $f = x and y$ (BDD: root $x$, low=0, high=(root $y$, low=0, high=1)):
 
   $"restrict"(f, x, 1)$ eliminates $x$ node, returns the high branch:
   - Result: BDD for $y$ (since $1 and y = y$)
@@ -3612,13 +3612,13 @@ The key insight: start with a coarse abstraction using only a subset of variable
 #example(name: "CEGAR in Action")[
   Consider a system with 100 boolean variables.
 
-  + *Iteration 1*: Abstract to 10 variables → Model check → Find counterexample
+  + *Iteration 1*: Abstract to 10 variables $=>$ Model check $=>$ Find counterexample
     - *Analysis*: Counterexample is spurious (impossible in system due to missing variable `x_23`)
 
-  + *Iteration 2*: Add `x_23` to abstraction (now 11 variables) → Model check → Find counterexample
+  + *Iteration 2*: Add `x_23` to abstraction (now 11 variables) $=>$ Model check $=>$ Find counterexample
     - *Analysis*: Counterexample is still spurious (needs `x_47`)
 
-  + *Iteration 3*: Add `x_47` (now 12 variables) → Model check → Property verified!
+  + *Iteration 3*: Add `x_47` (now 12 variables) $=>$ Model check $=>$ Property verified!
 
   + *Result:* Verified using only 12 variables instead of all 100.
 ]
