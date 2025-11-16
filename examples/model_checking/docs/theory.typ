@@ -335,7 +335,7 @@ The formula $T(s, s')$ evaluates to 1 if and only if there is a legal transition
 #example(name: "Toggle Transition Relation")[
   For the toggle system with variable $x$:
 
-  $ T(x, x') = x xor x' = (x and overline(x')) or (overline(x) and x') $
+  $ T(x, x') = x xor x' = (x and overline(x)') or (overline(x) and x') $
 
   Let's verify all possible transitions:
 
@@ -471,11 +471,11 @@ The result is a Boolean formula in variables $v$ representing the set of success
 
   $
     S(x) and T(x, x') & = overline(x) and (x xor x') \
-                      & = overline(x) and ((x and overline(x')) or (overline(x) and x')) \
+                      & = overline(x) and ((x and overline(x)') or (overline(x) and x')) \
                       & = overline(x) and x'
   $
 
-  (The term $x and overline(x')$ vanishes because $x = 0$)
+  (The term $x and overline(x)'$ vanishes because $x = 0$)
 
   *Step 2: Existential Quantification*
 
@@ -572,7 +572,7 @@ The result is a Boolean formula in variables $v$ representing the set of predece
 
   $
     S(x') and T(x, x') & = x' and (x xor x') \
-                       & = x' and ((x and overline(x')) or (overline(x) and x')) \
+                       & = x' and ((x and overline(x)') or (overline(x) and x')) \
                        & = x' and (overline(x) and x') quad "(since" x' "is true, first term vanishes)" \
                        & = overline(x) and x'
   $
