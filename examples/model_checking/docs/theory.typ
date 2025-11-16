@@ -1944,23 +1944,36 @@ The *restrict* operation fixes the value of a variable.
   Returns a BDD representing $f$ with variable $x_i$ set to boolean value $b in {0,1}$.
 ]
 
-*Algorithm*:
-```
-restrict(f, var, value):
-  if f is terminal:
-    return f
+*Algorithm* for Restrict operation:
+// ```
+// restrict(f, var, value):
+//   if f is terminal:
+//     return f
 
-  if var(f) < var:  // haven't reached var yet
-    return make_node(var(f),
-      restrict(low(f), var, value),
-      restrict(high(f), var, value))
+//   if var(f) < var:  // haven't reached var yet
+//     return make_node(var(f),
+//       restrict(low(f), var, value),
+//       restrict(high(f), var, value))
 
-  if var(f) = var:  // found the variable
-    return value = 0 ? low(f) : high(f)
+//   if var(f) = var:  // found the variable
+//     return value = 0 ? low(f) : high(f)
 
-  // var(f) > var: variable doesn't appear
-  return f
-```
+//   // var(f) > var: variable doesn't appear
+//   return f
+// ```
+#v(-1em)
+#lovelace.pseudocode-list(hooks: 0.5em)[
+  *function* $"restrict"(f, v, b)$:
+  + *if* $f$ is terminal: *return* $f$
+  + *if* $"var"(f) < v$:  $quad slash.double$ have not reached $v$ yet
+    + $l := "restrict"("low"(f), v, b)$
+    + $h := "restrict"("high"(f), v, b)$
+    + *return* $"mk_node"("var"(f), l, h)$
+  + *elif* $"var"(f) = v$:  $quad slash.double$ found the variable
+    + *return* $b = 0$ ? $"low"(f)$ : $"high"(f)$
+  + *else*: $quad slash.double$ $"var"(f) > v$; variable doesn't appear
+    + *return* $f$
+]
 
 #example[
   Given $f = x and y$ (BDD: root $x$, low→0, high→(root $y$, low→0, high→1)):
@@ -1982,19 +1995,17 @@ Eliminating a variable by quantifying it out:
   The result is true if $f$ is true for *any* value of $x_i$.
 ]
 
-*Algorithm*:
+*Algorithm* for Existential Quantification:
 #v(-1em)
 #lovelace.pseudocode-list(hooks: 0.5em)[
-  $"exists"(f, v)$:
+  *function* $"exists"(f, v)$:
   + $f_0 := "restrict"(f, v, 0)$
   + $f_1 := "restrict"(f, v, 1)$
   + *return* $"apply"(f_0, f_1, or)$
 ]
 
 #example[
-  Given $f = x and y$:
-
-  $exists x . thin (x and y)$:
+  Given $f = x and y$, we compute $exists x . thin (x and y)$:
   - $f[x <- 0] = 0 and y = 0$
   - $f[x <- 1] = 1 and y = y$
   - Result: $0 or y = y$
@@ -2017,9 +2028,10 @@ Substitute a variable with a function:
 
 This is crucial for variable renaming in model checking (e.g., $x' => x$).
 
-*Algorithm* $"compose"(f, v, g)$:
+*Algorithm* for Compose operation:
 #v(-1em)
 #lovelace.pseudocode-list(hooks: 0.5em)[
+  *function* $"compose"(f, v, g)$:
   + *if* $f$ is terminal: *return* $f$
   + *if* $"var"(f) < v$:
     + $l := "compose"("low"(f), v, g)$
@@ -2049,11 +2061,10 @@ The fundamental BDD operation from which all others can be derived:
   - $f xor g = "ite"(f, not g, g)$
 ]
 
-*Algorithm* $"ite"(f, g, h)$:
+*Algorithm* for ITE operation:
 #v(-1em)
-#lovelace.pseudocode-list(
-  hooks: 0.5em,
-)[
+#lovelace.pseudocode-list(hooks: 0.5em)[
+  *function* $"ite"(f, g, h)$:
   + *if* $f = 1$: *return* $g$
   + *if* $f = 0$: *return* $h$
   + *if* $g = h$: *return* $g$
