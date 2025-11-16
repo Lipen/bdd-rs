@@ -618,7 +618,7 @@ Just as image enables forward reachability, preimage enables *backward reachabil
 #theorem(name: "Backward Reachable States")[
   The set of states that can reach a target set $T$ is:
 
-  $ R^*_"back"(T) = mu Z. thin T or "Pre"(Z, T_"rel") $
+  $ R^*_"back" (T) = mu Z. thin T or "Pre"(Z, T_"rel") $
 
   // Algorithmically:
   // ```
@@ -644,7 +644,7 @@ Just as image enables forward reachability, preimage enables *backward reachabil
 ]
 
 This is useful for:
-- *Safety checking*: Can initial states reach bad states? $I inter R^*_"back"("Bad") eq.not emptyset$?
+- *Safety checking*: Can initial states reach bad states? $I inter R^*_"back" ("Bad") eq.not emptyset$?
 - *Invariant checking*: Working backwards from violations
 - *Goal-directed search*: Start from targets, work backwards
 
