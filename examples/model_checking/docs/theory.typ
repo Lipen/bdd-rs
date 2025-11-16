@@ -413,9 +413,9 @@ This creates a tree structure where each node is a state and each path represent
   CTL formulas $phi$ are defined by the grammar:
 
   $
-    phi ::= p | top | bot | not phi | phi and psi | phi or psi | phi arrow.r.double psi \
-    | "EX" phi | "AX" phi | "EF" phi | "AF" phi | "EG" phi | "AG" phi \
-    | "E"[phi "U" psi] | "A"[phi "U" psi]
+    phi & ::= p | top | bot | not phi | phi and psi | phi or psi | phi arrow.r.double psi \
+        & | "EX" phi | "AX" phi | "EF" phi | "AF" phi | "EG" phi | "AG" phi \
+        & | "E"[phi "U" psi] | "A"[phi "U" psi]
   $
 
   where $p$ is an atomic proposition from the labeling function $L$.
