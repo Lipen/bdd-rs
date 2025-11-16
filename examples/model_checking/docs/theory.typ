@@ -1712,7 +1712,7 @@ This combines CTL's universal path quantifier with LTL's fairness pattern.
 == Model Checking Complexity
 
 #table(
-  columns: (auto, auto, auto),
+  columns: 3,
   align: (left, center, center),
   stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
   [*Logic*], [*Complexity*], [*Approach*],
@@ -1729,7 +1729,7 @@ This combines CTL's universal path quantifier with LTL's fairness pattern.
 == When to Use Which Logic?
 
 #table(
-  columns: (auto, auto),
+  columns: 2,
   align: (left, left),
   stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
   [*Use CTL when:*], [*Use LTL when:*],
