@@ -620,16 +620,6 @@ Just as image enables forward reachability, preimage enables *backward reachabil
 
   $ R^*_"back" (T) = mu Z. thin T or "Pre"(Z, T_"rel") $
 
-  // Algorithmically:
-  // ```
-  // R := T (target states)
-  // loop:
-  //   R_new := R ∪ Pre(R, T_rel)
-  //   if R_new = R: break
-  //   R := R_new
-  // return R
-  // ```
-
   *Algorithm* for computing backward reachable states:
   #v(-1em)
   #lovelace.pseudocode-list(hooks: 0.5em)[
