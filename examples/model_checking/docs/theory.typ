@@ -149,10 +149,10 @@ $ |S| = 2^n $
 where $S$ is the set of all possible states.
 The number of states grows _exponentially_ with the number of variables.
 For even modest systems:
-- 10 variables $arrow.r.double$ 1,024 states
-- 20 variables $arrow.r.double$ 1,048,576 states
-- 30 variables $arrow.r.double$ 1,073,741,824 states (over a billion!)
-- 100 variables $arrow.r.double$ $1.27 times 10^30$ states (impossible to enumerate!)
+- 10 variables $=>$ 1,024 states
+- 20 variables $=>$ 1,048,576 states
+- 30 variables $=>$ 1,073,741,824 states (over a billion!)
+- 100 variables $=>$ $1.27 times 10^30$ states (impossible to enumerate!)
 
 Traditional _explicit-state_ model checking stores each state individually, making verification infeasible for systems with more than a few million states.
 
@@ -362,10 +362,10 @@ Let's build a complete transition system for a 2-bit counter that increments mod
   *Initial state*: $I = {(0,0)}$, represented by formula $overline(x) and overline(y)$
 
   *Transitions*: Increment by 1 (mod 4):
-  - $(0,0) arrow (1,0)$ (binary 00 $=>$ 01, i.e., 0 $=>$ 1)
-  - $(1,0) arrow (0,1)$ (binary 01 $=>$ 10, i.e., 1 $=>$ 2)
-  - $(0,1) arrow (1,1)$ (binary 10 $=>$ 11, i.e., 2 $=>$ 3)
-  - $(1,1) arrow (0,0)$ (binary 11 $=>$ 00, i.e., 3 $=>$ 0)
+  - $(0,0) -> (1,0)$ (binary 00 $=>$ 01, i.e., 0 $=>$ 1)
+  - $(1,0) -> (0,1)$ (binary 01 $=>$ 10, i.e., 1 $=>$ 2)
+  - $(0,1) -> (1,1)$ (binary 10 $=>$ 11, i.e., 2 $=>$ 3)
+  - $(1,1) -> (0,0)$ (binary 11 $=>$ 00, i.e., 3 $=>$ 0)
 
   *Transition relation*: How do we encode this symbolically?
 
@@ -448,7 +448,7 @@ The image computation symbolically computes successor states using three steps:
 
 + *Conjunction*: $S(v) and T(v, v')$ --- combine current states (as Boolean function $S$) with transition relation $T$
 + *Existential quantification*: $exists v . (S(v) and T(v, v'))$ --- eliminate present-state variables $v = (v_1, ..., v_n)$
-+ *Variable renaming*: Rename next-state variables $v' arrow v$ to obtain result as function of present-state variables
++ *Variable renaming*: Rename next-state variables $v' => v$ to obtain result as function of present-state variables
 
 The result is a Boolean formula in variables $v$ representing the set of successor states.
 
@@ -544,16 +544,14 @@ This is the dual of the image operation, working backwards through the transitio
   In logical notation, using characteristic functions:
   $ "Pre"(S, T)(v_1, ..., v_n) = exists v'_1, ..., v'_n . T(v_1, ..., v_n, v'_1, ..., v'_n) and S(v'_1, ..., v'_n) $
 
-  Here we first rename $S(v) arrow S(v')$ to express target states in next-state variables, then eliminate $v'$ after conjoining with $T$.
-]
-
-Intuitively, preimage answers: "From which states can I reach $S$ in one step?"
+  Here we first rename $S(v) => S(v')$ to express target states in next-state variables, then eliminate $v'$ after conjoining with $T$.
+]Intuitively, preimage answers: "From which states can I reach $S$ in one step?"
 
 === Computing the Preimage
 
 The preimage computation symbolically computes predecessor states using three steps (dual to image):
 
-+ *Variable renaming*: Rename $S(v) arrow S(v')$ to express target states in next-state variables
++ *Variable renaming*: Rename $S(v) => S(v')$ to express target states in next-state variables
 + *Conjunction*: $S(v') and T(v, v')$ --- combine renamed target states with transition relation
 + *Existential quantification*: $exists v' . (S(v') and T(v, v'))$ --- eliminate next-state variables $v'$
 
@@ -566,7 +564,7 @@ The result is a Boolean formula in variables $v$ representing the set of predece
 
   Let $S = {s_1} = {x = 1}$, represented by formula $x$.
 
-  *Step 1: Rename* $S(x) arrow S(x')$
+  *Step 1: Rename* $S(x) => S(x')$
 
   $ S(x') = x' $
 
@@ -584,7 +582,7 @@ The result is a Boolean formula in variables $v$ representing the set of predece
   $ exists x' . (overline(x) and x') = overline(x) $
 
   We eliminate $x'$ by computing:
-  $ (overline(x) and x')[x' arrow 0] or (overline(x) and x')[x' arrow 1] = 0 or overline(x) = overline(x) $
+  $ (overline(x) and x')[x' <- 0] or (overline(x) and x')[x' <- 1] = 0 or overline(x) = overline(x) $
 
   *Conclusion*: From state $s_0$ (where $x=0$), we can reach state $s_1$ in one step. ✓
 ]
@@ -1170,7 +1168,7 @@ This is one of model checking's most valuable features: not just "property fails
 
 #definition(name: "Counterexample")[
   For a property $phi$ that fails from initial state $s_0$:
-  - A *counterexample* is a path $pi = s_0 arrow s_1 arrow s_2 arrow ... arrow s_k$ where $s_k models not phi$
+  - A *counterexample* is a path $pi = s_0 -> s_1 -> s_2 -> ... -> s_k$ where $s_k models not phi$
   - For liveness properties (e.g., $op("AG") op("EF") p$), may need an infinite path (lasso-shaped)
 ]
 
@@ -1251,10 +1249,8 @@ For liveness properties (e.g., $op("AG") op("EF") p$), counterexamples are *lass
   Loop:  s₃ (still waiting) → s₄ (busy) → s₃  ↺
   ```
 
-  The loop $s_3 arrow s_4 arrow s_3$ repeats forever without granting the request.
-]
-
-=== Symbolic Counterexample Extraction
+  The loop $s_3 -> s_4 -> s_3$ repeats forever without granting the request.
+]=== Symbolic Counterexample Extraction
 
 In symbolic model checking, we work with BDDs (sets of states), not individual states.
 
@@ -1661,7 +1657,7 @@ LTL expresses properties of *individual paths* (linear sequences of states).
 ]
 
 #definition(name: "LTL Semantics")[
-  LTL formulas are evaluated on *infinite paths* $pi = s_0 arrow s_1 arrow s_2 arrow ...$
+  LTL formulas are evaluated on *infinite paths* $pi = s_0 -> s_1 -> s_2 -> ...$
 
   - $pi models p$ iff $p in L(s_0)$
   - $pi models op("X") phi$ iff $pi^1 models phi$ (where $pi^i$ is path starting at $s_i$)
@@ -1935,7 +1931,7 @@ apply(f, g, op):
 The *restrict* operation fixes the value of a variable.
 
 #definition(name: "Restrict")[
-  $ "restrict"(f, x_i, b) = f[x_i arrow b] $
+  $ "restrict"(f, x_i, b) = f[x_i <- b] $
 
   Returns a BDD representing $f$ with variable $x_i$ set to boolean value $b in {0,1}$.
 ]
@@ -1973,7 +1969,7 @@ restrict(f, var, value):
 Eliminating a variable by quantifying it out:
 
 #definition(name: "Existential Quantification")[
-  $ exists x_i . f = f[x_i arrow 0] or f[x_i arrow 1] $
+  $ exists x_i . f = f[x_i <- 0] or f[x_i <- 1] $
 
   The result is true if $f$ is true for *any* value of $x_i$.
 ]
@@ -1990,27 +1986,27 @@ exists(f, var):
   Given $f = x and y$:
 
   $exists x . (x and y)$:
-  - $f[x arrow 0] = 0 and y = 0$
-  - $f[x arrow 1] = 1 and y = y$
+  - $f[x <- 0] = 0 and y = 0$
+  - $f[x <- 1] = 1 and y = y$
   - Result: $0 or y = y$
 
   This makes sense: "there exists an $x$ such that $x and y$" is equivalent to just $y$ (choosing $x=1$ works iff $y=1$).
 ]
 
 *Universal quantification* is dual:
-$ forall x_i . f = f[x_i arrow 0] and f[x_i arrow 1] $
+$ forall x_i . f = f[x_i <- 0] and f[x_i <- 1] $
 
 === Compose Operation
 
 Substitute a variable with a function:
 
 #definition(name: "Compose")[
-  $ "compose"(f, x_i, g) = f[x_i arrow g] $
+  $ "compose"(f, x_i, g) = f[x_i <- g] $
 
   Replace all occurrences of $x_i$ in $f$ with the function $g$.
 ]
 
-This is crucial for variable renaming in model checking (e.g., $x' arrow x$).
+This is crucial for variable renaming in model checking (e.g., $x' => x$).
 
 *Algorithm*:
 ```
@@ -2427,7 +2423,7 @@ impl BddTable {
 This hash consing technique provides three crucial guarantees.
 
 First, _sharing_: identical subgraphs are never duplicated.
-If two different parts of a BDD reach a node representing "$x_5 = 1 arrow.r.double f$", both simply point to the same shared node.
+If two different parts of a BDD reach a node representing "$x_5 = 1 -> f$", both simply point to the same shared node.
 This sharing is automatic and pervasive, often reducing memory usage by orders of magnitude.
 
 Second, _canonicity_: given a fixed variable ordering, every Boolean function has exactly one BDD representation.
@@ -2581,7 +2577,7 @@ after_operation():
 Most BDD operations use *computed tables* (caches).
 
 #definition(name: "Computed Table")[
-  Hash table mapping $("op", "arg1", "arg2") arrow "result"$
+  Hash table mapping $("op", "arg1", "arg2") -> "result"$
 
   Before computing operation:
   - Check if result is already cached
