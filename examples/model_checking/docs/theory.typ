@@ -435,7 +435,7 @@ The two fundamental operations are *image* (forward reachability) and *preimage*
   $ "Img"(S, T) = {s' | exists s in S : (s, s') in T} $
 
   In logical notation (using characteristic functions):
-  $ "Img"(S, T)(v'_1, ..., v'_n) = exists v_1, ..., v_n . S(v_1, ..., v_n) and T(v_1, ..., v_n, v'_1, ..., v'_n) $
+  $ "Img"(S, T)(v'_1, ..., v'_n) = exists v_1, ..., v_n . thin S(v_1, ..., v_n) and T(v_1, ..., v_n, v'_1, ..., v'_n) $
 
   Here $S(v)$ denotes the characteristic function of set $S$ (equals 1 for $v in S$), and $T(v, v')$ is the characteristic function of the transition relation (equals 1 when $(v, v')$ is a valid transition).
 ]
@@ -446,8 +446,8 @@ Intuitively, the image operation answers: "Where can I go in one step from these
 
 The image computation symbolically computes successor states using three steps:
 
-+ *Conjunction*: $S(v) and T(v, v')$ --- combine current states (as Boolean function $S$) with transition relation $T$
-+ *Existential quantification*: $exists v . (S(v) and T(v, v'))$ --- eliminate present-state variables $v = (v_1, ..., v_n)$
++ *Conjunction*: $S(v) and T(v, v')$ --- combine current states (as Boolean function $S$) with transition relation $T$ (as a Boolean function over present and next state variables)
++ *Existential quantification*: $exists v . thin (S(v) and T(v, v'))$ --- eliminate present-state variables $v = (v_1, ..., v_n)$
 + *Variable renaming*: Rename next-state variables $v' => v$ to obtain result as function of present-state variables
 
 The result is a Boolean formula in variables $v$ representing the set of successor states.
@@ -455,13 +455,11 @@ The result is a Boolean formula in variables $v$ representing the set of success
 #note[
   *Understanding Existential Quantification*:
 
-  The operation $exists v . f(v, w)$ eliminates variable $v$ by computing $f(0, w) or f(1, w)$ (Shannon expansion).
+  The operation $exists v . thin f(v, w)$ eliminates variable $v$ by computing $f(0, w) or f(1, w)$ (Shannon expansion).
   This gives us all values of $w$ for which $f$ can be true for *some* value of $v$.
 
-  In image computation, $exists v . (S(v) and T(v, v'))$ finds all $v'$ such that *some* state in $S$ can transition to $v'$.
-]
-
-#example(name: "Image of Toggle System")[
+  In image computation, $exists v . thin (S(v) and T(v, v'))$ finds all $v'$ such that *some* state in $S$ can transition to $v'$.
+]#example(name: "Image of Toggle System")[
   Consider the toggle system with $T(x, x') = x xor x'$.
 
   *Question*: From state $s_0$ (where $x=0$), what states can we reach?
@@ -480,7 +478,7 @@ The result is a Boolean formula in variables $v$ representing the set of success
 
   *Step 2: Existential Quantification*
 
-  $ exists x . (overline(x) and x') = x' $
+  $ exists x . thin (overline(x) and x') = x' $
 
   We eliminate $x$ by computing:
   $ (overline(x) and x')[x -> 0] or (overline(x) and x')[x -> 1] = (1 and x') or (0 and x') = x' $
@@ -499,7 +497,7 @@ The image operation enables us to compute *all* reachable states through iterati
 #theorem(name: "Reachable States")[
   The set of all states reachable from initial states $I$ is the least fixpoint:
 
-  $ R^* = mu Z . I or "Img"(Z, T) $
+  $ R^* = mu Z. thin I or "Img"(Z, T) $
 
   Algorithmically:
 
@@ -553,7 +551,7 @@ The preimage computation symbolically computes predecessor states using three st
 
 + *Variable renaming*: Rename $S(v) => S(v')$ to express target states in next-state variables
 + *Conjunction*: $S(v') and T(v, v')$ --- combine renamed target states with transition relation
-+ *Existential quantification*: $exists v' . (S(v') and T(v, v'))$ --- eliminate next-state variables $v'$
++ *Existential quantification*: $exists v' . thin (S(v') and T(v, v'))$ --- eliminate next-state variables $v'$
 
 The result is a Boolean formula in variables $v$ representing the set of predecessor states.
 
@@ -579,7 +577,7 @@ The result is a Boolean formula in variables $v$ representing the set of predece
 
   *Step 3: Existential Quantification*
 
-  $ exists x' . (overline(x) and x') = overline(x) $
+  $ exists x' . thin (overline(x) and x') = overline(x) $
 
   We eliminate $x'$ by computing:
   $ (overline(x) and x')[x' <- 0] or (overline(x) and x')[x' <- 1] = 0 or overline(x) = overline(x) $
@@ -618,7 +616,7 @@ Just as image enables forward reachability, preimage enables *backward reachabil
 #theorem(name: "Backward Reachable States")[
   The set of states that can reach a target set $T$ is:
 
-  $ R^*_"back"(T) = mu Z . T or "Pre"(Z, T_"rel") $
+  $ R^*_"back"(T) = mu Z. thin T or "Pre"(Z, T_"rel") $
 
   Algorithmically:
   ```
@@ -638,8 +636,8 @@ This is useful for:
 
 #note[
   *Forward vs Backward*:
-  - Forward reachability: $R^* = mu Z . I or "Img"(Z)$ --- starts from initial states
-  - Backward reachability: $R^*_"back" = mu Z . T or "Pre"(Z)$ --- starts from target states
+  - Forward reachability: $R^* = mu Z. thin I or "Img"(Z)$ --- starts from initial states
+  - Backward reachability: $R^*_"back" = mu Z. thin T or "Pre"(Z)$ --- starts from target states
 
   Choose based on problem:
   - Use forward if initial states are small/simple
@@ -661,19 +659,19 @@ Fixpoints provide a elegant mathematical mechanism to handle this recursion.
   Let $f: 2^S -> 2^S$ be a _monotone_ function on sets of states (i.e., $X subset.eq Y => f(X) subset.eq f(Y)$).
 
   - A set $X subset.eq S$ is a *fixpoint* of $f$ if $f(X) = X$
-  - The *least fixpoint* $mu Z . f(Z)$ is the smallest set $X$ such that $f(X) = X$
-  - The *greatest fixpoint* $nu Z . f(Z)$ is the largest set $X$ such that $f(X) = X$
+  - The *least fixpoint* $mu Z. thin f(Z)$ is the smallest set $X$ such that $f(X) = X$
+  - The *greatest fixpoint* $nu Z. thin f(Z)$ is the largest set $X$ such that $f(X) = X$
 ]
 
 #theorem(name: "Knaster-Tarski")[
   For any monotone function $f: 2^S -> 2^S$ on a finite lattice:
 
-  - The least fixpoint exists and equals: $mu Z . f(Z) = inter.big {X | f(X) subset.eq X}$
-  - The greatest fixpoint exists and equals: $nu Z . f(Z) = union.big {X | X subset.eq f(X)}$
+  - The least fixpoint exists and equals: $mu Z. thin f(Z) = inter.big {X | f(X) subset.eq X}$
+  - The greatest fixpoint exists and equals: $nu Z. thin f(Z) = union.big {X | X subset.eq f(X)}$
 
   Moreover, these can be computed iteratively:
-  - $mu Z . f(Z) = union.big_(i=0)^infinity f^i (emptyset) = emptyset union f(emptyset) union f(f(emptyset)) union ...$
-  - $nu Z . f(Z) = inter.big_(i=0)^infinity f^i (S) = S inter f(S) inter f(f(S)) inter ...$
+  - $mu Z. thin f(Z) = union.big_(i=0)^infinity f^i (emptyset) = emptyset union f(emptyset) union f(f(emptyset)) union ...$
+  - $nu Z. thin f(Z) = inter.big_(i=0)^infinity f^i (S) = S inter f(S) inter f(f(S)) inter ...$
 ]
 
 == Intuition: Least vs Greatest Fixpoints
@@ -699,7 +697,7 @@ Fixpoints provide a elegant mathematical mechanism to handle this recursion.
 
   Define $f(Z) = T union "Pre"(Z)$ ("target or can reach $Z$ in one step").
 
-  *Least fixpoint* $mu Z . f(Z)$:
+  *Least fixpoint* $mu Z. thin f(Z)$:
 
   $
     Z_0 & = emptyset \
@@ -717,7 +715,7 @@ Fixpoints provide a elegant mathematical mechanism to handle this recursion.
 
   Define $f(Z) = P inter "Pre"(Z)$ ("$P$ holds and all successors in $Z$").
 
-  *Greatest fixpoint* $nu Z . f(Z)$:
+  *Greatest fixpoint* $nu Z. thin f(Z)$:
 
   $
     Z_0 & = S "  (all states)" \
@@ -734,7 +732,7 @@ Fixpoints provide a elegant mathematical mechanism to handle this recursion.
 
 The mu-calculus notation can be initially perplexing for several reasons:
 
-+ *Variable binding*: The $Z$ in $mu Z . f(Z)$ is a bound variable ranging over _sets of states_, not individual states
++ *Variable binding*: The $Z$ in $mu Z. thin f(Z)$ is a bound variable ranging over _sets of states_, not individual states
 + *Monotonicity requirement*: Functions must be monotone for fixpoints to exist
 + *Nested fixpoints*: Complex properties involve alternating $mu$ and $nu$, creating intricate recursive structures
 + *Dual nature*: $mu$ computes from below (pessimistic), $nu$ from above (optimistic)
@@ -742,8 +740,8 @@ The mu-calculus notation can be initially perplexing for several reasons:
 #note[
   Think of $mu$ as "prove by construction" (build up the set) and $nu$ as "prove by elimination" (remove counterexamples).
 
-  - $mu Z . phi or op("EX") Z$: Start with $phi$, expand to states reaching $phi$
-  - $nu Z . phi and op("AX") Z$: Start with all states, keep only those satisfying $phi$ with all successors good
+  - $mu Z. thin phi or op("EX") Z$: Start with $phi$, expand to states reaching $phi$
+  - $nu Z. thin phi and op("AX") Z$: Start with all states, keep only those satisfying $phi$ with all successors good
 ]
 
 = CTL Model Checking
@@ -936,7 +934,7 @@ Let's work through a complete, detailed example to see how CTL properties captur
 
   *Step 2: Compute* $op("AG") (not "bad")$ *via greatest fixpoint*
 
-  Recall: $op("AG") phi = nu Z . phi and op("AX") Z$
+  Recall: $op("AG") phi = nu Z. thin phi and op("AX") Z$
 
   $
     Z_0 & = S quad "(all states)" \
@@ -974,7 +972,7 @@ Let's work through a complete, detailed example to see how CTL properties captur
 
   *Subformula 1:* $op("AF") "response"$ --- states from which response is inevitable
 
-  Using $op("AF") phi = mu Z . phi or op("AX") Z$:  $ Z_0 & = emptyset \
+  Using $op("AF") phi = mu Z. thin phi or op("AX") Z$:  $ Z_0 & = emptyset \
   Z_1 & = "response" or op("AX") Z_0 = "response" \
   Z_2 & = "response" or op("AX") Z_1 \
       & = "response" or "Pre"("response") \
@@ -991,7 +989,7 @@ Let's work through a complete, detailed example to see how CTL properties captur
 
   *Main formula:* $op("AG") phi_"rr"$ --- always holds
 
-  Using $op("AG") phi = nu Z . phi and op("AX") Z$:
+  Using $op("AG") phi = nu Z. thin phi and op("AX") Z$:
 
   $
     W_0 & = S \
@@ -1019,17 +1017,17 @@ The key insight for symbolic model checking is that CTL operators can be compute
   The CTL temporal operators have the following fixpoint characterizations:
 
   $
-                  op("EF") phi & = mu Z . phi or op("EX") Z \
-                  op("AF") phi & = mu Z . phi or op("AX") Z \
-                  op("EG") phi & = nu Z . phi and op("EX") Z \
-                  op("AG") phi & = nu Z . phi and op("AX") Z \
-    op("E") [phi rel("U") psi] & = mu Z . psi or (phi and op("EX") Z) \
-    op("A") [phi rel("U") psi] & = mu Z . psi or (phi and op("AX") Z)
+                  op("EF") phi & = mu Z. thin phi or op("EX") Z \
+                  op("AF") phi & = mu Z. thin phi or op("AX") Z \
+                  op("EG") phi & = nu Z. thin phi and op("EX") Z \
+                  op("AG") phi & = nu Z. thin phi and op("AX") Z \
+    op("E") [phi rel("U") psi] & = mu Z. thin psi or (phi and op("EX") Z) \
+    op("A") [phi rel("U") psi] & = mu Z. thin psi or (phi and op("AX") Z)
   $
 
   where:
-  - $mu Z . f(Z)$ denotes the *least fixpoint* (start from $emptyset$, iterate)
-  - $nu Z . f(Z)$ denotes the *greatest fixpoint* (start from $S$, iterate)
+  - $mu Z. thin f(Z)$ denotes the *least fixpoint* (start from $emptyset$, iterate)
+  - $nu Z. thin f(Z)$ denotes the *greatest fixpoint* (start from $S$, iterate)
 ]
 
 === Least Fixpoint ($mu$)
@@ -1390,7 +1388,9 @@ Fairness changes fixpoint computations:
 #theorem(name: "Fair EF")[
   For fairness $F = op("GF") f_1 and ... and op("GF") f_n$:
 
-  $ op("EF")_F phi = mu Z . phi or (op("EX") Z and op("EX") (op("EF")_F f_1) and ... and op("EX") (op("EF")_F f_n)) $
+  $
+    op("EF")_F phi = mu Z. thin phi or (op("EX") Z and op("EX") (op("EF")_F f_1) and ... and op("EX") (op("EF")_F f_n))
+  $
 ]
 
 *Intuition*: To reach $phi$ fairly, each step must be on a path that visits each $f_i$ infinitely often.
@@ -1398,7 +1398,7 @@ Fairness changes fixpoint computations:
 #theorem(name: "Fair AG")[
   For fairness $F = op("GF") f_1 and ... and op("GF") f_n$:
 
-  $ op("AG")_F phi = nu Z . phi and op("AX") (Z or not op("EF")_F "true") $
+  $ op("AG")_F phi = nu Z. thin phi and op("AX") (Z or not op("EF")_F "true") $
 ]
 
 *Algorithm for Fair Reachability*:
@@ -1661,9 +1661,9 @@ LTL expresses properties of *individual paths* (linear sequences of states).
 
   - $pi models p$ iff $p in L(s_0)$
   - $pi models op("X") phi$ iff $pi^1 models phi$ (where $pi^i$ is path starting at $s_i$)
-  - $pi models phi_1 rel("U") phi_2$ iff $exists i >= 0 . (pi^i models phi_2 and forall j < i . pi^j models phi_1)$
-  - $pi models op("F") phi$ iff $exists i >= 0 . pi^i models phi$
-  - $pi models op("G") phi$ iff $forall i >= 0 . pi^i models phi$
+  - $pi models phi_1 rel("U") phi_2$ iff $exists i >= 0 . thin (pi^i models phi_2 and forall j < i . thin pi^j models phi_1)$
+  - $pi models op("F") phi$ iff $exists i >= 0 . thin pi^i models phi$
+  - $pi models op("G") phi$ iff $forall i >= 0 . thin pi^i models phi$
 ]
 
 == CTL: State-Based Logic
@@ -1969,7 +1969,7 @@ restrict(f, var, value):
 Eliminating a variable by quantifying it out:
 
 #definition(name: "Existential Quantification")[
-  $ exists x_i . f = f[x_i <- 0] or f[x_i <- 1] $
+  $ exists x_i . thin f = f[x_i <- 0] or f[x_i <- 1] $
 
   The result is true if $f$ is true for *any* value of $x_i$.
 ]
@@ -1985,7 +1985,7 @@ exists(f, var):
 #example[
   Given $f = x and y$:
 
-  $exists x . (x and y)$:
+  $exists x . thin (x and y)$:
   - $f[x <- 0] = 0 and y = 0$
   - $f[x <- 1] = 1 and y = y$
   - Result: $0 or y = y$
@@ -1994,7 +1994,7 @@ exists(f, var):
 ]
 
 *Universal quantification* is dual:
-$ forall x_i . f = f[x_i <- 0] and f[x_i <- 1] $
+$ forall x_i . thin f = f[x_i <- 0] and f[x_i <- 1] $
 
 === Compose Operation
 
