@@ -1,5 +1,3 @@
-#import "@preview/cetz:0.2.2": canvas, draw
-
 #set document(title: "Symbolic Model Checking: Theory and Implementation")
 #set page(numbering: "1", number-align: center)
 #set text(size: 11pt)
