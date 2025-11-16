@@ -213,7 +213,8 @@ BDDs exploit this structure through _sharing_: common subformulas are represente
 
   #table(
     columns: 4,
-    [*State*], [*x*], [*y*], [*Value*],
+    stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
+    [*State*], [*$x$*], [*$y$*], [*Value*],
     [$s_0$], [0], [0], [0],
     [$s_1$], [1], [0], [1],
     [$s_2$], [0], [1], [2],
@@ -268,6 +269,7 @@ A transition system (also called a *Kripke structure*) formally models how a sys
 
   #table(
     columns: 4,
+    stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
     [*Component*], [*Symbolic*], [*Explicit*], [*Meaning*],
     [$S$], [${0,1}$], [${s_0, s_1}$], [Two states],
     [$I$], [$overline(x)$], [${s_0}$], [Start with $x=0$],
@@ -326,6 +328,7 @@ The formula $T(s, s')$ evaluates to 1 if and only if there is a legal transition
 
   #table(
     columns: 5,
+    stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
     [*Current ($x$)*], [*Next ($x'$)*], [*$T(x,x')$*], [*Legal?*], [*Meaning*],
     [0], [0], [0], [No], [Can't stay at 0],
     [0], [1], [1], [Yes], [From 0 to 1 ✓],
@@ -654,6 +657,7 @@ This creates a tree structure where each node is a state and each path represent
 
 #table(
   columns: 3,
+  stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
   [*Formula*], [*Informal Meaning*], [*Example*],
   [*EX* $phi$], [Possibly next $phi$], [System can transition to a state satisfying $phi$],
   [*AX* $phi$], [Necessarily next $phi$], [All possible next states satisfy $phi$],
@@ -768,8 +772,8 @@ Let's work through a complete, detailed example to see how CTL properties captur
   *Key properties to verify:*
 
   #table(
-    columns: (1fr, 2fr),
-    stroke: 0.5pt,
+    columns: 2,
+    stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
     [*Property*], [*CTL Formula*],
     [*Safety*: Never both green], [$"AG"(not ("ns"_"green" and "ew"_"green"))$],
     [*Safety*: Red before green], [$"AG"("ns"_"red" => "AX"(not "ns"_"green"))$],
