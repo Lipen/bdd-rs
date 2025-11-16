@@ -1,5 +1,6 @@
 #import "@preview/cetz:0.4.2"
 #import "@preview/fletcher:0.5.8" as fletcher: diagram, edge, node
+#import "@preview/lovelace:0.3.0"
 
 #set document(title: "Symbolic Model Checking: Theory and Implementation")
 #set page(
@@ -499,16 +500,17 @@ The image operation enables us to compute *all* reachable states through iterati
 
   $ R^* = mu Z. thin I or "Img"(Z, T) $
 
-  Algorithmically:
-
-  ```
-  R := I
-  loop:
-    R_new := R ∪ Img(R, T)
-    if R_new = R: break
-    R := R_new
-  return R
-  ```
+  *Algorithm* for computing reachable states:
+  #v(-1em)
+  #lovelace.pseudocode-list(hooks: 0.5em)[
+    + $R := I$
+    + *loop*
+      + $R_"new" := R union "Img"(R, T)$
+      + *if* $R_"new" = R$ *then* *break*
+      + $R := R_"new"$
+    + *return* $R$
+  ]
+  #v(-1em)
 ]
 
 #example(name: "Reachability in Two-Bit Counter")[
@@ -540,7 +542,7 @@ This is the dual of the image operation, working backwards through the transitio
   $ "Pre"(S, T) = {s | exists s' : (s, s') in T and s' in S} $
 
   In logical notation, using characteristic functions:
-  $ "Pre"(S, T)(v_1, ..., v_n) = exists v'_1, ..., v'_n . T(v_1, ..., v_n, v'_1, ..., v'_n) and S(v'_1, ..., v'_n) $
+  $ "Pre"(S, T)(v_1, ..., v_n) = exists v'_1, ..., v'_n . thin T(v_1, ..., v_n, v'_1, ..., v'_n) and S(v'_1, ..., v'_n) $
 
   Here we first rename $S(v) => S(v')$ to express target states in next-state variables, then eliminate $v'$ after conjoining with $T$.
 ]Intuitively, preimage answers: "From which states can I reach $S$ in one step?"
@@ -618,15 +620,27 @@ Just as image enables forward reachability, preimage enables *backward reachabil
 
   $ R^*_"back"(T) = mu Z. thin T or "Pre"(Z, T_"rel") $
 
-  Algorithmically:
-  ```
-  R := T (target states)
-  loop:
-    R_new := R ∪ Pre(R, T_rel)
-    if R_new = R: break
-    R := R_new
-  return R
-  ```
+  // Algorithmically:
+  // ```
+  // R := T (target states)
+  // loop:
+  //   R_new := R ∪ Pre(R, T_rel)
+  //   if R_new = R: break
+  //   R := R_new
+  // return R
+  // ```
+
+  *Algorithm* for computing backward reachable states:
+  #v(-1em)
+  #lovelace.pseudocode-list(hooks: 0.5em)[
+    + $R := T$
+    + *loop*
+      + $R_"new" := R union "Pre"(R, T)$
+      + *if* $R_"new" = R$ *then* *break*
+      + $R := R_"new"$
+    + *return* $R$
+  ]
+  #v(-1em)
 ]
 
 This is useful for:
@@ -1975,12 +1989,13 @@ Eliminating a variable by quantifying it out:
 ]
 
 *Algorithm*:
-```
-exists(f, var):
-  f0 = restrict(f, var, 0)
-  f1 = restrict(f, var, 1)
-  return apply(f0, f1, OR)
-```
+#v(-1em)
+#lovelace.pseudocode-list(hooks: 0.5em)[
+  $"exists"(f, v)$:
+  + $f_0 := "restrict"(f, v, 0)$
+  + $f_1 := "restrict"(f, v, 1)$
+  + *return* $"apply"(f_0, f_1, or)$
+]
 
 #example[
   Given $f = x and y$:
@@ -2008,25 +2023,19 @@ Substitute a variable with a function:
 
 This is crucial for variable renaming in model checking (e.g., $x' => x$).
 
-*Algorithm*:
-```
-compose(f, var, g):
-  if f is terminal:
-    return f
-
-  if var(f) < var:
-    return make_node(var(f),
-      compose(low(f), var, g),
-      compose(high(f), var, g))
-
-  if var(f) = var:
-    // Replace this node: compute f[var←g]
-    // This is: (¬g ∧ low(f)) ∨ (g ∧ high(f))
-    return ite(g, high(f), low(f))
-
-  // var(f) > var: doesn't depend on var
-  return f
-```
+*Algorithm* $"compose"(f, v, g)$:
+#v(-1em)
+#lovelace.pseudocode-list(hooks: 0.5em)[
+  + *if* $f$ is terminal: *return* $f$
+  + *if* $"var"(f) < v$:
+    + $l := "compose"("low"(f), v, g)$
+    + $h := "compose"("high"(f), v, g)$
+    + *return* $"mk_node"("var"(f), l, h)$
+  + *if* $"var"(f) = v$:
+    + *return* $"ite"(g, "high"(f), "low"(f))$
+  + *else*:
+    + *return* $f$
+]
 
 === ITE (If-Then-Else) Operation
 
@@ -2046,33 +2055,26 @@ The fundamental BDD operation from which all others can be derived:
   - $f xor g = "ite"(f, not g, g)$
 ]
 
-*Algorithm* (similar to apply but with three arguments):
-```
-ite(f, g, h):
-  // Terminal cases
-  if f = 1: return g
-  if f = 0: return h
-  if g = h: return g
-  if g = 1 and h = 0: return f
-
-  // Check cache
-  if (f, g, h) in cache:
-    return cache[(f, g, h)]
-
-  // Recursive case
-  let v = min(var(f), var(g), var(h))
-
-  let f_v = cofactor(f, v)
-  let g_v = cofactor(g, v)
-  let h_v = cofactor(h, v)
-
-  let low = ite(f_v.low, g_v.low, h_v.low)
-  let high = ite(f_v.high, g_v.high, h_v.high)
-
-  let result = make_node(v, low, high)
-  cache[(f, g, h)] = result
-  return result
-```
+*Algorithm* $"ite"(f, g, h)$:
+#v(-1em)
+#lovelace.pseudocode-list(
+  hooks: 0.5em,
+)[
+  + *if* $f = 1$: *return* $g$
+  + *if* $f = 0$: *return* $h$
+  + *if* $g = h$: *return* $g$
+  + *if* $g = 1$ and $h = 0$: *return* $f$
+  + *if* $(f, g, h)$ in cache: *return* cached result
+  + $v := min("var"(f), "var"(g), "var"(h))$
+  + $f_v := "cofactor"(f, v)$
+  + $g_v := "cofactor"(g, v)$
+  + $h_v := "cofactor"(h, v)$
+  + $"low" := "ite"("low"(f_v), "low"(g_v), "low"(h_v))$
+  + $"high" := "ite"("high"(f_v),"high"( g_v),"high"( h_v))$
+  + $"result" := "mk_node"(v, "low", "high")$
+  + $"cache"[(f, g, h)] := "result"$
+  + *return* result
+]
 
 === Operation Complexity Summary
 
@@ -2446,43 +2448,40 @@ Many fixpoint computations can terminate early when the answer is known.
 #example(name: "Early Termination in EF")[
   When checking $op("EF") phi$:
 
-  ```
-  EF(phi):
-    Z := SAT(phi)
-    if Z ∩ initial ≠ ∅:  // Found a path immediately!
-      return true
-
-    loop:
-      Z_new := Z ∪ Pre(Z)
-      if Z_new ∩ initial ≠ ∅:  // Found a path!
-        return true
-      if Z_new = Z: break
-      Z := Z_new
-
-    return false  // No path exists
-  ```
+  #v(-1em)
+  #lovelace.pseudocode-list(hooks: 0.5em)[
+    + $Z := "SAT"(phi)$
+    + *if* $Z inter "initial" != emptyset$:  $quad slash.double$ Found a path immediately!
+      + *return* true
+    + loop:
+      + $Z_"new" := Z union "Pre"(Z)$
+      + *if* $Z_"new" inter "initial" != emptyset$:  $quad slash.double$ Found
+        + *return* true
+      + *if* $Z_"new" = Z$: *break*
+      + $Z := Z_"new"$
+    + *return* false  $quad slash.double$ No path exists
+  ]
 
   Instead of computing entire fixpoint, stop as soon as we reach initial states.
 ]
 
 #example(name: "Early Termination in AG")[
   When checking $op("AG") phi$:
+  #v(-1em)
+  #lovelace.pseudocode-list(hooks: 0.5em)[
+    + $Z := "SAT"(phi)$
+    + *if* $"initial" not subset.eq Z$:  $quad slash.double$ Violation found immediately!
+      + *return* false
+    + loop:
+      + $Z_"new" := Z inter "AX"(Z)$
+      + *if* $"initial" not subset.eq Z_"new"$:  $quad slash.double$ Found violation!
+        + *return* false
+      + *if* $Z_"new" = Z$: *break*
+      + $Z := Z_"new"$
+    + *return* true $quad slash.double$ No violations found
+  ]
 
-  ```
-  AG(phi):
-    Z := SAT(phi)
-    if initial ⊈ Z:  // Violation found immediately!
-      return false
-
-    loop:
-      Z_new := Z ∩ AX(Z)
-      if initial ⊈ Z_new:  // Found violation!
-        return false
-      if Z_new = Z: break
-      Z := Z_new
-
-    return true
-  ```
+  Stop as soon as we find initial states outside the safe set.
 ]
 
 === Partitioned Transition Relations
@@ -2506,15 +2505,14 @@ Instead of monolithic $T(v,v')$, use conjunctive partitioning.
   Each $T_i$ defines next value of $x'_i$ in terms of current state.
 
   For image computation:
-  ```
-  Img(S):
-    result := S
-    for i := 1 to n:
-      result := result ∧ T_i
-      result := ∃x_i. result  // Eliminate as soon as possible
-    // Rename all x'_i to x_i
-    return rename(result)
-  ```
+  #v(-1em)
+  #lovelace.pseudocode-list(hooks: 0.5em)[
+    + $"result" := S$
+    + *for* $i := 1$ *to* $n$:
+      + $"result" := "result" and T_i$
+      + $"result" := "exists"("result", x_i)$  $quad slash.double$ Eliminate early
+    + *return* $"rename"("result")$  $quad slash.double$ Rename all $x'_i$ to $x_i$
+  ]
 
   Early quantification keeps BDD sizes small.
 ]
