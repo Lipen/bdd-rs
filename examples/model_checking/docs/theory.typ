@@ -127,7 +127,7 @@
 
 = Introduction
 
-_Model checking_ is an automated formal verification technique that exhaustively explores all possible behaviors of a system to verify whether it satisfies specified properties.
+_Model checking_ is an automated formal verification technique that exhaustively explores all possible behaviors of a system to determine whether it satisfies specified properties.
 Unlike _testing_, which examines selected execution scenarios, or _theorem proving_, which requires manual proof construction, model checking provides a fully automated "push-button" approach to verification.
 
 Model checking provides: *given a model of your system and a specification of desired behavior, the model checker will automatically determine whether the specification holds*.
@@ -161,6 +161,7 @@ Real systems easily exceed these limits:
 - A distributed system with modest parallelism: $> 10^30$ states
 
 The state explosion problem threatened to limit model checking to toy examples.
+Symbolic model checking provides the solution.
 
 == The Solution: Symbolic Representation
 
@@ -178,8 +179,8 @@ The key insight:
     )
   $
 
-  For brevity, we often write $S(v_1, ..., v_n)$ instead of $chi_S(v_1, ..., v_n)$ when context is clear.
-  This treats the set $S$ as a Boolean function: $S(s) = 1$ iff $s in S$.
+  For brevity, we often write $S(v_1, ..., v_n)$ instead of $chi_S(v_1, ..., v_n)$ when the context is clear.
+  This notation treats the set $S$ as a Boolean function: $S(s) = 1$ if and only if $s in S$.
 ]
 
 Using *Binary Decision Diagrams (BDDs)*, we can represent these characteristic functions _compactly_ and perform operations _efficiently_.
@@ -205,6 +206,7 @@ This compression makes it possible to verify systems with $10^20$ states or more
 
 The compression works because many real systems have _structure_: states aren't random but follow patterns determined by the system's logic.
 BDDs exploit this structure through _sharing_: common subformulas are represented once and reused throughout.
+We'll see how this works in detail in the Implementation section (Section 7).
 
 = Preliminaries
 
@@ -249,7 +251,7 @@ A set $S subset.eq {0,1}^n$ is represented by its characteristic function as a B
 
   $ S_"odd" = {s_1, s_3} = {(1,0), (1,1)} $
 
-  This can be represented by the formula $phi_"odd" (x,y) = x$, meaning "states where $x = 1$".
+  This can be represented by the formula $phi_"odd" (x,y) = x$, i.e., the set ${(x,y) | x = 1}$.
 
   We can verify:
   - $phi_"odd" (0,0) = 0$ → $s_0 in.not S_"odd"$ #YES
@@ -425,7 +427,7 @@ Let's build a complete transition system for a 2-bit counter that increments mod
 
 = Symbolic State Space Exploration
 
-With symbolic representations of states and transitions established, the exploration of state space requires two fundamental operations: *image* (forward reachability) and *preimage* (backward reachability).
+With symbolic representations of states and transitions established, the exploration of state space requires two operations: *image* (forward reachability) and *preimage* (backward reachability).
 
 == Image: Forward Reachability
 
@@ -440,7 +442,9 @@ With symbolic representations of states and transitions established, the explora
   Here $S(v)$ denotes the characteristic function of set $S$ (equals 1 for $v in S$), and $T(v, v')$ is the characteristic function of the transition relation (equals 1 when $(v, v')$ is a valid transition).
 ]
 
-Intuitively, the image operation answers: "Where can I go in one step from these states?"
+Intuitively, the image operation answers the question: "Where can I go in one step from these states?"
+
+Recall from the definition above that $S(v)$ denotes the characteristic function of set $S$.
 
 === Computing the Image
 
@@ -654,6 +658,7 @@ This is useful for:
 The _modal mu-calculus_ provides the theoretical foundation for fixpoint-based model checking.
 This calculus offers the mathematical framework for expressing recursive properties through least ($mu$) and greatest ($nu$) fixpoints.
 Understanding this framework illuminates why CTL model checking algorithms work and how they compute temporal properties.
+The fixpoint operators introduced here will be used extensively in Section 5 for CTL model checking.
 
 == Why Fixpoints?
 
@@ -707,8 +712,8 @@ Fixpoints provide a mathematical mechanism to handle this recursion.
   $
     Z_0 & = emptyset \
     Z_1 & = T union "Pre"(emptyset) = T \
-    Z_2 & = T union "Pre"(T) = "states reaching" T "in" <= 1 "step" \
-    Z_3 & = T union "Pre"(Z_2) = "states reaching" T "in" <= 2 "steps" \
+    Z_2 & = T union "Pre"(T) = {s | s "reaches" T "in" <= 1 "step"} \
+    Z_3 & = T union "Pre"(Z_2) = {s | s "reaches" T "in" <= 2 "steps"} \\
         & dots.v
   $
 
@@ -725,8 +730,8 @@ Fixpoints provide a mathematical mechanism to handle this recursion.
   $
     Z_0 & = S "  (all states)" \
     Z_1 & = P inter "Pre"(S) = P "  (states satisfying" P "with any successor)" \
-    Z_2 & = P inter "Pre"(Z_1) = "states where" P "holds and all successors satisfy" P \
-    Z_3 & = P inter "Pre"(Z_2) = "states where" P "always holds for" >= 2 "steps" \
+    Z_2 & = P inter "Pre"(Z_1) = {s in S | P(s) and forall s' . T(s,s') => P(s')} \
+    Z_3 & = P inter "Pre"(Z_2) = {s | P "holds along all paths of length" >= 2} \
         & dots.v
   $
 
@@ -752,7 +757,7 @@ The mu-calculus notation can be initially perplexing for several reasons:
 = CTL Model Checking
 
 CTL (Computation Tree Logic) provides a formal language for specifying properties about how systems evolve over time.
-Building on the fixpoint foundations established in the previous section, CTL model checking reduces temporal reasoning to iterative set computations.
+Building on the fixpoint foundations established in Section 4, CTL model checking reduces temporal reasoning to iterative set computations.
 Every CTL operator corresponds directly to a fixpoint computation, making the logic both mathematically precise and computationally tractable.
 
 == The Computation Tree
@@ -847,7 +852,7 @@ We write $M, s models phi$ to mean "state $s$ satisfies formula $phi$ in model $
 
 == Properties: Safety and Liveness
 
-CTL formulas typically express either _safety_ or _liveness_ properties --- the two fundamental classes of system requirements.
+CTL formulas typically express either _safety_ or _liveness_ properties --- the two main classes of system requirements.
 
 #definition(name: "Safety Property")[
   A *safety property* asserts that "something bad never happens":
@@ -1054,7 +1059,7 @@ Iteration continues until $Z_(i+1) = Z_i$ (fixpoint reached).
 #example(name: "EF Computation")[
   Consider checking $op("EF") ("x" = 1)$ on the two-bit counter starting from $(0,0)$.
 
-  Let $phi = (x = 1) = {(1,0), (1,1)}$ (states where $x = 1$).
+  Let $phi = (x = 1)$, i.e., ${(1,0), (1,1)}$ (the set of states satisfying $x = 1$).
 
   $
     Z_0 & = emptyset \
@@ -1175,6 +1180,7 @@ The algorithm proceeds by structural induction on $phi$:
 
 When a property fails, the model checker should produce a *counterexample* --- a concrete execution trace demonstrating the violation.
 This is one of model checking's most valuable features: not just "property fails," but "here's exactly how it fails."
+Counterexamples help developers understand bugs and guide debugging efforts.
 
 === What is a Counterexample?
 
@@ -1349,7 +1355,7 @@ shortest_counterexample(initial, bad):
 
 Realistic systems often require *fairness assumptions* to exclude unrealistic behaviors.
 Without fairness, model checking might report spurious counterexamples corresponding to executions that, while technically possible, would never occur in practice.
-For example: a scheduler that never schedules a particular process, or a communication protocol where messages are infinitely delayed.
+For example: a scheduler that never schedules a particular process, or a communication protocol in which messages are delayed indefinitely.
 Fairness constraints formalize the assumption that certain events occur infinitely often.
 
 === Why Fairness Matters
@@ -1650,6 +1656,7 @@ This example demonstrates the conceptual structure of model checking:
 
 Temporal logics come in multiple flavors, each with distinct strengths.
 While this document focuses on CTL, understanding how it relates to Linear Temporal Logic (LTL) --- another major temporal logic for verification --- provides valuable perspective on expressiveness trade-offs and practical verification choices.
+This section compares the two logics and explains when to use each.
 
 == LTL: Path-Based Logic
 
@@ -1790,7 +1797,7 @@ This combines CTL's universal path quantifier with LTL's fairness pattern.
 
 = Implementation
 
-Having established the theoretical foundations of symbolic model checking, this section examines how these concepts translate into efficient software implementations.
+Having established the theoretical foundations of symbolic model checking (Sections 1-6), this section examines how these concepts translate into efficient software implementations.
 The focus is on practical data structures, algorithms, and optimizations that make symbolic model checking viable for real-world verification problems.
 The `bdd-rs` library exemplifies these implementation techniques.
 
@@ -1800,11 +1807,11 @@ Binary Decision Diagrams (BDDs) are the key data structure enabling symbolic mod
 A BDD is a directed acyclic graph representing a Boolean function.
 
 #definition(name: "Binary Decision Diagram")[
-  A BDD is a rooted, directed acyclic graph where:
-  - Each internal node is labeled with a boolean variable
-  - Each internal node has two outgoing edges: low (dashed, for variable=0) and high (solid, for variable=1)
-  - There are two terminal nodes: 0 (false) and 1 (true)
-  - All paths from root to terminals respect a fixed variable ordering
+  A BDD is a rooted, directed acyclic graph representing a Boolean function, with the following properties:
+  - Each non-terminal node is labeled with a Boolean variable
+  - Each non-terminal node has exactly two outgoing edges: *low* (dashed, for variable=0) and *high* (solid, for variable=1)
+  - There are exactly two terminal nodes: *0* (false) and *1* (true)
+  - All paths from root to terminals follow a fixed variable ordering (no variable appears twice on any path)
 ]
 
 #example(name: "BDD for XOR")[
@@ -2051,7 +2058,7 @@ This is used for variable renaming in model checking (e.g., $x' => x$).
 
 === ITE (If-Then-Else) Operation
 
-The fundamental BDD operation from which all others can be derived:
+The ITE (if-then-else) operation is the core BDD operation from which all others can be derived:
 
 #definition(name: "ITE Operation")[
   $ "ite"(f, g, h) = (f and g) or (not f and h) $
@@ -2205,6 +2212,9 @@ The loop terminates because:
 
 In practice, convergence is often fast, typically logarithmic in the diameter of the state graph.
 
+*Key insight*: Symbolic reachability avoids enumerating individual states.
+Instead of iterating over billions of states, we perform a handful of BDD operations, each manipulating sets containing millions of states.
+
 == CTL Model Checking Implementation
 
 The `CtlChecker` implements the recursive algorithm:
@@ -2320,6 +2330,8 @@ This keeps related variables close together in the decision tree, reducing BDD s
 === When BDDs Work Well
 
 BDDs achieve good compression on systems with exploitable structure.
+For example, a 32-bit counter (with $2^32 approx 4$ billion states) can be represented with a BDD of just a few hundred nodes.
+A cache coherence protocol with $10^20$ states might need only $10^6$ BDD nodes --- a compression factor of $10^14$.
 The key patterns that BDDs handle efficiently are:
 
 *Regular structure*:
@@ -2453,6 +2465,7 @@ This polynomial scaling --- combined with aggressive sharing --- is what makes s
 While the basic algorithms are conceptually straightforward, practical symbolic model checking demands sophisticated optimizations.
 The difference between verifying a system in seconds versus hours --- or between success and failure --- often lies in these optimizations.
 Modern model checkers incorporate numerous techniques to improve performance and scalability.
+This section covers the most important optimizations used in practice.
 
 === Early Termination
 
@@ -2539,9 +2552,13 @@ BDD size is highly sensitive to variable ordering.
 
   *Bad ordering* $x_1, x_2, ..., x_n, y_1, ..., y_n$:
   - BDD size: $O(2^n)$ (exponential!)
+  - For $n=20$: over 1 million nodes
 
   *Good ordering* $x_1, y_1, x_2, y_2, ..., x_n, y_n$:
   - BDD size: $O(n)$ (linear)
+  - For $n=20$: about 40 nodes
+
+  This $25000$-times difference illustrates the dramatic impact of variable ordering.
 ]
 
 *Dynamic reordering*: Automatically adjust variable order during computation.
