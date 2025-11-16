@@ -321,20 +321,23 @@ A transition system (also called a *Kripke structure*) formally models how a sys
     #cetz.canvas({
       import cetz.draw: *
 
-      circle((0, 0), radius: 0.8, stroke: 2pt, name: "s0")
-      content("s0", align(center)[*s₀* \ $x=0$])
+      let node-style = (stroke: 1.5pt, radius: 1)
+      let gap = 4
 
-      circle((4, 0), radius: 0.8, stroke: 2pt, fill: rgb("#ffffcc"), name: "s1")
-      content("s1", align(center)[*s₁* \ $x=1$ \ {"on"}])
+      circle((0, 0), ..node-style, name: "s0")
+      content("s0", align(center)[$s_0$ \ $x=0$ \ $emptyset$])
 
-      line((-1.5, 0), "s0.west", mark: (end: ">"), stroke: 1pt)
-      content((-1.5, 0), [start], anchor: "east", padding: 0.2)
+      circle((gap, 0), ..node-style, fill: rgb("#ffffcc"), name: "s1")
+      content("s1", align(center)[$s_1$ \ $x=1$ \ {"on"}])
 
-      bezier("s0.east", "s1.west", (1.5, 0.6), (2.5, 0.6), mark: (end: ">", fill: black), stroke: 1pt)
-      content((2, 0.8), [toggle])
+      line((-2, 0), "s0.west", mark: (end: ">"), stroke: 1pt)
+      content((-2, 0), [start], anchor: "east", padding: 0.2)
 
-      bezier("s1.west", "s0.east", (2.5, -0.6), (1.5, -0.6), mark: (end: ">", fill: black), stroke: 1pt)
-      content((2, -0.8), [toggle])
+      bezier("s0.east", "s1.west", (1.5, 0.8), (2.5, 0.8), mark: (end: ">", fill: black), stroke: 1pt)
+      content((gap / 2, 0.8), [toggle], anchor: "south")
+
+      bezier("s1.west", "s0.east", (2.5, -0.8), (1.5, -0.8), mark: (end: ">", fill: black), stroke: 1pt)
+      content((gap / 2, -0.8), [toggle], anchor: "north")
     })
   ]
 ]
@@ -416,34 +419,35 @@ Let's build a complete transition system for a 2-bit counter that increments mod
     #cetz.canvas({
       import cetz.draw: *
 
-      let node-style = (stroke: 1.5pt, radius: 0.8)
+      let node-style = (stroke: 1.5pt, radius: 1)
+      let gap = 3.5
 
       circle((0, 0), ..node-style, fill: rgb("#e3f2fd"), name: "s0")
-      content("s0", align(center)[*s₀* \ $(0,0)$ \ val=0])
+      content("s0", align(center)[$s_0$ \ $(0,0)$ \ val=0])
 
-      circle((0, -3), ..node-style, name: "s1")
-      content("s1", align(center)[*s₁* \ $(1,0)$ \ val=1])
+      circle((0, -gap), ..node-style, name: "s1")
+      content("s1", align(center)[$s_1$ \ $(1,0)$ \ val=1])
 
-      circle((3, -3), ..node-style, name: "s2")
-      content("s2", align(center)[*s₂* \ $(0,1)$ \ val=2])
+      circle((gap, -gap), ..node-style, name: "s2")
+      content("s2", align(center)[$s_2$ \ $(0,1)$ \ val=2])
 
-      circle((3, 0), ..node-style, name: "s3")
-      content("s3", align(center)[*s₃* \ $(1,1)$ \ val=3])
+      circle((gap, 0), ..node-style, name: "s3")
+      content("s3", align(center)[$s_3$ \ $(1,1)$ \ val=3])
 
-      line((-1.5, 0), "s0.west", mark: (end: ">"), stroke: 1pt)
-      content((-1.5, 0), [start], anchor: "east", padding: 0.2)
+      line((-gap / 2, 0), "s0.west", mark: (end: ">"), stroke: 1pt)
+      content((-gap / 2, 0), [start], anchor: "east", padding: 0.2)
 
       line("s0.south", "s1.north", mark: (end: ">"), stroke: 1pt)
-      content((0, -1.5), [$x -> 1$], anchor: "east", padding: 0.2)
+      content((0, -gap / 2), [$x -> 1$], anchor: "east", padding: 0.2)
 
       line("s1.east", "s2.west", mark: (end: ">"), stroke: 1pt)
-      content((1.5, -3), [$x -> 0,\ y -> 1$], anchor: "south", padding: 0.2)
+      content((gap / 2, -gap), [$x -> 0,\ y -> 1$], anchor: "south", padding: 0.2)
 
       line("s2.north", "s3.south", mark: (end: ">"), stroke: 1pt)
-      content((3, -1.5), [$x -> 1$], anchor: "west", padding: 0.2)
+      content((gap, -gap / 2), [$x -> 1$], anchor: "west", padding: 0.2)
 
       line("s3.west", "s0.east", mark: (end: ">"), stroke: 1pt)
-      content((1.5, 0), [$x -> 0,\ y -> 0$], anchor: "south", padding: 0.2)
+      content((gap / 2, 0), [$x -> 0,\ y -> 0$], anchor: "south", padding: 0.2)
     })
   ]
 ]
