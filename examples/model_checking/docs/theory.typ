@@ -178,6 +178,9 @@ The key insight:
       0 "if" s in.not S
     )
   $
+
+  For brevity, we often write $S(v_1, ..., v_n)$ instead of $chi_S(v_1, ..., v_n)$ when context is clear.
+  This treats the set $S$ as a Boolean function: $S(s) = 1$ iff $s in S$.
 ]
 
 Using *Binary Decision Diagrams (BDDs)*, we can represent these characteristic functions _compactly_ and perform operations _efficiently_.
@@ -230,9 +233,15 @@ BDDs exploit this structure through _sharing_: common subformulas are represente
 == Sets of States: Symbolic Representation
 
 In symbolic model checking, we work with *sets of states* rather than individual states.
-A set $S subset.eq {0,1}^n$ is represented by a Boolean formula $phi(v_1, ..., v_n)$ such that:
+A set $S subset.eq {0,1}^n$ is represented by its characteristic function as a Boolean formula.
 
-$ S = {s in {0,1}^n | phi(s) = 1} $
+#definition(name: "Symbolic State Set Notation")[
+  A set $S$ is represented by a Boolean formula $phi(v_1, ..., v_n)$ (or simply $S(v_1, ..., v_n)$) such that:
+
+  $ S = {s in {0,1}^n | S(s) = 1} $
+
+  This formula evaluates to 1 for states in $S$ and 0 for states not in $S$.
+]
 
 #example(name: "State Set")[
   For the two-bit counter, consider the set of "odd" states:
@@ -346,29 +355,34 @@ Let's build a complete transition system for a 2-bit counter that increments mod
 
 #example(name: "Two-Bit Counter Transition System")[
 
-  *Variables*: $x$ (high bit), $y$ (low bit)
+  *Variables*: $x$ (low bit), $y$ (high bit)
 
-  *States*: $S = {(0,0), (1,0), (0,1), (1,1)}$ representing values 0, 1, 2, 3
+  *States*: $S = {(0,0), (1,0), (0,1), (1,1)}$ representing binary values 00, 01, 10, 11 (decimal 0, 1, 2, 3)
 
   *Initial state*: $I = {(0,0)}$, represented by formula $overline(x) and overline(y)$
 
   *Transitions*: Increment by 1 (mod 4):
-  - $(0,0) -> (1,0)$ (0 $=>$ 1)
-  - $(1,0) -> (0,1)$ (1 $=>$ 2)
-  - $(0,1) -> (1,1)$ (2 $=>$ 3)
-  - $(1,1) -> (0,0)$ (3 $=>$ 0)
+  - $(0,0) arrow (1,0)$ (binary 00 $=>$ 01, i.e., 0 $=>$ 1)
+  - $(1,0) arrow (0,1)$ (binary 01 $=>$ 10, i.e., 1 $=>$ 2)
+  - $(0,1) arrow (1,1)$ (binary 10 $=>$ 11, i.e., 2 $=>$ 3)
+  - $(1,1) arrow (0,0)$ (binary 11 $=>$ 00, i.e., 3 $=>$ 0)
 
   *Transition relation*: How do we encode this symbolically?
 
-  Observe the pattern:
-  - $y$ always flips: $y' = overline(y)$
-  - $x$ flips when $y = 1$: $x' = x xor y$
+  Observe the pattern of binary increment:
+  - Low bit $x$ always toggles: $x' = overline(x)$
+  - High bit $y$ flips when low bit $x$ was 1 (carry): $y' = y xor x$
 
   Therefore:
-  $ T(x, y, x', y') = (x' equiv x xor y) and (y' equiv overline(y)) $
-
+  $ T(x, y, x', y') = (x' equiv overline(x)) and (y' equiv y xor x) $
 
   where $equiv$ denotes logical equivalence (XNOR).
+
+  Verification:
+  - $(0,0)$: $x'=1$, $y'=0 xor 0=0$ → $(1,0)$ ✓
+  - $(1,0)$: $x'=0$, $y'=0 xor 1=1$ → $(0,1)$ ✓
+  - $(0,1)$: $x'=1$, $y'=1 xor 0=1$ → $(1,1)$ ✓
+  - $(1,1)$: $x'=0$, $y'=1 xor 1=0$ → $(0,0)$ ✓
 
   State diagram:
 
@@ -394,16 +408,16 @@ Let's build a complete transition system for a 2-bit counter that increments mod
       content((-1.5, 0), [start], anchor: "east", padding: 0.2)
 
       line("s0.south", "s1.north", mark: (end: ">"), stroke: 1pt)
-      content((0, -1.5), [$y -> 1$], anchor: "east", padding: 0.2)
+      content((0, -1.5), [$x -> 1$], anchor: "east", padding: 0.2)
 
       line("s1.east", "s2.west", mark: (end: ">"), stroke: 1pt)
-      content((1.5, -3), [$y -> 0,\ x -> 0$], anchor: "south", padding: 0.2)
+      content((1.5, -3), [$x -> 0,\ y -> 1$], anchor: "south", padding: 0.2)
 
       line("s2.north", "s3.south", mark: (end: ">"), stroke: 1pt)
-      content((3, -1.5), [$y -> 1$], anchor: "west", padding: 0.2)
+      content((3, -1.5), [$x -> 1$], anchor: "west", padding: 0.2)
 
       line("s3.west", "s0.east", mark: (end: ">"), stroke: 1pt)
-      content((1.5, 0), [$y -> 0,\ x -> 0$], anchor: "south", padding: 0.2)
+      content((1.5, 0), [$x -> 0,\ y -> 0$], anchor: "south", padding: 0.2)
     })
   ]
 ]
@@ -420,19 +434,32 @@ The two fundamental operations are *image* (forward reachability) and *preimage*
 
   $ "Img"(S, T) = {s' | exists s in S : (s, s') in T} $
 
-  In logical notation:
-  $ "Img"(S, T) = exists v_1, ..., v_n . S(v_1, ..., v_n) and T(v_1, ..., v_n, v'_1, ..., v'_n) $
+  In logical notation (using characteristic functions):
+  $ "Img"(S, T)(v'_1, ..., v'_n) = exists v_1, ..., v_n . S(v_1, ..., v_n) and T(v_1, ..., v_n, v'_1, ..., v'_n) $
+
+  Here $S(v)$ denotes the characteristic function of set $S$ (equals 1 for $v in S$), and $T(v, v')$ is the characteristic function of the transition relation (equals 1 when $(v, v')$ is a valid transition).
 ]
 
 Intuitively, the image operation answers: "Where can I go in one step from these states?"
 
 === Computing the Image
 
-The image computation has three steps:
+The image computation symbolically computes successor states using three steps:
 
-+ *Conjunction*: $S(v) and T(v, v')$ --- combine current states with transition relation
-+ *Existential quantification*: $exists v . (S(v) and T(v, v'))$ --- eliminate present-state variables
-+ *Variable renaming*: Rename $v'$ back to $v$ for the result
++ *Conjunction*: $S(v) and T(v, v')$ --- combine current states (as Boolean function $S$) with transition relation $T$
++ *Existential quantification*: $exists v . (S(v) and T(v, v'))$ --- eliminate present-state variables $v = (v_1, ..., v_n)$
++ *Variable renaming*: Rename next-state variables $v' arrow v$ to obtain result as function of present-state variables
+
+The result is a Boolean formula in variables $v$ representing the set of successor states.
+
+#note[
+  *Understanding Existential Quantification*:
+
+  The operation $exists v . f(v, w)$ eliminates variable $v$ by computing $f(0, w) or f(1, w)$ (Shannon expansion).
+  This gives us all values of $w$ for which $f$ can be true for *some* value of $v$.
+
+  In image computation, $exists v . (S(v) and T(v, v'))$ finds all $v'$ such that *some* state in $S$ can transition to $v'$.
+]
 
 #example(name: "Image of Toggle System")[
   Consider the toggle system with $T(x, x') = x xor x'$.
@@ -514,19 +541,23 @@ This is the dual of the image operation, working backwards through the transitio
 
   $ "Pre"(S, T) = {s | exists s' : (s, s') in T and s' in S} $
 
-  In logical notation:
-  $ "Pre"(S, T) = exists v'_1, ..., v'_n . T(v_1, ..., v_n, v'_1, ..., v'_n) and S(v'_1, ..., v'_n) $
+  In logical notation, using characteristic functions:
+  $ "Pre"(S, T)(v_1, ..., v_n) = exists v'_1, ..., v'_n . T(v_1, ..., v_n, v'_1, ..., v'_n) and S(v'_1, ..., v'_n) $
+
+  Here we first rename $S(v) arrow S(v')$ to express target states in next-state variables, then eliminate $v'$ after conjoining with $T$.
 ]
 
 Intuitively, preimage answers: "From which states can I reach $S$ in one step?"
 
 === Computing the Preimage
 
-The preimage computation has three steps (compare with image):
+The preimage computation symbolically computes predecessor states using three steps (dual to image):
 
-+ *Variable renaming*: Rename present-state variables to next-state in $S(v) arrow S(v')$
-+ *Conjunction*: $S(v') and T(v, v')$ --- combine target states with transition relation
-+ *Existential quantification*: $exists v' . (S(v') and T(v, v'))$ --- eliminate next-state variables
++ *Variable renaming*: Rename $S(v) arrow S(v')$ to express target states in next-state variables
++ *Conjunction*: $S(v') and T(v, v')$ --- combine renamed target states with transition relation
++ *Existential quantification*: $exists v' . (S(v') and T(v, v'))$ --- eliminate next-state variables $v'$
+
+The result is a Boolean formula in variables $v$ representing the set of predecessor states.
 
 #example(name: "Preimage of Toggle System")[
   Recall the toggle system with $T(x, x') = x xor x'$.
@@ -559,27 +590,27 @@ The preimage computation has three steps (compare with image):
 ]
 
 #example(name: "Preimage in Two-Bit Counter")[
-  For the counter, find predecessors of state $(1,1)$.
+  For the counter, find predecessors of state $(1,1)$ (binary 11, value 3).
 
   Target set: $S = {(1,1)}$, represented by $x and y$.
 
-  Transition: $y' = not y$, $x' = x xor y$
+  Transition: $x' = overline(x)$, $y' = y xor x$
 
   After renaming $S$: $x' and y'$
 
   Transition relation:
-  $ T(x, y, x', y') = (y' equiv not y) and (x' equiv x xor y) $
+  $ T(x, y, x', y') = (x' equiv overline(x)) and (y' equiv y xor x) $
 
   Conjunction:
-  $ x' and y' and (y' equiv not y) and (x' equiv x xor y) $
+  $ x' and y' and (x' equiv overline(x)) and (y' equiv y xor x) $
 
-  From $y' = 1$ and $y' equiv not y$, we get $y = 0$.
-  From $x' = 1$ and $x' equiv x xor y$, we get $x xor y = 1$.
-  With $y = 0$: $x xor 0 = 1$, so $x = 1$.
+  From $x' = 1$ and $x' equiv overline(x)$, we get $overline(x) = 1$, so $x = 0$.
+  From $y' = 1$ and $y' equiv y xor x$, we get $y xor x = 1$.
+  With $x = 0$: $y xor 0 = 1$, so $y = 1$.
 
-  After eliminating $x', y'$: result is $(x and not y)$, representing state $(1,0)$.
+  After eliminating $x', y'$: result is $(overline(x) and y)$, representing state $(0,1)$ (binary 10, value 2).
 
-  *Conclusion*: State $(1,0)$ can reach $(1,1)$ in one step. ✓
+  *Conclusion*: State $(0,1)$ can reach $(1,1)$ in one step. ✓
 ]
 
 === Backward Reachability Analysis
