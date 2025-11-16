@@ -1123,7 +1123,8 @@ For formulas like *AG* $phi$ (always globally), we compute the *greatest fixpoin
 The algorithm proceeds by structural induction on $phi$:
 
 / Base case ($phi = p$):
-  $ "SAT"(p) = {s | p in L(s)} $ (given by labeling function)
+  (given by labeling function $L$)
+  $ "SAT"(p) = {s | p in L(s)} $
 
 / Boolean operators:
   $
