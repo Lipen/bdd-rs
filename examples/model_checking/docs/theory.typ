@@ -58,7 +58,7 @@
 
 #pagebreak()
 
-#outline(indent: auto, depth: 2)
+#outline(depth: 2)
 
 #pagebreak()
 
