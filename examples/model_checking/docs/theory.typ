@@ -135,6 +135,7 @@ If the property holds, you get a _proof_ of correctness.
 If it fails, you get a _counterexample_ --- a concrete execution trace demonstrating the violation.
 
 This makes model checking particularly valuable for:
+
 - *Finding subtle bugs* that testing might miss (rare interleavings, corner cases)
 - *Proving correctness* rather than merely building confidence through testing
 - *Understanding failures* through concrete counterexamples
@@ -151,10 +152,10 @@ This exponential growth makes exhaustive enumeration quickly infeasible.
 Consider how rapidly the numbers escalate:
 - 10 variables $=>$ 1,024 states (trivial)
 - 20 variables $=>$ 1,048,576 states (still manageable)
-- 30 variables $=>$ 1,073,741,824 states (over a billion — getting difficult)
+- 30 variables $=>$ 1,073,741,824 states (over a billion --- getting difficult)
 - 100 variables $=>$ $1.27 times 10^30$ states (more states than atoms in a trillion universes)
 
-To put this in perspective: if you could check one billion states per second, verifying a 100-variable system would take longer than the age of the universe — multiplied by $10^21$.
+To put this in perspective: if you could check one billion states per second, verifying a 100-variable system would take longer than the age of the universe --- multiplied by $10^21$.
 
 Traditional _explicit-state_ model checking stores and manipulates each state individually.
 Even with optimizations like hash tables and efficient graph algorithms, this approach hits a wall around $10^7$ to $10^8$ states.
@@ -172,8 +173,6 @@ Symbolic model checking provides the solution.
 
 _Symbolic model checking_ uses Boolean formulas to represent _sets of states_ rather than enumerating them individually.
 This simple idea leads to significant improvements in scalability.
-
-The key insight:
 
 #definition[
   A set of states $S subset.eq {0,1}^n$ can be represented by its *characteristic function* $chi_S : {0,1}^n -> {0,1}$ where:
@@ -207,11 +206,11 @@ Using *Binary Decision Diagrams (BDDs)*, we can represent these characteristic f
   This *exponential compression* --- representing $2^99$ states with a constant-sized BDD --- exemplifies why symbolic model checking enables verification of systems with $10^20$+ states.
 ]
 
-This compression makes it possible to verify systems with $10^20$ states or more—systems that were intractable with explicit-state methods.
+This compression makes it possible to verify systems with $10^20$ states or more --- systems that were intractable with explicit-state methods.
 
 Why does this compression work so well in practice?
 The answer lies in the inherent _regularity_ of engineered systems.
-Real hardware and software aren't random — they're designed with regular patterns:
+Real hardware and software aren't random --- they're designed with regular patterns:
 - Counters increment predictably
 - Buses transfer data according to fixed protocols
 - Control logic follows structured state machines
@@ -230,7 +229,7 @@ We'll see the precise mechanics of how this works in the Implementation section 
 Before diving into symbolic model checking algorithms, we need to establish the mathematical foundations.
 This section introduces the core concepts you'll use throughout: how we represent systems, what states and transitions mean formally, and the key idea of characteristic functions.
 
-Don't worry if these seem abstract at first — we'll see concrete examples immediately after each definition, and everything will come together when we build the model checking algorithms in later sections.
+Don't worry if these seem abstract at first --- we'll see concrete examples immediately after each definition, and everything will come together when we build the model checking algorithms in later sections.
 
 Let's start with the most basic question: what exactly do we mean by a "state" in a system?
 
@@ -461,7 +460,7 @@ Model checking requires answering reachability questions:
 In explicit-state model checking, we'd iterate through states one at a time, following transitions.
 But with symbolic representation, we can do something far more powerful: compute the successors (or predecessors) of _millions of states simultaneously_ using Boolean operations.
 
-This requires two dual operations: *image* (forward reachability — "where can we go?") and *preimage* (backward reachability — "how did we get here?").
+This requires two dual operations: *image* (forward reachability --- "where can we go?") and *preimage* (backward reachability --- "how did we get here?").
 These are the workhorses of symbolic model checking.
 
 == Image: Forward Reachability
@@ -585,6 +584,32 @@ The image operation enables us to compute *all* reachable states through iterati
 
   Fixpoint reached!
   All four states are reachable.
+]
+
+#note[
+  *Pause and Predict:* Before reading on, try this thought experiment.
+
+  Imagine a 3-bit counter (states 0 through 7) that increments modulo 8.
+  Starting from state 0, how many iterations would you need to reach the fixpoint?
+
+  Think about it for a moment...
+
+  *Answer:* Just 3 iterations! Why?
+  Because each iteration doesn't just add the next state --- it adds _all states reachable in one step_ from the current set.
+
+  - $R_0 = {0}$
+  - $R_1 = {0, 1}$ (gained 1 state)
+  - $R_2 = {0, 1, 2}$ (gained 1 state)
+  - $R_3 = {0, 1, 2, 3}$ (gained 1 state)
+
+  Wait, that's linear!
+  But symbolic methods should be better...
+
+  The key insight: for a simple counter, reachability _is_ linear in the state space because we can only reach one new state per step.
+  The power of symbolic model checking shows up when the transition relation allows reaching _many_ states simultaneously --- like in systems with parallelism, non-determinism, or broadcast communication.
+
+  *Self-check:* Can you think of a system where one image operation would add 1000 states at once?
+  (Hint: think about parallel processes or broadcast protocols.)
 ]
 
 == Preimage: Backward Reachability
@@ -723,7 +748,7 @@ You might wonder why we're introducing abstract mathematical machinery when we j
 Here's why: the temporal properties we want to verify ("eventually", "always", "until") all reduce to computing _fixpoints_ of set-valued functions.
 
 The mu-calculus provides the theoretical foundation that makes this reduction precise.
-Understanding fixpoints — even at a basic level — will make the CTL model checking algorithms that follow completely natural.
+Understanding fixpoints --- even at a basic level --- will make the CTL model checking algorithms that follow completely natural.
 Think of this section as learning the theory behind a magic trick before we perform it.
 
 == Why Fixpoints?
@@ -779,8 +804,7 @@ Fixpoints provide a mathematical mechanism to handle this recursion.
     Z_0 & = emptyset \
     Z_1 & = T union "Pre"(emptyset) = T \
     Z_2 & = T union "Pre"(T) = {s | s "reaches" T "in" <= 1 "step"} \
-    Z_3 & = T union "Pre"(Z_2) = {s | s "reaches" T "in" <= 2 "steps"} \\
-        & dots.v
+    Z_3 & = T union "Pre"(Z_2) = {s | s "reaches" T "in" <= 2 "steps"} \\ & dots.v
   $
 
   Converges to _all_ states that can _eventually_ reach $T$.
@@ -838,7 +862,7 @@ Every CTL operator corresponds directly to a fixpoint computation, making the lo
 
 == The Computation Tree
 
-From any state, multiple futures may be possible due to non-determinism — different scheduling choices, environment inputs, or random events.
+From any state, multiple futures may be possible due to non-determinism --- different scheduling choices, environment inputs, or random events.
 This creates a tree structure where each node is a state and each path represents one possible execution sequence.
 The tree _branches_ at points where the system has choices.
 
@@ -889,13 +913,13 @@ The tree _branches_ at points where the system has choices.
   Think: "tomorrow"
 
 - *F* (Finally): Property eventually becomes true (in the Future)
-  Think: "sometime in the future" — we don't know when, but it happens
+  Think: "sometime in the future" --- we don't know when, but it happens
 
 - *G* (Globally): Property remains true forever (Always)
-  Think: "always" — now and for all time to come
+  Think: "always" --- now and for all time to come
 
 - *U* (Until): First property holds until second becomes true
-  Think: "I'll keep working _until_ I finish" — the first condition persists up to the moment the second occurs
+  Think: "I'll keep working _until_ I finish" --- the first condition persists up to the moment the second occurs
 
 === CTL Operators: Informal Semantics
 
@@ -1109,6 +1133,32 @@ Let's work through a complete example to see how CTL properties capture real sys
   State $s_2$ would _not_ be in $R$ (response inevitable), so $s_1 in.not W_"final"$, and the model checker would report this path as a counterexample.
 ]
 
+#note[
+  *Test Your Understanding: CTL Property Puzzle*
+
+  Consider a system where a process can be in states: `idle`, `waiting`, `running`, `done`.
+
+  For each property below, predict: Does it hold?
+
+  + $op("AG") op("EF") "idle"$ --- "Always eventually return to idle"
+    - What if `done` is a terminal state (no transitions out)?
+    - Answer: *No* --- once in `done`, we can never return to `idle`
+
+  + $op("EF") op("AG") "done"$ --- "Eventually reach done and stay there"
+    - What if `done` is terminal?
+    - Answer: *Yes* --- we eventually reach `done` and remain there forever
+
+  + $op("AG") ("waiting" => op("EF") "running")$ --- "Every wait eventually runs"
+    - What if the scheduler is unfair (can ignore waiting processes)?
+    - Answer: *Depends on system* --- true for fair schedulers, false otherwise
+
+  + $op("AG") ("running" => op("EX") not "running")$ --- "Running immediately stops"
+    - What does this say about the transition relation?
+    - Answer: *Strong constraint* --- no state can transition to itself while running
+
+  *Key insight:* Small differences in CTL structure express fundamentally different properties. The nesting of quantifiers and operators matters critically.
+]
+
 === The Model Checking Workflow
 
 Putting it all together, model checking a CTL property $phi$ proceeds as follows:
@@ -1121,7 +1171,7 @@ Putting it all together, model checking a CTL property $phi$ proceeds as follows
 
 Each fixpoint iteration uses image/preimage operations (Section 3) on BDD representations.
 The finite state space guarantees termination.
-The canonical BDD representation makes fixpoint detection trivial — just compare node pointers.
+The canonical BDD representation makes fixpoint detection trivial --- just compare node pointers.
 
 This is the heart of symbolic CTL model checking: temporal logic reduces to iterated Boolean operations on compact representations.
 
@@ -1167,10 +1217,10 @@ Let's see how $op("EF") "error"$ computes by examining the iteration:
   Using $op("EF") "error" = mu Z. thin "error" or op("EX") Z$:
 
   $
-    Z_0 & = emptyset quad & "(start with empty set)" \
-    Z_1 & = "error" or op("EX") Z_0 = "error" quad & "(states where error holds now)" \
-    Z_2 & = "error" or op("EX") Z_1 quad & "(add states reaching error in 1 step)" \
-    Z_3 & = "error" or op("EX") Z_2 quad & "(add states reaching error in" <= 2 "steps)" \
+    Z_0 & = emptyset quad                          &                      "(start with empty set)" \
+    Z_1 & = "error" or op("EX") Z_0 = "error" quad &              "(states where error holds now)" \
+    Z_2 & = "error" or op("EX") Z_1 quad           &       "(add states reaching error in 1 step)" \
+    Z_3 & = "error" or op("EX") Z_2 quad           & "(add states reaching error in" <= 2 "steps)" \
   $
 
   This continues, expanding the set backward through the transition relation.
@@ -1324,6 +1374,152 @@ The algorithm proceeds by structural induction on $phi$:
   If yes: property holds #YES \
   If no: counterexample exists (extract witness path)
 ]
+
+=== Worked Example: Mutex Protocol Verification
+
+Let's walk through a complete verification from start to finish.
+This example demonstrates every step: system specification, BDD encoding, property formulation, algorithm execution, and result interpretation.
+
+*The System: Peterson's Mutual Exclusion Protocol*
+
+Peterson's algorithm solves mutual exclusion for two processes using only shared memory.
+Each process has a flag and there's a shared "turn" variable.
+
+*Process structure*:
+```
+Process i:
+  loop forever:
+    [Non-Critical Section]
+    flag[i] := true          // Announce intent
+    turn := j                // Give priority to other
+    await (!flag[j] or turn == i)  // Wait if needed
+    [Critical Section]
+    flag[i] := false         // Release
+```
+
+*State Variables*:
+- $"flag"_1, "flag"_2 in {0,1}$: Process flags
+- $"turn" in {1,2}$: Whose turn it is
+- $"pc"_1, "pc"_2 in {"idle", "want", "crit"}$: Program counters (3 states each)
+
+*State Space Size*:
+$
+  |S| = 2 times 2 times 2 times 3 times 3 = 72 "states"
+$
+
+Small enough to verify by hand, but we'll use symbolic model checking to demonstrate the technique.
+
+*Encoding as BDDs*:
+
+We need 5 boolean variables to encode the state:
+- $f_1$: flag[1]
+- $f_2$: flag[2]
+- $t$: turn (0 = process 1, 1 = process 2)
+- $p_1^0, p_1^1$: pc[1] encoded as 2 bits (00=idle, 01=want, 10=crit)
+- $p_2^0, p_2^1$: pc[2] encoded as 2 bits
+
+Total: 7 boolean variables (5 + 2 for encoding 3-state PCs)
+
+*Transition Relation*:
+
+The transition relation $T(v, v')$ encodes both processes' possible moves:
+
+For Process 1's transition from idle to want:
+$
+  T_1^("idle"→"want") =
+  ("pc"_1 = "idle") and
+  ("pc"'_1 = "want") and
+  ("flag"'_1 = 1) and
+  ("turn"' = 2) and
+  ("unchanged"("pc"_2, "flag"_2))
+$
+
+For Process 1's transition from want to crit:
+$
+  T_1^("want"→"crit") =
+  ("pc"_1 = "want") and
+  (not "flag"_2 or "turn" = 1) and
+  ("pc"'_1 = "crit") and
+  ("unchanged"("flag"_1, "flag"_2, "turn"))
+$
+
+Similar transitions for Process 2, plus exit from critical section.
+
+The complete transition relation is the disjunction of all individual transitions:
+$
+  T = T_1^("idle"→"want") or T_1^("want"→"crit") or T_1^("crit"→"idle") or
+  T_2^("idle"→"want") or T_2^("want"→"crit") or T_2^("crit"→"idle")
+$
+
+*Property to Verify*:
+
+*Mutual Exclusion*: Never both in critical section
+$
+  phi_"mutex" = op("AG") (not ("pc"_1 = "crit" and "pc"_2 = "crit"))
+$
+
+*Verification Algorithm*:
+
+We compute the greatest fixpoint:
+$
+  op("AG") psi = nu Z. thin psi and op("AX") Z
+$
+
+Starting from all states, we iteratively remove states that violate $psi$ or can reach violation states.
+
+*Step-by-Step Execution*:
+
+- Iteration 0:
+  - $Z_0 = S$ (all 72 states)
+  - Start optimistically: assume property holds everywhere
+
+- Iteration 1:
+  - $"bad" = {"pc"_1 = "crit" and "pc"_2 = "crit"}$ (states violating mutual exclusion)
+  - $Z_1 = Z_0 and not "bad" and op("AX") Z_0$
+  - Remove bad states and their predecessors
+  - $|Z_1| = 71$ (removed 1 state where both in critical section)
+  - But wait --- can such a state actually be reached?
+
+- Iteration 2:
+  - $Z_2 = Z_1 and not "bad" and op("AX") Z_1$
+  - Compute predecessors of removed states
+  - If any predecessors exist in reachable states, remove them too
+  - $|Z_2| = 71$ (no change!)
+
+- Fixpoint Reached:
+  - $Z_2 = Z_1$, so we've reached fixpoint
+  - $[[ op("AG") phi_"mutex" ]] = Z_2$
+
+*Checking the Property*:
+
+Does the property hold from initial states?
+$
+  I subset.eq [[ op("AG") phi_"mutex" ]] thin ?
+$
+
+Initial state: $I = {"pc"_1 = "idle" and "pc"_2 = "idle" and "flag"_1 = 0 and "flag"_2 = 0}$
+
+Check: Is $I subset.eq Z_2$?
+
+*Result*: #YES --- The initial state is in the set of states satisfying the property.
+
+*Conclusion*: Peterson's algorithm satisfies mutual exclusion!
+
+*Key Insights from this Example*:
+
++ *Symbolic representation*: 72 states represented with just 7 boolean variables
++ *Fixpoint converged quickly*: Just 2 iterations to prove correctness
++ *BDD operations*: Each iteration performs image/preimage on sets, not individual states
++ *Automatic proof*: No manual reasoning needed --- the algorithm mechanically verified correctness
+
+*What if it failed?*
+
+If the property had failed (e.g., with a buggy protocol), the model checker would:
+1. Identify $I subset.eq.not Z_k$ (initial state not in safe set)
+2. Extract a path: $s_0 -> s_1 -> ... -> s_k$ where $s_k models "pc"_1 = "crit" and "pc"_2 = "crit"$
+3. Present this as a counterexample showing exactly how both processes enter critical section
+
+This complete worked example demonstrates the full power of symbolic model checking: from system specification to verified correctness, all mechanically checked by BDD operations.
 
 == Counterexample Generation
 
@@ -1767,19 +1963,19 @@ fn main() {
     // Label: "odd" = x holds
     mc.labels.insert("odd".to_string(), mc.bdd.var(x));
 
-    // Property 1: AG(count < 4)  — always true (trivial)
+    // Property 1: AG(count < 4)  --- always true (trivial)
     let always_valid = mc.bdd.constant(true);
     assert!(mc.check(mc.always(always_valid)));
     println!("✓ Property 1: Always valid (count < 4)");
 
-    // Property 2: AG EF(odd)  — can always reach odd states
+    // Property 2: AG EF(odd)  --- can always reach odd states
     let odd = mc.labels["odd"];
     let ef_odd = mc.eventually(odd);
     let ag_ef_odd = mc.always(ef_odd);
     assert!(mc.check(ag_ef_odd));
     println!("✓ Property 2: Can always eventually reach odd state");
 
-    // Property 3: AG(even → AF odd)  — from even, eventually odd
+    // Property 3: AG(even → AF odd)  --- from even, eventually odd
     let even = mc.bdd.not(odd);
     let af_odd = mc.eventually(odd); // In this case, AF = EF (deterministic)
     let implies = mc.bdd.or(odd, af_odd);
@@ -1811,7 +2007,7 @@ This leads to complementary strengths:
 - LTL naturally expresses fairness and liveness properties ("infinitely often")
 - CTL efficiently computes using fixpoints and handles branching-time properties ("on all paths eventually, there exists a path")
 
-In practice, neither subsumes the other — each can express properties the other cannot.
+In practice, neither subsumes the other --- each can express properties the other cannot.
 This section compares the two logics and explains when to use each.
 
 == LTL: Path-Based Logic
@@ -2049,6 +2245,61 @@ To ensure canonicity (same function = same BDD), we enforce two reduction rules:
 This canonicity enables:
 - *Constant-time equality checking*: Same function ↔ same BDD pointer
 - *Hash consing*: Automatic sharing of subformulas
+
+#note[
+  *Visualizing BDD Evolution: The Apply Operation*
+
+  Understanding how BDDs combine is crucial for intuition. Let's trace through applying AND to two simple BDDs.
+
+  *Input BDDs*:
+  - $f = x$: Just variable $x$ (returns 1 if $x=1$, else 0)
+  - $g = y$: Just variable $y$ (returns 1 if $y=1$, else 0)
+
+  *Operation*: Compute $h = f and g = x and y$
+
+  *Step-by-step evolution*:
+
+  1. *Start*: Two single-node BDDs
+    ```
+    f:   x → (0, 1)        g:   y → (0, 1)
+    ```
+
+  2. *Recursive descent*: Process from root (top variable $x$ in ordering $x < y$)
+    - For $x=0$ case: Compute $f|_(x=0) and g = 0 and y = 0$
+    - For $x=1$ case: Compute $f|_(x=1) and g = 1 and y = y$
+
+  3. *Build result*: Create node for $x$ with:
+    - Low edge ($x=0$) → terminal 0
+    - High edge ($x=1$) → sub-BDD for $y$
+
+  4. *Final BDD*:
+    ```
+    h: x → (0, y)
+             ↓
+           y → (0, 1)
+    ```
+
+  *Key insights*:
+  - The algorithm traverses both input BDDs in *parallel*, following the variable ordering
+  - Base cases (terminals) stop recursion immediately
+  - Caching prevents recomputation: if we see $(f, g, "op")$ again, return cached result
+  - The result automatically shares structure (e.g., both branches might point to same subgraph)
+
+  *What makes this efficient?*
+
+  Compare to truth table approach:
+  - Truth table for 2 variables: 4 rows
+  - Truth table for 10 variables: 1,024 rows
+  - Truth table for 20 variables: 1,048,576 rows
+
+  BDD approach:
+  - Processes nodes, not truth table rows
+  - With sharing, $|h| <= |f| times |g|$ nodes (often much less)
+  - For 20 variables with structure: maybe 100 nodes total
+
+  *Try this*: On paper, trace $f = (x and y)$ OR $(not x and not y)$ (equality check).
+  Notice how the BDD captures the pattern without enumerating all 4 input combinations.
+]
 
 == BDD Operations
 
@@ -2382,7 +2633,7 @@ The loop terminates because:
 + Monotonicity: $R_i subset.eq R_(i+1)$ (the reached set only grows)
 + Eventually $R_k = S$ or we reach all reachable states
 
-*Convergence rate*: In practice, convergence is often remarkably fast — typically logarithmic in the diameter of the state graph.
+*Convergence rate*: In practice, convergence is often remarkably fast --- typically logarithmic in the diameter of the state graph.
 Why? Because BDD operations work on large sets at once.
 Each iteration doesn't add just one state; it might add millions.
 A system with a billion reachable states might converge in 30-40 iterations.
@@ -2484,6 +2735,61 @@ Key implementation details:
 + *Fixpoint iteration*: Loop until BDD pointer equality (constant time check)
 + *Symbolic throughout*: Never enumerate states explicitly
 
+#note[
+  *Try This Yourself: Build a Mini Model Checker*
+
+  Ready to implement model checking yourself? Here's a hands-on exercise using `bdd-rs`.
+
+  *Goal*: Build a simple reachability checker for a 2-bit counter.
+
+  *Starting code*:
+  ```rust
+  use bdd::BddBuilder;
+
+  fn main() {
+      // Step 1: Create BDD manager
+      let mut builder = BddBuilder::new();
+
+      // Step 2: Declare variables (present and next state)
+      // TODO: Create variables x0, x0', x1, x1'
+
+      // Step 3: Build transition relation
+      // Counter increments: (x1,x0) -> (x1,x0) + 1 mod 4
+      // TODO: Express as BDD formula
+
+      // Step 4: Define initial state (0,0)
+      // TODO: Create BDD for initial state
+
+      // Step 5: Compute reachability fixpoint
+      // TODO: Implement the loop from Section 4
+
+      // Step 6: Check if all states reachable
+      println!("Reachable states: check output");
+  }
+  ```
+
+  *Hints*:
+  1. For transition relation, think about when each bit flips:
+    - Bit 0 always flips
+    - Bit 1 flips when bit 0 is 1
+
+  2. The image computation needs:
+    - Conjunction with transition relation
+    - Existential quantification over present variables
+    - Renaming next' to present
+
+  3. Fixpoint detection: `if new_reach == reach { break; }`
+
+  *Expected output*: All 4 states (00, 01, 10, 11) should be reachable.
+
+  *Solution*: Check `examples/simple.rs` in the `bdd-rs` repository for a complete implementation.
+
+  *Extension challenges*:
+  - Add a property check: "Does counter ever reach (1,1)?" (use $op("EF")$)
+  - Implement deadlock detection: find states with no successors
+  - Build a 3-bit counter --- how does performance scale?
+]
+
 == Performance Considerations
 
 === BDD Variable Ordering
@@ -2570,8 +2876,8 @@ BDDs can blow up exponentially for certain problem classes:
 #example[
   The equality function $f(x_1, ..., x_n, y_1, ..., y_n) = (x_1 equiv y_1) and ... and (x_n equiv y_n)$:
 
-  / Bad ordering $(x_1, ..., x_n, y_1, ..., y_n)$: $Theta(2^n)$ nodes
-  / Good ordering $(x_1, y_1, x_2, y_2, ..., x_n, y_n)$: $O(n)$ nodes
+  - Bad ordering $(x_1, ..., x_n, y_1, ..., y_n)$: $Theta(2^n)$ nodes
+  - Good ordering $(x_1, y_1, x_2, y_2, ..., x_n, y_n)$: $O(n)$ nodes
 
   Same function, thousand-fold difference.
 ]
@@ -2730,7 +3036,7 @@ Instead of monolithic $T(v,v')$, use conjunctive partitioning.
 
 BDD size is highly sensitive to variable ordering.
 The same Boolean function can require 40 nodes with a good ordering but over 1 million nodes with a poor ordering.
-This isn't just a performance issue — it's often the difference between success and failure.
+This isn't just a performance issue --- it's often the difference between success and failure.
 
 What makes an ordering "good"?
 Generally, grouping related variables together.
@@ -2905,7 +3211,7 @@ Verify components separately, then compose results.
 
 == Limitations and Extensions
 
-*When to use BDDs — and when to look elsewhere.*
+*When to use BDDs --- and when to look elsewhere.*
 
 By now, you've seen the power of BDD-based symbolic model checking: systems with $10^20$ states verified in seconds, elegant fixpoint algorithms, practical industrial applications.
 You might be tempted to think BDDs are the answer to all verification problems.
@@ -2913,7 +3219,7 @@ You might be tempted to think BDDs are the answer to all verification problems.
 They're not.
 
 Like any technique, BDDs have strengths and weaknesses.
-Knowing when they excel — and crucially, when they struggle — is essential for effective verification engineering.
+Knowing when they excel --- and crucially, when they struggle --- is essential for effective verification engineering.
 This isn't a limitation of the theory; it's the nature of computational complexity meeting real-world problem structure.
 
 This section will help you develop intuition for:
@@ -2950,7 +3256,7 @@ Following the natural ordering suggested by the system's structure often yields 
 BDDs have proven remarkably successful for cache coherence protocols with over $10^20$ states, communication protocols like sliding window and alternating bit, hardware control units including instruction decoders and finite state machines, and mutual exclusion algorithms with multiple competing processes.
 
 #note[
-  *Success stories — when BDDs shine:*
+  *Success stories --- when BDDs shine:*
   - Intel's formal verification of Pentium floating-point unit (post-FDIV bug)
   - IBM's verification of cache coherence protocols for Power processors
   - Model checking of communication protocols (TCP, sliding window)
@@ -2964,7 +3270,7 @@ BDDs have proven remarkably successful for cache coherence protocols with over $
 
 *Now for the reality check: when do BDDs fail?*
 
-Understanding BDD limitations isn't just academic — it can save you weeks of frustration.
+Understanding BDD limitations isn't just academic --- it can save you weeks of frustration.
 If you're fighting with exploding BDD sizes, the problem might not be your implementation or variable ordering.
 It might be that you've hit a fundamental limitation of the BDD representation.
 
@@ -2972,7 +3278,7 @@ Let's explore the three main problem classes where BDDs struggle, and more impor
 
 *Problem Class 1: Arithmetic-Heavy Computations*
 
-Arithmetic operations — multiplication, division, modulo — are BDD's nemesis.
+Arithmetic operations --- multiplication, division, modulo --- are BDD's nemesis.
 This isn't a minor inconvenience; it's a fundamental mismatch between the operation's structure and BDD's compression mechanisms.
 
 Consider multiplication: $z = x times y$ for $n$-bit numbers.
@@ -2999,7 +3305,7 @@ BDDs compress structure.
 If there's no structure, there's nothing to compress.
 
 *Hash functions* are a perfect example.
-They're _designed_ to destroy regularity — to take structured input and produce apparently random output.
+They're _designed_ to destroy regularity --- to take structured input and produce apparently random output.
 That's exactly what makes them good hash functions and terrible for BDDs.
 A hash function on 32-bit inputs might produce a BDD with millions of nodes because there are no patterns to exploit.
 
@@ -3007,7 +3313,7 @@ A hash function on 32-bit inputs might produce a BDD with millions of nodes beca
 Encryption algorithms like AES intentionally create complex, non-linear relationships between input and output bits.
 This complexity (which provides security) simultaneously prevents BDD compression.
 
-*Random logic* — circuits generated without regard for structure — similarly resist BDD representation.
+*Random logic* --- circuits generated without regard for structure --- similarly resist BDD representation.
 With no regularity to exploit, you get roughly one BDD node per distinct subcircuit, leading to very large BDDs.
 
 *Problem Class 3: Variable Ordering Sensitivity*
@@ -3035,12 +3341,143 @@ Here's a frustrating reality: even for problems that _should_ work well with BDD
   For irregular problems, even the best heuristics may fail, and you might watch your BDD sizes explode from thousands to millions of nodes with seemingly minor reorderings.
 ]
 
+=== Troubleshooting Guide: When BDDs Explode
+
+*Practical debugging strategies for BDD blowup.*
+
+You're running model checking and suddenly: "Out of memory" or "BDD size exceeded 10 million nodes."
+What now? Here's a systematic debugging approach.
+
+*Symptom 1: BDD Sizes Grow Without Bound*
+
+- Possible causes:
+  - Poor variable ordering
+  - Arithmetic operations in your model
+  - Irregular transition structure
+
+- Debugging steps:
+  + *Profile BDD operations*: Which operation creates the largest BDD?
+    - Log BDD sizes after each operation
+    - Identify the culprit: transition relation build? Image computation? Property check?
+
+  + *Check variable ordering*:
+    - Are present/next variables interleaved? (Should be: $x, x', y, y'$, not $x, y, x', y'$)
+    - Are related variables grouped? (Cache index bits should be consecutive)
+    - Try manual reordering based on system structure
+
+  + *Examine transition relation*:
+    - Is $T(v, v')$ huge even before model checking?
+    - If so: Try partitioned transition relations (split into $T_1 and T_2 and ...$)
+    - Use early quantification in image computation
+
+  + *Look for arithmetic*:
+    - Does your model include multiplication, division, modulo?
+    - If yes: Consider abstracting arithmetic away (predicate abstraction)
+    - Or switch to SAT-based model checking
+
+*Symptom 2: Fixpoint Computation Never Converges*
+
+- Possible causes:
+  - Bug in transition relation (livelock)
+  - Property is actually infinite (liveness without fairness)
+  - BDDs too large to iterate effectively
+
+- Debugging steps:
+  + *Check for termination*:
+    - Add iteration limit: stop after 100 iterations
+    - Log how many new states each iteration adds
+    - If adding states linearly forever: likely a bug
+
+  + *Verify transition relation*:
+    - Print a few example transitions
+    - Check: Does every state have at least one successor?
+    - Look for unintended non-determinism
+
+  + *Simplify the property*:
+    - Try simpler property first (e.g., $op("EF") "error"$ before complex $op("AG") op("EF")$)
+    - Check if problem is with model or property
+
+  + *Use bounded model checking*:
+    - Instead of full fixpoint, check depth-limited: "Can error be reached in 50 steps?"
+    - If BMC finds nothing, gradually increase bound
+
+*Symptom 3: Dynamic Reordering Takes Forever*
+
+- Possible causes:
+  - Reordering triggered too frequently
+  - BDD already very large when reordering starts
+  - No good ordering exists (irregular structure)
+
+- Debugging steps:
+  + *Adjust reordering parameters*:
+    - Increase threshold: reorder less frequently
+    - Use cheaper heuristics (window permutation instead of sifting)
+    - Disable reordering initially to see if it helps or hurts
+
+  + *Force a good initial ordering*:
+    - If you know system structure, specify ordering manually
+    - Use domain knowledge: interleave related variables
+    - Once set, disable dynamic reordering
+
+  + *Accept BDD limitations*:
+    - If reordering doesn't help: problem might not be BDD-friendly
+    - Try alternative techniques (see next section)
+
+*Symptom 4: Memory Exhausted Despite Small State Space*
+
+- Possible causes:
+  - Intermediate BDDs much larger than final result
+  - Garbage collection not running
+  - Cache taking too much memory
+
+- Debugging steps:
+  + *Improve garbage collection*:
+    - Call GC more frequently
+    - Use reference counting to identify dead nodes
+    - Clear operation caches between phases
+
+  + *Reduce intermediate BDD sizes*:
+    - Use early quantification: $exists x . (f and g)$ often smaller than $(exists x . f) and g$
+    - Partition operations: compute in smaller pieces
+    - Minimize simultaneous live BDDs
+
+  + *Check for leaks*:
+    - Are you keeping references to old BDDs?
+    - Clear caches after major operations
+    - Profile memory usage over time
+
+*Quick Decision Tree*:
+
+```
+BDD exploding?
+├─ Transition relation huge?
+│  ├─ YES → Try partitioning, early quantification
+│  └─ NO → Continue
+├─ Contains arithmetic (multiply/divide)?
+│  ├─ YES → Switch to SAT/BMC or abstract arithmetic
+│  └─ NO → Continue
+├─ Fixpoint not converging?
+│  ├─ YES → Check for bugs, try BMC with bounds
+│  └─ NO → Continue
+└─ Reordering helps?
+   ├─ YES → Use dynamic reordering, tune thresholds
+   ├─ NO → Try manual ordering or alternative method
+   └─ UNKNOWN → Profile and measure!
+```
+
+*The Golden Rule*:
+
+If you've tried reordering, partitioning, and abstraction, and BDDs still explode --- *it's time to try a different approach*.
+BDDs are powerful but not universal.
+Knowing when to switch techniques is as important as knowing how to optimize them.
+
 === Practical Guidance: Choosing Your Verification Approach
 
 *A decision guide for verification engineers.*
 
 You have a system to verify.
-Should you use BDDs? Let's work through a decision process.
+Should you use BDDs?
+Let's work through a decision process.
 
 *Step 1: Characterize Your System*
 
@@ -3052,23 +3489,17 @@ Ask yourself these questions:
   stroke: (x, y) => if y == 0 { (bottom: 0.8pt) },
   table.header([*Question*], [*BDD-Friendly Answer*]),
 
-  [What dominates: control or arithmetic?],
-  [Control (state machines, protocols)],
+  [What dominates: control or arithmetic?], [Control (state machines, protocols)],
 
-  [Are there regular patterns?],
-  [Yes (counters, repeating structures)],
+  [Are there regular patterns?], [Yes (counters, repeating structures)],
 
-  [How many variables change per transition?],
-  [Few (local state changes)],
+  [How many variables change per transition?], [Few (local state changes)],
 
-  [Are there identical components?],
-  [Yes (symmetry opportunities)],
+  [Are there identical components?], [Yes (symmetry opportunities)],
 
-  [Do you have arithmetic operations?],
-  [Only simple (add/subtract, not multiply)],
+  [Do you have arithmetic operations?], [Only simple (add/subtract, not multiply)],
 
-  [Is the logic structured or random?],
-  [Structured (designed, not random)],
+  [Is the logic structured or random?], [Structured (designed, not random)],
 )
 
 *Step 2: Make Your Decision*
@@ -3094,13 +3525,13 @@ Ask yourself these questions:
 
 If using BDDs:
 - Start with natural variable ordering (following system structure)
-- Monitor BDD sizes during development — if they explode, investigate why
+- Monitor BDD sizes during development --- if they explode, investigate why
 - Use dynamic reordering, but understand it's not magic
 - Consider abstracting arithmetic (e.g., treat counter as symbolic value, not bit-vector)
 - Profile your operations: which ones create large intermediate BDDs?
 
 If BDDs struggle:
-- Don't fight it — recognize when you've hit a fundamental limitation
+- Don't fight it --- recognize when you've hit a fundamental limitation
 - Try SAT/BMC for bug-finding (often faster, handles arithmetic better)
 - Use IC3/PDR for safety properties (avoids variable ordering issues)
 - Consider abstraction-refinement (CEGAR) to reduce state space
@@ -3269,11 +3700,11 @@ Modern tools make pragmatic choices based on problem characteristics:
   Choosing verification techniques is part science (understanding complexity and problem structure) and part art (recognizing patterns from experience).
 
   Start with the technique that matches your problem's dominant characteristics.
-  Monitor progress — if BDD sizes explode or SAT queries time out, understand _why_ and adjust.
+  Monitor progress --- if BDD sizes explode or SAT queries time out, understand _why_ and adjust.
   Don't be dogmatic: the goal is verification, not commitment to a particular technique.
 
   The verification landscape continues to evolve.
-  Techniques that seemed impractical decades ago — SAT solving on millions of variables, IC3's inductive invariant synthesis — now form the backbone of industrial verification.
+  Techniques that seemed impractical decades ago --- SAT solving on millions of variables, IC3's inductive invariant synthesis --- now form the backbone of industrial verification.
   Your toolkit should evolve too.
 ]
 
@@ -3281,7 +3712,7 @@ Modern tools make pragmatic choices based on problem characteristics:
 
 *Bringing it all together.*
 
-This document has taken you on a journey through symbolic model checking with BDDs — from the fundamental idea of representing sets as Boolean functions, through the mechanics of image computation and fixpoint iteration, to practical algorithms and real-world applications.
+This document has taken you on a journey through symbolic model checking with BDDs --- from the fundamental idea of representing sets as Boolean functions, through the mechanics of image computation and fixpoint iteration, to practical algorithms and real-world applications.
 
 Let's reflect on what makes this technique remarkable.
 
@@ -3334,7 +3765,7 @@ Symbolic model checking transformed verification from theoretical exercise to in
 - Protocol verification (TCP, communication protocols)
 - Safety-critical systems (medical devices, automotive, avionics)
 
-The technique has found real bugs in deployed systems — defects that escaped years of testing, bugs that would have caused system failures, data corruption, or security vulnerabilities in production.
+The technique has found real bugs in deployed systems --- defects that escaped years of testing, bugs that would have caused system failures, data corruption, or security vulnerabilities in production.
 
 == Your Path Forward: Using bdd-rs
 
@@ -3379,13 +3810,13 @@ Symbolic model checking with BDDs represents a remarkable success story: elegant
 The simple idea of manipulating sets symbolically enabled verification of systems once thought intractable.
 
 As you implement verification tools using `bdd-rs`, remember:
-- *The algorithms are straightforward* — fixpoint iteration is just a loop
-- *The magic is in the representation* — BDDs compress exponential into polynomial
-- *Success depends on problem structure* — understand the relationship between your system and BDD performance
-- *Be pragmatic* — use BDDs where they excel, alternatives where they don't
-- *Keep learning* — verification techniques continue to evolve
+- *The algorithms are straightforward* --- fixpoint iteration is just a loop
+- *The magic is in the representation* --- BDDs compress exponential into polynomial
+- *Success depends on problem structure* --- understand the relationship between your system and BDD performance
+- *Be pragmatic* --- use BDDs where they excel, alternatives where they don't
+- *Keep learning* --- verification techniques continue to evolve
 
-The goal isn't mastering BDDs specifically — it's effective verification.
+The goal isn't mastering BDDs specifically --- it's effective verification.
 BDDs are a powerful tool in your toolkit, but only one tool.
 Understanding when and how to apply each technique is the mark of a skilled verification engineer.
 
