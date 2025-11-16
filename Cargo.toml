@@ -13,6 +13,7 @@ members = [
     "examples/eda",
     "examples/feature_model",
     "examples/symbolic_execution",
+    "examples/model_checking",
 ]
 
 [dependencies]

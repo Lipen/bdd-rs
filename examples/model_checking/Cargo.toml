@@ -1,0 +1,17 @@
+[package]
+name = "model_checking"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bdd-rs = { path = "../.." }
+color-eyre = "0.6"
+clap = { version = "4.5", features = ["derive"] }
+log = "0.4"
+simplelog = "0.12"
+num-bigint = "0.4"
+num-traits = "0.2"
+
+[[bin]]
+name = "modelcheck"
+path = "src/bin/modelcheck.rs"
