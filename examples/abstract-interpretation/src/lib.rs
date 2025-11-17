@@ -32,11 +32,10 @@ pub mod expr;
 pub mod fixpoint;
 pub mod interval;
 pub mod numeric;
+pub mod pointsto;
 pub mod product;
 pub mod sign;
 pub mod transfer;
-// TODO: Implement additional domains
-// pub mod pointsto;
 
 // Re-exports for convenience
 pub use constant::{ConstValue, ConstantDomain, ConstantElement};
@@ -45,7 +44,7 @@ pub use expr::{NumExpr, NumPred, Stmt};
 pub use fixpoint::FixpointEngine;
 pub use interval::{Bound, Interval, IntervalDomain, IntervalElement};
 pub use numeric::NumericDomain;
+pub use pointsto::{Location, LocationMap, PointsToDomain, PointsToElement};
 pub use product::{ProductDomain, ProductElement};
 pub use sign::{Sign, SignDomain, SignElement};
 pub use transfer::{NumericTransferFunction, TransferFunction};
-// pub use pointsto::{PointsToDomain, PointsToElement};
