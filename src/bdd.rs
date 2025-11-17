@@ -1935,14 +1935,15 @@ impl Bdd {
         let (u0, u1) = self.top_cofactors(u, m);
         let (v0, v1) = self.top_cofactors(v, m);
 
-        let h0 = self.rel_product_(u0, v0, vars, var_idx, cache);
-        let h1 = self.rel_product_(u1, v1, vars, var_idx, cache);
-
         let res = if var_idx < vars.len() && m == vars[var_idx] {
             // This variable should be quantified out
+            let h0 = self.rel_product_(u0, v0, vars, var_idx + 1, cache);
+            let h1 = self.rel_product_(u1, v1, vars, var_idx + 1, cache);
             self.apply_or(h0, h1)
         } else {
             // Keep this variable
+            let h0 = self.rel_product_(u0, v0, vars, var_idx, cache);
+            let h1 = self.rel_product_(u1, v1, vars, var_idx, cache);
             self.mk_node(m, h0, h1)
         };
 
