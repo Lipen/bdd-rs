@@ -26,19 +26,26 @@
 //! // while x < 10 { x = x + 1; }
 //! ```
 
+pub mod constant;
 pub mod domain;
 pub mod expr;
 pub mod fixpoint;
 pub mod interval;
 pub mod numeric;
 pub mod product;
+pub mod sign;
 pub mod transfer;
+// TODO: Implement additional domains
+// pub mod pointsto;
 
 // Re-exports for convenience
+pub use constant::{ConstValue, ConstantDomain, ConstantElement};
 pub use domain::AbstractDomain;
 pub use expr::{NumExpr, NumPred, Stmt};
 pub use fixpoint::FixpointEngine;
 pub use interval::{Bound, Interval, IntervalDomain, IntervalElement};
 pub use numeric::NumericDomain;
 pub use product::{ProductDomain, ProductElement};
+pub use sign::{Sign, SignDomain, SignElement};
 pub use transfer::{NumericTransferFunction, TransferFunction};
+// pub use pointsto::{PointsToDomain, PointsToElement};
