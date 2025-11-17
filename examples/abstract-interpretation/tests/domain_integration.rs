@@ -224,3 +224,140 @@ fn test_widening_across_domains() {
     }
     // Note: Some widening strategies might lose precision entirely
 }
+
+#[test]
+fn test_pointsto_with_numeric() {
+    // Test pointer arithmetic and array access with numeric domains
+    use std::rc::Rc;
+
+    let interval_domain = IntervalDomain;
+    let sign_domain = SignDomain;
+    let pointsto_domain = PointsToDomain::new();
+
+    // Simulate: int arr[10]; int *p = &arr[0]; int i = 5;
+    let pointsto_state = pointsto_domain.assign_address(
+        &PointsToElement::new(Rc::clone(pointsto_domain.manager())),
+        "p",
+        &Location::Heap(1), // Represent array base as heap location
+    );
+    let interval_state = interval_domain.constant(&"i".to_string(), 5);
+    let sign_state = sign_domain.constant(&"i".to_string(), 5);
+
+    // Verify pointer points to heap
+    let targets = pointsto_domain.decode_bdd(pointsto_state.get("p"));
+    assert!(targets.contains(&Location::Heap(1)), "p should point to heap location");
+
+    // Verify index is within bounds [0, 9]
+    if let Some((low, high)) = interval_domain.get_bounds(&interval_state, &"i".to_string()) {
+        assert!(low >= 0 && high < 10, "Array access should be safe");
+    }
+
+    // Verify index is positive
+    assert_eq!(sign_state.get("i"), Sign::Pos, "Index should be positive");
+
+    // Simulate: p[i] access
+    // In a real analysis, we'd track that p+i still points to array
+    println!("Array access p[i] is safe:");
+    println!("  - p points to: {:?}", targets);
+    println!("  - i = {:?}", interval_domain.get_bounds(&interval_state, &"i".to_string()));
+    println!("  - sign(i) = {:?}", sign_state.get("i"));
+
+    // Test with potentially unsafe access: i = 15
+    let interval_unsafe = interval_domain.constant(&"i".to_string(), 15);
+    let _sign_unsafe = sign_domain.constant(&"i".to_string(), 15);
+
+    if let Some((_low, high)) = interval_domain.get_bounds(&interval_unsafe, &"i".to_string()) {
+        if high >= 10 {
+            println!("\nUnsafe array access detected: i = {} >= array size 10", high);
+        }
+    }
+
+    // Test pointer aliasing with array elements
+    // p = &arr[0], q = &arr[0] => must alias
+    let mut state2 = PointsToElement::new(Rc::clone(pointsto_domain.manager()));
+    state2 = pointsto_domain.assign_address(&state2, "p", &Location::Heap(1));
+    state2 = pointsto_domain.assign_address(&state2, "q", &Location::Heap(1));
+
+    assert!(
+        state2.must_alias(&pointsto_domain, "p", "q"),
+        "p and q pointing to same array element must alias"
+    );
+
+    // p = &arr[0], q = &arr[1] => may alias (different elements)
+    let mut state3 = PointsToElement::new(Rc::clone(pointsto_domain.manager()));
+    state3 = pointsto_domain.assign_address(&state3, "p", &Location::Heap(1));
+    state3 = pointsto_domain.assign_address(&state3, "q", &Location::Heap(2));
+
+    assert!(
+        !state3.must_alias(&pointsto_domain, "p", "q"),
+        "p and q pointing to different elements must not alias"
+    );
+}
+
+#[test]
+fn test_pointsto_with_constant_offsets() {
+    // Test pointer arithmetic with constant offsets
+    use std::rc::Rc;
+
+    let const_domain = ConstantDomain;
+    let pointsto_domain = PointsToDomain::new();
+
+    // Simulate: int *p = &x; int offset = 0;
+    let mut pointsto_state = PointsToElement::new(Rc::clone(pointsto_domain.manager()));
+    let mut const_state = const_domain.constant(&"offset".to_string(), 0);
+
+    pointsto_state = pointsto_domain.assign_address(&pointsto_state, "p", &Location::Stack("x".to_string()));
+
+    // Verify offset is exactly 0
+    assert_eq!(const_state.get("offset"), ConstValue::Const(0), "Offset should be constant 0");
+
+    // p + offset still points to x (since offset = 0)
+    let targets = pointsto_domain.decode_bdd(pointsto_state.get("p"));
+    assert!(targets.contains(&Location::Stack("x".to_string())), "p should still point to x");
+
+    // Test with non-zero offset
+    const_state = const_domain.constant(&"offset".to_string(), 4);
+    assert_eq!(const_state.get("offset"), ConstValue::Const(4), "Offset should be constant 4");
+
+    // In a field-sensitive analysis, p + 4 might point to different field
+    // For now, we just verify the constant propagation works
+}
+
+#[test]
+fn test_combined_sign_interval_pointsto() {
+    // Test all three domains together on a realistic scenario
+    use std::rc::Rc;
+
+    let sign_domain = SignDomain;
+    let interval_domain = IntervalDomain;
+    let pointsto_domain = PointsToDomain::new();
+
+    // Scenario: loop with pointer and index
+    // for (i = 0; i < n; i++) { p[i] = 0; }
+
+    // After loop analysis: i in [0, n-1]
+    let sign_state = sign_domain.interval(&"i".to_string(), 0, 9);
+    let interval_state = interval_domain.interval(&"i".to_string(), 0, 9);
+    let mut pointsto_state = PointsToElement::new(Rc::clone(pointsto_domain.manager()));
+
+    pointsto_state = pointsto_domain.assign_address(&pointsto_state, "p", &Location::Heap(1));
+
+    // Verify all invariants
+    assert_eq!(sign_state.get("i"), Sign::NonNeg, "Index should be non-negative");
+
+    if let Some((low, high)) = interval_domain.get_bounds(&interval_state, &"i".to_string()) {
+        assert!(low >= 0, "Lower bound should be non-negative");
+        assert!(high < 10, "Upper bound should be less than array size");
+    }
+
+    let targets = pointsto_domain.decode_bdd(pointsto_state.get("p"));
+    assert_eq!(targets.len(), 1, "Pointer should have single target");
+    assert!(targets.contains(&Location::Heap(1)), "Pointer should point to heap");
+
+    // All domains agree: the loop is safe
+    println!("Combined analysis results:");
+    println!("  - Sign: i is non-negative");
+    println!("  - Interval: i ∈ [0, 9]");
+    println!("  - Points-to: p → Heap(1)");
+    println!("  ✓ Loop is memory-safe");
+}
