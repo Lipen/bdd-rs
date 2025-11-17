@@ -98,3 +98,153 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::tests::test_lattice_axioms;
+    use crate::interval::IntervalDomain;
+    use crate::numeric::NumericDomain;
+
+    // Simple mock domain for testing product
+    #[derive(Debug, Clone)]
+    struct SimpleDomain;
+
+    #[derive(Debug, Clone, PartialEq)]
+    enum SimpleElement {
+        Bottom,
+        A,
+        B,
+        AB,
+        Top,
+    }
+
+    impl AbstractDomain for SimpleDomain {
+        type Element = SimpleElement;
+
+        fn bottom(&self) -> Self::Element {
+            SimpleElement::Bottom
+        }
+
+        fn top(&self) -> Self::Element {
+            SimpleElement::Top
+        }
+
+        fn is_bottom(&self, elem: &Self::Element) -> bool {
+            matches!(elem, SimpleElement::Bottom)
+        }
+
+        fn is_top(&self, elem: &Self::Element) -> bool {
+            matches!(elem, SimpleElement::Top)
+        }
+
+        fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool {
+            use SimpleElement::*;
+            match (elem1, elem2) {
+                (Bottom, _) => true,
+                (_, Top) => true,
+                (A, A) | (A, AB) => true,
+                (B, B) | (B, AB) => true,
+                (AB, AB) => true,
+                _ => false,
+            }
+        }
+
+        fn join(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+            use SimpleElement::*;
+            match (elem1, elem2) {
+                (Bottom, e) | (e, Bottom) => e.clone(),
+                (Top, _) | (_, Top) => Top,
+                (A, A) => A,
+                (B, B) => B,
+                (AB, _) | (_, AB) => AB,
+                (A, B) | (B, A) => AB,
+            }
+        }
+
+        fn meet(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+            use SimpleElement::*;
+            match (elem1, elem2) {
+                (Bottom, _) | (_, Bottom) => Bottom,
+                (Top, e) | (e, Top) => e.clone(),
+                (A, A) => A,
+                (B, B) => B,
+                (AB, e) | (e, AB) => e.clone(),
+                _ => Bottom,
+            }
+        }
+
+        fn widen(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+            // Widening must preserve order: elem1 ⊑ (elem1 ∇ elem2)
+            // Simple strategy: use join for widening in this mock domain
+            self.join(elem1, elem2)
+        }
+    }
+
+    #[test]
+    fn test_product_domain_operations() {
+        let control = SimpleDomain;
+        let numeric = IntervalDomain;
+        let domain = ProductDomain::new(control, numeric.clone());
+
+        let e1 = ProductElement {
+            control: SimpleElement::A,
+            numeric: numeric.constant(&"x".to_string(), 5),
+        };
+
+        let e2 = ProductElement {
+            control: SimpleElement::B,
+            numeric: numeric.constant(&"x".to_string(), 10),
+        };
+
+        // Test join
+        let joined = domain.join(&e1, &e2);
+        assert_eq!(joined.control, SimpleElement::AB);
+        assert_eq!(
+            joined.numeric.get("x"),
+            crate::interval::Interval::new(
+                crate::interval::Bound::Finite(5),
+                crate::interval::Bound::Finite(10)
+            )
+        );
+
+        // Test bottom
+        let bottom = domain.bottom();
+        assert!(domain.is_bottom(&bottom));
+    }
+
+    #[test]
+    fn test_product_lattice_axioms() {
+        let control = SimpleDomain;
+        let numeric = IntervalDomain;
+        let domain = ProductDomain::new(control, numeric.clone());
+
+        // Create sample elements with same variable set
+        let x_name = "x".to_string();
+        let samples = vec![
+            ProductElement {
+                control: SimpleElement::Bottom,
+                numeric: numeric.bottom(),
+            },
+            ProductElement {
+                control: SimpleElement::A,
+                numeric: numeric.constant(&x_name, 0),
+            },
+            ProductElement {
+                control: SimpleElement::B,
+                numeric: numeric.constant(&x_name, 5),
+            },
+            ProductElement {
+                control: SimpleElement::AB,
+                numeric: numeric.interval(&x_name, 0, 10),
+            },
+            ProductElement {
+                control: SimpleElement::AB,
+                numeric: numeric.interval(&x_name, -5, 15),
+            },
+        ];
+
+        // Validate lattice axioms
+        test_lattice_axioms(&domain, &samples);
+    }
+}

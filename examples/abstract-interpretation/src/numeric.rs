@@ -68,3 +68,163 @@ pub trait NumericDomain: AbstractDomain {
         self.is_bottom(elem)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::expr::NumExpr;
+    use crate::interval::{Bound, Interval, IntervalDomain, IntervalElement};
+
+    #[test]
+    fn test_numeric_domain_constant() {
+        let domain = IntervalDomain;
+        let elem = domain.constant(&"x".to_string(), 42);
+
+        assert_eq!(elem.get("x"), Interval::constant(42));
+        assert_eq!(domain.get_constant(&elem, &"x".to_string()), Some(42));
+    }
+
+    #[test]
+    fn test_numeric_domain_interval() {
+        let domain = IntervalDomain;
+        let elem = domain.interval(&"x".to_string(), -10, 10);
+
+        assert_eq!(
+            elem.get("x"),
+            Interval::new(Bound::Finite(-10), Bound::Finite(10))
+        );
+        assert_eq!(
+            domain.get_bounds(&elem, &"x".to_string()),
+            Some((-10, 10))
+        );
+    }
+
+    #[test]
+    fn test_numeric_domain_assign() {
+        let domain = IntervalDomain;
+        let mut elem = IntervalElement::new();
+        elem.set("x".to_string(), Interval::constant(5));
+
+        // y := x + 10
+        let expr = NumExpr::Add(
+            Box::new(NumExpr::Var("x".to_string())),
+            Box::new(NumExpr::Const(10)),
+        );
+        let result = domain.assign(&elem, &"y".to_string(), &expr);
+
+        assert_eq!(result.get("x"), Interval::constant(5));
+        assert_eq!(result.get("y"), Interval::constant(15));
+    }
+
+    #[test]
+    fn test_numeric_domain_assign_complex() {
+        let domain = IntervalDomain;
+        let mut elem = IntervalElement::new();
+        elem.set("x".to_string(), Interval::new(Bound::Finite(0), Bound::Finite(10)));
+        elem.set("y".to_string(), Interval::new(Bound::Finite(5), Bound::Finite(15)));
+
+        // z := x + y
+        let expr = NumExpr::Add(
+            Box::new(NumExpr::Var("x".to_string())),
+            Box::new(NumExpr::Var("y".to_string())),
+        );
+        let result = domain.assign(&elem, &"z".to_string(), &expr);
+
+        assert_eq!(
+            result.get("z"),
+            Interval::new(Bound::Finite(5), Bound::Finite(25))
+        );
+    }
+
+    #[test]
+    fn test_numeric_domain_assume() {
+        let domain = IntervalDomain;
+        let elem = domain.interval(&"x".to_string(), -10, 10);
+
+        // assume(x >= 0)
+        let pred = crate::expr::NumPred::Ge(
+            NumExpr::Var("x".to_string()),
+            NumExpr::Const(0),
+        );
+        let refined = domain.assume(&elem, &pred);
+
+        assert_eq!(
+            refined.get("x"),
+            Interval::new(Bound::Finite(0), Bound::Finite(10))
+        );
+    }
+
+    #[test]
+    fn test_numeric_domain_assume_contradiction() {
+        let domain = IntervalDomain;
+        let elem = domain.interval(&"x".to_string(), 0, 10);
+
+        // assume(x < 0) - contradiction
+        let pred = crate::expr::NumPred::Lt(
+            NumExpr::Var("x".to_string()),
+            NumExpr::Const(0),
+        );
+        let refined = domain.assume(&elem, &pred);
+
+        assert!(domain.is_infeasible(&refined));
+    }
+
+    #[test]
+    fn test_numeric_domain_project() {
+        let domain = IntervalDomain;
+        let mut elem = IntervalElement::new();
+        elem.set("x".to_string(), Interval::constant(5));
+        elem.set("y".to_string(), Interval::constant(10));
+
+        let projected = domain.project(&elem, &"x".to_string());
+
+        // x should be removed, y should remain
+        assert_eq!(projected.get("x"), Interval::top());
+        assert_eq!(projected.get("y"), Interval::constant(10));
+    }
+
+    #[test]
+    fn test_numeric_domain_multiple_constraints() {
+        let domain = IntervalDomain;
+        let elem = domain.interval(&"x".to_string(), -100, 100);
+
+        // assume(x >= 0)
+        let pred1 = crate::expr::NumPred::Ge(
+            NumExpr::Var("x".to_string()),
+            NumExpr::Const(0),
+        );
+        let refined1 = domain.assume(&elem, &pred1);
+
+        // assume(x <= 50)
+        let pred2 = crate::expr::NumPred::Le(
+            NumExpr::Var("x".to_string()),
+            NumExpr::Const(50),
+        );
+        let refined2 = domain.assume(&refined1, &pred2);
+
+        assert_eq!(
+            refined2.get("x"),
+            Interval::new(Bound::Finite(0), Bound::Finite(50))
+        );
+        assert_eq!(domain.get_bounds(&refined2, &"x".to_string()), Some((0, 50)));
+    }
+
+    #[test]
+    fn test_numeric_domain_arithmetic_precision() {
+        let domain = IntervalDomain;
+        let mut elem = IntervalElement::new();
+        elem.set("x".to_string(), Interval::new(Bound::Finite(1), Bound::Finite(2)));
+
+        // y := x * x (should be [1, 4])
+        let expr = NumExpr::Mul(
+            Box::new(NumExpr::Var("x".to_string())),
+            Box::new(NumExpr::Var("x".to_string())),
+        );
+        let result = domain.assign(&elem, &"y".to_string(), &expr);
+
+        assert_eq!(
+            result.get("y"),
+            Interval::new(Bound::Finite(1), Bound::Finite(4))
+        );
+    }
+}
