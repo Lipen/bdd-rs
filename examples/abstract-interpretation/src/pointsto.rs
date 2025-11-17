@@ -1,77 +1,262 @@
-//! Points-to analysis domain using BDDs.
+//! # Points-to Analysis Domain
 //!
-//! This module implements a flow-sensitive, context-insensitive points-to analysis
-//! domain that tracks which memory locations each pointer variable may point to.
-//! BDDs are used to efficiently represent potentially large sets of locations.
+//! A BDD-based abstract domain for tracking pointer aliasing and memory locations
+//! in programs with dynamic memory allocation.
 //!
-//! # Theory Background
+//! ## What is Points-to Analysis?
 //!
-//! Points-to analysis determines which memory locations a pointer variable may
-//! reference at each program point. This is fundamental for:
-//! - Alias analysis (do two pointers reference the same location?)
-//! - Memory safety (null pointer dereference detection)
-//! - Optimization (can reads/writes be reordered?)
+//! Points-to analysis answers the fundamental question: **"What memory locations
+//! can this pointer variable reference?"**
 //!
-//! ## Precision Levels
+//! This is crucial for:
+//! - **Alias Analysis**: Do two pointers point to the same memory?
+//! - **Memory Safety**: Can we dereference this pointer safely?
+//! - **Optimization**: Can we reorder these memory operations?
+//! - **Bug Detection**: Detecting null pointer dereferences, use-after-free, etc.
 //!
-//! - **Flow-sensitive**: Different points-to sets at different program points
-//! - **Flow-insensitive**: Single points-to set for entire program
-//! - **Context-sensitive**: Different analysis per call context
-//! - **Context-insensitive**: Merge all contexts (this implementation)
+//! ### Concrete Example
 //!
-//! ## Andersen's Analysis
+//! ```c
+//! int x, y;
+//! int *p, *q;
 //!
-//! This implementation follows Andersen's style analysis:
-//! - Subset-based (p ⊆ q means p's targets ⊆ q's targets)
-//! - Constraint-based formulation
-//! - Efficient with BDD representation
-//!
-//! Alternative: Steensgaard's analysis uses equality constraints (faster but less precise)
-//!
-//! # Lattice Structure
-//!
-//! ```text
-//!                    ⊤ (may point to any location)
-//!                   / | \
-//!         ... {loc1,loc2}, {loc3}, ... (sets of locations)
-//!                   \ | /
-//!                    ∅ (points to nothing)
-//!                    |
-//!                    ⊥ (unreachable)
+//! p = &x;      // p points to x
+//! q = &y;      // q points to y
+//! if (condition) {
+//!     p = q;   // p now may point to y
+//! }
+//! // After if: p may point to {x, y}, q points to {y}
+//! *p = 42;     // May write to x or y
+//! *q = 13;     // Definitely writes to y
 //! ```
 //!
-//! # Usage Example
+//! ## Memory Location Types
+//!
+//! Programs use different kinds of memory, each with distinct properties:
+//!
+//! ### Stack Memory (Local Variables)
+//! ```c
+//! void foo() {
+//!     int x;        // Stack-allocated, dies when foo returns
+//!     int *p = &x;  // p points to stack location "x"
+//! }
+//! ```
+//! - **Lifetime**: Function scope only
+//! - **Access**: Fast, automatic cleanup
+//! - **Representation**: `Location::Stack("x")`
+//!
+//! ### Heap Memory (Dynamic Allocation)
+//! ```c
+//! int *p = malloc(sizeof(int));  // Heap-allocated, lives until freed
+//! *p = 42;
+//! free(p);
+//! ```
+//! - **Lifetime**: Explicit management (malloc/free)
+//! - **Access**: Slower, manual cleanup required
+//! - **Representation**: `Location::Heap(site_id)`
+//!   - Each `malloc` call site gets unique ID
+//!   - Multiple calls to same site → same abstract location (may-aliasing)
+//!
+//! ### Global Memory (Static Variables)
+//! ```c
+//! int global_var;  // Lives for entire program
+//! int *p = &global_var;
+//! ```
+//! - **Lifetime**: Entire program execution
+//! - **Access**: Accessible from any function
+//! - **Representation**: `Location::Global("global_var")`
+//!
+//! ### Special Locations
+//! - **Null**: `NULL` pointer (points to nothing)
+//! - **Unknown**: External/library pointers (conservative approximation)
+//!
+//! ## Abstract Interpretation: Bottom and Top
+//!
+//! In abstract interpretation, we use **abstract values** to represent sets of
+//! concrete values:
+//!
+//! ### Bottom (⊥) - Unreachable State
+//! ```text
+//! ⊥ = "This program point cannot be reached"
+//! ```
+//! Example:
+//! ```c
+//! if (false) {
+//!     int *p = &x;  // This code is unreachable → ⊥
+//! }
+//! ```
+//!
+//! ### Top (⊤) - Unknown/Everything
+//! ```text
+//! ⊤ = "Pointer may point to ANY location" (worst case)
+//! ```
+//! Example:
+//! ```c
+//! int *p;
+//! if (unknown_condition()) {
+//!     p = &x;
+//! } else if (other_condition()) {
+//!     p = &y;
+//! } else {
+//!     p = malloc(...);
+//! }
+//! // p could point to anything → conservatively approximate as ⊤
+//! ```
+//!
+//! ### Lattice Structure
+//! ```text
+//!                    ⊤ (all locations)
+//!                   /│\
+//!                  / │ \
+//!        {x,y,z} {x,y} {y,z} {x,z}  (sets of locations)
+//!                  \ │ /
+//!                   \│/
+//!              {x}  {y}  {z}  (singletons)
+//!                   \│/
+//!                    ∅ (empty set - points nowhere)
+//!                    │
+//!                    ⊥ (unreachable code)
+//! ```
+//!
+//! **Partial Order**: elem1 ⊑ elem2 means elem1 is "more precise" than elem2
+//! - `{x}` ⊑ `{x,y}` (singleton is more precise than set)
+//! - `⊥` ⊑ everything (unreachable is more precise than anything)
+//! - everything ⊑ `⊤` (any knowledge is more precise than "unknown")
+//!
+//! ## Analysis Algorithms: Andersen vs Steensgaard
+//!
+//! ### Andersen's Analysis (This Implementation)
+//!
+//! **Subset-Based Constraints**:
+//! ```text
+//! p = &x         →  x ∈ pts(p)           (p definitely points to x)
+//! p = q          →  pts(q) ⊆ pts(p)      (p inherits q's targets)
+//! p = *q         →  ∀l ∈ pts(q): pts(l) ⊆ pts(p)  (load)
+//! *p = q         →  ∀l ∈ pts(p): pts(q) ⊆ pts(l)  (store)
+//! ```
+//!
+//! **Properties**:
+//! - More precise (distinguishes {x} from {x,y})
+//! - Slower: O(n³) worst case
+//! - Suitable for: Medium-sized programs, when precision matters
+//!
+//! **Example**:
+//! ```c
+//! int *p, *q;
+//! p = &x;  // pts(p) = {x}
+//! q = &y;  // pts(q) = {y}
+//! p = q;   // pts(p) = {y}, pts(q) = {y}  ← Keeps them separate!
+//! ```
+//!
+//! ### Steensgaard's Analysis (Alternative)
+//!
+//! **Equality-Based Constraints** (unification):
+//! ```text
+//! p = q          →  pts(p) = pts(q)      (merge points-to sets)
+//! ```
+//!
+//! **Properties**:
+//! - Less precise (merges too aggressively)
+//! - Faster: O(n·α(n)) ≈ almost linear
+//! - Suitable for: Very large programs, when speed matters
+//!
+//! **Example**:
+//! ```c
+//! int *p, *q;
+//! p = &x;  // pts(p) = {x}
+//! q = &y;  // pts(q) = {y}
+//! p = q;   // pts(p) = pts(q) = {x,y}  ← Merged! Less precise
+//! ```
+//!
+//! ## BDD Representation
+//!
+//! We use **Binary Decision Diagrams** to compactly represent points-to sets:
+//!
+//! ### Encoding
+//! ```text
+//! Each location → unique BDD variable
+//! Location x → variable v₁
+//! Location y → variable v₂
+//! Location z → variable v₃
+//!
+//! Points-to set = disjunction (OR) of variables:
+//! p points to {x,y} → BDD: v₁ ∨ v₂
+//! q points to {x}   → BDD: v₁
+//! ```
+//!
+//! ### Operations
+//! ```text
+//! Union (Join):        pts(p) ∪ pts(q)  →  BDD_p ∨ BDD_q
+//! Intersection (Meet): pts(p) ∩ pts(q)  →  BDD_p ∧ BDD_q
+//! Subset Test:         pts(p) ⊆ pts(q)  →  BDD_p ∧ ¬BDD_q = ⊥
+//! ```
+//!
+//! ### Why BDDs?
+//! - **Canonical**: Unique representation for each set
+//! - **Compact**: Shared structure for common subsets
+//! - **Efficient**: Operations in O(|BDD₁| × |BDD₂|)
+//!
+//! ## Flow-Sensitivity vs Flow-Insensitivity
+//!
+//! ### Flow-Insensitive (Simpler, faster)
+//! ```text
+//! Treats entire program as one big set of statements.
+//! Same points-to set for variable throughout program.
+//! ```
+//! Example:
+//! ```c
+//! p = &x;  // pts(p) = {x}
+//! use(p);
+//! p = &y;  // pts(p) = {x,y}  ← Merges with previous!
+//! use(p);
+//! ```
+//! Result: `pts(p) = {x,y}` everywhere (conservative)
+//!
+//! ### Flow-Sensitive (This implementation - more precise)
+//! ```text
+//! Different points-to set at each program point.
+//! Tracks how pointers change over time.
+//! ```
+//! Example:
+//! ```c
+//! p = &x;  // pts(p) = {x}
+//! use(p);  // pts(p) = {x}  ← Still just x
+//! p = &y;  // pts(p) = {y}  ← Overwrites!
+//! use(p);  // pts(p) = {y}  ← Now just y
+//! ```
+//! Result: Precise information at each point
+//!
+//! ## Complete Usage Example
 //!
 //! ```rust,ignore
-//! use abstract_interpretation::pointsto::*;
+//! use abstract_interpretation::*;
 //! use std::rc::Rc;
 //!
 //! // Create domain with BDD manager
 //! let domain = PointsToDomain::new();
+//! let mut state = PointsToElement::new(domain.manager());
 //!
-//! // Track pointer assignments
-//! let mut elem = PointsToElement::new(domain.manager());
+//! // C code: int x, y; int *p, *q;
+//! let x = Location::Stack("x".to_string());
+//! let y = Location::Stack("y".to_string());
 //!
-//! // p = &x
-//! elem = domain.assign_address(&elem, "p", &Location::Stack("x".to_string()));
+//! // C code: p = &x;
+//! state = domain.assign_address(&state, "p", &x);
+//! assert_eq!(domain.decode_bdd(state.get("p")), hashset!{x.clone()});
 //!
-//! // q = p
-//! elem = domain.assign_copy(&elem, "q", "p");
+//! // C code: q = p;
+//! state = domain.assign_copy(&state, "q", "p");
+//! assert!(state.must_alias(&domain, "p", "q"));  // Definitely alias
 //!
-//! // Check aliasing: must p and q alias?
-//! assert!(elem.must_alias("p", "q"));
+//! // C code: if (...) { p = &y; }
+//! let then_state = domain.assign_address(&state, "p", &y);
+//! state = domain.join(&state, &then_state);  // Merge branches
+//!
+//! // After if: p may point to {x, y}
+//! assert_eq!(domain.decode_bdd(state.get("p")).len(), 2);
+//! assert!(state.may_alias(&domain, "p", "q"));  // May alias
+//! assert!(!state.must_alias(&domain, "p", "q")); // Not definite
 //! ```
-//!
-//! # BDD Representation
-//!
-//! Each memory location is encoded as a unique BDD variable. A pointer's
-//! points-to set is represented as a disjunction (OR) of location variables.
-//!
-//! Example:
-//! - Location "x" → BDD variable v0
-//! - Location "y" → BDD variable v1
-//! - `p` may point to {x,y} → BDD: v0 ∨ v1
-//! - `q` points to {x} → BDD: v0
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -86,6 +271,41 @@ use crate::AbstractDomain;
 /// Memory location types in the program.
 ///
 /// Locations represent addressable memory regions that pointers can reference.
+/// Each location type has different lifetime and access characteristics.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// // Stack variable in function
+/// let x = Location::Stack("x".to_string());  // Lives in function scope
+///
+/// // Heap allocation (malloc call site ID)
+/// let h1 = Location::Heap(42);  // site_id = 42
+///
+/// // Global/static variable
+/// let g = Location::Global("counter".to_string());
+///
+/// // Null pointer
+/// let null = Location::Null;
+///
+/// // Unknown external pointer (conservative)
+/// let ext = Location::Unknown;
+/// ```
+///
+/// # Allocation Site Abstraction
+///
+/// For heap locations, we use **allocation-site abstraction**: all objects
+/// allocated at the same `malloc()` call site are merged into one abstract location.
+///
+/// ```c
+/// for (int i = 0; i < 10; i++) {
+///     int *p = malloc(sizeof(int));  // site_id = 17
+///     // All 10 allocations → same abstract location Heap(17)
+/// }
+/// ```
+///
+/// This is a **sound approximation** (may-alias) but loses precision about
+/// which concrete allocation we're referring to.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Location {
     /// Null pointer (nullptr)
@@ -112,10 +332,37 @@ impl fmt::Display for Location {
     }
 }
 
-/// Maps locations to BDD variables and vice versa.
+/// Bidirectional mapping between memory locations and BDD variables.
 ///
-/// This provides a bidirectional mapping allowing efficient encoding
-/// of location sets as BDDs and decoding BDDs back to location sets.
+/// This provides efficient encoding of location sets as BDDs and decoding
+/// BDDs back to location sets. Each location gets a unique BDD variable ID.
+///
+/// # BDD Variable Assignment
+///
+/// Variables are assigned starting from 1 (BDD variables cannot be 0):
+/// ```text
+/// Location::Stack("x") → variable 1 (v₁)
+/// Location::Stack("y") → variable 2 (v₂)
+/// Location::Heap(42)   → variable 3 (v₃)
+/// ...
+/// ```
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let mut map = LocationMap::new();
+///
+/// let x = Location::Stack("x".to_string());
+/// let y = Location::Stack("y".to_string());
+///
+/// let var_x = map.get_or_allocate(&x);  // Returns 1 (first variable)
+/// let var_y = map.get_or_allocate(&y);  // Returns 2 (second variable)
+/// let var_x2 = map.get_or_allocate(&x); // Returns 1 (reuses existing)
+///
+/// assert_eq!(var_x, 1);
+/// assert_eq!(var_y, 2);
+/// assert_eq!(var_x, var_x2);
+/// ```
 #[derive(Debug, Clone)]
 pub struct LocationMap {
     /// Maps locations to their BDD variable IDs
@@ -171,10 +418,45 @@ impl Default for LocationMap {
     }
 }
 
-/// Abstract element in the points-to domain.
+/// Abstract element representing points-to information for all pointers.
 ///
-/// Tracks points-to sets for each pointer variable using BDDs.
-/// Each pointer maps to a BDD representing the set of locations it may point to.
+/// Maps each pointer variable to a BDD representing the set of memory locations
+/// it may point to. This is the main data structure for flow-sensitive analysis.
+///
+/// # Structure
+///
+/// ```text
+/// PointsToElement {
+///     "p" → BDD(v₁ ∨ v₂),  // p may point to locations 1 or 2
+///     "q" → BDD(v₁),       // q definitely points to location 1
+///     "r" → BDD(⊥),        // r points nowhere (uninitialized)
+/// }
+/// ```
+///
+/// # Special States
+///
+/// - **Bottom** (`is_bottom = true`): Unreachable code
+/// - **Top** (`is_top = true`): All pointers may point anywhere (worst case)
+/// - **Normal**: Regular points-to information
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let domain = PointsToDomain::new();
+/// let mut elem = PointsToElement::new(domain.manager());
+///
+/// // Initially: all pointers point nowhere (empty sets)
+/// assert!(domain.decode_bdd(elem.get("p")).is_empty());
+///
+/// // After p = &x:
+/// elem = domain.assign_address(&elem, "p", &Location::Stack("x".to_string()));
+/// assert_eq!(domain.decode_bdd(elem.get("p")).len(), 1);
+///
+/// // After p = &y (in another branch):
+/// let elem2 = domain.assign_address(&elem, "p", &Location::Stack("y".to_string()));
+/// let joined = domain.join(&elem, &elem2);
+/// assert_eq!(domain.decode_bdd(joined.get("p")).len(), 2);  // p → {x,y}
+/// ```
 #[derive(Debug, Clone)]
 pub struct PointsToElement {
     /// Maps pointer variables to their points-to sets (as BDDs)
@@ -275,10 +557,57 @@ impl PartialEq for PointsToElement {
     }
 }
 
-/// Points-to analysis domain.
+/// Points-to analysis domain with BDD-based operations.
 ///
-/// Provides operations for pointer analysis including assignments,
-/// loads, stores, and alias queries.
+/// Provides the abstract domain interface for points-to analysis, including
+/// pointer operations (assignments, loads, stores) and alias queries.
+///
+/// # Operations
+///
+/// ## Assignments
+/// ```text
+/// p = NULL         → assign_null(elem, "p")
+/// p = &x           → assign_address(elem, "p", &Location::Stack("x"))
+/// p = q            → assign_copy(elem, "p", "q")
+/// p = malloc(...)  → assign_alloc(elem, "p", site_id)
+/// ```
+///
+/// ## Memory Operations
+/// ```text
+/// p = *q           → assign_load(elem, "p", "q")
+///                      Load: p gets all targets that q's targets point to
+///
+/// *p = q           → assign_store(elem, "p", "q")
+///                      Store: All of p's targets now point to q's targets
+/// ```
+///
+/// ## Control Flow
+/// ```text
+/// if-then-else     → join(then_elem, else_elem)
+///                      Merge: Union of points-to sets
+///
+/// loop convergence → widen(elem1, elem2)
+///                      Accelerate: Ensure termination
+/// ```
+///
+/// # Example: Linked List Traversal
+///
+/// ```rust,ignore
+/// let domain = PointsToDomain::new();
+/// let mut state = PointsToElement::new(domain.manager());
+///
+/// // struct Node { int data; Node *next; };
+/// // Node *head = malloc(...);
+/// state = domain.assign_alloc(&state, "head", 1);
+///
+/// // Node *current = head;
+/// state = domain.assign_copy(&state, "current", "head");
+///
+/// // while (current != NULL) {
+/// //     current = current->next;  // Load from current's target
+/// // }
+/// // After loop: current may point to any node in the list
+/// ```
 #[derive(Debug, Clone)]
 pub struct PointsToDomain {
     /// Shared BDD manager for all operations
@@ -368,6 +697,23 @@ impl PointsToDomain {
     }
 
     /// Assign address of a location: `ptr = &loc`
+    ///
+    /// This is a **strong update**: overwrites the previous points-to set
+    /// for the pointer variable.
+    ///
+    /// # Arguments
+    /// - `elem`: Current abstract state
+    /// - `var`: Pointer variable name
+    /// - `loc`: Memory location being addressed
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // C code: int x; int *p = &x;
+    /// let x = Location::Stack("x".to_string());
+    /// let state = domain.assign_address(&state, "p", &x);
+    /// // Result: p → {x}
+    /// ```
     pub fn assign_address(&self, elem: &PointsToElement, var: &str, loc: &Location) -> PointsToElement {
         if elem.is_bottom {
             return elem.clone();
@@ -406,8 +752,45 @@ impl PointsToDomain {
 
     /// Load through pointer: `dst = *src`
     ///
-    /// This requires strong update if src points to a unique location,
-    /// otherwise it's a weak update (union).
+    /// Dereferences `src` and loads the points-to set from the target locations.
+    ///
+    /// # Semantics
+    ///
+    /// ```text
+    /// If src points to {l₁, l₂, ...}, then:
+    /// dst gets the union of what l₁, l₂, ... point to
+    ///
+    /// pts(dst) = ⋃{pts(l) | l ∈ pts(src)}
+    /// ```
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // C code:
+    /// // int x, y;
+    /// // int *p = &x;
+    /// // int **q = &p;   // q points to p
+    /// // int *r = *q;    // r gets what p points to
+    ///
+    /// let x = Location::Stack("x".to_string());
+    /// state = domain.assign_address(&state, "p", &x);
+    /// // p → {x}
+    ///
+    /// // Simplified: treat p as a location
+    /// let p_loc = Location::Stack("p".to_string());
+    /// state = domain.assign_address(&state, "q", &p_loc);
+    /// // q → {p}
+    ///
+    /// state = domain.assign_load(&state, "r", "q");
+    /// // r → {x} (loads what p points to)
+    /// ```
+    ///
+    /// # Strong vs Weak Updates
+    ///
+    /// - **Strong update**: If `src` points to exactly one location, overwrite
+    /// - **Weak update**: If `src` may point to multiple locations, union
+    ///
+    /// This implementation uses weak updates for soundness.
     pub fn assign_load(&self, elem: &PointsToElement, dst: &str, src: &str) -> PointsToElement {
         if elem.is_bottom {
             return elem.clone();
@@ -440,7 +823,50 @@ impl PointsToDomain {
 
     /// Store through pointer: `*dst = src`
     ///
-    /// Uses weak update (union) since dst may point to multiple locations.
+    /// Dereferences `dst` and updates all target locations to point to `src`'s targets.
+    ///
+    /// # Semantics
+    ///
+    /// ```text
+    /// If dst points to {l₁, l₂, ...}, then:
+    /// For each lᵢ, update: pts(lᵢ) := pts(lᵢ) ∪ pts(src)
+    ///
+    /// (Weak update - union with existing values)
+    /// ```
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // C code:
+    /// // int x, y;
+    /// // int *a = &x;
+    /// // int **p = &a;   // p points to a
+    /// // int *b = &y;
+    /// // *p = b;         // Store: a now points to y
+    ///
+    /// let x = Location::Stack("x".to_string());
+    /// let y = Location::Stack("y".to_string());
+    ///
+    /// state = domain.assign_address(&state, "a", &x);
+    /// // a → {x}
+    ///
+    /// // Simplified: treat a as a location
+    /// let a_loc = Location::Stack("a".to_string());
+    /// state = domain.assign_address(&state, "p", &a_loc);
+    /// // p → {a}
+    ///
+    /// state = domain.assign_address(&state, "b", &y);
+    /// // b → {y}
+    ///
+    /// state = domain.assign_store(&state, "p", "b");
+    /// // Now: a → {x, y} (weak update: union)
+    /// ```
+    ///
+    /// # Why Weak Updates?
+    ///
+    /// Flow-insensitive analysis must be **sound** (never miss a possible alias).
+    /// Since we don't know the execution order, we conservatively union with
+    /// existing values rather than overwriting.
     pub fn assign_store(&self, elem: &PointsToElement, dst: &str, src: &str) -> PointsToElement {
         if elem.is_bottom {
             return elem.clone();
@@ -582,7 +1008,53 @@ impl Default for PointsToDomain {
 }
 
 impl PointsToElement {
-    /// Check if two pointers must alias (point to exactly the same location).
+    /// Check if two pointers **must** alias (definitely point to the same location).
+    ///
+    /// Returns `true` if both pointers point to exactly the same single location,
+    /// meaning they **always** alias in all concrete executions represented by
+    /// this abstract state.
+    ///
+    /// # Definition
+    ///
+    /// ```text
+    /// must_alias(p, q) ⟺ pts(p) = pts(q) = {l} (both are singletons and equal)
+    /// ```
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // C code:
+    /// // int x;
+    /// // int *p = &x;
+    /// // int *q = p;
+    /// // Must p and q alias? YES (both point to exactly {x})
+    ///
+    /// let x = Location::Stack("x".to_string());
+    /// state = domain.assign_address(&state, "p", &x);
+    /// state = domain.assign_copy(&state, "q", "p");
+    ///
+    /// assert!(state.must_alias(&domain, "p", "q"));  // TRUE
+    /// ```
+    ///
+    /// # Counterexample: May alias but not must alias
+    ///
+    /// ```rust,ignore
+    /// // C code:
+    /// // int x, y;
+    /// // int *p = condition ? &x : &y;  // p points to {x, y}
+    /// // int *q = &x;                    // q points to {x}
+    /// // Must p and q alias? NO (p might point to y)
+    ///
+    /// // But they MAY alias (through x)
+    /// assert!(!state.must_alias(&domain, "p", "q"));  // FALSE
+    /// assert!(state.may_alias(&domain, "p", "q"));    // TRUE
+    /// ```
+    ///
+    /// # Use Cases
+    ///
+    /// - **Compiler optimization**: Can safely reorder operations
+    /// - **Bug detection**: Both null → null pointer dereference guaranteed
+    /// - **Verification**: Proving pointer equality invariants
     pub fn must_alias(&self, domain: &PointsToDomain, var1: &str, var2: &str) -> bool {
         if self.is_bottom {
             return false;
@@ -598,7 +1070,65 @@ impl PointsToElement {
         locs1.len() == 1 && locs2.len() == 1 && locs1 == locs2
     }
 
-    /// Check if two pointers may alias (their points-to sets intersect).
+    /// Check if two pointers **may** alias (their points-to sets intersect).
+    ///
+    /// Returns `true` if there exists at least one concrete execution where both
+    /// pointers could point to the same memory location.
+    ///
+    /// # Definition
+    ///
+    /// ```text
+    /// may_alias(p, q) ⟺ pts(p) ∩ pts(q) ≠ ∅ (sets have common element)
+    /// ```
+    ///
+    /// # Example: Aliasing through shared location
+    ///
+    /// ```rust,ignore
+    /// // C code:
+    /// // int x, y;
+    /// // int *p = condition ? &x : &y;  // p → {x, y}
+    /// // int *q = &x;                    // q → {x}
+    /// // May p and q alias? YES (through x)
+    ///
+    /// let x = Location::Stack("x".to_string());
+    /// let y = Location::Stack("y".to_string());
+    ///
+    /// let state1 = domain.assign_address(&init, "p", &x);
+    /// let state2 = domain.assign_address(&init, "p", &y);
+    /// let state = domain.join(&state1, &state2);  // p → {x, y}
+    ///
+    /// state = domain.assign_address(&state, "q", &x);  // q → {x}
+    ///
+    /// assert!(state.may_alias(&domain, "p", "q"));    // TRUE (intersect at x)
+    /// assert!(!state.must_alias(&domain, "p", "q"));  // FALSE (p might be y)
+    /// ```
+    ///
+    /// # Example: No aliasing (disjoint sets)
+    ///
+    /// ```rust,ignore
+    /// // C code:
+    /// // int x, y;
+    /// // int *p = &x;  // p → {x}
+    /// // int *q = &y;  // q → {y}
+    /// // May p and q alias? NO (disjoint sets)
+    ///
+    /// state = domain.assign_address(&state, "p", &x);
+    /// state = domain.assign_address(&state, "q", &y);
+    ///
+    /// assert!(!state.may_alias(&domain, "p", "q"));  // FALSE (no intersection)
+    /// ```
+    ///
+    /// # Use Cases
+    ///
+    /// - **Memory safety**: Can dereferencing both cause issues?
+    /// - **Concurrency**: Do two threads access the same memory?
+    /// - **Optimization**: Can we eliminate redundant loads?
+    ///
+    /// # Soundness
+    ///
+    /// May-alias must be **conservative**: if we say "no alias", it must be
+    /// guaranteed. False positives (saying "may alias" when they don't) are
+    /// safe but imprecise.
     pub fn may_alias(&self, domain: &PointsToDomain, var1: &str, var2: &str) -> bool {
         if self.is_bottom {
             return false;
