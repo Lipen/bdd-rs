@@ -603,7 +603,9 @@ The beauty of this approach: we compute successors for _all states in $S$ simult
   This gives us all values of $w$ for which $f$ can be true for *some* value of $v$.
 
   In image computation, $exists v . thin (S(v) and T(v, v'))$ finds all $v'$ such that *some* state in $S$ can transition to $v'$.
-]#example(name: "Image of Toggle System")[
+]
+
+#example(name: "Image of Toggle System")[
   Consider the toggle system with $T(x, x') = x xor x'$.
 
   *Question*: From state $s_0$ (where $x=0$), what states can we reach?
