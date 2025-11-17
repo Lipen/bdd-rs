@@ -352,6 +352,7 @@ impl<'a> CtlChecker<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
     use bdd_rs::bdd::Bdd;
 
     use super::*;
@@ -360,7 +361,7 @@ mod tests {
     // Helper: Create a 2-state toggle system
     // States: {0, 1}, initial: {0}, transition: 0->1, 1->0
     fn create_toggle_system() -> TransitionSystem {
-        let bdd = Bdd::default();
+        let bdd = Rc::new(Bdd::default());
         let mut ts = TransitionSystem::new(bdd);
 
         let x = Var::new("x");

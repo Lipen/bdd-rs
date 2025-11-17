@@ -20,10 +20,11 @@
 //! ```
 //! use model_checking::*;
 //! use bdd_rs::bdd::Bdd;
+//! use std::rc::Rc;
 //!
 //! // Create a simple toggle system
-//! let bdd = Bdd::default();
-//! let mut ts = TransitionSystem::new(bdd);
+//! let bdd = Rc::new(Bdd::default());
+//! let mut ts = TransitionSystem::new(bdd.clone());
 //!
 //! let x = Var::new("x");
 //! ts.declare_var(x.clone());

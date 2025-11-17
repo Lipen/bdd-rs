@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 use std::fmt;
+use std::rc::Rc;
 
 use bdd_rs::bdd::Bdd;
 use bdd_rs::reference::Ref;
@@ -153,10 +154,10 @@ impl Default for VarManager {
 /// - States are encoded as boolean vectors
 /// - Sets of states are represented as BDD characteristic functions
 /// - Transitions are represented as a relation T(s, s') over present and next states
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TransitionSystem {
-    /// BDD manager
-    bdd: Bdd,
+    /// Shared BDD manager (reference-counted)
+    bdd: Rc<Bdd>,
     /// Variable manager
     var_manager: VarManager,
     /// Initial states: I(s)
@@ -168,8 +169,8 @@ pub struct TransitionSystem {
 }
 
 impl TransitionSystem {
-    /// Create a new transition system
-    pub fn new(bdd: Bdd) -> Self {
+    /// Create a new transition system with a shared BDD manager.
+    pub fn new(bdd: Rc<Bdd>) -> Self {
         TransitionSystem {
             bdd,
             var_manager: VarManager::new(),
@@ -179,7 +180,7 @@ impl TransitionSystem {
         }
     }
 
-    /// Get the BDD manager
+    /// Get a reference to the BDD manager.
     pub fn bdd(&self) -> &Bdd {
         &self.bdd
     }
@@ -240,7 +241,7 @@ impl TransitionSystem {
     pub fn image(&self, from: Ref) -> Ref {
         // ∃s. from(s) ∧ T(s, s')
         let present_vars = self.var_manager.present_indices();
-        let result_in_next = self.bdd.rel_product(from, self.transition, &present_vars);
+        let result_in_next = self.bdd().rel_product(from, self.transition, &present_vars);
 
         // Rename from next-state to present-state variables
         self.rename_next_to_present(result_in_next)
@@ -255,7 +256,7 @@ impl TransitionSystem {
 
         // ∃s'. T(s, s') ∧ to(s')
         let next_vars = self.var_manager.next_indices();
-        self.bdd.rel_product(self.transition, to_next, &next_vars)
+        self.bdd().rel_product(self.transition, to_next, &next_vars)
     }
 
     /// Compute reachable states from initial states
@@ -263,7 +264,7 @@ impl TransitionSystem {
         let mut reached = self.initial;
         loop {
             let new_states = self.image(reached);
-            let new_reached = self.bdd.apply_or(reached, new_states);
+            let new_reached = self.bdd().apply_or(reached, new_states);
 
             if new_reached == reached {
                 return reached;
@@ -280,7 +281,7 @@ impl TransitionSystem {
         // v -> v'
         let perm: HashMap<u32, u32> = present_vars.iter().zip(next_vars.iter()).map(|(&p, &n)| (p, n)).collect();
 
-        self.bdd.rename_vars(f, &perm)
+        self.bdd().rename_vars(f, &perm)
     }
 
     /// Rename next-state variables to present-state variables (v' → v).
@@ -291,26 +292,26 @@ impl TransitionSystem {
         // v' -> v
         let perm: HashMap<u32, u32> = next_vars.iter().zip(present_vars.iter()).map(|(&n, &p)| (n, p)).collect();
 
-        self.bdd.rename_vars(f, &perm)
+        self.bdd().rename_vars(f, &perm)
     }
 
     /// Count the number of states in a state set (up to 2^64)
     pub fn count_states(&self, states: Ref) -> Option<u64> {
         use num_traits::ToPrimitive;
         let num_vars = self.var_manager.present_indices().len();
-        let count = self.bdd.sat_count(states, num_vars);
+        let count = self.bdd().sat_count(states, num_vars);
         // Try to convert BigUint to u64
         count.to_u64()
     }
 
     /// Check if a state set is empty
     pub fn is_empty(&self, states: Ref) -> bool {
-        self.bdd.is_zero(states)
+        self.bdd().is_zero(states)
     }
 
     /// Get all states (universe)
     pub fn all_states(&self) -> Ref {
-        self.bdd.one
+        self.bdd().one
     }
 
     /// Create a transition relation constraint for a single variable assignment.
@@ -337,10 +338,10 @@ impl TransitionSystem {
     /// ```
     pub fn assign_var(&self, var: &Var, next_state_expr: Ref) -> Ref {
         let next_idx = self.var_manager.get_next(var).expect("Variable not declared in transition system");
-        let next_var = self.bdd.mk_var(next_idx);
+        let next_var = self.bdd().mk_var(next_idx);
 
         // var' ↔ expr  is  (var' ∧ expr) ∨ (¬var' ∧ ¬expr)
-        self.bdd.apply_eq(next_var, next_state_expr)
+        self.bdd().apply_eq(next_var, next_state_expr)
     }
 
     /// Create a transition relation constraint for an unchanged variable.
@@ -359,7 +360,7 @@ impl TransitionSystem {
             .var_manager
             .get_present(var)
             .expect("Variable not declared in transition system");
-        let pres_var = self.bdd.mk_var(pres_idx);
+        let pres_var = self.bdd().mk_var(pres_idx);
         self.assign_var(var, pres_var)
     }
 
@@ -392,7 +393,7 @@ impl TransitionSystem {
     /// ]);
     /// ```
     pub fn build_transition(&self, assignments: &[Ref]) -> Ref {
-        self.bdd.apply_and_many(assignments.iter().copied())
+        self.bdd().apply_and_many(assignments.iter().copied())
     }
 }
 
@@ -431,8 +432,8 @@ mod tests {
 
     #[test]
     fn test_transition_system_basic() {
-        let bdd = Bdd::default();
-        let mut ts = TransitionSystem::new(bdd);
+        let bdd = Rc::new(Bdd::default());
+        let mut ts = TransitionSystem::new(bdd.clone());
 
         let x = Var::new("x");
         ts.declare_var(x.clone());
@@ -466,9 +467,9 @@ mod tests {
     }
 
     #[test]
-    fn test_reachability() {
-        let bdd = Bdd::default();
-        let mut ts = TransitionSystem::new(bdd);
+    fn test_reachable() {
+        let bdd = Rc::new(Bdd::default());
+        let mut ts = TransitionSystem::new(bdd.clone());
 
         let x = Var::new("x");
         let y = Var::new("y");
@@ -514,8 +515,8 @@ mod tests {
 
     #[test]
     fn test_assign_var_helpers() {
-        let bdd = Bdd::default();
-        let mut ts = TransitionSystem::new(bdd);
+        let bdd = Rc::new(Bdd::default());
+        let mut ts = TransitionSystem::new(bdd.clone());
 
         let x = Var::new("x");
         let y = Var::new("y");
