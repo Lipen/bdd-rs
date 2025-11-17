@@ -312,6 +312,87 @@ impl TransitionSystem {
     pub fn all_states(&self) -> Ref {
         self.bdd.one
     }
+
+    /// Create a transition relation constraint for a single variable assignment.
+    ///
+    /// Converts an assignment `var' := expr` into a relation `var' ↔ expr`.
+    ///
+    /// # Arguments
+    ///
+    /// * `var` - The state variable being assigned (present-state version)
+    /// * `next_state_expr` - BDD representing the expression for the next state
+    ///
+    /// # Returns
+    ///
+    /// A BDD representing the constraint `var' ↔ next_state_expr`
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // For assignment: x' := !x
+    /// let x_pres = bdd.mk_var(x_pres_idx);
+    /// let next_expr = bdd.apply_not(x_pres);
+    /// let constraint = ts.assign_var(&x, next_expr);
+    /// // This creates: x' ↔ !x, which is x ⊕ x' (XOR)
+    /// ```
+    pub fn assign_var(&self, var: &Var, next_state_expr: Ref) -> Ref {
+        let next_idx = self.var_manager.get_next(var)
+            .expect("Variable not declared in transition system");
+        let next_var = self.bdd.mk_var(next_idx);
+
+        // var' ↔ expr  is  (var' ∧ expr) ∨ (¬var' ∧ ¬expr)
+        self.bdd.apply_eq(next_var, next_state_expr)
+    }
+
+    /// Create a transition relation constraint for an unchanged variable.
+    ///
+    /// Convenience method for `var' := var`, which creates `var' ↔ var`.
+    ///
+    /// # Arguments
+    ///
+    /// * `var` - The state variable that remains unchanged
+    ///
+    /// # Returns
+    ///
+    /// A BDD representing the constraint `var' ↔ var`
+    pub fn unchanged_var(&self, var: &Var) -> Ref {
+        let pres_idx = self.var_manager.get_present(var)
+            .expect("Variable not declared in transition system");
+        let pres_var = self.bdd.mk_var(pres_idx);
+        self.assign_var(var, pres_var)
+    }
+
+    /// Build a complete transition relation from individual variable assignments.
+    ///
+    /// Combines multiple assignment constraints with AND to form the complete
+    /// transition relation. Any variables not mentioned are implicitly unchanged.
+    ///
+    /// # Arguments
+    ///
+    /// * `assignments` - Vector of assignment constraints (from `assign_var` or `unchanged_var`)
+    ///
+    /// # Returns
+    ///
+    /// A BDD representing T(s, s') = assignment₁ ∧ assignment₂ ∧ ... ∧ assignmentₙ
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // For a 2-bit counter: x' := !x, y' := y ⊕ x
+    /// let x_pres = bdd.mk_var(x_pres_idx);
+    /// let y_pres = bdd.mk_var(y_pres_idx);
+    ///
+    /// let x_next_expr = bdd.apply_not(x_pres);  // !x
+    /// let y_next_expr = bdd.apply_xor(y_pres, x_pres);  // y ⊕ x
+    ///
+    /// let transition = ts.build_transition(&[
+    ///     ts.assign_var(&x, x_next_expr),
+    ///     ts.assign_var(&y, y_next_expr),
+    /// ]);
+    /// ```
+    pub fn build_transition(&self, assignments: &[Ref]) -> Ref {
+        self.bdd.apply_and_many(assignments.iter().copied())
+    }
 }
 
 #[cfg(test)]
@@ -428,5 +509,60 @@ mod tests {
         // Should reach all 4 states: (0,0), (1,0), (0,1), (1,1)
         let count = ts.count_states(reachable);
         assert_eq!(count, Some(4));
+    }
+
+    #[test]
+    fn test_assign_var_helpers() {
+        let bdd = Bdd::default();
+        let mut ts = TransitionSystem::new(bdd);
+
+        let x = Var::new("x");
+        let y = Var::new("y");
+        let z = Var::new("z");
+        ts.declare_var(x.clone());
+        ts.declare_var(y.clone());
+        ts.declare_var(z.clone());
+
+        let x_pres = ts.var_manager().get_present(&x).unwrap();
+        let y_pres = ts.var_manager().get_present(&y).unwrap();
+        let z_pres = ts.var_manager().get_present(&z).unwrap();
+
+        // Build transition using helper functions
+        // x' := !x  (toggle x)
+        let x_pres_bdd = ts.bdd().mk_var(x_pres);
+        let x_next_expr = ts.bdd().apply_not(x_pres_bdd);
+        let x_constraint = ts.assign_var(&x, x_next_expr);
+
+        // y' := y ⊕ x  (toggle y when x=1)
+        let y_pres_bdd = ts.bdd().mk_var(y_pres);
+        let y_next_expr = ts.bdd().apply_xor(y_pres_bdd, x_pres_bdd);
+        let y_constraint = ts.assign_var(&y, y_next_expr);
+
+        // z' := z  (z remains unchanged)
+        let z_constraint = ts.unchanged_var(&z);
+
+        // Build complete transition relation
+        let transition = ts.build_transition(&[x_constraint, y_constraint, z_constraint]);
+        ts.set_transition(transition);
+
+        // Initial: x=false, y=false, z=true
+        let z_pres_bdd = ts.bdd().mk_var(z_pres);
+        let initial = ts.bdd().apply_and(
+            ts.bdd().apply_and(
+                ts.bdd().apply_not(x_pres_bdd),
+                ts.bdd().apply_not(y_pres_bdd),
+            ),
+            z_pres_bdd,
+        );
+        ts.set_initial(initial);
+
+        // Test that it works correctly
+        let reachable = ts.reachable();
+        let count = ts.count_states(reachable);
+        assert_eq!(count, Some(4)); // Should reach 4 states (z always true)
+
+        // Verify z remains true in all reachable states
+        let reachable_implies_z = ts.bdd().apply_imply(reachable, z_pres_bdd);
+        assert!(ts.bdd().is_one(reachable_implies_z), "z should remain true in all reachable states");
     }
 }
