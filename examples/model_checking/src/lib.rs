@@ -45,7 +45,8 @@
 //! ts.add_label("safe".to_string(), ts.bdd().one);
 //!
 //! // Check a CTL property
-//! let checker = CtlChecker::new(&ts);
+//! let ts = Rc::new(ts);
+//! let checker = CtlChecker::new(ts.clone());
 //! let property = CtlFormula::atom("safe").ag(); // AG safe
 //! let holds = checker.holds_initially(&property);
 //! assert!(holds);

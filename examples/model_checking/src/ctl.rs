@@ -5,7 +5,9 @@
 //! (X=next, F=future, G=globally, U=until).
 
 use std::fmt;
+use std::rc::Rc;
 
+use bdd_rs::bdd::Bdd;
 use bdd_rs::reference::Ref;
 
 use crate::transition::TransitionSystem;
@@ -132,13 +134,18 @@ impl fmt::Display for CtlFormula {
 }
 
 /// CTL model checker
-pub struct CtlChecker<'a> {
-    ts: &'a TransitionSystem,
+pub struct CtlChecker {
+    ts: Rc<TransitionSystem>,
 }
 
-impl<'a> CtlChecker<'a> {
-    pub fn new(ts: &'a TransitionSystem) -> Self {
+impl CtlChecker {
+    pub fn new(ts: Rc<TransitionSystem>) -> Self {
         CtlChecker { ts }
+    }
+
+    /// Get a reference to the BDD manager.
+    pub fn bdd(&self) -> &Bdd {
+        self.ts.bdd()
     }
 
     /// Compute the set of states satisfying a CTL formula.
@@ -150,36 +157,36 @@ impl<'a> CtlChecker<'a> {
                 // Look up atomic proposition in the labeling function
                 self.ts.get_label(p).unwrap_or(Ref::ZERO)
             }
-            CtlFormula::True => self.ts.bdd().one,
-            CtlFormula::False => self.ts.bdd().zero,
+            CtlFormula::True => self.bdd().one,
+            CtlFormula::False => self.bdd().zero,
             CtlFormula::Not(phi) => {
                 let sat_phi = self.check(phi);
-                self.ts.bdd().apply_not(sat_phi)
+                self.bdd().apply_not(sat_phi)
             }
             CtlFormula::And(phi, psi) => {
                 let sat_phi = self.check(phi);
                 let sat_psi = self.check(psi);
-                self.ts.bdd().apply_and(sat_phi, sat_psi)
+                self.bdd().apply_and(sat_phi, sat_psi)
             }
             CtlFormula::Or(phi, psi) => {
                 let sat_phi = self.check(phi);
                 let sat_psi = self.check(psi);
-                self.ts.bdd().apply_or(sat_phi, sat_psi)
+                self.bdd().apply_or(sat_phi, sat_psi)
             }
             CtlFormula::Implies(phi, psi) => {
                 // φ → ψ ≡ ¬φ ∨ ψ
                 let sat_phi = self.check(phi);
                 let sat_psi = self.check(psi);
-                let not_phi = self.ts.bdd().apply_not(sat_phi);
-                self.ts.bdd().apply_or(not_phi, sat_psi)
+                let not_phi = self.bdd().apply_not(sat_phi);
+                self.bdd().apply_or(not_phi, sat_psi)
             }
             CtlFormula::Iff(phi, psi) => {
                 // φ ↔ ψ ≡ (φ → ψ) ∧ (ψ → φ) ≡ (φ ∧ ψ) ∨ (¬φ ∧ ¬ψ)
                 let sat_phi = self.check(phi);
                 let sat_psi = self.check(psi);
                 // XNOR: (a ∧ b) ∨ (¬a ∧ ¬b) ≡ ¬(a XOR b)
-                let xor = self.ts.bdd().apply_xor(sat_phi, sat_psi);
-                self.ts.bdd().apply_not(xor)
+                let xor = self.bdd().apply_xor(sat_phi, sat_psi);
+                self.bdd().apply_not(xor)
             }
             CtlFormula::EX(phi) => self.check_ex(phi),
             CtlFormula::AX(phi) => self.check_ax(phi),
@@ -206,7 +213,7 @@ impl<'a> CtlChecker<'a> {
     fn check_ax(&self, phi: &CtlFormula) -> Ref {
         let not_phi = CtlFormula::Not(Box::new(phi.clone()));
         let sat_ex_not_phi = self.check_ex(&not_phi);
-        self.ts.bdd().apply_not(sat_ex_not_phi)
+        self.bdd().apply_not(sat_ex_not_phi)
     }
 
     /// EF φ: States from which φ is reachable (exists a path to φ)
@@ -218,7 +225,7 @@ impl<'a> CtlChecker<'a> {
 
         loop {
             let ex_z = self.ts.preimage(z);
-            let new_z = self.ts.bdd().apply_or(sat_phi, ex_z);
+            let new_z = self.bdd().apply_or(sat_phi, ex_z);
 
             if new_z == z {
                 return z;
@@ -236,11 +243,11 @@ impl<'a> CtlChecker<'a> {
 
         loop {
             // AX Z = ¬EX ¬Z
-            let not_z = self.ts.bdd().apply_not(z);
+            let not_z = self.bdd().apply_not(z);
             let ex_not_z = self.ts.preimage(not_z);
-            let ax_z = self.ts.bdd().apply_not(ex_not_z);
+            let ax_z = self.bdd().apply_not(ex_not_z);
 
-            let new_z = self.ts.bdd().apply_or(sat_phi, ax_z);
+            let new_z = self.bdd().apply_or(sat_phi, ax_z);
 
             if new_z == z {
                 return z;
@@ -258,7 +265,7 @@ impl<'a> CtlChecker<'a> {
 
         loop {
             let ex_z = self.ts.preimage(z);
-            let new_z = self.ts.bdd().apply_and(sat_phi, ex_z);
+            let new_z = self.bdd().apply_and(sat_phi, ex_z);
 
             if new_z == z {
                 return z;
@@ -276,11 +283,11 @@ impl<'a> CtlChecker<'a> {
 
         loop {
             // AX Z
-            let not_z = self.ts.bdd().apply_not(z);
+            let not_z = self.bdd().apply_not(z);
             let ex_not_z = self.ts.preimage(not_z);
-            let ax_z = self.ts.bdd().apply_not(ex_not_z);
+            let ax_z = self.bdd().apply_not(ex_not_z);
 
-            let new_z = self.ts.bdd().apply_and(sat_phi, ax_z);
+            let new_z = self.bdd().apply_and(sat_phi, ax_z);
 
             if new_z == z {
                 return z;
@@ -299,8 +306,8 @@ impl<'a> CtlChecker<'a> {
 
         loop {
             let ex_z = self.ts.preimage(z);
-            let phi_and_ex_z = self.ts.bdd().apply_and(sat_phi, ex_z);
-            let new_z = self.ts.bdd().apply_or(sat_psi, phi_and_ex_z);
+            let phi_and_ex_z = self.bdd().apply_and(sat_phi, ex_z);
+            let new_z = self.bdd().apply_or(sat_psi, phi_and_ex_z);
 
             if new_z == z {
                 return z;
@@ -319,12 +326,12 @@ impl<'a> CtlChecker<'a> {
 
         loop {
             // AX Z
-            let not_z = self.ts.bdd().apply_not(z);
+            let not_z = self.bdd().apply_not(z);
             let ex_not_z = self.ts.preimage(not_z);
-            let ax_z = self.ts.bdd().apply_not(ex_not_z);
+            let ax_z = self.bdd().apply_not(ex_not_z);
 
-            let phi_and_ax_z = self.ts.bdd().apply_and(sat_phi, ax_z);
-            let new_z = self.ts.bdd().apply_or(sat_psi, phi_and_ax_z);
+            let phi_and_ax_z = self.bdd().apply_and(sat_phi, ax_z);
+            let new_z = self.bdd().apply_or(sat_psi, phi_and_ax_z);
 
             if new_z == z {
                 return z;
@@ -338,21 +345,22 @@ impl<'a> CtlChecker<'a> {
         let sat = self.check(formula);
         let initial = self.ts.initial();
         // Check if initial ⊆ sat  ⟺  initial ∧ ¬sat = ∅
-        let not_sat = self.ts.bdd().apply_not(sat);
-        let violation = self.ts.bdd().apply_and(initial, not_sat);
-        self.ts.bdd().is_zero(violation)
+        let not_sat = self.bdd().apply_not(sat);
+        let violation = self.bdd().apply_and(initial, not_sat);
+        self.bdd().is_zero(violation)
     }
 
     /// Get states where formula is violated (formula is false)
     pub fn get_violations(&self, formula: &CtlFormula) -> Ref {
         let sat = self.check(formula);
-        self.ts.bdd().apply_not(sat)
+        self.bdd().apply_not(sat)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
+
     use bdd_rs::bdd::Bdd;
 
     use super::*;
@@ -360,7 +368,7 @@ mod tests {
 
     // Helper: Create a 2-state toggle system
     // States: {0, 1}, initial: {0}, transition: 0->1, 1->0
-    fn create_toggle_system() -> TransitionSystem {
+    fn create_toggle_system() -> Rc<TransitionSystem> {
         let bdd = Rc::new(Bdd::default());
         let mut ts = TransitionSystem::new(bdd);
 
@@ -384,13 +392,13 @@ mod tests {
         ts.add_label("zero".to_string(), ts.bdd().apply_not(x_pres_bdd));
         ts.add_label("one".to_string(), x_pres_bdd);
 
-        ts
+        Rc::new(ts)
     }
 
     #[test]
     fn test_ctl_atoms() {
         let ts = create_toggle_system();
-        let checker = CtlChecker::new(&ts);
+        let checker = CtlChecker::new(ts.clone());
 
         let zero = CtlFormula::atom("zero");
         let one = CtlFormula::atom("one");
@@ -410,7 +418,7 @@ mod tests {
     #[test]
     fn test_ctl_ex() {
         let ts = create_toggle_system();
-        let checker = CtlChecker::new(&ts);
+        let checker = CtlChecker::new(ts.clone());
 
         // EX one: states where next state is "one"
         // From state 0, we go to state 1, so state 0 satisfies EX one
@@ -424,7 +432,7 @@ mod tests {
     #[test]
     fn test_ctl_ax() {
         let ts = create_toggle_system();
-        let checker = CtlChecker::new(&ts);
+        let checker = CtlChecker::new(ts.clone());
 
         // AX one: all successors are "one"
         // State 0 -> 1 (yes), State 1 -> 0 (no)
@@ -438,7 +446,7 @@ mod tests {
     #[test]
     fn test_ctl_ef() {
         let ts = create_toggle_system();
-        let checker = CtlChecker::new(&ts);
+        let checker = CtlChecker::new(ts.clone());
 
         // EF one: can eventually reach "one"
         // Both states can reach "one" (state 1 is already "one", state 0 reaches it in 1 step)
@@ -451,7 +459,7 @@ mod tests {
     #[test]
     fn test_ctl_af() {
         let ts = create_toggle_system();
-        let checker = CtlChecker::new(&ts);
+        let checker = CtlChecker::new(ts.clone());
 
         // AF one: all paths eventually reach "one"
         // State 0: next is 1 (reaches "one")
@@ -465,7 +473,7 @@ mod tests {
     #[test]
     fn test_ctl_eg() {
         let ts = create_toggle_system();
-        let checker = CtlChecker::new(&ts);
+        let checker = CtlChecker::new(ts.clone());
 
         // EG zero: exists a path where "zero" holds globally
         // This is false because from state 0, we must go to state 1
@@ -478,7 +486,7 @@ mod tests {
     #[test]
     fn test_ctl_ag() {
         let ts = create_toggle_system();
-        let checker = CtlChecker::new(&ts);
+        let checker = CtlChecker::new(ts.clone());
 
         // AG true: true holds globally on all paths
         let ag_true = CtlFormula::True.ag();
@@ -497,7 +505,7 @@ mod tests {
     #[test]
     fn test_ctl_eu() {
         let ts = create_toggle_system();
-        let checker = CtlChecker::new(&ts);
+        let checker = CtlChecker::new(ts.clone());
 
         // E[true U one]: exists path where true until "one"
         // This is equivalent to EF one
@@ -510,7 +518,7 @@ mod tests {
     #[test]
     fn test_ctl_holds_initially() {
         let ts = create_toggle_system();
-        let checker = CtlChecker::new(&ts);
+        let checker = CtlChecker::new(ts.clone());
 
         // Initially we are in state "zero"
         let zero = CtlFormula::atom("zero");
