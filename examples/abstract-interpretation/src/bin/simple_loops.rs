@@ -25,6 +25,10 @@ fn main() {
     // Example 1: Counter loop
     // let x = 0;
     // while (x < 10) { x = x + 1; }
+    //
+    // NOTE: This computes the loop *invariant* (states satisfying x < 10),
+    // not the full reachable set. To get the exit state properly, we'd need
+    // to compute lfp(λσ. σ ⊔ (x+1 if x<10)) then apply exit condition.
     println!("Example 1: Counter loop (x := 0; while x < 10 do x := x + 1)");
 
     let init1 = {
@@ -47,9 +51,12 @@ fn main() {
     };
 
     let result1 = engine.lfp(init1, f1);
+
     println!("  Initial: x ∈ [0, 0]");
-    println!("  Result:  x ∈ {}", result1.get("x"));
-    println!("  (After loop exit: x should be ≥ 10)\n");
+    println!("  Loop invariant: x ∈ {} (states inside loop body)", result1.get("x"));
+    println!("  Interpretation: Values of x that satisfy the loop condition");
+    println!("                  after widening stabilization at iteration 3");
+    println!();
 
     // Example 2: Countdown
     // let x = 100;
@@ -75,9 +82,11 @@ fn main() {
     };
 
     let result2 = engine.lfp(init2, f2);
+
     println!("  Initial: x ∈ [100, 100]");
-    println!("  Result:  x ∈ {}", result2.get("x"));
-    println!("  (After loop exit: x should be ≤ 0)\n");
+    println!("  Loop invariant: x ∈ {} (states inside loop body)", result2.get("x"));
+    println!("  Interpretation: Values satisfying x > 0 during loop execution");
+    println!();
 
     // Example 3: Unbounded loop
     // let x = 0;
@@ -101,8 +110,9 @@ fn main() {
 
     let result3 = engine.lfp(init3, f3);
     println!("  Initial: x ∈ [0, 0]");
-    println!("  Result:  x ∈ {}", result3.get("x"));
-    println!("  (Widening extrapolates to [0, +∞])\n");
+    println!("  Loop invariant: x ∈ {} (grows unboundedly)", result3.get("x"));
+    println!("  (No exit - infinite loop!)");
+    println!();
 
     println!("=== Analysis Complete ===");
 }
