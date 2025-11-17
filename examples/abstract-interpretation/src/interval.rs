@@ -360,229 +360,6 @@ impl NumericDomain for IntervalDomain {
             NumPred::True => elem.clone(),
             NumPred::False => IntervalElement::bottom(),
 
-            // x < c
-            NumPred::Lt(NumExpr::Var(v), NumExpr::Const(c)) => {
-                let mut result = elem.clone();
-                let current = elem.get(v);
-                let refined = current.meet(&Interval::new(Bound::NegInf, Bound::Finite(c - 1)));
-                result.set(v.clone(), refined);
-                result
-            }
-            // c < x
-            NumPred::Lt(NumExpr::Const(c), NumExpr::Var(v)) => {
-                let mut result = elem.clone();
-                let current = elem.get(v);
-                let refined = current.meet(&Interval::new(Bound::Finite(c + 1), Bound::PosInf));
-                result.set(v.clone(), refined);
-                result
-            }
-            // x < e (general expression)
-            NumPred::Lt(NumExpr::Var(v), e2) => {
-                let i2 = self.eval_expr(elem, e2);
-                if let Bound::Finite(high) = i2.high {
-                    let mut result = elem.clone();
-                    let current = elem.get(v);
-                    let refined = current.meet(&Interval::new(Bound::NegInf, Bound::Finite(high - 1)));
-                    result.set(v.clone(), refined);
-                    result
-                } else {
-                    elem.clone()
-                }
-            }
-            // e < x (general expression)
-            NumPred::Lt(e1, NumExpr::Var(v)) => {
-                let i1 = self.eval_expr(elem, e1);
-                if let Bound::Finite(low) = i1.low {
-                    let mut result = elem.clone();
-                    let current = elem.get(v);
-                    let refined = current.meet(&Interval::new(Bound::Finite(low + 1), Bound::PosInf));
-                    result.set(v.clone(), refined);
-                    result
-                } else {
-                    elem.clone()
-                }
-            }
-
-            // x <= c
-            NumPred::Le(NumExpr::Var(v), NumExpr::Const(c)) => {
-                let mut result = elem.clone();
-                let current = elem.get(v);
-                let refined = current.meet(&Interval::new(Bound::NegInf, Bound::Finite(*c)));
-                result.set(v.clone(), refined);
-                result
-            }
-            // c <= x
-            NumPred::Le(NumExpr::Const(c), NumExpr::Var(v)) => {
-                let mut result = elem.clone();
-                let current = elem.get(v);
-                let refined = current.meet(&Interval::new(Bound::Finite(*c), Bound::PosInf));
-                result.set(v.clone(), refined);
-                result
-            }
-            // x <= e (general expression)
-            NumPred::Le(NumExpr::Var(v), e2) => {
-                let i2 = self.eval_expr(elem, e2);
-                if let Bound::Finite(high) = i2.high {
-                    let mut result = elem.clone();
-                    let current = elem.get(v);
-                    let refined = current.meet(&Interval::new(Bound::NegInf, Bound::Finite(high)));
-                    result.set(v.clone(), refined);
-                    result
-                } else {
-                    elem.clone()
-                }
-            }
-            // e <= x (general expression)
-            NumPred::Le(e1, NumExpr::Var(v)) => {
-                let i1 = self.eval_expr(elem, e1);
-                if let Bound::Finite(low) = i1.low {
-                    let mut result = elem.clone();
-                    let current = elem.get(v);
-                    let refined = current.meet(&Interval::new(Bound::Finite(low), Bound::PosInf));
-                    result.set(v.clone(), refined);
-                    result
-                } else {
-                    elem.clone()
-                }
-            }
-
-            // x > c
-            NumPred::Gt(NumExpr::Var(v), NumExpr::Const(c)) => {
-                let mut result = elem.clone();
-                let current = elem.get(v);
-                let refined = current.meet(&Interval::new(Bound::Finite(c + 1), Bound::PosInf));
-                result.set(v.clone(), refined);
-                result
-            }
-            // c > x
-            NumPred::Gt(NumExpr::Const(c), NumExpr::Var(v)) => {
-                let mut result = elem.clone();
-                let current = elem.get(v);
-                let refined = current.meet(&Interval::new(Bound::NegInf, Bound::Finite(c - 1)));
-                result.set(v.clone(), refined);
-                result
-            }
-            // x > e (general expression)
-            NumPred::Gt(NumExpr::Var(v), e2) => {
-                let i2 = self.eval_expr(elem, e2);
-                if let Bound::Finite(low) = i2.low {
-                    let mut result = elem.clone();
-                    let current = elem.get(v);
-                    let refined = current.meet(&Interval::new(Bound::Finite(low + 1), Bound::PosInf));
-                    result.set(v.clone(), refined);
-                    result
-                } else {
-                    elem.clone()
-                }
-            }
-            // e > x (general expression)
-            NumPred::Gt(e1, NumExpr::Var(v)) => {
-                let i1 = self.eval_expr(elem, e1);
-                if let Bound::Finite(high) = i1.high {
-                    let mut result = elem.clone();
-                    let current = elem.get(v);
-                    let refined = current.meet(&Interval::new(Bound::NegInf, Bound::Finite(high - 1)));
-                    result.set(v.clone(), refined);
-                    result
-                } else {
-                    elem.clone()
-                }
-            }
-
-            // x >= c
-            NumPred::Ge(NumExpr::Var(v), NumExpr::Const(c)) => {
-                let mut result = elem.clone();
-                let current = elem.get(v);
-                let refined = current.meet(&Interval::new(Bound::Finite(*c), Bound::PosInf));
-                result.set(v.clone(), refined);
-                result
-            }
-            // c >= x
-            NumPred::Ge(NumExpr::Const(c), NumExpr::Var(v)) => {
-                let mut result = elem.clone();
-                let current = elem.get(v);
-                let refined = current.meet(&Interval::new(Bound::NegInf, Bound::Finite(*c)));
-                result.set(v.clone(), refined);
-                result
-            }
-            // x >= e (general expression)
-            NumPred::Ge(NumExpr::Var(v), e2) => {
-                let i2 = self.eval_expr(elem, e2);
-                if let Bound::Finite(low) = i2.low {
-                    let mut result = elem.clone();
-                    let current = elem.get(v);
-                    let refined = current.meet(&Interval::new(Bound::Finite(low), Bound::PosInf));
-                    result.set(v.clone(), refined);
-                    result
-                } else {
-                    elem.clone()
-                }
-            }
-            // e >= x (general expression)
-            NumPred::Ge(e1, NumExpr::Var(v)) => {
-                let i1 = self.eval_expr(elem, e1);
-                if let Bound::Finite(high) = i1.high {
-                    let mut result = elem.clone();
-                    let current = elem.get(v);
-                    let refined = current.meet(&Interval::new(Bound::NegInf, Bound::Finite(high)));
-                    result.set(v.clone(), refined);
-                    result
-                } else {
-                    elem.clone()
-                }
-            }
-
-            // x == c
-            NumPred::Eq(NumExpr::Var(v), NumExpr::Const(c)) => {
-                let mut result = elem.clone();
-                let current = elem.get(v);
-                let refined = current.meet(&Interval::constant(*c));
-                result.set(v.clone(), refined);
-                result
-            }
-            // c == x
-            NumPred::Eq(NumExpr::Const(c), NumExpr::Var(v)) => {
-                let mut result = elem.clone();
-                let current = elem.get(v);
-                let refined = current.meet(&Interval::constant(*c));
-                result.set(v.clone(), refined);
-                result
-            }
-            // x == e (general expression)
-            NumPred::Eq(NumExpr::Var(v), e2) => {
-                let i2 = self.eval_expr(elem, e2);
-                let mut result = elem.clone();
-                let current = elem.get(v);
-                let refined = current.meet(&i2);
-                result.set(v.clone(), refined);
-                result
-            }
-            // e == x (general expression)
-            NumPred::Eq(e1, NumExpr::Var(v)) => {
-                let i1 = self.eval_expr(elem, e1);
-                let mut result = elem.clone();
-                let current = elem.get(v);
-                let refined = current.meet(&i1);
-                result.set(v.clone(), refined);
-                result
-            }
-
-            // x != c (imprecise: can't represent non-contiguous intervals)
-            NumPred::Neq(NumExpr::Var(v), NumExpr::Const(c)) => {
-                let current = elem.get(v);
-                if let (Bound::Finite(l), Bound::Finite(h)) = (current.low, current.high) {
-                    if l == h && l == *c {
-                        // x is exactly c, so x != c is impossible
-                        return IntervalElement::bottom();
-                    }
-                }
-                // Otherwise, we can't refine precisely (would need disjunctive domain)
-                elem.clone()
-            }
-            NumPred::Neq(NumExpr::Const(c), NumExpr::Var(v)) => {
-                self.assume(elem, &NumPred::Neq(NumExpr::Var(v.clone()), NumExpr::Const(*c)))
-            }
-
             // Logical connectives
             NumPred::And(p1, p2) => {
                 let e1 = self.assume(elem, p1);
@@ -622,12 +399,35 @@ impl NumericDomain for IntervalDomain {
                 }
             }
 
-            // General case: evaluate both sides and check consistency
-            _ => {
-                // For predicates like "e1 op e2" where both are complex expressions,
-                // evaluate and check if the predicate might hold
+            // x != c (imprecise: can't represent non-contiguous intervals)
+            NumPred::Neq(NumExpr::Var(v), NumExpr::Const(c)) => {
+                let current = elem.get(v);
+                if let (Bound::Finite(l), Bound::Finite(h)) = (current.low, current.high) {
+                    if l == h && l == *c {
+                        // x is exactly c, so x != c is impossible
+                        return IntervalElement::bottom();
+                    }
+                }
+                // Otherwise, we can't refine precisely (would need disjunctive domain)
                 elem.clone()
             }
+            NumPred::Neq(NumExpr::Const(c), NumExpr::Var(v)) => {
+                self.assume(elem, &NumPred::Neq(NumExpr::Var(v.clone()), NumExpr::Const(*c)))
+            }
+            // General Neq case: can't refine intervals for general inequality
+            // (would require disjunctive domain to represent x ∈ [a,b] \ {c})
+            NumPred::Neq(_, _) => elem.clone(),
+
+            // Comparison predicates: use complex refinement for all cases
+            NumPred::Lt(e1, e2) => self.refine_complex_predicate(elem, e1, e2, ComparisonOp::Lt),
+            NumPred::Le(e1, e2) => self.refine_complex_predicate(elem, e1, e2, ComparisonOp::Le),
+            NumPred::Gt(e1, e2) => self.refine_complex_predicate(elem, e1, e2, ComparisonOp::Gt),
+            NumPred::Ge(e1, e2) => self.refine_complex_predicate(elem, e1, e2, ComparisonOp::Ge),
+            NumPred::Eq(e1, e2) => self.refine_complex_predicate(elem, e1, e2, ComparisonOp::Eq),
+
+            // Note: the default case is not needed since we exhaustively match all NumPred variants
+            #[allow(unreachable_patterns)]
+            _ => elem.clone(),
         }
     }
 
@@ -688,6 +488,197 @@ impl IntervalDomain {
                 Interval::new(i.high.neg(), i.low.neg())
             }
             _ => Interval::top(), // Div, Mod: simplified
+        }
+    }
+
+    /// Extract all variables from an expression
+    fn extract_vars(&self, expr: &NumExpr<String, i64>, vars: &mut std::collections::HashSet<String>) {
+        match expr {
+            NumExpr::Var(v) => {
+                vars.insert(v.clone());
+            }
+            NumExpr::Const(_) => {}
+            NumExpr::Add(e1, e2) | NumExpr::Sub(e1, e2) | NumExpr::Mul(e1, e2) | NumExpr::Div(e1, e2) | NumExpr::Mod(e1, e2) => {
+                self.extract_vars(e1, vars);
+                self.extract_vars(e2, vars);
+            }
+            NumExpr::Neg(e) => {
+                self.extract_vars(e, vars);
+            }
+        }
+    }
+
+    /// Attempt to refine variables in a complex predicate using iterative constraint propagation
+    fn refine_complex_predicate(
+        &self,
+        elem: &IntervalElement,
+        e1: &NumExpr<String, i64>,
+        e2: &NumExpr<String, i64>,
+        op: ComparisonOp,
+    ) -> IntervalElement {
+        use std::collections::HashSet;
+
+        // Extract all variables from both expressions
+        let mut vars = HashSet::new();
+        self.extract_vars(e1, &mut vars);
+        self.extract_vars(e2, &mut vars);
+
+        // If no variables or already at bottom, return unchanged
+        if vars.is_empty() || elem.is_bottom {
+            return elem.clone();
+        }
+
+        // Iterative refinement: try to deduce bounds for each variable
+        let mut current = elem.clone();
+        let max_iterations = 3; // Limit iterations to avoid infinite loops
+
+        for _ in 0..max_iterations {
+            let mut changed = false;
+
+            for var in &vars {
+                // Try to isolate this variable and refine its bounds
+                let old_interval = current.get(var);
+                let new_interval = self.refine_variable_in_predicate(&current, var, e1, e2, op);
+
+                if new_interval != old_interval {
+                    current.set(var.clone(), new_interval);
+                    changed = true;
+                }
+            }
+
+            if !changed || current.is_bottom {
+                break;
+            }
+        }
+
+        current
+    }
+
+    /// Try to refine a specific variable given a predicate e1 op e2
+    fn refine_variable_in_predicate(
+        &self,
+        elem: &IntervalElement,
+        var: &str,
+        e1: &NumExpr<String, i64>,
+        e2: &NumExpr<String, i64>,
+        op: ComparisonOp,
+    ) -> Interval {
+        let current = elem.get(var);
+
+        // Try to express the constraint as: var op' bound
+        // For e1 op e2, if e1 contains var, evaluate e2 and try to derive bound
+        // If e2 contains var, evaluate e1 and try to derive bound
+
+        let e1_has_var = self.contains_var(e1, var);
+        let e2_has_var = self.contains_var(e2, var);
+
+        // Special case: x + c op y + d can be rewritten as x op y + (d - c)
+        if let NumExpr::Add(e1_left, e1_right) = e1 {
+            if let (NumExpr::Var(v1), NumExpr::Const(c1)) = (e1_left.as_ref(), e1_right.as_ref()) {
+                if let NumExpr::Add(e2_left, e2_right) = e2 {
+                    if let (NumExpr::Var(v2), NumExpr::Const(c2)) = (e2_left.as_ref(), e2_right.as_ref()) {
+                        if v1 == var && v2 != var {
+                            // x + c1 op y + c2  =>  x op y + (c2 - c1)
+                            let y_interval = elem.get(v2);
+                            let adjusted = Interval::new(
+                                y_interval.low.add(&Bound::Finite(c2 - c1)),
+                                y_interval.high.add(&Bound::Finite(c2 - c1)),
+                            );
+                            return current.meet(&self.apply_comparison_bound(adjusted, op));
+                        } else if v2 == var && v1 != var {
+                            // y + c1 op x + c2  =>  x op' y + (c1 - c2)
+                            let y_interval = elem.get(v1);
+                            let adjusted = Interval::new(
+                                y_interval.low.add(&Bound::Finite(c1 - c2)),
+                                y_interval.high.add(&Bound::Finite(c1 - c2)),
+                            );
+                            return current.meet(&self.apply_comparison_bound(adjusted, op.flip()));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle: (x + c) op e where e doesn't contain x
+        if let NumExpr::Add(e1_left, e1_right) = e1 {
+            if let (NumExpr::Var(v1), NumExpr::Const(c)) = (e1_left.as_ref(), e1_right.as_ref()) {
+                if v1 == var && !self.contains_var(e2, var) {
+                    // x + c op e2  =>  x op e2 - c
+                    let i2 = self.eval_expr(elem, e2);
+                    let adjusted = Interval::new(i2.low.sub(&Bound::Finite(*c)), i2.high.sub(&Bound::Finite(*c)));
+                    return current.meet(&self.apply_comparison_bound(adjusted, op));
+                }
+            }
+        }
+
+        // Handle: e op (x + c) where e doesn't contain x
+        if let NumExpr::Add(e2_left, e2_right) = e2 {
+            if let (NumExpr::Var(v2), NumExpr::Const(c)) = (e2_left.as_ref(), e2_right.as_ref()) {
+                if v2 == var && !self.contains_var(e1, var) {
+                    // e1 op x + c  =>  x op' e1 - c
+                    let i1 = self.eval_expr(elem, e1);
+                    let adjusted = Interval::new(i1.low.sub(&Bound::Finite(*c)), i1.high.sub(&Bound::Finite(*c)));
+                    return current.meet(&self.apply_comparison_bound(adjusted, op.flip()));
+                }
+            }
+        }
+
+        // General case: if only one side has the variable, refine based on the other side
+        if e1_has_var && !e2_has_var {
+            let i2 = self.eval_expr(elem, e2);
+            return current.meet(&self.apply_comparison_bound(i2, op));
+        } else if e2_has_var && !e1_has_var {
+            let i1 = self.eval_expr(elem, e1);
+            return current.meet(&self.apply_comparison_bound(i1, op.flip()));
+        }
+
+        // Both sides have variables or more complex patterns: return current (no refinement)
+        current
+    }
+
+    /// Check if an expression contains a specific variable
+    fn contains_var(&self, expr: &NumExpr<String, i64>, var: &str) -> bool {
+        match expr {
+            NumExpr::Var(v) => v == var,
+            NumExpr::Const(_) => false,
+            NumExpr::Add(e1, e2) | NumExpr::Sub(e1, e2) | NumExpr::Mul(e1, e2) | NumExpr::Div(e1, e2) | NumExpr::Mod(e1, e2) => {
+                self.contains_var(e1, var) || self.contains_var(e2, var)
+            }
+            NumExpr::Neg(e) => self.contains_var(e, var),
+        }
+    }
+
+    /// Apply a comparison bound to create an interval constraint
+    fn apply_comparison_bound(&self, bound_interval: Interval, op: ComparisonOp) -> Interval {
+        match op {
+            ComparisonOp::Lt => Interval::new(Bound::NegInf, bound_interval.high.sub(&Bound::Finite(1))),
+            ComparisonOp::Le => Interval::new(Bound::NegInf, bound_interval.high),
+            ComparisonOp::Gt => Interval::new(bound_interval.low.add(&Bound::Finite(1)), Bound::PosInf),
+            ComparisonOp::Ge => Interval::new(bound_interval.low, Bound::PosInf),
+            ComparisonOp::Eq => bound_interval,
+        }
+    }
+}
+
+/// Comparison operators for refinement
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ComparisonOp {
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Eq,
+}
+
+impl ComparisonOp {
+    /// Flip the comparison when swapping operands: (a < b) ↔ (b > a)
+    fn flip(self) -> Self {
+        match self {
+            ComparisonOp::Lt => ComparisonOp::Gt,
+            ComparisonOp::Le => ComparisonOp::Ge,
+            ComparisonOp::Gt => ComparisonOp::Lt,
+            ComparisonOp::Ge => ComparisonOp::Le,
+            ComparisonOp::Eq => ComparisonOp::Eq,
         }
     }
 }
@@ -897,15 +888,46 @@ mod tests {
         elem.set("x".to_string(), Interval::new(Bound::Finite(0), Bound::Finite(10)));
         elem.set("y".to_string(), Interval::new(Bound::Finite(5), Bound::Finite(15)));
 
-        // Test x + 5 <= y (should refine x)
+        // Test x + 5 <= y
+        // With complex predicate refinement: x + 5 <= y means x <= y - 5
+        // y.high = 15, so x <= 10, which doesn't further refine x ∈ [0, 10]
         let pred = NumPred::Le(
             NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(5))),
             NumExpr::Var("y".to_string()),
         );
         let result = domain.assume(&elem, &pred);
-        // x + 5 <= y means x <= y - 5, y.low = 5, so x <= 0, intersect with [0,10] = [0,0] is too restrictive
-        // Actually x+5 <= y.high = 15, but we're checking (x+5) as whole expr
-        // The general case doesn't refine when both sides are complex - returns elem unchanged
         assert_eq!(result.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(10)));
+
+        // Test x + 5 <= y + 2, which simplifies to x <= y - 3
+        // y ∈ [5, 15], so y - 3 ∈ [2, 12], thus x ∈ [0, 10] ∩ [-∞, 12] = [0, 10]
+        let pred = NumPred::Le(
+            NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(5))),
+            NumExpr::Add(Box::new(NumExpr::Var("y".to_string())), Box::new(NumExpr::Const(2))),
+        );
+        let result = domain.assume(&elem, &pred);
+        assert_eq!(result.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(10)));
+
+        // Test with tighter constraint: x + 10 <= y
+        // x + 10 <= y means x <= y - 10, y ∈ [5, 15], so x <= 5
+        let pred = NumPred::Le(
+            NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(10))),
+            NumExpr::Var("y".to_string()),
+        );
+        let result = domain.assume(&elem, &pred);
+        assert_eq!(result.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(5)));
+
+        // Test x + y <= 20 (both variables in same expression)
+        // With iterative refinement, this should refine both bounds
+        let pred = NumPred::Le(
+            NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Var("y".to_string()))),
+            NumExpr::Const(20),
+        );
+        let result = domain.assume(&elem, &pred);
+        // x + y <= 20, x ∈ [0, 10], y ∈ [5, 15]
+        // x <= 20 - y, y.low = 5, so x <= 15 (no refinement to x)
+        // y <= 20 - x, x.low = 0, so y <= 20 (no refinement to y)
+        // This case doesn't refine much without more sophisticated analysis
+        assert_eq!(result.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(10)));
+        assert_eq!(result.get("y"), Interval::new(Bound::Finite(5), Bound::Finite(15)));
     }
 }
