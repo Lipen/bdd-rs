@@ -1,10 +1,11 @@
 //! Numeric abstract domain trait and utilities.
 
-use super::domain::AbstractDomain;
-use super::expr::{NumExpr, NumPred};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
+
+use super::domain::AbstractDomain;
+use super::expr::{NumExpr, NumPred};
 
 /// Numeric abstract domain for integer/real variables.
 ///
@@ -26,21 +27,12 @@ pub trait NumericDomain: AbstractDomain {
     /// Apply assignment: var := expr.
     ///
     /// Returns a new abstract element where `var` is bound to the result of `expr`.
-    fn assign(
-        &self,
-        elem: &Self::Element,
-        var: &Self::Var,
-        expr: &NumExpr<Self::Var, Self::Value>,
-    ) -> Self::Element;
+    fn assign(&self, elem: &Self::Element, var: &Self::Var, expr: &NumExpr<Self::Var, Self::Value>) -> Self::Element;
 
     /// Assume a predicate holds: elem ∧ pred.
     ///
     /// Refines the abstract element by adding constraint `pred`.
-    fn assume(
-        &self,
-        elem: &Self::Element,
-        pred: &NumPred<Self::Var, Self::Value>,
-    ) -> Self::Element;
+    fn assume(&self, elem: &Self::Element, pred: &NumPred<Self::Var, Self::Value>) -> Self::Element;
 
     /// Project out a variable (existential quantification): ∃var. elem.
     ///
@@ -51,11 +43,7 @@ pub trait NumericDomain: AbstractDomain {
     fn get_constant(&self, elem: &Self::Element, var: &Self::Var) -> Option<Self::Value>;
 
     /// Get the interval bounds for a variable: [low, high].
-    fn get_bounds(
-        &self,
-        elem: &Self::Element,
-        var: &Self::Var,
-    ) -> Option<(Self::Value, Self::Value)>;
+    fn get_bounds(&self, elem: &Self::Element, var: &Self::Var) -> Option<(Self::Value, Self::Value)>;
 
     /// Rename variables using a substitution map.
     fn rename(&self, elem: &Self::Element, _subst: &HashMap<Self::Var, Self::Var>) -> Self::Element {
@@ -89,14 +77,8 @@ mod tests {
         let domain = IntervalDomain;
         let elem = domain.interval(&"x".to_string(), -10, 10);
 
-        assert_eq!(
-            elem.get("x"),
-            Interval::new(Bound::Finite(-10), Bound::Finite(10))
-        );
-        assert_eq!(
-            domain.get_bounds(&elem, &"x".to_string()),
-            Some((-10, 10))
-        );
+        assert_eq!(elem.get("x"), Interval::new(Bound::Finite(-10), Bound::Finite(10)));
+        assert_eq!(domain.get_bounds(&elem, &"x".to_string()), Some((-10, 10)));
     }
 
     #[test]
@@ -106,10 +88,7 @@ mod tests {
         elem.set("x".to_string(), Interval::constant(5));
 
         // y := x + 10
-        let expr = NumExpr::Add(
-            Box::new(NumExpr::Var("x".to_string())),
-            Box::new(NumExpr::Const(10)),
-        );
+        let expr = NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(10)));
         let result = domain.assign(&elem, &"y".to_string(), &expr);
 
         assert_eq!(result.get("x"), Interval::constant(5));
@@ -124,16 +103,10 @@ mod tests {
         elem.set("y".to_string(), Interval::new(Bound::Finite(5), Bound::Finite(15)));
 
         // z := x + y
-        let expr = NumExpr::Add(
-            Box::new(NumExpr::Var("x".to_string())),
-            Box::new(NumExpr::Var("y".to_string())),
-        );
+        let expr = NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Var("y".to_string())));
         let result = domain.assign(&elem, &"z".to_string(), &expr);
 
-        assert_eq!(
-            result.get("z"),
-            Interval::new(Bound::Finite(5), Bound::Finite(25))
-        );
+        assert_eq!(result.get("z"), Interval::new(Bound::Finite(5), Bound::Finite(25)));
     }
 
     #[test]
@@ -142,16 +115,10 @@ mod tests {
         let elem = domain.interval(&"x".to_string(), -10, 10);
 
         // assume(x >= 0)
-        let pred = crate::expr::NumPred::Ge(
-            NumExpr::Var("x".to_string()),
-            NumExpr::Const(0),
-        );
+        let pred = crate::expr::NumPred::Ge(NumExpr::Var("x".to_string()), NumExpr::Const(0));
         let refined = domain.assume(&elem, &pred);
 
-        assert_eq!(
-            refined.get("x"),
-            Interval::new(Bound::Finite(0), Bound::Finite(10))
-        );
+        assert_eq!(refined.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(10)));
     }
 
     #[test]
@@ -160,10 +127,7 @@ mod tests {
         let elem = domain.interval(&"x".to_string(), 0, 10);
 
         // assume(x < 0) - contradiction
-        let pred = crate::expr::NumPred::Lt(
-            NumExpr::Var("x".to_string()),
-            NumExpr::Const(0),
-        );
+        let pred = crate::expr::NumPred::Lt(NumExpr::Var("x".to_string()), NumExpr::Const(0));
         let refined = domain.assume(&elem, &pred);
 
         assert!(domain.is_infeasible(&refined));
@@ -189,23 +153,14 @@ mod tests {
         let elem = domain.interval(&"x".to_string(), -100, 100);
 
         // assume(x >= 0)
-        let pred1 = crate::expr::NumPred::Ge(
-            NumExpr::Var("x".to_string()),
-            NumExpr::Const(0),
-        );
+        let pred1 = crate::expr::NumPred::Ge(NumExpr::Var("x".to_string()), NumExpr::Const(0));
         let refined1 = domain.assume(&elem, &pred1);
 
         // assume(x <= 50)
-        let pred2 = crate::expr::NumPred::Le(
-            NumExpr::Var("x".to_string()),
-            NumExpr::Const(50),
-        );
+        let pred2 = crate::expr::NumPred::Le(NumExpr::Var("x".to_string()), NumExpr::Const(50));
         let refined2 = domain.assume(&refined1, &pred2);
 
-        assert_eq!(
-            refined2.get("x"),
-            Interval::new(Bound::Finite(0), Bound::Finite(50))
-        );
+        assert_eq!(refined2.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(50)));
         assert_eq!(domain.get_bounds(&refined2, &"x".to_string()), Some((0, 50)));
     }
 
@@ -216,15 +171,9 @@ mod tests {
         elem.set("x".to_string(), Interval::new(Bound::Finite(1), Bound::Finite(2)));
 
         // y := x * x (should be [1, 4])
-        let expr = NumExpr::Mul(
-            Box::new(NumExpr::Var("x".to_string())),
-            Box::new(NumExpr::Var("x".to_string())),
-        );
+        let expr = NumExpr::Mul(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Var("x".to_string())));
         let result = domain.assign(&elem, &"y".to_string(), &expr);
 
-        assert_eq!(
-            result.get("y"),
-            Interval::new(Bound::Finite(1), Bound::Finite(4))
-        );
+        assert_eq!(result.get("y"), Interval::new(Bound::Finite(1), Bound::Finite(4)));
     }
 }

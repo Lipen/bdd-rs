@@ -1,7 +1,8 @@
 //! Product domain: combines two abstract domains component-wise.
 
-use super::domain::AbstractDomain;
 use std::fmt::Debug;
+
+use super::domain::AbstractDomain;
 
 /// Product of two abstract domains.
 ///
@@ -66,8 +67,7 @@ where
     }
 
     fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool {
-        self.control.le(&elem1.control, &elem2.control)
-            && self.numeric.le(&elem1.numeric, &elem2.numeric)
+        self.control.le(&elem1.control, &elem2.control) && self.numeric.le(&elem1.numeric, &elem2.numeric)
     }
 
     fn join(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
@@ -202,10 +202,7 @@ mod tests {
         assert_eq!(joined.control, SimpleElement::AB);
         assert_eq!(
             joined.numeric.get("x"),
-            crate::interval::Interval::new(
-                crate::interval::Bound::Finite(5),
-                crate::interval::Bound::Finite(10)
-            )
+            crate::interval::Interval::new(crate::interval::Bound::Finite(5), crate::interval::Bound::Finite(10))
         );
 
         // Test bottom

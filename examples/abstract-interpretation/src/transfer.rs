@@ -95,10 +95,7 @@ mod tests {
         // x := x + 1
         let stmt = Stmt::Assign(
             "x".to_string(),
-            NumExpr::Add(
-                Box::new(NumExpr::Var("x".to_string())),
-                Box::new(NumExpr::Const(1)),
-            ),
+            NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(1))),
         );
 
         let result = transfer.apply(&domain, &elem, &stmt);
@@ -124,15 +121,9 @@ mod tests {
             NumPred::Ge(NumExpr::Var("x".to_string()), NumExpr::Const(0)),
             Box::new(Stmt::Assign(
                 "x".to_string(),
-                NumExpr::Add(
-                    Box::new(NumExpr::Var("x".to_string())),
-                    Box::new(NumExpr::Const(10)),
-                ),
+                NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(10))),
             )),
-            Box::new(Stmt::Assign(
-                "x".to_string(),
-                NumExpr::Neg(Box::new(NumExpr::Var("x".to_string()))),
-            )),
+            Box::new(Stmt::Assign("x".to_string(), NumExpr::Neg(Box::new(NumExpr::Var("x".to_string()))))),
         );
 
         let result = transfer.apply(&domain, &elem, &stmt);

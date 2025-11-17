@@ -3,12 +3,13 @@
 //! The interval domain tracks lower and upper bounds for numeric variables.
 //! It's simple, efficient, but loses relational information between variables.
 
-use super::domain::AbstractDomain;
-use super::expr::{NumExpr, NumPred};
-use super::numeric::NumericDomain;
 use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::fmt;
+
+use super::domain::AbstractDomain;
+use super::expr::{NumExpr, NumPred};
+use super::numeric::NumericDomain;
 
 /// Bound of an interval: -∞, finite value, or +∞.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -152,16 +153,8 @@ impl Interval {
     }
 
     pub fn widen(&self, other: &Interval) -> Interval {
-        let low = if other.low < self.low {
-            Bound::NegInf
-        } else {
-            self.low
-        };
-        let high = if other.high > self.high {
-            Bound::PosInf
-        } else {
-            self.high
-        };
+        let low = if other.low < self.low { Bound::NegInf } else { self.low };
+        let high = if other.high > self.high { Bound::PosInf } else { self.high };
         Interval { low, high }
     }
 }
@@ -340,19 +333,11 @@ impl NumericDomain for IntervalDomain {
 
     fn interval(&self, var: &Self::Var, low: Self::Value, high: Self::Value) -> Self::Element {
         let mut elem = IntervalElement::new();
-        elem.set(
-            var.clone(),
-            Interval::new(Bound::Finite(low), Bound::Finite(high)),
-        );
+        elem.set(var.clone(), Interval::new(Bound::Finite(low), Bound::Finite(high)));
         elem
     }
 
-    fn assign(
-        &self,
-        elem: &Self::Element,
-        var: &Self::Var,
-        expr: &NumExpr<Self::Var, Self::Value>,
-    ) -> Self::Element {
+    fn assign(&self, elem: &Self::Element, var: &Self::Var, expr: &NumExpr<Self::Var, Self::Value>) -> Self::Element {
         if elem.is_bottom {
             return elem.clone();
         }
@@ -363,11 +348,7 @@ impl NumericDomain for IntervalDomain {
         result
     }
 
-    fn assume(
-        &self,
-        elem: &Self::Element,
-        pred: &NumPred<Self::Var, Self::Value>,
-    ) -> Self::Element {
+    fn assume(&self, elem: &Self::Element, pred: &NumPred<Self::Var, Self::Value>) -> Self::Element {
         if elem.is_bottom {
             return elem.clone();
         }
@@ -427,17 +408,17 @@ impl NumericDomain for IntervalDomain {
                     NumPred::Not(inner) => self.assume(elem, inner),
                     NumPred::And(p1, p2) => {
                         // ¬(p1 ∧ p2) = ¬p1 ∨ ¬p2 (De Morgan)
-                        self.assume(elem, &NumPred::Or(
-                            Box::new(NumPred::Not(p1.clone())),
-                            Box::new(NumPred::Not(p2.clone())),
-                        ))
+                        self.assume(
+                            elem,
+                            &NumPred::Or(Box::new(NumPred::Not(p1.clone())), Box::new(NumPred::Not(p2.clone()))),
+                        )
                     }
                     NumPred::Or(p1, p2) => {
                         // ¬(p1 ∨ p2) = ¬p1 ∧ ¬p2 (De Morgan)
-                        self.assume(elem, &NumPred::And(
-                            Box::new(NumPred::Not(p1.clone())),
-                            Box::new(NumPred::Not(p2.clone())),
-                        ))
+                        self.assume(
+                            elem,
+                            &NumPred::And(Box::new(NumPred::Not(p1.clone())), Box::new(NumPred::Not(p2.clone()))),
+                        )
                     }
                 }
             }
@@ -459,11 +440,7 @@ impl NumericDomain for IntervalDomain {
         }
     }
 
-    fn get_bounds(
-        &self,
-        elem: &Self::Element,
-        var: &Self::Var,
-    ) -> Option<(Self::Value, Self::Value)> {
+    fn get_bounds(&self, elem: &Self::Element, var: &Self::Var) -> Option<(Self::Value, Self::Value)> {
         let interval = elem.get(var);
         match (interval.low, interval.high) {
             (Bound::Finite(l), Bound::Finite(h)) => Some((l, h)),
@@ -538,10 +515,7 @@ mod tests {
 
         let e2 = domain.interval(&"x".to_string(), 0, 10);
         let joined = domain.join(&e1, &e2);
-        assert_eq!(
-            joined.get("x"),
-            Interval::new(Bound::Finite(0), Bound::Finite(10))
-        );
+        assert_eq!(joined.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(10)));
     }
 
     #[test]

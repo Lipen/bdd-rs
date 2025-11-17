@@ -7,13 +7,7 @@ use simplelog::*;
 
 fn main() {
     // Initialize logging
-    TermLogger::init(
-        LevelFilter::Debug,
-        Config::default(),
-        TerminalMode::Mixed,
-        ColorChoice::Auto,
-    )
-    .unwrap();
+    TermLogger::init(LevelFilter::Debug, Config::default(), TerminalMode::Mixed, ColorChoice::Auto).unwrap();
 
     println!("=== Simple Loop Analysis ===\n");
 
@@ -42,10 +36,7 @@ fn main() {
     let f1 = |elem: &IntervalElement| {
         // Simulate: x := x + 1, then check x < 10
         let x_int = elem.get("x");
-        let incremented = Interval::new(
-            x_int.low.add(&Bound::Finite(1)),
-            x_int.high.add(&Bound::Finite(1)),
-        );
+        let incremented = Interval::new(x_int.low.add(&Bound::Finite(1)), x_int.high.add(&Bound::Finite(1)));
 
         let mut result = elem.clone();
         result.set("x".to_string(), incremented);
@@ -73,10 +64,7 @@ fn main() {
 
     let f2 = |elem: &IntervalElement| {
         let x_int = elem.get("x");
-        let decremented = Interval::new(
-            x_int.low.sub(&Bound::Finite(1)),
-            x_int.high.sub(&Bound::Finite(1)),
-        );
+        let decremented = Interval::new(x_int.low.sub(&Bound::Finite(1)), x_int.high.sub(&Bound::Finite(1)));
 
         let mut result = elem.clone();
         result.set("x".to_string(), decremented);
@@ -104,10 +92,7 @@ fn main() {
 
     let f3 = |elem: &IntervalElement| {
         let x_int = elem.get("x");
-        let incremented = Interval::new(
-            x_int.low.add(&Bound::Finite(1)),
-            x_int.high.add(&Bound::Finite(1)),
-        );
+        let incremented = Interval::new(x_int.low.add(&Bound::Finite(1)), x_int.high.add(&Bound::Finite(1)));
 
         let mut result = elem.clone();
         result.set("x".to_string(), incremented);

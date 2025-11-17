@@ -7,13 +7,7 @@ use simplelog::*;
 
 fn main() {
     // Initialize logging
-    TermLogger::init(
-        LevelFilter::Info,
-        Config::default(),
-        TerminalMode::Mixed,
-        ColorChoice::Auto,
-    )
-    .unwrap();
+    TermLogger::init(LevelFilter::Info, Config::default(), TerminalMode::Mixed, ColorChoice::Auto).unwrap();
 
     println!("=== Transfer Function Analysis ===\n");
 
@@ -33,17 +27,11 @@ fn main() {
         Box::new(Stmt::Seq(
             Box::new(Stmt::Assign(
                 "y".to_string(),
-                NumExpr::Add(
-                    Box::new(NumExpr::Var("x".to_string())),
-                    Box::new(NumExpr::Const(10)),
-                ),
+                NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(10))),
             )),
             Box::new(Stmt::Assign(
                 "z".to_string(),
-                NumExpr::Mul(
-                    Box::new(NumExpr::Var("y".to_string())),
-                    Box::new(NumExpr::Const(2)),
-                ),
+                NumExpr::Mul(Box::new(NumExpr::Var("y".to_string())), Box::new(NumExpr::Const(2))),
             )),
         )),
     );
@@ -65,10 +53,7 @@ fn main() {
 
     let init2 = {
         let mut elem = IntervalElement::new();
-        elem.set(
-            "x".to_string(),
-            Interval::new(Bound::Finite(-10), Bound::Finite(10)),
-        );
+        elem.set("x".to_string(), Interval::new(Bound::Finite(-10), Bound::Finite(10)));
         elem
     };
 
@@ -76,15 +61,9 @@ fn main() {
         NumPred::Ge(NumExpr::Var("x".to_string()), NumExpr::Const(0)),
         Box::new(Stmt::Assign(
             "y".to_string(),
-            NumExpr::Add(
-                Box::new(NumExpr::Var("x".to_string())),
-                Box::new(NumExpr::Const(10)),
-            ),
+            NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(10))),
         )),
-        Box::new(Stmt::Assign(
-            "y".to_string(),
-            NumExpr::Neg(Box::new(NumExpr::Var("x".to_string()))),
-        )),
+        Box::new(Stmt::Assign("y".to_string(), NumExpr::Neg(Box::new(NumExpr::Var("x".to_string()))))),
     );
 
     let result2 = transfer.apply(&domain, &init2, &prog2);
@@ -108,10 +87,7 @@ fn main() {
 
     let init3 = {
         let mut elem = IntervalElement::new();
-        elem.set(
-            "x".to_string(),
-            Interval::new(Bound::Finite(0), Bound::Finite(100)),
-        );
+        elem.set("x".to_string(), Interval::new(Bound::Finite(0), Bound::Finite(100)));
         elem
     };
 
@@ -139,22 +115,13 @@ fn main() {
 
     let init4 = {
         let mut elem = IntervalElement::new();
-        elem.set(
-            "x".to_string(),
-            Interval::new(Bound::Finite(0), Bound::Finite(100)),
-        );
+        elem.set("x".to_string(), Interval::new(Bound::Finite(0), Bound::Finite(100)));
         elem
     };
 
     let prog4 = Stmt::Seq(
-        Box::new(Stmt::Assume(NumPred::Ge(
-            NumExpr::Var("x".to_string()),
-            NumExpr::Const(10),
-        ))),
-        Box::new(Stmt::Assert(NumPred::Le(
-            NumExpr::Var("x".to_string()),
-            NumExpr::Const(50),
-        ))),
+        Box::new(Stmt::Assume(NumPred::Ge(NumExpr::Var("x".to_string()), NumExpr::Const(10)))),
+        Box::new(Stmt::Assert(NumPred::Le(NumExpr::Var("x".to_string()), NumExpr::Const(50)))),
     );
 
     let result4 = transfer.apply(&domain, &init4, &prog4);

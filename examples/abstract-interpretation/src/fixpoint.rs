@@ -54,10 +54,7 @@ impl<D: AbstractDomain> FixpointEngine<D> {
 
             // Safety: prevent infinite loops
             if iterations > self.max_iterations {
-                log::warn!(
-                    "Fixpoint computation did not converge after {} iterations",
-                    self.max_iterations
-                );
+                log::warn!("Fixpoint computation did not converge after {} iterations", self.max_iterations);
                 break;
             }
         }
@@ -114,10 +111,7 @@ impl<D: AbstractDomain> FixpointEngine<D> {
             iterations += 1;
 
             if iterations > self.max_iterations {
-                log::warn!(
-                    "GFP computation did not converge after {} iterations",
-                    self.max_iterations
-                );
+                log::warn!("GFP computation did not converge after {} iterations", self.max_iterations);
                 break;
             }
         }
@@ -147,10 +141,7 @@ mod tests {
         // Function: x := x + 1 (approximated as x ∪ {x+1})
         let f = |elem: &IntervalElement| {
             let x_int = elem.get("x");
-            let incremented = Interval::new(
-                x_int.low.add(&Bound::Finite(1)),
-                x_int.high.add(&Bound::Finite(1)),
-            );
+            let incremented = Interval::new(x_int.low.add(&Bound::Finite(1)), x_int.high.add(&Bound::Finite(1)));
             let joined = x_int.join(&incremented);
 
             let mut result = elem.clone();
