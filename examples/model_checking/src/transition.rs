@@ -336,8 +336,7 @@ impl TransitionSystem {
     /// // This creates: x' ↔ !x, which is x ⊕ x' (XOR)
     /// ```
     pub fn assign_var(&self, var: &Var, next_state_expr: Ref) -> Ref {
-        let next_idx = self.var_manager.get_next(var)
-            .expect("Variable not declared in transition system");
+        let next_idx = self.var_manager.get_next(var).expect("Variable not declared in transition system");
         let next_var = self.bdd.mk_var(next_idx);
 
         // var' ↔ expr  is  (var' ∧ expr) ∨ (¬var' ∧ ¬expr)
@@ -356,7 +355,9 @@ impl TransitionSystem {
     ///
     /// A BDD representing the constraint `var' ↔ var`
     pub fn unchanged_var(&self, var: &Var) -> Ref {
-        let pres_idx = self.var_manager.get_present(var)
+        let pres_idx = self
+            .var_manager
+            .get_present(var)
             .expect("Variable not declared in transition system");
         let pres_var = self.bdd.mk_var(pres_idx);
         self.assign_var(var, pres_var)
@@ -548,10 +549,7 @@ mod tests {
         // Initial: x=false, y=false, z=true
         let z_pres_bdd = ts.bdd().mk_var(z_pres);
         let initial = ts.bdd().apply_and(
-            ts.bdd().apply_and(
-                ts.bdd().apply_not(x_pres_bdd),
-                ts.bdd().apply_not(y_pres_bdd),
-            ),
+            ts.bdd().apply_and(ts.bdd().apply_not(x_pres_bdd), ts.bdd().apply_not(y_pres_bdd)),
             z_pres_bdd,
         );
         ts.set_initial(initial);
