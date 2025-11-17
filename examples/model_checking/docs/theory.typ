@@ -1766,7 +1766,9 @@ For liveness properties (e.g., $op("AG") op("EF") p$), counterexamples are *lass
   ```
 
   The loop $s_3 -> s_4 -> s_3$ repeats forever without granting the request.
-]=== Symbolic Counterexample Extraction
+]
+
+=== Symbolic Counterexample Extraction
 
 In symbolic model checking, we work with BDDs (sets of states), not individual states.
 
