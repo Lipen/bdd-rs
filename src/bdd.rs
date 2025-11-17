@@ -1377,7 +1377,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::Bdd;
+    /// use bdd_rs::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     ///
