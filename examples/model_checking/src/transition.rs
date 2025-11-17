@@ -234,34 +234,28 @@ impl TransitionSystem {
         self.labels.keys().map(|s| s.as_str()).collect()
     }
 
-    /// Compute the successor states: ∃s. from(s) ∧ T(s, s')
+    /// Compute the successor states: `∃s. from(s) ∧ T(s, s')`
     ///
     /// Returns the set of states reachable in one step from `from`.
     pub fn image(&self, from: Ref) -> Ref {
-        // from(s) ∧ T(s, s')
-        let conjunction = self.bdd.apply_and(from, self.transition);
-
-        // ∃s. conjunction - quantify out present-state variables
+        // ∃s. from(s) ∧ T(s, s')
         let present_vars = self.var_manager.present_indices();
-        let result_in_next = self.exists(conjunction, &present_vars);
+        let result_in_next = self.bdd.rel_product(from, self.transition, &present_vars);
 
-        // Rename from next-state variables to present-state variables
-        self.rename_to_present(result_in_next)
+        // Swap from next-state to present-state variables
+        self.swap_next_to_present(result_in_next)
     }
 
-    /// Compute the predecessor states: ∃s'. T(s, s') ∧ to(s')
+    /// Compute the predecessor states: `∃s'. T(s, s') ∧ to(s')`
     ///
     /// Returns the set of states that can reach `to` in one step.
     pub fn preimage(&self, to: Ref) -> Ref {
-        // Rename to(s') to use next-state variables
-        let to_next = self.rename_to_next(to);
+        // Swap to(s) to to(s')
+        let to_next = self.swap_present_to_next(to);
 
-        // T(s, s') ∧ to(s')
-        let conjunction = self.bdd.apply_and(self.transition, to_next);
-
-        // ∃s'. conjunction - quantify out next-state variables
+        // ∃s'. T(s, s') ∧ to(s')
         let next_vars = self.var_manager.next_indices();
-        self.exists(conjunction, &next_vars)
+        self.bdd.rel_product(self.transition, to_next, &next_vars)
     }
 
     /// Compute reachable states from initial states
@@ -278,18 +272,26 @@ impl TransitionSystem {
         }
     }
 
-    /// Rename a state set from present-state to next-state variables
-    fn rename_to_next(&self, state_set: Ref) -> Ref {
+    /// Swap present-state variables to next-state variables.
+    fn swap_present_to_next(&self, f: Ref) -> Ref {
         let present_vars = self.var_manager.present_indices();
         let next_vars = self.var_manager.next_indices();
-        self.rename(state_set, &present_vars, &next_vars)
+
+        // v -> v'
+        let perm: HashMap<u32, u32> = present_vars.iter().zip(next_vars.iter()).map(|(&p, &n)| (p, n)).collect();
+
+        self.bdd.rename_vars(f, &perm)
     }
 
-    /// Rename a state set from next-state to present-state variables
-    pub fn rename_to_present(&self, state_set: Ref) -> Ref {
+    /// Swap next-state variables to present-state variables.
+    fn swap_next_to_present(&self, f: Ref) -> Ref {
         let present_vars = self.var_manager.present_indices();
         let next_vars = self.var_manager.next_indices();
-        self.rename(state_set, &next_vars, &present_vars)
+
+        // v' -> v
+        let perm: HashMap<u32, u32> = next_vars.iter().zip(present_vars.iter()).map(|(&n, &p)| (n, p)).collect();
+
+        self.bdd.rename_vars(f, &perm)
     }
 
     /// Count the number of states in a state set (up to 2^64)
@@ -309,40 +311,6 @@ impl TransitionSystem {
     /// Get all states (universe)
     pub fn all_states(&self) -> Ref {
         self.bdd.one
-    }
-
-    /// Existentially quantify out variables
-    fn exists(&self, f: Ref, vars: &[u32]) -> Ref {
-        let mut result = f;
-        for &v in vars {
-            // ∃v. f = f[v/0] ∨ f[v/1]
-            let f0 = self.bdd.substitute(result, v, false);
-            let f1 = self.bdd.substitute(result, v, true);
-            result = self.bdd.apply_or(f0, f1);
-        }
-        result
-    }
-
-    /// Rename variables according to mapping
-    ///
-    /// This performs a simultaneous substitution to avoid variable conflicts.
-    fn rename(&self, f: Ref, from_vars: &[u32], to_vars: &[u32]) -> Ref {
-        assert_eq!(from_vars.len(), to_vars.len());
-
-        // Build a complete mapping including both directions to handle temporary conflicts
-        // We need to ensure atomicity: all variables change simultaneously
-        let mut result = f;
-
-        // Perform renaming by composing substitutions
-        // Since compose can have conflicts, we do it carefully
-        for (&from_v, &to_v) in from_vars.iter().zip(to_vars.iter()) {
-            if from_v != to_v {
-                // Compose: replace variable from_v with expression for to_v
-                let to_v_bdd = self.bdd.mk_var(to_v);
-                result = self.bdd.compose(result, from_v, to_v_bdd);
-            }
-        }
-        result
     }
 }
 
