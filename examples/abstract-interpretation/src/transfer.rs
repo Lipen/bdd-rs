@@ -1,0 +1,147 @@
+//! Abstract transfer functions for program statements.
+
+use super::domain::AbstractDomain;
+#[allow(unused_imports)]
+use super::expr::{NumExpr, NumPred, Stmt};
+use super::numeric::NumericDomain;
+
+/// Abstract transfer function for statements.
+///
+/// Implements abstract semantics: ⟦stmt⟧♯: Element → Element
+pub trait TransferFunction<D: AbstractDomain> {
+    /// Type of program variables
+    type Var: Clone;
+
+    /// Apply transfer function: ⟦stmt⟧♯(elem)
+    fn apply(&self, domain: &D, elem: &D::Element, stmt: &Stmt<Self::Var>) -> D::Element;
+}
+
+/// Transfer function for numeric domains.
+pub struct NumericTransferFunction;
+
+impl<D> TransferFunction<D> for NumericTransferFunction
+where
+    D: NumericDomain<Value = i64>,
+    D::Var: Clone,
+{
+    type Var = D::Var;
+
+    fn apply(&self, domain: &D, elem: &D::Element, stmt: &Stmt<Self::Var>) -> D::Element {
+        if domain.is_bottom(elem) {
+            return elem.clone();
+        }
+
+        match stmt {
+            Stmt::Skip => elem.clone(),
+
+            Stmt::Assign(var, expr) => domain.assign(elem, var, expr),
+
+            Stmt::Seq(s1, s2) => {
+                let e1 = self.apply(domain, elem, s1);
+                self.apply(domain, &e1, s2)
+            }
+
+            Stmt::If(pred, then_stmt, else_stmt) => {
+                // Then branch
+                let then_elem = domain.assume(elem, pred);
+                let then_result = self.apply(domain, &then_elem, then_stmt);
+
+                // Else branch: assume ¬pred (simplified)
+                let else_pred = NumPred::Not(Box::new(pred.clone()));
+                let else_elem = domain.assume(elem, &else_pred);
+                let else_result = self.apply(domain, &else_elem, else_stmt);
+
+                // Join results
+                domain.join(&then_result, &else_result)
+            }
+
+            Stmt::While(_pred, _body) => {
+                // For while loops, fixpoint computation should be done externally
+                // This is a placeholder
+                elem.clone()
+            }
+
+            Stmt::Assert(pred) => {
+                // Assert refines the state
+                domain.assume(elem, pred)
+            }
+
+            Stmt::Assume(pred) => domain.assume(elem, pred),
+
+            Stmt::Havoc(var) => {
+                // Non-deterministic assignment: forget variable
+                domain.project(elem, var)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::interval::{Bound, Interval, IntervalDomain, IntervalElement};
+
+    #[test]
+    fn test_assignment() {
+        let domain = IntervalDomain;
+        let transfer = NumericTransferFunction;
+
+        let elem = {
+            let mut e = IntervalElement::new();
+            e.set("x".to_string(), Interval::new(Bound::Finite(0), Bound::Finite(10)));
+            e
+        };
+
+        // x := x + 1
+        let stmt = Stmt::Assign(
+            "x".to_string(),
+            NumExpr::Add(
+                Box::new(NumExpr::Var("x".to_string())),
+                Box::new(NumExpr::Const(1)),
+            ),
+        );
+
+        let result = transfer.apply(&domain, &elem, &stmt);
+        let x_result = result.get("x");
+
+        assert_eq!(x_result.low, Bound::Finite(1));
+        assert_eq!(x_result.high, Bound::Finite(11));
+    }
+
+    #[test]
+    fn test_conditional() {
+        let domain = IntervalDomain;
+        let transfer = NumericTransferFunction;
+
+        let elem = {
+            let mut e = IntervalElement::new();
+            e.set("x".to_string(), Interval::new(Bound::Finite(-10), Bound::Finite(10)));
+            e
+        };
+
+        // if (x >= 0) { x := x + 10 } else { x := -x }
+        let stmt = Stmt::If(
+            NumPred::Ge(NumExpr::Var("x".to_string()), NumExpr::Const(0)),
+            Box::new(Stmt::Assign(
+                "x".to_string(),
+                NumExpr::Add(
+                    Box::new(NumExpr::Var("x".to_string())),
+                    Box::new(NumExpr::Const(10)),
+                ),
+            )),
+            Box::new(Stmt::Assign(
+                "x".to_string(),
+                NumExpr::Neg(Box::new(NumExpr::Var("x".to_string()))),
+            )),
+        );
+
+        let result = transfer.apply(&domain, &elem, &stmt);
+        let x_result = result.get("x");
+
+        // Then: x ∈ [0, 10] + 10 = [10, 20]
+        // Else: x ∈ [-10, -1], -x = [1, 10]
+        // Join: [1, 20]
+        assert_eq!(x_result.low, Bound::Finite(1));
+        assert_eq!(x_result.high, Bound::Finite(20));
+    }
+}

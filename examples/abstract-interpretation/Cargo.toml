@@ -1,0 +1,14 @@
+[package]
+name = "abstract-interpretation"
+version = "0.1.0"
+edition = "2021"
+authors = ["Konstantin Chukharev <lipen00@gmail.com>"]
+description = "BDD-guided abstract interpretation framework"
+
+[dependencies]
+bdd-rs = { path = "../.." }
+log = "0.4"
+num-traits = "0.2"
+simplelog = "0.12"
+
+[dev-dependencies]
