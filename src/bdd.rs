@@ -2065,6 +2065,110 @@ impl Bdd {
             self.node_to_str(low, visited),
         )
     }
+
+    /// Renames variables according to an **order-preserving** permutation mapping.
+    ///
+    /// **IMPORTANT**: This function requires that the permutation preserves the variable
+    /// ordering to maintain the OBDD invariant. If `old_var1 < old_var2` and both are
+    /// in the permutation, then `new_var1 < new_var2` must hold.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - The BDD to rename variables in
+    /// * `permutation` - HashMap mapping old variable indices to new ones.
+    ///   Variables not in the map remain unchanged.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the permutation is not order-preserving.
+    ///
+    /// # Returns
+    ///
+    /// A new BDD with variables renamed according to the permutation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    /// use std::collections::HashMap;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x1 = bdd.mk_var(1);
+    /// let x2 = bdd.mk_var(2);
+    ///
+    /// // f = x1 ∧ ¬x2
+    /// let f = bdd.apply_and(x1, -x2);
+    ///
+    /// // Order-preserving rename: x1→x2, x2→x3 (1<2 and 2<3, so order preserved)
+    /// let mut perm = HashMap::new();
+    /// perm.insert(1, 2);
+    /// perm.insert(2, 3);
+    /// let g = bdd.rename_vars(f, &perm);
+    ///
+    /// // Verify: g(x2=T, x3=F) should be true
+    /// let x3 = bdd.mk_var(3);
+    /// let expected = bdd.apply_and(x2, -x3);
+    /// assert_eq!(g, expected);
+    /// ```
+    pub fn rename_vars(&self, f: Ref, permutation: &HashMap<u32, u32>) -> Ref {
+        // Validate that the permutation is order-preserving
+        let mut sorted_pairs: Vec<_> = permutation.iter().collect();
+        sorted_pairs.sort_by_key(|&(old, _)| old);
+
+        for i in 0..sorted_pairs.len() {
+            for j in i + 1..sorted_pairs.len() {
+                let (old_i, new_i) = sorted_pairs[i];
+                let (old_j, new_j) = sorted_pairs[j];
+                assert!(
+                    old_i < old_j && new_i < new_j,
+                    "Permutation is not order-preserving: {}→{} and {}→{} violates ordering invariant.",
+                    old_i,
+                    new_i,
+                    old_j,
+                    new_j
+                );
+            }
+        }
+
+        let mut cache = Cache::new(16);
+        self.rename_vars_(f, permutation, &mut cache)
+    }
+
+    fn rename_vars_(&self, f: Ref, permutation: &HashMap<u32, u32>, cache: &mut Cache<Ref, Ref>) -> Ref {
+        // Terminals pass through unchanged
+        if self.is_terminal(f) {
+            return f;
+        }
+
+        // Check cache (cache on the original reference including negation)
+        if let Some(&result) = cache.get(&f) {
+            return result;
+        }
+
+        // Handle negation: rename the positive node and negate the result
+        let is_negated = f.is_negated();
+        let f_positive = if is_negated { -f } else { f };
+
+        // Get the variable and children
+        let index = f_positive.index();
+        let v = self.variable(index);
+        let low = self.low(index);
+        let high = self.high(index);
+
+        // Recursively rename variables in children
+        let low_new = self.rename_vars_(low, permutation, cache);
+        let high_new = self.rename_vars_(high, permutation, cache);
+
+        // Apply permutation to variable (or keep original if not in map)
+        let v_new = permutation.get(&v).copied().unwrap_or(v);
+
+        // Create new node with renamed variable
+        let result_positive = self.mk_node(v_new, low_new, high_new);
+        let result = if is_negated { -result_positive } else { result_positive };
+
+        cache.insert(f, result);
+        result
+    }
 }
 
 #[cfg(test)]
@@ -3171,6 +3275,149 @@ mod tests {
         let result = bdd.rel_product(bdd.one, bdd.one, &[]);
         assert_eq!(result, bdd.one);
     }
+
+    #[test]
+    #[should_panic(expected = "Permutation is not order-preserving")]
+    fn test_rename_vars_not_order_preserving() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+
+        // Rename x1→x2, x2→x1 (swap) - NOT order-preserving!
+        let mut perm = HashMap::new();
+        perm.insert(1, 2);
+        perm.insert(2, 1);
+
+        // This should panic
+        let _result = bdd.rename_vars(x1, &perm);
+    }
+
+    #[test]
+    fn test_rename_vars_chain() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+
+        // f = x1 ∧ ¬x2
+        let f = bdd.apply_and(x1, -x2);
+
+        // Chain rename: x1→x2, x2→x3
+        let mut perm = HashMap::new();
+        perm.insert(1, 2);
+        perm.insert(2, 3);
+
+        let g = bdd.rename_vars(f, &perm); // g = x2 ∧ ¬x3
+
+        // Create expected: x2 ∧ ¬x3
+        let x3 = bdd.mk_var(3);
+        let expected = bdd.apply_and(x2, -x3);
+
+        assert_eq!(g, expected);
+    }
+
+    #[test]
+    fn test_rename_vars_backward() {
+        let bdd = Bdd::default();
+
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+        let f = bdd.apply_and(x2, x3); // f(x2, x3) = x2 ∧ x3
+
+        // Backward rename: x2→x1, x3→x2 (order-preserving: 2<3 and 1<2)
+        let mut perm = HashMap::new();
+        perm.insert(2, 1);
+        perm.insert(3, 2);
+
+        let g = bdd.rename_vars(f, &perm); // g(x1, x2) = x1 ∧ x2
+
+        // Create expected: x1 ∧ x2
+        let x1 = bdd.mk_var(1);
+        let x2_new = bdd.mk_var(2);
+        let expected = bdd.apply_and(x1, x2_new);
+
+        assert_eq!(g, expected);
+    }
+
+    #[test]
+    fn test_rename_vars_shift() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let f = bdd.apply_and(x1, x2); // f(x1, x2) = x1 ∧ x2
+
+        // Shift: x1→x3, x2→x4
+        let mut perm = HashMap::new();
+        perm.insert(1, 3);
+        perm.insert(2, 4);
+
+        let g = bdd.rename_vars(f, &perm); // g(x3, x4) = x3 ∧ x4
+
+        // Create expected result directly
+        let x3 = bdd.mk_var(3);
+        let x4 = bdd.mk_var(4);
+        let expected = bdd.apply_and(x3, x4);
+
+        assert_eq!(g, expected);
+    }
+
+    #[test]
+    #[should_panic(expected = "Permutation is not order-preserving")]
+    fn test_rename_vars_partial() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+        let f = bdd.apply_and(bdd.apply_and(x1, x2), x3); // x1 ∧ x2 ∧ x3
+
+        // Only rename x1→x2, x2→x1 (swap), leave x3 unchanged - NOT order-preserving!
+        let mut perm = HashMap::new();
+        perm.insert(1, 2);
+        perm.insert(2, 1);
+
+        // This should panic
+        let _g = bdd.rename_vars(f, &perm);
+    }
+
+    #[test]
+    #[should_panic(expected = "Permutation is not order-preserving")]
+    fn test_rename_vars_negation() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let f = bdd.apply_and(-x1, x2); // ¬x1 ∧ x2
+
+        // Swap x1↔x2 - NOT order-preserving!
+        let mut perm = HashMap::new();
+        perm.insert(1, 2);
+        perm.insert(2, 1);
+
+        // This should panic
+        let _g = bdd.rename_vars(f, &perm);
+    }
+
+    #[test]
+    #[should_panic(expected = "Permutation is not order-preserving")]
+    fn test_rename_vars_cyclic() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+
+        // f = x1 ∨ x2 ∨ x3
+        let f = bdd.apply_or(bdd.apply_or(x1, x2), x3);
+
+        // Cyclic rename: x1→x2, x2→x3, x3→x1 (a cycle!) - NOT order-preserving!
+        let mut perm = HashMap::new();
+        perm.insert(1, 2);
+        perm.insert(2, 3);
+        perm.insert(3, 1);
+
+        // This should panic
+        let _g = bdd.rename_vars(f, &perm);
+    }
 }
-
-
