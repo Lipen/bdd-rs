@@ -543,4 +543,25 @@ mod tests {
             Interval::new(Bound::Finite(0), Bound::Finite(10))
         );
     }
+
+    #[test]
+    fn test_interval_lattice_axioms() {
+        use crate::domain::tests::test_lattice_axioms;
+
+        let domain = IntervalDomain;
+
+        // Create sample elements for testing
+        let samples = vec![
+            domain.bottom(),
+            domain.top(),
+            domain.constant(&"x".to_string(), 0),
+            domain.constant(&"x".to_string(), 5),
+            domain.interval(&"x".to_string(), 0, 10),
+            domain.interval(&"x".to_string(), -5, 5),
+            domain.interval(&"x".to_string(), 10, 20),
+        ];
+
+        // Validate all lattice axioms
+        test_lattice_axioms(&domain, &samples);
+    }
 }
