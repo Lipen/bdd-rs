@@ -43,7 +43,7 @@
 //! ```
 //! - **Lifetime**: Function scope only
 //! - **Access**: Fast, automatic cleanup
-//! - **Representation**: `Location::Stack("x")`
+//! - **Representation**: [`Location::Stack`]
 //!
 //! ### Heap Memory (Dynamic Allocation)
 //! ```c
@@ -53,7 +53,7 @@
 //! ```
 //! - **Lifetime**: Explicit management (malloc/free)
 //! - **Access**: Slower, manual cleanup required
-//! - **Representation**: `Location::Heap(site_id)`
+//! - **Representation**: [`Location::Heap`]
 //!   - Each `malloc` call site gets unique ID
 //!   - Multiple calls to same site → same abstract location (may-aliasing)
 //!
@@ -64,11 +64,11 @@
 //! ```
 //! - **Lifetime**: Entire program execution
 //! - **Access**: Accessible from any function
-//! - **Representation**: `Location::Global("global_var")`
+//! - **Representation**: [`Location::Global`]
 //!
 //! ### Special Locations
-//! - **Null**: `NULL` pointer (points to nothing)
-//! - **Unknown**: External/library pointers (conservative approximation)
+//! - **Null**: [`Location::Null`] (points to nothing)
+//! - **Unknown**: [`Location::Unknown`] (external/library pointers, conservative approximation)
 //!
 //! ## Abstract Interpretation: Bottom and Top
 //!
@@ -257,6 +257,8 @@
 //! assert!(state.may_alias(&domain, "p", "q"));  // May alias
 //! assert!(!state.must_alias(&domain, "p", "q")); // Not definite
 //! ```
+//!
+//! See [`PointsToDomain`], [`PointsToElement`], and [`Location`] for more details.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -272,6 +274,14 @@ use crate::AbstractDomain;
 ///
 /// Locations represent addressable memory regions that pointers can reference.
 /// Each location type has different lifetime and access characteristics.
+///
+/// # Variants
+///
+/// - [`Location::Null`]: NULL pointer constant
+/// - [`Location::Stack`]: Function-local variables
+/// - [`Location::Heap`]: Dynamic allocations (malloc/new)
+/// - [`Location::Global`]: Global/static variables
+/// - [`Location::Unknown`]: External/conservative approximation
 ///
 /// # Examples
 ///
@@ -335,7 +345,9 @@ impl fmt::Display for Location {
 /// Bidirectional mapping between memory locations and BDD variables.
 ///
 /// This provides efficient encoding of location sets as BDDs and decoding
-/// BDDs back to location sets. Each location gets a unique BDD variable ID.
+/// BDDs back to location sets. Each [`Location`] gets a unique BDD variable ID.
+///
+/// Used by [`PointsToDomain`] to maintain the mapping for encoding and decoding.
 ///
 /// # BDD Variable Assignment
 ///
@@ -420,8 +432,12 @@ impl Default for LocationMap {
 
 /// Abstract element representing points-to information for all pointers.
 ///
-/// Maps each pointer variable to a BDD representing the set of memory locations
-/// it may point to. This is the main data structure for flow-sensitive analysis.
+/// Maps each pointer variable to a BDD ([`bdd_rs::reference::Ref`]) representing
+/// the set of memory locations it may point to. This is the main data structure
+/// for flow-sensitive analysis.
+///
+/// Created by [`PointsToElement::new`] or obtained from domain operations like
+/// [`PointsToDomain::assign_address`] and [`PointsToDomain::join`].
 ///
 /// # Structure
 ///
@@ -435,8 +451,8 @@ impl Default for LocationMap {
 ///
 /// # Special States
 ///
-/// - **Bottom** (`is_bottom = true`): Unreachable code
-/// - **Top** (`is_top = true`): All pointers may point anywhere (worst case)
+/// - **Bottom** ([`PointsToElement::bottom`]): Unreachable code (`is_bottom = true`)
+/// - **Top** ([`PointsToElement::top`]): All pointers may point anywhere (`is_top = true`)
 /// - **Normal**: Regular points-to information
 ///
 /// # Example
@@ -562,6 +578,8 @@ impl PartialEq for PointsToElement {
 /// Provides the abstract domain interface for points-to analysis, including
 /// pointer operations (assignments, loads, stores) and alias queries.
 ///
+/// Implements [`AbstractDomain`] with [`PointsToElement`] as the element type.
+///
 /// # Operations
 ///
 /// ## Assignments
@@ -572,6 +590,9 @@ impl PartialEq for PointsToElement {
 /// p = malloc(...)  → assign_alloc(elem, "p", site_id)
 /// ```
 ///
+/// See [`PointsToDomain::assign_null`], [`PointsToDomain::assign_address`],
+/// [`PointsToDomain::assign_copy`], and [`PointsToDomain::assign_alloc`].
+///
 /// ## Memory Operations
 /// ```text
 /// p = *q           → assign_load(elem, "p", "q")
@@ -581,6 +602,8 @@ impl PartialEq for PointsToElement {
 ///                      Store: All of p's targets now point to q's targets
 /// ```
 ///
+/// See [`PointsToDomain::assign_load`] and [`PointsToDomain::assign_store`].
+///
 /// ## Control Flow
 /// ```text
 /// if-then-else     → join(then_elem, else_elem)
@@ -589,6 +612,8 @@ impl PartialEq for PointsToElement {
 /// loop convergence → widen(elem1, elem2)
 ///                      Accelerate: Ensure termination
 /// ```
+///
+/// See [`AbstractDomain::join`], [`AbstractDomain::meet`], and [`AbstractDomain::widen`].
 ///
 /// # Example: Linked List Traversal
 ///
@@ -702,9 +727,9 @@ impl PointsToDomain {
     /// for the pointer variable.
     ///
     /// # Arguments
-    /// - `elem`: Current abstract state
+    /// - `elem`: Current abstract state ([`PointsToElement`])
     /// - `var`: Pointer variable name
-    /// - `loc`: Memory location being addressed
+    /// - `loc`: Memory location being addressed ([`Location`])
     ///
     /// # Example
     ///
@@ -714,6 +739,8 @@ impl PointsToDomain {
     /// let state = domain.assign_address(&state, "p", &x);
     /// // Result: p → {x}
     /// ```
+    ///
+    /// See also: [`PointsToDomain::assign_copy`], [`PointsToDomain::assign_null`]
     pub fn assign_address(&self, elem: &PointsToElement, var: &str, loc: &Location) -> PointsToElement {
         if elem.is_bottom {
             return elem.clone();
@@ -1010,9 +1037,11 @@ impl Default for PointsToDomain {
 impl PointsToElement {
     /// Check if two pointers **must** alias (definitely point to the same location).
     ///
-    /// Returns `true` if both pointers point to exactly the same single location,
+    /// Returns `true` if both pointers point to exactly the same single [`Location`],
     /// meaning they **always** alias in all concrete executions represented by
     /// this abstract state.
+    ///
+    /// Requires a reference to [`PointsToDomain`] for decoding BDDs.
     ///
     /// # Definition
     ///
@@ -1055,6 +1084,8 @@ impl PointsToElement {
     /// - **Compiler optimization**: Can safely reorder operations
     /// - **Bug detection**: Both null → null pointer dereference guaranteed
     /// - **Verification**: Proving pointer equality invariants
+    ///
+    /// See also: [`PointsToElement::may_alias`]
     pub fn must_alias(&self, domain: &PointsToDomain, var1: &str, var2: &str) -> bool {
         if self.is_bottom {
             return false;
@@ -1073,7 +1104,9 @@ impl PointsToElement {
     /// Check if two pointers **may** alias (their points-to sets intersect).
     ///
     /// Returns `true` if there exists at least one concrete execution where both
-    /// pointers could point to the same memory location.
+    /// pointers could point to the same memory [`Location`].
+    ///
+    /// Requires a reference to [`PointsToDomain`] for decoding BDDs.
     ///
     /// # Definition
     ///
@@ -1129,6 +1162,8 @@ impl PointsToElement {
     /// May-alias must be **conservative**: if we say "no alias", it must be
     /// guaranteed. False positives (saying "may alias" when they don't) are
     /// safe but imprecise.
+    ///
+    /// See also: [`PointsToElement::must_alias`]
     pub fn may_alias(&self, domain: &PointsToDomain, var1: &str, var2: &str) -> bool {
         if self.is_bottom {
             return false;
