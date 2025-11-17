@@ -1,5 +1,5 @@
 [package]
-name = "symbolic_execution"
+name = "symbolic-execution"
 version = "0.1.0"
 edition = "2021"
 

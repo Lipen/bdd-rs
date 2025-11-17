@@ -1,5 +1,5 @@
 [package]
-name = "model_checking"
+name = "model-checking"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,7 +11,3 @@ log = "0.4"
 simplelog = "0.12"
 num-bigint = "0.4"
 num-traits = "0.2"
-
-[[bin]]
-name = "modelcheck"
-path = "src/bin/modelcheck.rs"
