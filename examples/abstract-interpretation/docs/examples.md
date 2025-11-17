@@ -763,3 +763,27 @@ let ctx = AnalysisContext::new(bdd.clone(), octagon_domain);
 ---
 
 **Summary:** This catalog provides progressively complex examples demonstrating the power and flexibility of BDD-guided abstract interpretation. Start with simple loops, progress to control-intensive systems, and finally tackle real-world applications like protocol stacks and embedded controllers.
+
+---
+
+## 8. New Domain Examples
+
+### Example 8.1: Sign Analysis for Division Safety
+
+See `examples/realistic_programs.rs` for full implementations of:
+
+1. **Array Bounds Checking**: Detects out-of-bounds access using Sign + Interval domains
+2. **Constant Propagation**: Dead code elimination using Constant domain
+3. **Pointer Alias Analysis**: Must-alias and may-alias detection using Points-to domain
+4. **Combined Multi-Domain Analysis**: Memory safety verification with all domains
+5. **Reduced Product**: Sign × Constant × Interval cooperation for maximum precision
+
+**Run with:** `cargo run --example realistic_programs`
+
+**Integration tests** in `tests/domain_integration.rs` demonstrate:
+
+- Domain cooperation (Sign, Constant, Interval, Points-to)
+- Pointer arithmetic with numeric domains
+- Combined sign/interval/points-to analysis
+
+**Run with:** `cargo test --test domain_integration`
