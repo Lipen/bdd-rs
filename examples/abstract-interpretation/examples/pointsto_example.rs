@@ -35,7 +35,7 @@ fn example_1_basic_assignment() {
     println!();
 
     let domain = PointsToDomain::new();
-    let mut elem = PointsToElement::new(Rc::clone(domain.manager()));
+    let mut elem = PointsToElement::new(Rc::clone(domain.bdd()));
 
     // p = &x
     let x_loc = Location::Stack("x".to_string());
@@ -70,7 +70,7 @@ fn example_2_pointer_copy() {
     println!();
 
     let domain = PointsToDomain::new();
-    let mut elem = PointsToElement::new(Rc::clone(domain.manager()));
+    let mut elem = PointsToElement::new(Rc::clone(domain.bdd()));
 
     // p = &x
     let x_loc = Location::Stack("x".to_string());
@@ -114,7 +114,7 @@ fn example_3_join_analysis() {
     println!();
 
     let domain = PointsToDomain::new();
-    let init = PointsToElement::new(Rc::clone(domain.manager()));
+    let init = PointsToElement::new(Rc::clone(domain.bdd()));
 
     // Then branch: p = &x
     let x_loc = Location::Stack("x".to_string());
@@ -155,7 +155,7 @@ fn example_4_alias_detection() {
     println!();
 
     let domain = PointsToDomain::new();
-    let mut elem = PointsToElement::new(Rc::clone(domain.manager()));
+    let mut elem = PointsToElement::new(Rc::clone(domain.bdd()));
 
     let x_loc = Location::Stack("x".to_string());
     let y_loc = Location::Stack("y".to_string());

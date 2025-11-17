@@ -177,7 +177,7 @@ fn pointer_alias_analysis() {
     println!("=== Pointer Alias Analysis Example ===\n");
 
     let domain = PointsToDomain::new();
-    let mut state = PointsToElement::new(Rc::clone(domain.manager()));
+    let mut state = PointsToElement::new(Rc::clone(domain.bdd()));
 
     // Initial: p = &x, q = &y
     println!("Initial: p = &x, q = &y");
@@ -265,7 +265,7 @@ fn combined_analysis() {
 
     // arr = malloc(n * sizeof(int))
     println!("\nStatement: arr = malloc(...)");
-    let mut pointsto_state = PointsToElement::new(Rc::clone(pointsto_domain.manager()));
+    let mut pointsto_state = PointsToElement::new(Rc::clone(pointsto_domain.bdd()));
     pointsto_state = pointsto_domain.assign_alloc(&pointsto_state, "arr", 1);
 
     let arr_targets = pointsto_domain.decode_bdd(pointsto_state.get("arr"));
@@ -278,6 +278,10 @@ fn combined_analysis() {
     sign_state = sign_domain.constant(&"sum".to_string(), 0);
 
     println!("  Constant: sum = {:?}", const_state.get("sum"));
+    println!(
+        "  Interval: sum = {:?}",
+        interval_domain.get_bounds(&interval_state, &"sum".to_string())
+    );
     println!("  Sign: sum = {:?}", sign_state.get("sum"));
 
     // Loop: for (i = 0; i < 10; i++)

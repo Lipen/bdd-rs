@@ -236,7 +236,7 @@ fn test_pointsto_with_numeric() {
 
     // Simulate: int arr[10]; int *p = &arr[0]; int i = 5;
     let pointsto_state = pointsto_domain.assign_address(
-        &PointsToElement::new(Rc::clone(pointsto_domain.manager())),
+        &PointsToElement::new(Rc::clone(pointsto_domain.bdd())),
         "p",
         &Location::Heap(1), // Represent array base as heap location
     );
@@ -274,7 +274,7 @@ fn test_pointsto_with_numeric() {
 
     // Test pointer aliasing with array elements
     // p = &arr[0], q = &arr[0] => must alias
-    let mut state2 = PointsToElement::new(Rc::clone(pointsto_domain.manager()));
+    let mut state2 = PointsToElement::new(Rc::clone(pointsto_domain.bdd()));
     state2 = pointsto_domain.assign_address(&state2, "p", &Location::Heap(1));
     state2 = pointsto_domain.assign_address(&state2, "q", &Location::Heap(1));
 
@@ -284,7 +284,7 @@ fn test_pointsto_with_numeric() {
     );
 
     // p = &arr[0], q = &arr[1] => may alias (different elements)
-    let mut state3 = PointsToElement::new(Rc::clone(pointsto_domain.manager()));
+    let mut state3 = PointsToElement::new(Rc::clone(pointsto_domain.bdd()));
     state3 = pointsto_domain.assign_address(&state3, "p", &Location::Heap(1));
     state3 = pointsto_domain.assign_address(&state3, "q", &Location::Heap(2));
 
@@ -303,7 +303,7 @@ fn test_pointsto_with_constant_offsets() {
     let pointsto_domain = PointsToDomain::new();
 
     // Simulate: int *p = &x; int offset = 0;
-    let mut pointsto_state = PointsToElement::new(Rc::clone(pointsto_domain.manager()));
+    let mut pointsto_state = PointsToElement::new(Rc::clone(pointsto_domain.bdd()));
     let mut const_state = const_domain.constant(&"offset".to_string(), 0);
 
     pointsto_state = pointsto_domain.assign_address(&pointsto_state, "p", &Location::Stack("x".to_string()));
@@ -338,7 +338,7 @@ fn test_combined_sign_interval_pointsto() {
     // After loop analysis: i in [0, n-1]
     let sign_state = sign_domain.interval(&"i".to_string(), 0, 9);
     let interval_state = interval_domain.interval(&"i".to_string(), 0, 9);
-    let mut pointsto_state = PointsToElement::new(Rc::clone(pointsto_domain.manager()));
+    let mut pointsto_state = PointsToElement::new(Rc::clone(pointsto_domain.bdd()));
 
     pointsto_state = pointsto_domain.assign_address(&pointsto_state, "p", &Location::Heap(1));
 

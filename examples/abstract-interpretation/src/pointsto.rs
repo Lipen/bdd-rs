@@ -234,7 +234,7 @@
 //!
 //! // Create domain with BDD manager
 //! let domain = PointsToDomain::new();
-//! let mut state = PointsToElement::new(domain.manager());
+//! let mut state = PointsToElement::new(domain.bdd());
 //!
 //! // C code: int x, y; int *p, *q;
 //! let x = Location::Stack("x".to_string());
@@ -459,7 +459,7 @@ impl Default for LocationMap {
 ///
 /// ```rust,ignore
 /// let domain = PointsToDomain::new();
-/// let mut elem = PointsToElement::new(domain.manager());
+/// let mut elem = PointsToElement::new(domain.bdd());
 ///
 /// // Initially: all pointers point nowhere (empty sets)
 /// assert!(domain.decode_bdd(elem.get("p")).is_empty());
@@ -478,7 +478,7 @@ pub struct PointsToElement {
     /// Maps pointer variables to their points-to sets (as BDDs)
     points_to: HashMap<String, Ref>,
     /// Shared BDD manager
-    manager: Rc<Bdd>,
+    bdd: Rc<Bdd>,
     /// Whether this element represents an unreachable state
     is_bottom: bool,
     /// Whether this element represents all possible states (top)
@@ -487,30 +487,30 @@ pub struct PointsToElement {
 
 impl PointsToElement {
     /// Create a new points-to element with the given BDD manager.
-    pub fn new(manager: Rc<Bdd>) -> Self {
+    pub fn new(bdd: Rc<Bdd>) -> Self {
         Self {
             points_to: HashMap::new(),
-            manager,
+            bdd,
             is_bottom: false,
             is_top: false,
         }
     }
 
     /// Create a bottom (unreachable) element.
-    pub fn bottom(manager: Rc<Bdd>) -> Self {
+    pub fn bottom(bdd: Rc<Bdd>) -> Self {
         Self {
             points_to: HashMap::new(),
-            manager,
+            bdd,
             is_bottom: true,
             is_top: false,
         }
     }
 
     /// Create a top (all possible states) element.
-    pub fn top(manager: Rc<Bdd>) -> Self {
+    pub fn top(bdd: Rc<Bdd>) -> Self {
         Self {
             points_to: HashMap::new(),
-            manager,
+            bdd,
             is_bottom: false,
             is_top: true,
         }
@@ -521,9 +521,9 @@ impl PointsToElement {
     /// Returns the zero BDD (empty set) if the variable is not tracked.
     pub fn get(&self, var: &str) -> Ref {
         if self.is_bottom {
-            return self.manager.zero;
+            return self.bdd.zero;
         }
-        self.points_to.get(var).copied().unwrap_or(self.manager.zero)
+        self.points_to.get(var).copied().unwrap_or(self.bdd.zero)
     }
 
     /// Set the points-to BDD for a variable.
@@ -537,8 +537,8 @@ impl PointsToElement {
     }
 
     /// Get the BDD manager.
-    pub fn manager(&self) -> &Rc<Bdd> {
-        &self.manager
+    pub fn bdd(&self) -> &Rc<Bdd> {
+        &self.bdd
     }
 }
 
@@ -619,7 +619,7 @@ impl PartialEq for PointsToElement {
 ///
 /// ```rust,ignore
 /// let domain = PointsToDomain::new();
-/// let mut state = PointsToElement::new(domain.manager());
+/// let mut state = PointsToElement::new(domain.bdd());
 ///
 /// // struct Node { int data; Node *next; };
 /// // Node *head = malloc(...);
@@ -636,7 +636,7 @@ impl PartialEq for PointsToElement {
 #[derive(Debug, Clone)]
 pub struct PointsToDomain {
     /// Shared BDD manager for all operations
-    manager: Rc<Bdd>,
+    bdd: Rc<Bdd>,
     /// Location to BDD variable mapping
     locations: Rc<RefCell<LocationMap>>,
 }
@@ -645,32 +645,32 @@ impl PointsToDomain {
     /// Create a new points-to domain with a fresh BDD manager.
     pub fn new() -> Self {
         Self {
-            manager: Rc::new(Bdd::default()),
+            bdd: Rc::new(Bdd::default()),
             locations: Rc::new(RefCell::new(LocationMap::new())),
         }
     }
 
     /// Get the BDD manager.
-    pub fn manager(&self) -> &Rc<Bdd> {
-        &self.manager
+    pub fn bdd(&self) -> &Rc<Bdd> {
+        &self.bdd
     }
 
     /// Encode a single location as a BDD.
     pub fn encode_location(&self, loc: &Location) -> Ref {
         let var = self.locations.borrow_mut().get_or_allocate(loc);
-        self.manager.mk_var(var as u32)
+        self.bdd.mk_var(var as u32)
     }
 
     /// Encode a set of locations as a BDD (disjunction).
     pub fn encode_location_set(&self, locs: &[Location]) -> Ref {
         if locs.is_empty() {
-            return self.manager.zero;
+            return self.bdd.zero;
         }
 
-        let mut result = self.manager.zero;
+        let mut result = self.bdd.zero;
         for loc in locs {
             let loc_bdd = self.encode_location(loc);
-            result = self.manager.apply_or(result, loc_bdd);
+            result = self.bdd.apply_or(result, loc_bdd);
         }
         result
     }
@@ -681,12 +681,12 @@ impl PointsToDomain {
     pub fn decode_bdd(&self, bdd: Ref) -> HashSet<Location> {
         let mut locations = HashSet::new();
 
-        if self.manager.is_zero(bdd) {
+        if self.bdd.is_zero(bdd) {
             return locations;
         }
 
         // Get all paths to ONE in the BDD
-        let paths = self.manager.paths(bdd);
+        let paths = self.bdd.paths(bdd);
 
         for path in paths {
             // Each path represents a conjunction of literals
@@ -830,17 +830,17 @@ impl PointsToDomain {
 
         if src_targets.is_empty() {
             // src points nowhere - this is an error, return bottom
-            return PointsToElement::bottom(Rc::clone(&self.manager));
+            return PointsToElement::bottom(Rc::clone(&self.bdd));
         }
 
         // Union the points-to sets of all targets
-        let mut result_bdd = self.manager.zero;
+        let mut result_bdd = self.bdd.zero;
         for target_loc in src_targets {
             // For simplicity, we track heap locations' contents
             // In a full implementation, we'd need a separate map for heap contents
             // For now, we'll be conservative and use Top (all locations)
             let target_bdd = elem.get(&target_loc.to_string());
-            result_bdd = self.manager.apply_or(result_bdd, target_bdd);
+            result_bdd = self.bdd.apply_or(result_bdd, target_bdd);
         }
 
         let mut result = elem.clone();
@@ -906,7 +906,7 @@ impl PointsToDomain {
 
         if dst_targets.is_empty() {
             // Storing through null/invalid pointer - error
-            return PointsToElement::bottom(Rc::clone(&self.manager));
+            return PointsToElement::bottom(Rc::clone(&self.bdd));
         }
 
         let mut result = elem.clone();
@@ -915,7 +915,7 @@ impl PointsToDomain {
         for target_loc in dst_targets {
             let target_str = target_loc.to_string();
             let old_bdd = result.get(&target_str);
-            let new_bdd = self.manager.apply_or(old_bdd, src_bdd);
+            let new_bdd = self.bdd.apply_or(old_bdd, src_bdd);
             result.set(target_str, new_bdd);
         }
 
@@ -927,11 +927,11 @@ impl AbstractDomain for PointsToDomain {
     type Element = PointsToElement;
 
     fn bottom(&self) -> Self::Element {
-        PointsToElement::bottom(Rc::clone(&self.manager))
+        PointsToElement::bottom(Rc::clone(&self.bdd))
     }
 
     fn top(&self) -> Self::Element {
-        PointsToElement::top(Rc::clone(&self.manager))
+        PointsToElement::top(Rc::clone(&self.bdd))
     }
 
     fn is_bottom(&self, elem: &Self::Element) -> bool {
@@ -954,9 +954,9 @@ impl AbstractDomain for PointsToDomain {
         // BDD subset: bdd1 ⊆ bdd2  ⟺  bdd1 ∧ ¬bdd2 = ⊥
         for (var, &bdd1) in &elem1.points_to {
             let bdd2 = elem2.get(var);
-            let not_bdd2 = self.manager.apply_not(bdd2);
-            let diff = self.manager.apply_and(bdd1, not_bdd2);
-            if !self.manager.is_zero(diff) {
+            let not_bdd2 = self.bdd.apply_not(bdd2);
+            let diff = self.bdd.apply_and(bdd1, not_bdd2);
+            if !self.bdd.is_zero(diff) {
                 return false;
             }
         }
@@ -975,7 +975,7 @@ impl AbstractDomain for PointsToDomain {
             return self.top();
         }
 
-        let mut result = PointsToElement::new(Rc::clone(&self.manager));
+        let mut result = PointsToElement::new(Rc::clone(&self.bdd));
 
         // Union: ∀var. result[var] = elem1[var] ∪ elem2[var]
         let mut all_vars: HashSet<String> = elem1.points_to.keys().cloned().collect();
@@ -984,7 +984,7 @@ impl AbstractDomain for PointsToDomain {
         for var in all_vars {
             let bdd1 = elem1.get(&var);
             let bdd2 = elem2.get(&var);
-            let union_bdd = self.manager.apply_or(bdd1, bdd2);
+            let union_bdd = self.bdd.apply_or(bdd1, bdd2);
             result.set(var, union_bdd);
         }
 
@@ -1002,7 +1002,7 @@ impl AbstractDomain for PointsToDomain {
             return elem1.clone();
         }
 
-        let mut result = PointsToElement::new(Rc::clone(&self.manager));
+        let mut result = PointsToElement::new(Rc::clone(&self.bdd));
 
         // Intersection: ∀var. result[var] = elem1[var] ∩ elem2[var]
         let mut all_vars: HashSet<String> = elem1.points_to.keys().cloned().collect();
@@ -1011,7 +1011,7 @@ impl AbstractDomain for PointsToDomain {
         for var in all_vars {
             let bdd1 = elem1.get(&var);
             let bdd2 = elem2.get(&var);
-            let intersect_bdd = self.manager.apply_and(bdd1, bdd2);
+            let intersect_bdd = self.bdd.apply_and(bdd1, bdd2);
 
             // If any variable has empty points-to set, might indicate error
             // but we'll allow it (pointer doesn't point anywhere valid)
@@ -1234,31 +1234,31 @@ mod tests {
     #[test]
     fn test_pointsto_assign_null() {
         let domain = PointsToDomain::new();
-        let elem = PointsToElement::new(Rc::clone(domain.manager()));
+        let elem = PointsToElement::new(Rc::clone(domain.bdd()));
 
         let result = domain.assign_null(&elem, "p");
 
         // Check that p points to null
         let p_bdd = result.get("p");
-        assert!(!result.manager.is_zero(p_bdd));
+        assert!(!result.bdd.is_zero(p_bdd));
     }
 
     #[test]
     fn test_pointsto_assign_address() {
         let domain = PointsToDomain::new();
-        let elem = PointsToElement::new(Rc::clone(domain.manager()));
+        let elem = PointsToElement::new(Rc::clone(domain.bdd()));
 
         let x_loc = Location::Stack("x".to_string());
         let result = domain.assign_address(&elem, "p", &x_loc);
 
         let p_bdd = result.get("p");
-        assert!(!result.manager.is_zero(p_bdd));
+        assert!(!result.bdd.is_zero(p_bdd));
     }
 
     #[test]
     fn test_pointsto_assign_copy() {
         let domain = PointsToDomain::new();
-        let mut elem = PointsToElement::new(Rc::clone(domain.manager()));
+        let mut elem = PointsToElement::new(Rc::clone(domain.bdd()));
 
         let x_loc = Location::Stack("x".to_string());
         elem = domain.assign_address(&elem, "p", &x_loc);
@@ -1269,8 +1269,8 @@ mod tests {
         let q_bdd = elem.get("q");
 
         // Check they're equal (XOR is zero)
-        let xor = elem.manager.apply_xor(p_bdd, q_bdd);
-        assert!(elem.manager.is_zero(xor));
+        let xor = elem.bdd.apply_xor(p_bdd, q_bdd);
+        assert!(elem.bdd.is_zero(xor));
     }
 
     #[test]
@@ -1281,7 +1281,7 @@ mod tests {
         let y_loc = Location::Stack("y".to_string());
 
         // Start with non-bottom elements
-        let init = PointsToElement::new(Rc::clone(domain.manager()));
+        let init = PointsToElement::new(Rc::clone(domain.bdd()));
         let elem1 = domain.assign_address(&init, "p", &x_loc);
         let elem2 = domain.assign_address(&init, "p", &y_loc);
 
@@ -1289,7 +1289,7 @@ mod tests {
 
         // p should point to {x, y}
         let p_bdd = joined.get("p");
-        assert!(!joined.manager.is_zero(p_bdd));
+        assert!(!joined.bdd.is_zero(p_bdd));
     }
 
     #[test]
@@ -1300,7 +1300,7 @@ mod tests {
         let y_loc = Location::Stack("y".to_string());
 
         // Start with non-bottom elements
-        let init = PointsToElement::new(Rc::clone(domain.manager()));
+        let init = PointsToElement::new(Rc::clone(domain.bdd()));
         let elem1 = domain.assign_address(&init, "p", &x_loc);
         let elem2 = domain.assign_address(&init, "p", &y_loc);
 
@@ -1315,24 +1315,24 @@ mod tests {
         // So the meet should NOT be empty. Let's check it's not zero.
         let p_bdd = met.get("p");
         // The BDD v1 ∧ v2 is not zero
-        assert!(!met.manager.is_zero(p_bdd));
+        assert!(!met.bdd.is_zero(p_bdd));
 
         // Better test: meet with disjoint variables should give intersection
         // elem1: p -> {x}, q -> {}
         // elem2: p -> {}, q -> {y}
         // meet: p -> {}, q -> {}
-        let mut elem3 = PointsToElement::new(Rc::clone(domain.manager()));
+        let mut elem3 = PointsToElement::new(Rc::clone(domain.bdd()));
         elem3.set("q".to_string(), domain.encode_location(&x_loc));
 
-        let mut elem4 = PointsToElement::new(Rc::clone(domain.manager()));
+        let mut elem4 = PointsToElement::new(Rc::clone(domain.bdd()));
         elem4.set("r".to_string(), domain.encode_location(&y_loc));
 
         let met2 = domain.meet(&elem3, &elem4);
         // elem3 has q, elem4 has r, meet should have neither with non-empty sets
         let q_bdd = met2.get("q");
         let r_bdd = met2.get("r");
-        assert!(met2.manager.is_zero(q_bdd)); // elem4 doesn't have q
-        assert!(met2.manager.is_zero(r_bdd)); // elem3 doesn't have r
+        assert!(met2.bdd.is_zero(q_bdd)); // elem4 doesn't have q
+        assert!(met2.bdd.is_zero(r_bdd)); // elem3 doesn't have r
     }
 
     #[test]
@@ -1340,12 +1340,12 @@ mod tests {
         let domain = PointsToDomain::new();
 
         let x_loc = Location::Stack("x".to_string());
-        let init = PointsToElement::new(Rc::clone(domain.manager()));
+        let init = PointsToElement::new(Rc::clone(domain.bdd()));
         let elem1 = domain.assign_address(&init, "p", &x_loc);
 
         // elem1: p -> {x}
         // elem2: p -> {} (empty points-to set for p)
-        let elem2 = PointsToElement::new(Rc::clone(domain.manager()));
+        let elem2 = PointsToElement::new(Rc::clone(domain.bdd()));
 
         // elem2 (empty) should be <= elem1 (has x)
         assert!(domain.le(&elem2, &elem1));
@@ -1364,7 +1364,7 @@ mod tests {
         let y_loc = Location::Stack("y".to_string());
         let null_loc = Location::Null;
 
-        let init = PointsToElement::new(Rc::clone(domain.manager()));
+        let init = PointsToElement::new(Rc::clone(domain.bdd()));
         let bottom = domain.bottom();
 
         // Create various sample elements
@@ -1392,7 +1392,7 @@ mod tests {
     #[test]
     fn test_pointsto_basic_assignment() {
         let domain = PointsToDomain::new();
-        let mut elem = PointsToElement::new(Rc::clone(domain.manager()));
+        let mut elem = PointsToElement::new(Rc::clone(domain.bdd()));
 
         // p = &x
         let x_loc = Location::Stack("x".to_string());
@@ -1419,7 +1419,7 @@ mod tests {
     #[test]
     fn test_pointsto_pointer_copy() {
         let domain = PointsToDomain::new();
-        let mut elem = PointsToElement::new(Rc::clone(domain.manager()));
+        let mut elem = PointsToElement::new(Rc::clone(domain.bdd()));
 
         // p = &x
         let x_loc = Location::Stack("x".to_string());
@@ -1441,7 +1441,7 @@ mod tests {
     #[test]
     fn test_pointsto_join_merge() {
         let domain = PointsToDomain::new();
-        let init = PointsToElement::new(Rc::clone(domain.manager()));
+        let init = PointsToElement::new(Rc::clone(domain.bdd()));
 
         let x_loc = Location::Stack("x".to_string());
         let y_loc = Location::Stack("y".to_string());
@@ -1465,7 +1465,7 @@ mod tests {
     #[test]
     fn test_pointsto_alias_detection() {
         let domain = PointsToDomain::new();
-        let mut elem = PointsToElement::new(Rc::clone(domain.manager()));
+        let mut elem = PointsToElement::new(Rc::clone(domain.bdd()));
 
         let x_loc = Location::Stack("x".to_string());
         let y_loc = Location::Stack("y".to_string());
@@ -1495,7 +1495,7 @@ mod tests {
     #[test]
     fn test_pointsto_heap_allocation() {
         let domain = PointsToDomain::new();
-        let mut elem = PointsToElement::new(Rc::clone(domain.manager()));
+        let mut elem = PointsToElement::new(Rc::clone(domain.bdd()));
 
         // p = malloc() - site 1
         elem = domain.assign_alloc(&elem, "p", 1);
@@ -1519,7 +1519,7 @@ mod tests {
     #[test]
     fn test_pointsto_null_handling() {
         let domain = PointsToDomain::new();
-        let mut elem = PointsToElement::new(Rc::clone(domain.manager()));
+        let mut elem = PointsToElement::new(Rc::clone(domain.bdd()));
 
         // p = NULL
         elem = domain.assign_null(&elem, "p");
