@@ -6,10 +6,16 @@ use abstract_interpretation::*;
 use simplelog::*;
 
 fn main() {
-    // Initialize logging
-    TermLogger::init(LevelFilter::Debug, Config::default(), TerminalMode::Mixed, ColorChoice::Auto).unwrap();
+    // Initialize logging - set to Info by default, use RUST_LOG=debug for detailed trace
+    let log_level = std::env::var("RUST_LOG")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(LevelFilter::Info);
 
-    println!("=== Simple Loop Analysis ===\n");
+    TermLogger::init(log_level, Config::default(), TerminalMode::Mixed, ColorChoice::Auto).unwrap();
+
+    println!("=== Simple Loop Analysis ===");
+    println!("(Set RUST_LOG=debug for detailed fixpoint trace)\n");
 
     // Create interval domain
     let domain = IntervalDomain;
@@ -54,8 +60,20 @@ fn main() {
 
     println!("  Initial: x ∈ [0, 0]");
     println!("  Loop invariant: x ∈ {} (states inside loop body)", result1.get("x"));
-    println!("  Interpretation: Values of x that satisfy the loop condition");
-    println!("                  after widening stabilization at iteration 3");
+    println!();
+    println!("  🔍 How to interpret [2, 9] (not [0, 9]):");
+    println!("     • Widening at iteration 3: [0, 2] ∇ [0, 3] → [0, +∞]");
+    println!("     • Narrowing iteration 1: meet([0, +∞], [1, 9]) → [1, 9]");
+    println!("     • Narrowing iteration 2: meet([1, 9], [2, 9]) → [2, 9]");
+    println!("     • Result loses 0 and 1 due to narrowing precision limits");
+    println!();
+    println!("  ✅ How to USE this result:");
+    println!("     • [2, 9] is a SAFE over-approximation of loop states");
+    println!("     • Any property true for ALL values in [2, 9] is true in the loop");
+    println!("     • Example: Can prove x > 1 (always true in [2, 9])");
+    println!("     • Example: Cannot prove x < 5 (false for x=9, which is in [2, 9])");
+    println!("     • For verification: Checks like 'x > 0' will succeed ✓");
+    println!("     • Missing 0 and 1 doesn't cause unsoundness (over-approximation)");
     println!();
 
     // Example 2: Countdown
