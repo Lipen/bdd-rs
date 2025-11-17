@@ -5,9 +5,7 @@
 
 use std::rc::Rc;
 
-use abstract_interpretation::{
-    AbstractDomain, Location, PointsToDomain, PointsToElement,
-};
+use abstract_interpretation::{AbstractDomain, Location, PointsToDomain, PointsToElement};
 
 fn main() {
     println!("=== Points-to Analysis Examples ===\n");
@@ -177,9 +175,18 @@ fn example_4_alias_detection() {
     println!("  r points-to: {}", format_points_to(&domain, &elem, "r"));
     println!();
     println!("  May-alias(p, q): {} (both can point to x)", elem.may_alias(&domain, "p", "q"));
-    println!("  Must-alias(p, q): {} (both always point to x)", elem.must_alias(&domain, "p", "q"));
-    println!("  May-alias(p, r): {} (point to different locations)", elem.may_alias(&domain, "p", "r"));
-    println!("  Must-alias(p, r): {} (point to different locations)", elem.must_alias(&domain, "p", "r"));
+    println!(
+        "  Must-alias(p, q): {} (both always point to x)",
+        elem.must_alias(&domain, "p", "q")
+    );
+    println!(
+        "  May-alias(p, r): {} (point to different locations)",
+        elem.may_alias(&domain, "p", "r")
+    );
+    println!(
+        "  Must-alias(p, r): {} (point to different locations)",
+        elem.must_alias(&domain, "p", "r")
+    );
     println!();
 }
 

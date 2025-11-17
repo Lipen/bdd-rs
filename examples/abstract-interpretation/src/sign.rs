@@ -1143,8 +1143,6 @@ mod tests {
         assert_eq!(result.get("y"), Sign::Neg); // y unchanged
     }
 
-
-
     #[test]
     fn test_sign_square_always_nonneg() {
         // Based on sign_analysis.rs Example 2
@@ -1154,28 +1152,19 @@ mod tests {
         elem.set("x".to_string(), Sign::Top);
 
         // x * x should always be non-negative
-        let expr = NumExpr::Mul(
-            Box::new(NumExpr::Var("x".to_string())),
-            Box::new(NumExpr::Var("x".to_string())),
-        );
+        let expr = NumExpr::Mul(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Var("x".to_string())));
 
         let result = domain.assign(&elem, &"temp".to_string(), &expr);
         assert_eq!(result.get("temp"), Sign::NonNeg);
 
         // Test with different signs
         elem.set("y".to_string(), Sign::Neg);
-        let expr = NumExpr::Mul(
-            Box::new(NumExpr::Var("y".to_string())),
-            Box::new(NumExpr::Var("y".to_string())),
-        );
+        let expr = NumExpr::Mul(Box::new(NumExpr::Var("y".to_string())), Box::new(NumExpr::Var("y".to_string())));
         let result = domain.assign(&elem, &"temp".to_string(), &expr);
         assert_eq!(result.get("temp"), Sign::NonNeg);
 
         elem.set("z".to_string(), Sign::Pos);
-        let expr = NumExpr::Mul(
-            Box::new(NumExpr::Var("z".to_string())),
-            Box::new(NumExpr::Var("z".to_string())),
-        );
+        let expr = NumExpr::Mul(Box::new(NumExpr::Var("z".to_string())), Box::new(NumExpr::Var("z".to_string())));
         let result = domain.assign(&elem, &"temp".to_string(), &expr);
         assert_eq!(result.get("temp"), Sign::NonNeg);
     }
@@ -1210,10 +1199,7 @@ mod tests {
         assert_eq!(elem.get("i"), Sign::Zero);
 
         // i = i + 1 (first iteration: 0 + 1 = 1, which is Pos)
-        let expr = NumExpr::Add(
-            Box::new(NumExpr::Var("i".to_string())),
-            Box::new(NumExpr::Const(1)),
-        );
+        let expr = NumExpr::Add(Box::new(NumExpr::Var("i".to_string())), Box::new(NumExpr::Const(1)));
         elem = domain.assign(&elem, &"i".to_string(), &expr);
         assert_eq!(elem.get("i"), Sign::Pos);
 

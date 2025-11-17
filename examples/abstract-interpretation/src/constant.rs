@@ -525,26 +525,17 @@ mod tests {
         elem.set("y".to_string(), ConstValue::Const(3));
 
         // z = x + y = 8
-        let expr = NumExpr::Add(
-            Box::new(NumExpr::Var("x".to_string())),
-            Box::new(NumExpr::Var("y".to_string())),
-        );
+        let expr = NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Var("y".to_string())));
         elem = domain.assign(&elem, &"z".to_string(), &expr);
         assert_eq!(elem.get("z"), ConstValue::Const(8));
 
         // w = z * 2 = 16
-        let expr = NumExpr::Mul(
-            Box::new(NumExpr::Var("z".to_string())),
-            Box::new(NumExpr::Const(2)),
-        );
+        let expr = NumExpr::Mul(Box::new(NumExpr::Var("z".to_string())), Box::new(NumExpr::Const(2)));
         elem = domain.assign(&elem, &"w".to_string(), &expr);
         assert_eq!(elem.get("w"), ConstValue::Const(16));
 
         // result = w - 4 = 12
-        let expr = NumExpr::Sub(
-            Box::new(NumExpr::Var("w".to_string())),
-            Box::new(NumExpr::Const(4)),
-        );
+        let expr = NumExpr::Sub(Box::new(NumExpr::Var("w".to_string())), Box::new(NumExpr::Const(4)));
         elem = domain.assign(&elem, &"result".to_string(), &expr);
         assert_eq!(elem.get("result"), ConstValue::Const(12));
     }
