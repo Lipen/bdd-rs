@@ -1679,6 +1679,278 @@ impl Bdd {
         size
     }
 
+    /// Performs existential quantification over a set of variables.
+    ///
+    /// Returns a new BDD where all occurrences of the specified variables are existentially
+    /// quantified out. This is equivalent to the disjunction over all possible assignments
+    /// to those variables:
+    ///
+    /// `∃x.f = f|x=0 ∨ f|x=1`
+    ///
+    /// For multiple variables:
+    /// `∃{x₁,...,xₙ}.f = ⋁ f|x₁=b₁,...,xₙ=bₙ`
+    ///
+    /// This operation is fundamental for many symbolic algorithms, including:
+    /// - Computing image/preimage in model checking
+    /// - Relational product computation
+    /// - Variable elimination in quantified Boolean formulas
+    ///
+    /// # Implementation
+    ///
+    /// This is a one-pass efficient implementation that performs quantification during
+    /// a single recursive traversal, rather than computing two cofactors and ORing them.
+    /// Variables are eliminated as soon as they are encountered in the BDD.
+    ///
+    /// # Parameters
+    ///
+    /// * `f` - The BDD to quantify
+    /// * `vars` - A slice of variable indices to existentially quantify out
+    ///
+    /// # Returns
+    ///
+    /// A BDD representing `∃vars.f`
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// // f = x AND y
+    /// let f = bdd.apply_and(x, y);
+    ///
+    /// // Quantify out x: ∃x.(x ∧ y) = y
+    /// let result = bdd.exists(f, &[1]);
+    /// assert_eq!(result, y);
+    ///
+    /// // Quantify out both: ∃x,y.(x ∧ y) = true
+    /// let result = bdd.exists(f, &[1, 2]);
+    /// assert_eq!(result, bdd.one);
+    /// ```
+    ///
+    /// # Performance
+    ///
+    /// The method uses internal caching to avoid recomputation. For best performance,
+    /// the variable list should be sorted, though this is not required for correctness.
+    pub fn exists(&self, f: Ref, vars: &[u32]) -> Ref {
+        if vars.is_empty() {
+            return f;
+        }
+        let mut vars_sorted = vars.to_vec();
+        vars_sorted.sort_unstable();
+        let mut cache = Cache::new(16);
+        self.exists_(f, &vars_sorted, 0, &mut cache)
+    }
+
+    fn exists_(&self, node: Ref, vars: &[u32], var_idx: usize, cache: &mut Cache<(Ref, usize), Ref>) -> Ref {
+        debug!("exists(node = {}, vars = {:?}, var_idx = {})", node, vars, var_idx);
+
+        if self.is_terminal(node) {
+            return node;
+        }
+
+        // If we've exhausted all variables to quantify, return the node
+        if var_idx >= vars.len() {
+            return node;
+        }
+
+        let key = (node, var_idx);
+        if let Some(&res) = cache.get(&key) {
+            debug!("cache: exists({:?}) -> {}", key, res);
+            return res;
+        }
+
+        let v = self.variable(node.index());
+        let current_var = vars[var_idx];
+
+        let res = if v < current_var {
+            // Node's variable is less than the current quantification variable
+            // Recurse on both children
+            let low = self.low_node(node);
+            let high = self.high_node(node);
+            let r0 = self.exists_(low, vars, var_idx, cache);
+            let r1 = self.exists_(high, vars, var_idx, cache);
+            self.mk_node(v, r0, r1)
+        } else if v == current_var {
+            // Found the variable to quantify out
+            // Compute f|v=0 ∨ f|v=1
+            let low = self.low_node(node);
+            let high = self.high_node(node);
+            let r0 = self.exists_(low, vars, var_idx + 1, cache);
+            let r1 = self.exists_(high, vars, var_idx + 1, cache);
+            self.apply_or(r0, r1)
+        } else {
+            // v > current_var: the quantification variable doesn't appear in this subtree
+            // Skip to the next quantification variable
+            self.exists_(node, vars, var_idx + 1, cache)
+        };
+
+        cache.insert(key, res);
+        debug!("computed: exists({:?}) -> {}", key, res);
+        res
+    }
+
+    /// Performs universal quantification over a set of variables.
+    ///
+    /// Returns a new BDD where all occurrences of the specified variables are universally
+    /// quantified out. This is equivalent to the conjunction over all possible assignments
+    /// to those variables:
+    ///
+    /// `∀x.f = f|x=0 ∧ f|x=1`
+    ///
+    /// For multiple variables:
+    /// `∀{x₁,...,xₙ}.f = ⋀ f|x₁=b₁,...,xₙ=bₙ`
+    ///
+    /// Universal quantification can be expressed in terms of existential quantification:
+    /// `∀x.f = ¬∃x.¬f`
+    ///
+    /// # Parameters
+    ///
+    /// * `f` - The BDD to quantify
+    /// * `vars` - A slice of variable indices to universally quantify out
+    ///
+    /// # Returns
+    ///
+    /// A BDD representing `∀vars.f`
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// // f = x OR y
+    /// let f = bdd.apply_or(x, y);
+    ///
+    /// // Quantify out x: ∀x.(x ∨ y) = y
+    /// let result = bdd.forall(f, &[1]);
+    /// assert_eq!(result, y);
+    ///
+    /// // Quantify out both: ∀x,y.(x ∨ y) = false
+    /// let result = bdd.forall(f, &[1, 2]);
+    /// assert_eq!(result, bdd.zero);
+    /// ```
+    pub fn forall(&self, f: Ref, vars: &[u32]) -> Ref {
+        // ∀x.f = ¬∃x.¬f
+        -self.exists(-f, vars)
+    }
+
+    /// Computes the relational product of two BDDs with existential quantification.
+    ///
+    /// The relational product combines conjunction and existential quantification in one
+    /// efficient operation:
+    ///
+    /// `relProduct(u, v, vars) = ∃vars.(u ∧ v)`
+    ///
+    /// This is more efficient than computing `exists(apply_and(u, v), vars)` because
+    /// quantification is performed during the conjunction operation, potentially producing
+    /// a much smaller intermediate result.
+    ///
+    /// # Applications
+    ///
+    /// Relational product is fundamental in symbolic model checking and other applications:
+    /// - **Image computation**: Computing successor states in state transition systems
+    /// - **Reachability analysis**: Finding all reachable states
+    /// - **Relational composition**: Composing two relations
+    ///
+    /// # Parameters
+    ///
+    /// * `u` - First BDD operand
+    /// * `v` - Second BDD operand
+    /// * `vars` - Variables to existentially quantify out
+    ///
+    /// # Returns
+    ///
+    /// A BDD representing `∃vars.(u ∧ v)`
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let z = bdd.mk_var(3);
+    ///
+    /// // Relation 1: x implies y
+    /// let r1 = bdd.apply_imply(x, y);
+    /// // Relation 2: y implies z
+    /// let r2 = bdd.apply_imply(y, z);
+    ///
+    /// // Compose relations by eliminating the intermediate variable y
+    /// // Result: x implies z
+    /// let composed = bdd.rel_product(r1, r2, &[2]);
+    /// let expected = bdd.apply_imply(x, z);
+    /// assert_eq!(composed, expected);
+    /// ```
+    ///
+    /// # Performance
+    ///
+    /// This operation is significantly more efficient than computing the AND first and
+    /// then quantifying, especially when the intermediate result would be large.
+    pub fn rel_product(&self, u: Ref, v: Ref, vars: &[u32]) -> Ref {
+        if vars.is_empty() {
+            return self.apply_and(u, v);
+        }
+        let mut vars_sorted = vars.to_vec();
+        vars_sorted.sort_unstable();
+        let mut cache = Cache::new(16);
+        self.rel_product_(u, v, &vars_sorted, 0, &mut cache)
+    }
+
+    fn rel_product_(&self, u: Ref, v: Ref, vars: &[u32], var_idx: usize, cache: &mut Cache<(Ref, Ref, usize), Ref>) -> Ref {
+        debug!("rel_product(u = {}, v = {}, vars = {:?}, var_idx = {})", u, v, vars, var_idx);
+
+        // Terminal cases
+        if self.is_zero(u) || self.is_zero(v) {
+            return self.zero;
+        }
+        if self.is_one(u) && self.is_one(v) {
+            return self.one;
+        }
+        if self.is_one(u) {
+            return self.exists_(v, vars, var_idx, &mut Cache::new(16));
+        }
+        if self.is_one(v) {
+            return self.exists_(u, vars, var_idx, &mut Cache::new(16));
+        }
+
+        let key = (u, v, var_idx);
+        if let Some(&res) = cache.get(&key) {
+            debug!("cache: rel_product({:?}) -> {}", key, res);
+            return res;
+        }
+
+        let i = self.variable(u.index());
+        let j = self.variable(v.index());
+        let m = min(i, j);
+
+        let (u0, u1) = self.top_cofactors(u, m);
+        let (v0, v1) = self.top_cofactors(v, m);
+
+        let h0 = self.rel_product_(u0, v0, vars, var_idx, cache);
+        let h1 = self.rel_product_(u1, v1, vars, var_idx, cache);
+
+        let res = if var_idx < vars.len() && m == vars[var_idx] {
+            // This variable should be quantified out
+            self.apply_or(h0, h1)
+        } else {
+            // Keep this variable
+            self.mk_node(m, h0, h1)
+        };
+
+        cache.insert(key, res);
+        debug!("computed: rel_product({:?}) -> {}", key, res);
+        res
+    }
+
     /// Performs garbage collection to reclaim unused BDD nodes.
     ///
     /// This removes all nodes that are not reachable from the provided roots.
@@ -2613,4 +2885,291 @@ mod tests {
         println!("f = ~x1 ∨ (~x2 ∧ x3) = {}", bdd.to_bracket_string(f));
         assert_eq!(bdd.to_bracket_string(f), "~@6:(x1, @5:(x2, ⊤, ~@4:(x3, ⊤, ⊥)), ⊥)");
     }
+
+    #[test]
+    fn test_exists_single() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+
+        // f = x1 ∧ x2
+        let f = bdd.apply_and(x1, x2);
+        println!("f = x1 ∧ x2 = {}", bdd.to_bracket_string(f));
+
+        // ∃x1.(x1 ∧ x2) = x2
+        let result = bdd.exists(f, &[1]);
+        println!("∃x1.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, x2);
+
+        // ∃x2.(x1 ∧ x2) = x1
+        let result = bdd.exists(f, &[2]);
+        println!("∃x2.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, x1);
+    }
+
+    #[test]
+    fn test_exists_multiple() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+
+        // f = x1 ∧ x2 ∧ x3
+        let f = bdd.apply_and(bdd.apply_and(x1, x2), x3);
+        println!("f = x1 ∧ x2 ∧ x3 = {}", bdd.to_bracket_string(f));
+
+        // ∃x1,x3.(x1 ∧ x2 ∧ x3) = x2
+        let result = bdd.exists(f, &[1, 3]);
+        println!("∃x1,x3.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, x2);
+
+        // ∃x1,x2,x3.(x1 ∧ x2 ∧ x3) = 1
+        let result = bdd.exists(f, &[1, 2, 3]);
+        println!("∃x1,x2,x3.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, bdd.one);
+    }
+
+    #[test]
+    fn test_exists_or() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+
+        // f = x1 ∨ x2
+        let f = bdd.apply_or(x1, x2);
+        println!("f = x1 ∨ x2 = {}", bdd.to_bracket_string(f));
+
+        // ∃x1.(x1 ∨ x2) = 1
+        let result = bdd.exists(f, &[1]);
+        println!("∃x1.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, bdd.one);
+
+        // ∃x2.(x1 ∨ x2) = 1
+        let result = bdd.exists(f, &[2]);
+        println!("∃x2.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, bdd.one);
+    }
+
+    #[test]
+    fn test_exists_complex() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+
+        // f = (x1 ∧ x2) ∨ (¬x1 ∧ x3)
+        let c1 = bdd.apply_and(x1, x2);
+        let c2 = bdd.apply_and(-x1, x3);
+        let f = bdd.apply_or(c1, c2);
+        println!("f = (x1 ∧ x2) ∨ (¬x1 ∧ x3) = {}", bdd.to_bracket_string(f));
+
+        // ∃x1.f = x2 ∨ x3
+        let result = bdd.exists(f, &[1]);
+        let expected = bdd.apply_or(x2, x3);
+        println!("∃x1.f = {}", bdd.to_bracket_string(result));
+        println!("expected = {}", bdd.to_bracket_string(expected));
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_exists_empty_vars() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let f = bdd.apply_and(x1, x2);
+
+        // Quantifying no variables should return the same formula
+        let result = bdd.exists(f, &[]);
+        assert_eq!(result, f);
+    }
+
+    #[test]
+    fn test_exists_independent_vars() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+
+        // f = x1 ∧ x2 (doesn't depend on x3, x4, x5)
+        let f = bdd.apply_and(x1, x2);
+        println!("f = x1 ∧ x2 = {}", bdd.to_bracket_string(f));
+
+        // Quantify out x3 (which doesn't appear): should return the same formula
+        let result = bdd.exists(f, &[3]);
+        println!("∃x3.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, f, "Quantifying independent variable should return same BDD");
+
+        // Quantify out x3, x4, x5 (none appear): should return the same formula
+        let result = bdd.exists(f, &[3, 4, 5]);
+        println!("∃x3,x4,x5.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, f, "Quantifying multiple independent variables should return same BDD");
+
+        // Mix of dependent and independent variables
+        // Quantify out x1, x3: ∃x1,x3.(x1 ∧ x2) = x2
+        let result = bdd.exists(f, &[1, 3]);
+        println!("∃x1,x3.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, x2, "Should correctly handle mix of dependent and independent variables");
+
+        // Independent variables before dependent ones
+        // Quantify out x3, x1, x5, x2 (x3,x5 don't appear)
+        let result = bdd.exists(f, &[3, 1, 5, 2]);
+        println!("∃x3,x1,x5,x2.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, bdd.one, "Should handle unsorted mix correctly");
+    }
+
+    #[test]
+    fn test_forall_single() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+
+        // f = x1 ∨ x2
+        let f = bdd.apply_or(x1, x2);
+        println!("f = x1 ∨ x2 = {}", bdd.to_bracket_string(f));
+
+        // ∀x1.(x1 ∨ x2) = x2
+        let result = bdd.forall(f, &[1]);
+        println!("∀x1.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, x2);
+
+        // ∀x2.(x1 ∨ x2) = x1
+        let result = bdd.forall(f, &[2]);
+        println!("∀x2.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, x1);
+    }
+
+    #[test]
+    fn test_forall_multiple() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+
+        // f = x1 ∨ x2 ∨ x3
+        let f = bdd.apply_or(bdd.apply_or(x1, x2), x3);
+        println!("f = x1 ∨ x2 ∨ x3 = {}", bdd.to_bracket_string(f));
+
+        // ∀x1,x3.(x1 ∨ x2 ∨ x3) = x2
+        let result = bdd.forall(f, &[1, 3]);
+        println!("∀x1,x3.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, x2);
+
+        // ∀x1,x2,x3.(x1 ∨ x2 ∨ x3) = 0
+        let result = bdd.forall(f, &[1, 2, 3]);
+        println!("∀x1,x2,x3.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, bdd.zero);
+    }
+
+    #[test]
+    fn test_forall_and() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+
+        // f = x1 ∧ x2
+        let f = bdd.apply_and(x1, x2);
+        println!("f = x1 ∧ x2 = {}", bdd.to_bracket_string(f));
+
+        // ∀x1.(x1 ∧ x2) = 0
+        let result = bdd.forall(f, &[1]);
+        println!("∀x1.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, bdd.zero);
+
+        // ∀x2.(x1 ∧ x2) = 0
+        let result = bdd.forall(f, &[2]);
+        println!("∀x2.f = {}", bdd.to_bracket_string(result));
+        assert_eq!(result, bdd.zero);
+    }
+
+    #[test]
+    fn test_rel_product_simple() {
+        let bdd = Bdd::default();
+
+        let x = bdd.mk_var(1);
+        let y = bdd.mk_var(2);
+        let z = bdd.mk_var(3);
+
+        // r1: x → y  (x implies y)
+        let r1 = bdd.apply_imply(x, y);
+        println!("r1 = x → y = {}", bdd.to_bracket_string(r1));
+
+        // r2: y → z  (y implies z)
+        let r2 = bdd.apply_imply(y, z);
+        println!("r2 = y → z = {}", bdd.to_bracket_string(r2));
+
+        // Compose: eliminate y to get x → z
+        let result = bdd.rel_product(r1, r2, &[2]);
+        println!("∃y.(r1 ∧ r2) = {}", bdd.to_bracket_string(result));
+
+        let expected = bdd.apply_imply(x, z);
+        println!("expected = x → z = {}", bdd.to_bracket_string(expected));
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_rel_product_vs_exists() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+
+        let f = bdd.apply_and(x1, x2);
+        let g = bdd.apply_or(x2, x3);
+
+        // Using rel_product
+        let result1 = bdd.rel_product(f, g, &[2]);
+        println!("rel_product(f, g, [2]) = {}", bdd.to_bracket_string(result1));
+
+        // Using exists(and(...))
+        let result2 = bdd.exists(bdd.apply_and(f, g), &[2]);
+        println!("exists(f ∧ g, [2]) = {}", bdd.to_bracket_string(result2));
+
+        // They should be equal
+        assert_eq!(result1, result2);
+    }
+
+    #[test]
+    fn test_rel_product_empty_vars() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+
+        let f = bdd.apply_and(x1, x2);
+        let g = bdd.mk_var(3);
+
+        // Relational product with no variables to eliminate is just AND
+        let result = bdd.rel_product(f, g, &[]);
+        let expected = bdd.apply_and(f, g);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_rel_product_terminals() {
+        let bdd = Bdd::default();
+
+        let x = bdd.mk_var(1);
+
+        // rel_product with zero should be zero
+        let result = bdd.rel_product(bdd.zero, x, &[1]);
+        assert_eq!(result, bdd.zero);
+
+        let result = bdd.rel_product(x, bdd.zero, &[1]);
+        assert_eq!(result, bdd.zero);
+
+        // rel_product(1, 1, []) = 1
+        let result = bdd.rel_product(bdd.one, bdd.one, &[]);
+        assert_eq!(result, bdd.one);
+    }
 }
+
+

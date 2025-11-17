@@ -98,6 +98,23 @@ impl MyHash for (Ref, Ref, Ref) {
     }
 }
 
+impl MyHash for (Ref, usize) {
+    fn hash(&self) -> u64 {
+        let x = MyHash::hash(&self.0);
+        let y = self.1 as u64;
+        MyHash::hash(&(x, y))
+    }
+}
+
+impl MyHash for (Ref, Ref, usize) {
+    fn hash(&self) -> u64 {
+        let x = MyHash::hash(&self.0);
+        let y = MyHash::hash(&self.1);
+        let z = self.2 as u64;
+        MyHash::hash(&(x, y, z))
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum OpKey {
     Ite(Ref, Ref, Ref),
