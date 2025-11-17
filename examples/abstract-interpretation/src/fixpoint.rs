@@ -34,12 +34,19 @@ impl<D: AbstractDomain> FixpointEngine<D> {
         let mut x = init.clone();
         let mut iterations = 0;
 
+        log::debug!("Starting fixpoint computation");
+        log::debug!("  Initial: {:?}", init);
+
         loop {
             let fx = f(&x);
+            log::debug!("  Iteration {}: f(x) = {:?}", iterations + 1, fx);
+
             let next = self.domain.join(&init, &fx);
+            log::debug!("  Iteration {}: join(init, f(x)) = {:?}", iterations + 1, next);
 
             if self.domain.le(&next, &x) {
                 // Fixpoint reached
+                log::debug!("  Fixpoint reached: next ⊑ x");
                 break;
             }
 
@@ -47,8 +54,11 @@ impl<D: AbstractDomain> FixpointEngine<D> {
 
             if iterations >= self.widening_threshold {
                 // Apply widening
-                x = self.domain.widen(&x, &next);
+                let widened = self.domain.widen(&x, &next);
+                log::debug!("  Iteration {}: widening x ∇ next = {:?}", iterations, widened);
+                x = widened;
             } else {
+                log::debug!("  Iteration {}: x := next", iterations);
                 x = next;
             }
 
@@ -59,10 +69,11 @@ impl<D: AbstractDomain> FixpointEngine<D> {
             }
         }
 
-        log::debug!("Fixpoint converged after {} iterations", iterations);
+        log::debug!("Fixpoint converged after {} iterations: {:?}", iterations, x);
 
         // Optional: narrowing phase for precision
         if self.narrowing_iterations > 0 {
+            log::debug!("Starting narrowing phase");
             self.narrow(x, f)
         } else {
             x
@@ -76,16 +87,20 @@ impl<D: AbstractDomain> FixpointEngine<D> {
     {
         for i in 0..self.narrowing_iterations {
             let fx = f(&x);
+            log::debug!("  Narrowing {}: f(x) = {:?}", i + 1, fx);
+
             let next = self.domain.narrow(&x, &fx);
+            log::debug!("  Narrowing {}: narrow(x, f(x)) = {:?}", i + 1, next);
 
             if self.domain.le(&x, &next) {
-                log::debug!("Narrowing converged after {} iterations", i + 1);
+                log::debug!("  Narrowing converged after {} iterations", i + 1);
                 break;
             }
 
             x = next;
         }
 
+        log::debug!("Narrowing complete: {:?}", x);
         x
     }
 
