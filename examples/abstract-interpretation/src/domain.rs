@@ -51,12 +51,21 @@ pub trait AbstractDomain: Clone + Debug + Sized {
     ///
     /// Returns an over-approximation that ensures termination.
     /// Must satisfy: elem1 ⊑ elem1 ∇ elem2
+    ///
+    /// **Why no default?** Widening must extrapolate (e.g., to ±∞) to force
+    /// termination on ascending chains. Using join would not guarantee this.
+    /// Each domain needs domain-specific widening logic.
     fn widen(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element;
 
     /// Narrowing (∆): refines over-approximation after widening.
     ///
     /// Returns a more precise element without losing convergence guarantees.
-    /// Default implementation uses meet.
+    /// Default implementation uses meet, which is safe and often sufficient.
+    ///
+    /// **Why meet as default?** After widening converges, narrowing refines
+    /// by intersecting with more precise approximations. Meet provides
+    /// a safe conservative default, and narrowing is limited to few iterations.
+    /// Domains can override for better precision (e.g., dual widening).
     fn narrow(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
         self.meet(elem1, elem2)
     }
