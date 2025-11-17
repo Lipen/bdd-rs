@@ -88,13 +88,14 @@ pub struct Interval {
 }
 
 impl Interval {
+    pub const EMPTY: Self = Self {
+        low: Bound::PosInf,
+        high: Bound::NegInf,
+    };
+
     pub fn new(low: Bound, high: Bound) -> Self {
         if low > high {
-            // Empty interval
-            Self {
-                low: Bound::PosInf,
-                high: Bound::NegInf,
-            }
+            Self::EMPTY
         } else {
             Self { low, high }
         }
