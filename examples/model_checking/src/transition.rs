@@ -242,16 +242,16 @@ impl TransitionSystem {
         let present_vars = self.var_manager.present_indices();
         let result_in_next = self.bdd.rel_product(from, self.transition, &present_vars);
 
-        // Swap from next-state to present-state variables
-        self.swap_next_to_present(result_in_next)
+        // Rename from next-state to present-state variables
+        self.rename_next_to_present(result_in_next)
     }
 
     /// Compute the predecessor states: `∃s'. T(s, s') ∧ to(s')`
     ///
     /// Returns the set of states that can reach `to` in one step.
     pub fn preimage(&self, to: Ref) -> Ref {
-        // Swap to(s) to to(s')
-        let to_next = self.swap_present_to_next(to);
+        // Rename to(s) to to(s')
+        let to_next = self.rename_present_to_next(to);
 
         // ∃s'. T(s, s') ∧ to(s')
         let next_vars = self.var_manager.next_indices();
@@ -272,8 +272,8 @@ impl TransitionSystem {
         }
     }
 
-    /// Swap present-state variables to next-state variables.
-    fn swap_present_to_next(&self, f: Ref) -> Ref {
+    /// Rename present-state variables to next-state variables (v → v').
+    fn rename_present_to_next(&self, f: Ref) -> Ref {
         let present_vars = self.var_manager.present_indices();
         let next_vars = self.var_manager.next_indices();
 
@@ -283,8 +283,8 @@ impl TransitionSystem {
         self.bdd.rename_vars(f, &perm)
     }
 
-    /// Swap next-state variables to present-state variables.
-    fn swap_next_to_present(&self, f: Ref) -> Ref {
+    /// Rename next-state variables to present-state variables (v' → v).
+    fn rename_next_to_present(&self, f: Ref) -> Ref {
         let present_vars = self.var_manager.present_indices();
         let next_vars = self.var_manager.next_indices();
 
