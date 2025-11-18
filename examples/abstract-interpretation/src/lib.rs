@@ -38,7 +38,7 @@
 //!     Box::new(NumExpr::Const(10))
 //! );
 //! let state = domain.assign(&state, &"y".to_string(), &expr);
-//! assert_eq!(state.get("y"), Sign::NonNeg); // Could be positive or zero
+//! assert_eq!(state.get("y"), Sign::Top); // Neg + Pos = uncertain
 //! ```
 //!
 //! ## 2. Constant Propagation Domain ([`ConstantDomain`])
@@ -113,7 +113,7 @@
 //! use std::rc::Rc;
 //!
 //! let domain = PointsToDomain::new();
-//! let mut state = PointsToElement::new(Rc::clone(domain.manager()));
+//! let mut state = PointsToElement::new(Rc::clone(domain.bdd()));
 //!
 //! // p = &x; q = &y;
 //! state = domain.assign_address(&state, "p", &Location::Stack("x".to_string()));
@@ -143,7 +143,7 @@
 //! // Array access: arr[i] where i in [0, 9]
 //! let sign_state = sign_domain.interval(&"i".to_string(), 0, 9);
 //! let interval_state = interval_domain.interval(&"i".to_string(), 0, 9);
-//! let pointsto_state = PointsToElement::new(Rc::clone(pointsto_domain.manager()));
+//! let pointsto_state = PointsToElement::new(Rc::clone(pointsto_domain.bdd()));
 //!
 //! // Sign: i is non-negative (safe from negative index)
 //! assert_eq!(sign_state.get("i"), Sign::NonNeg);
@@ -176,7 +176,7 @@
 //!
 //! // Join: x could be positive OR negative
 //! let joined = domain.join(&state1, &state2);
-//! assert_eq!(joined.get("x"), Sign::Top); // Could be any sign
+//! assert_eq!(joined.get("x"), Sign::NonZero); // Pos ⊔ Neg = NonZero
 //!
 //! // Meet: x must be both positive AND negative (impossible!)
 //! let meet = domain.meet(&state1, &state2);
