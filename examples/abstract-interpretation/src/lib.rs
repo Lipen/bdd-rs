@@ -271,6 +271,7 @@
 //!
 //! For detailed documentation, see individual module pages.
 
+pub mod bdd_control;
 pub mod constant;
 pub mod domain;
 pub mod expr;
@@ -281,9 +282,9 @@ pub mod pointsto;
 pub mod product;
 pub mod sign;
 pub mod transfer;
-pub mod bdd_control;
 
 // Re-exports for convenience
+pub use bdd_control::{BddControlDomain, ControlState};
 pub use constant::{ConstValue, ConstantDomain, ConstantElement};
 pub use domain::AbstractDomain;
 pub use expr::{NumExpr, NumPred, Stmt};
@@ -293,5 +294,4 @@ pub use numeric::NumericDomain;
 pub use pointsto::{Location, LocationMap, PointsToDomain, PointsToElement};
 pub use product::{ProductDomain, ProductElement};
 pub use sign::{Sign, SignDomain, SignElement};
-pub use bdd_control::{BddControlDomain, ControlState};
 pub use transfer::{NumericTransferFunction, TransferFunction};

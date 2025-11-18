@@ -56,15 +56,17 @@
 //!
 //! This allows maintaining separate numeric invariants per control path.
 
-use super::domain::AbstractDomain;
-use crate::NumericDomain;
-use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+
+use bdd_rs::bdd::Bdd;
+use bdd_rs::reference::Ref;
+
+use super::domain::AbstractDomain;
+use crate::NumericDomain;
 
 /// A control state represented as a BDD over Boolean control variables.
 ///
@@ -306,8 +308,7 @@ impl BddControlDomain {
     pub fn mk_var_true(&self, var: &str) -> ControlState {
         let var_id = self.allocate_var(var);
         let bdd_ref = self.manager.mk_var(var_id);
-        ControlState::new(bdd_ref, Rc::clone(&self.manager))
-            .with_description(format!("{} = true", var))
+        ControlState::new(bdd_ref, Rc::clone(&self.manager)).with_description(format!("{} = true", var))
     }
 
     /// Create a control state where the variable is false.
@@ -326,8 +327,7 @@ impl BddControlDomain {
         let var_id = self.allocate_var(var);
         let var_bdd = self.manager.mk_var(var_id);
         let bdd_ref = self.manager.apply_not(var_bdd);
-        ControlState::new(bdd_ref, Rc::clone(&self.manager))
-            .with_description(format!("{} = false", var))
+        ControlState::new(bdd_ref, Rc::clone(&self.manager)).with_description(format!("{} = false", var))
     }
 
     /// Conjunction: φ₁ ∧ φ₂
@@ -415,8 +415,7 @@ impl AbstractDomain for BddControlDomain {
     /// assert!(!bottom.is_sat()); // No satisfying assignments
     /// ```
     fn bottom(&self) -> Self::Element {
-        ControlState::new(self.manager.zero, Rc::clone(&self.manager))
-            .with_description("⊥".to_string())
+        ControlState::new(self.manager.zero, Rc::clone(&self.manager)).with_description("⊥".to_string())
     }
 
     /// Create the top element (all paths reachable/true).
@@ -441,8 +440,7 @@ impl AbstractDomain for BddControlDomain {
     /// assert!(top.is_tautology()); // Always true
     /// ```
     fn top(&self) -> Self::Element {
-        ControlState::new(self.manager.one, Rc::clone(&self.manager))
-            .with_description("⊤".to_string())
+        ControlState::new(self.manager.one, Rc::clone(&self.manager)).with_description("⊤".to_string())
     }
 
     /// Check if an element is bottom (unreachable).
@@ -1179,8 +1177,7 @@ impl<N: NumericDomain> PartialEq for ControlSensitiveElement<N> {
         // Check all partitions match
         for (hcs, elem) in &self.partitions {
             match other.partitions.get(hcs) {
-                Some(other_elem) if self.numeric_domain.le(elem, other_elem)
-                                    && self.numeric_domain.le(other_elem, elem) => {},
+                Some(other_elem) if self.numeric_domain.le(elem, other_elem) && self.numeric_domain.le(other_elem, elem) => {}
                 _ => return false,
             }
         }
@@ -1204,9 +1201,7 @@ impl<N: NumericDomain> ControlSensitiveElement<N> {
 
     /// Iterate over (control_state, numeric_element) pairs
     pub fn iter(&self) -> impl Iterator<Item = (&ControlState, &N::Element)> {
-        self.partitions
-            .iter()
-            .map(|(hcs, elem)| (&hcs.0, elem))
+        self.partitions.iter().map(|(hcs, elem)| (&hcs.0, elem))
     }
 
     /// Get numeric element for a specific control state (if exists)
@@ -1268,11 +1263,7 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
     /// When we have `assume(condition)`, we want to split each partition into:
     /// - Partition where condition is true: control_state ∧ condition
     /// - Partition where condition is false: control_state ∧ ¬condition
-    pub fn split_on_condition(
-        &self,
-        elem: &ControlSensitiveElement<N>,
-        condition: &ControlState,
-    ) -> ControlSensitiveElement<N> {
+    pub fn split_on_condition(&self, elem: &ControlSensitiveElement<N>, condition: &ControlState) -> ControlSensitiveElement<N> {
         let mut new_partitions = HashMap::new();
 
         for (hcs, numeric_elem) in &elem.partitions {
@@ -1282,10 +1273,7 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
             let refined = self.control_domain.and(control_state, condition);
 
             if !self.control_domain.is_bottom(&refined) {
-                new_partitions.insert(
-                    HashableControlState(refined),
-                    numeric_elem.clone(),
-                );
+                new_partitions.insert(HashableControlState(refined), numeric_elem.clone());
             }
         }
 
@@ -1309,11 +1297,7 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
     /// // Split on: flag = true
     /// // After: {(flag, x ∈ [0,10]), (¬flag, x ∈ [0,10])}
     /// ```
-    pub fn split_partition(
-        &self,
-        elem: &ControlSensitiveElement<N>,
-        condition: &ControlState,
-    ) -> ControlSensitiveElement<N>
+    pub fn split_partition(&self, elem: &ControlSensitiveElement<N>, condition: &ControlState) -> ControlSensitiveElement<N>
     where
         N::Element: Clone,
     {
@@ -1326,19 +1310,13 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
             // Branch 1: φ ∧ condition
             let branch_true = self.control_domain.and(control_state, condition);
             if !self.control_domain.is_bottom(&branch_true) {
-                new_partitions.insert(
-                    HashableControlState(branch_true),
-                    numeric_elem.clone(),
-                );
+                new_partitions.insert(HashableControlState(branch_true), numeric_elem.clone());
             }
 
             // Branch 2: φ ∧ ¬condition
             let branch_false = self.control_domain.and(control_state, &neg_condition);
             if !self.control_domain.is_bottom(&branch_false) {
-                new_partitions.insert(
-                    HashableControlState(branch_false),
-                    numeric_elem.clone(),
-                );
+                new_partitions.insert(HashableControlState(branch_false), numeric_elem.clone());
             }
         }
 
@@ -1409,8 +1387,7 @@ impl<N: NumericDomain> AbstractDomain for ControlSensitiveProduct<N> {
         }
 
         if let Some((control_state, numeric_elem)) = elem.partitions.iter().next() {
-            self.control_domain.is_top(&control_state.0)
-                && self.numeric_domain.is_top(numeric_elem)
+            self.control_domain.is_top(&control_state.0) && self.numeric_domain.is_top(numeric_elem)
         } else {
             false
         }
@@ -1441,8 +1418,7 @@ impl<N: NumericDomain> AbstractDomain for ControlSensitiveProduct<N> {
                 let control2 = &hcs2.0;
 
                 // Check if control1 ⊑ control2 and numeric1 ⊑ numeric2
-                if self.control_domain.le(control1, control2)
-                    && self.numeric_domain.le(numeric1, numeric2) {
+                if self.control_domain.le(control1, control2) && self.numeric_domain.le(numeric1, numeric2) {
                     covered = true;
                     break;
                 }
@@ -1515,10 +1491,7 @@ impl<N: NumericDomain> AbstractDomain for ControlSensitiveProduct<N> {
 
                     // Only add if numeric state is feasible
                     if !self.numeric_domain.is_bottom(&numeric_meet) {
-                        new_partitions.insert(
-                            HashableControlState(control_meet),
-                            numeric_meet,
-                        );
+                        new_partitions.insert(HashableControlState(control_meet), numeric_meet);
                     }
                 }
             }
@@ -1557,9 +1530,7 @@ impl<N: NumericDomain> AbstractDomain for ControlSensitiveProduct<N> {
 
         // Add new partitions from elem2
         for (hcs2, numeric2) in &elem2.partitions {
-            new_partitions
-                .entry(hcs2.clone())
-                .or_insert_with(|| numeric2.clone());
+            new_partitions.entry(hcs2.clone()).or_insert_with(|| numeric2.clone());
         }
 
         ControlSensitiveElement {
@@ -1620,11 +1591,7 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
     /// ```
     ///
     /// Infeasible partitions (where assume returns bottom) are removed.
-    pub fn assume_all(
-        &self,
-        elem: &ControlSensitiveElement<N>,
-        pred: &crate::expr::NumPred<N::Var, N::Value>,
-    ) -> ControlSensitiveElement<N>
+    pub fn assume_all(&self, elem: &ControlSensitiveElement<N>, pred: &crate::expr::NumPred<N::Var, N::Value>) -> ControlSensitiveElement<N>
     where
         N::Element: Clone,
     {
@@ -1647,11 +1614,7 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
     }
 
     /// Project out a variable from all partitions
-    pub fn project_all(
-        &self,
-        elem: &ControlSensitiveElement<N>,
-        var: &N::Var,
-    ) -> ControlSensitiveElement<N>
+    pub fn project_all(&self, elem: &ControlSensitiveElement<N>, var: &N::Var) -> ControlSensitiveElement<N>
     where
         N::Element: Clone,
     {
@@ -1700,12 +1663,7 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
     /// //   (¬flag ∧ x≤5, x ∈ [0,5])
     /// // }
     /// ```
-    pub fn assign_control(
-        &self,
-        var_name: &str,
-        value: bool,
-        elem: &ControlSensitiveElement<N>,
-    ) -> ControlSensitiveElement<N> {
+    pub fn assign_control(&self, var_name: &str, value: bool, elem: &ControlSensitiveElement<N>) -> ControlSensitiveElement<N> {
         // Simple case: assigning a constant value
         // This refines each partition with the constraint var=value
         let condition = if value {
@@ -1773,20 +1731,14 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
                     // Condition is definitely true: set var = true
                     let new_control = self.control_domain.and(control_state, &var_true);
                     if !self.control_domain.is_bottom(&new_control) {
-                        new_partitions.insert(
-                            HashableControlState(new_control),
-                            numeric_elem.clone(),
-                        );
+                        new_partitions.insert(HashableControlState(new_control), numeric_elem.clone());
                     }
                 }
                 (false, true) => {
                     // Condition is definitely false: set var = false
                     let new_control = self.control_domain.and(control_state, &var_false);
                     if !self.control_domain.is_bottom(&new_control) {
-                        new_partitions.insert(
-                            HashableControlState(new_control),
-                            numeric_elem.clone(),
-                        );
+                        new_partitions.insert(HashableControlState(new_control), numeric_elem.clone());
                     }
                 }
                 (true, true) => {
@@ -1795,19 +1747,13 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
                     // Branch 1: condition is true, so var = true
                     let branch_true = self.control_domain.and(&cond_and_state, &var_true);
                     if !self.control_domain.is_bottom(&branch_true) {
-                        new_partitions.insert(
-                            HashableControlState(branch_true),
-                            numeric_elem.clone(),
-                        );
+                        new_partitions.insert(HashableControlState(branch_true), numeric_elem.clone());
                     }
 
                     // Branch 2: condition is false, so var = false
                     let branch_false = self.control_domain.and(&neg_cond_and_state, &var_false);
                     if !self.control_domain.is_bottom(&branch_false) {
-                        new_partitions.insert(
-                            HashableControlState(branch_false),
-                            numeric_elem.clone(),
-                        );
+                        new_partitions.insert(HashableControlState(branch_false), numeric_elem.clone());
                     }
                 }
                 (false, false) => {
@@ -1835,11 +1781,7 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
     /// assume_control(flag_true)
     /// // After: {(flag=true, n)}  -- only flag=true path remains
     /// ```
-    pub fn assume_control(
-        &self,
-        condition: &ControlState,
-        elem: &ControlSensitiveElement<N>,
-    ) -> ControlSensitiveElement<N> {
+    pub fn assume_control(&self, condition: &ControlState, elem: &ControlSensitiveElement<N>) -> ControlSensitiveElement<N> {
         self.split_on_condition(elem, condition)
     }
 
@@ -1850,11 +1792,7 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
     /// # Returns
     /// - `Some(numeric_elem)` if the control state is feasible
     /// - `None` if no partition matches this control state
-    pub fn query_on_path(
-        &self,
-        control_state: &ControlState,
-        elem: &ControlSensitiveElement<N>,
-    ) -> Option<N::Element>
+    pub fn query_on_path(&self, control_state: &ControlState, elem: &ControlSensitiveElement<N>) -> Option<N::Element>
     where
         N::Element: Clone,
     {
@@ -1869,8 +1807,8 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
 #[cfg(test)]
 mod product_tests {
     use super::*;
-    use crate::interval::{Bound, Interval, IntervalDomain, IntervalElement};
     use crate::expr::{NumExpr, NumPred};
+    use crate::interval::{Bound, Interval, IntervalDomain, IntervalElement};
 
     // Helper to create a simple product domain for testing
     fn make_product_domain() -> ControlSensitiveProduct<IntervalDomain> {
@@ -1894,7 +1832,8 @@ mod product_tests {
         let (control_state, _numeric_elem) = top.partitions.iter().next().unwrap();
         assert!(product.control_domain.is_top(&control_state.0));
         // Note: IntervalDomain's is_top always returns false, so we can't check numeric top
-    }    #[test]
+    }
+    #[test]
     fn test_product_partial_order() {
         let product = make_product_domain();
 
@@ -1948,7 +1887,7 @@ mod product_tests {
         assert!(product.le(&top, &met_top));
     }
 
-       #[test]
+    #[test]
     fn test_simple_flag_example() {
         // Example 8.1 from design doc: Simple flag analysis
         let product = make_product_domain();
@@ -1960,10 +1899,7 @@ mod product_tests {
         numeric_initial.set("x".to_string(), Interval::constant(0));
 
         let mut partitions = HashMap::new();
-        partitions.insert(
-            HashableControlState(control_top),
-            numeric_initial
-        );
+        partitions.insert(HashableControlState(control_top), numeric_initial);
         let initial = ControlSensitiveElement {
             partitions,
             control_domain: Rc::clone(&product.control_domain),
@@ -1994,10 +1930,7 @@ mod product_tests {
         numeric_initial.set("x".to_string(), Interval::new(Bound::Finite(0), Bound::Finite(10)));
 
         let mut partitions = HashMap::new();
-        partitions.insert(
-            HashableControlState(control_top.clone()),
-            numeric_initial.clone()
-        );
+        partitions.insert(HashableControlState(control_top.clone()), numeric_initial.clone());
         let initial = ControlSensitiveElement {
             partitions,
             control_domain: Rc::clone(&product.control_domain),
@@ -2075,10 +2008,7 @@ mod product_tests {
         };
 
         // Assign: x := x + 1
-        let expr = NumExpr::Add(
-            Box::new(NumExpr::Var("x".to_string())),
-            Box::new(NumExpr::Const(1))
-        );
+        let expr = NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(1)));
         let result = product.assign_all(&elem, &"x".to_string(), &expr);
 
         // Should still have 2 partitions (control states unchanged)
@@ -2105,10 +2035,7 @@ mod product_tests {
         };
 
         // Assume: x > 5  (should refine to [6,10])
-        let pred = NumPred::Gt(
-            NumExpr::Var("x".to_string()),
-            NumExpr::Const(5)
-        );
+        let pred = NumPred::Gt(NumExpr::Var("x".to_string()), NumExpr::Const(5));
         let refined = product.assume_all(&elem, &pred);
 
         // Should still have 1 partition, but refined numeric state
@@ -2262,10 +2189,7 @@ mod product_tests {
 
         // Second if (flag): only affects flag=true partition
         // For flag=true: x := x + 10 (5 + 10 = 15)
-        let expr_add10 = NumExpr::Add(
-            Box::new(NumExpr::Var("x".to_string())),
-            Box::new(NumExpr::Const(10))
-        );
+        let expr_add10 = NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(10)));
 
         // Apply only to flag=true partition
         let flag_true_path = product.assume_control(&flag_true, &state_after_if1);
@@ -2310,7 +2234,11 @@ mod product_tests {
 
         // Query on flag=true path (using the same BDD reference we inserted)
         let result_true = product.query_on_path(&flag_true, &elem);
-        assert!(result_true.is_some(), "Should find flag=true partition (found {} partitions)", elem.partition_count());
+        assert!(
+            result_true.is_some(),
+            "Should find flag=true partition (found {} partitions)",
+            elem.partition_count()
+        );
         if let Some(numeric) = result_true {
             assert_eq!(numeric.get("x"), Interval::constant(5));
         }
