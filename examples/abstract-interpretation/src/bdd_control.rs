@@ -356,18 +356,29 @@ impl BddControlDomain {
 
     /// Implication: φ₁ ⇒ φ₂
     ///
-    /// Equivalent to: ¬φ₁ ∨ φ₂
+    /// Creates a control state representing the implication from `s1` to `s2`.
+    pub fn imply(&self, s1: &ControlState, s2: &ControlState) -> ControlState {
+        let phi = self.manager.apply_imply(s1.phi, s2.phi);
+        ControlState::new(phi, Rc::clone(&self.manager))
+    }
+
+    /// Equivalence: φ₁ ⇔ φ₂
+    ///
+    /// Creates a control state representing the equivalence of `s1` and `s2`.
+    pub fn equiv(&self, s1: &ControlState, s2: &ControlState) -> ControlState {
+        let phi = self.manager.apply_eq(s1.phi, s2.phi);
+        ControlState::new(phi, Rc::clone(&self.manager))
+    }
+
+    /// Check if `s1` implies `s2` (φ₁ ⇒ φ₂).
     pub fn implies(&self, s1: &ControlState, s2: &ControlState) -> bool {
-        // φ₁ ⇒ φ₂ is equivalent to checking if φ₁ ∧ ¬φ₂ is unsatisfiable
-        let not_s2 = self.manager.apply_not(s2.phi);
-        let and_result = self.manager.apply_and(s1.phi, not_s2);
-        and_result == self.manager.zero
+        self.manager.is_implies(s1.phi, s2.phi)
     }
 
     /// Check if two control states are equivalent.
     pub fn equivalent(&self, s1: &ControlState, s2: &ControlState) -> bool {
-        // φ₁ ≡ φ₂ iff (φ₁ ⇒ φ₂) ∧ (φ₂ ⇒ φ₁)
-        self.implies(s1, s2) && self.implies(s2, s1)
+        // φ₁ ≡ φ₂ iff they have the same canonical BDD representation
+        s1.phi == s2.phi
     }
 }
 
@@ -1074,6 +1085,182 @@ mod tests {
 
         assert!(domain.is_top(&step3));
         assert_eq!(step2, step3); // Stabilized
+    }
+
+    // ========================================================================
+    // Tests for imply and equiv operations
+    // ========================================================================
+
+    #[test]
+    fn test_imply_operation() {
+        let domain = BddControlDomain::new();
+        domain.allocate_var("x");
+        domain.allocate_var("y");
+
+        let x = domain.mk_var_true("x");
+        let y = domain.mk_var_true("y");
+        let not_x = domain.mk_var_false("x");
+
+        // x ⇒ y should be equivalent to ¬x ∨ y
+        let imply_result = domain.imply(&x, &y);
+        let expected = domain.or(&not_x, &y);
+        assert!(domain.equivalent(&imply_result, &expected));
+
+        // x ⇒ x should be ⊤
+        let self_imply = domain.imply(&x, &x);
+        assert!(domain.is_top(&self_imply));
+
+        // ⊥ ⇒ x should be ⊤ (ex falso quodlibet)
+        let bottom = domain.bottom();
+        let bottom_imply = domain.imply(&bottom, &x);
+        assert!(domain.is_top(&bottom_imply));
+
+        // x ⇒ ⊥ should be equivalent to ¬x
+        let imply_false = domain.imply(&x, &bottom);
+        assert!(domain.equivalent(&imply_false, &not_x));
+
+        // ⊤ ⇒ x should be equivalent to x
+        let top = domain.top();
+        let top_imply = domain.imply(&top, &x);
+        assert!(domain.equivalent(&top_imply, &x));
+    }
+
+    #[test]
+    fn test_equiv_operation() {
+        let domain = BddControlDomain::new();
+        domain.allocate_var("x");
+        domain.allocate_var("y");
+
+        let x = domain.mk_var_true("x");
+        let y = domain.mk_var_true("y");
+
+        // x ⇔ x should be ⊤
+        let self_equiv = domain.equiv(&x, &x);
+        assert!(domain.is_top(&self_equiv));
+
+        // x ⇔ y should be equivalent to (x ∧ y) ∨ (¬x ∧ ¬y)
+        let equiv_result = domain.equiv(&x, &y);
+        let not_x = domain.mk_var_false("x");
+        let not_y = domain.mk_var_false("y");
+        let both_true = domain.and(&x, &y);
+        let both_false = domain.and(&not_x, &not_y);
+        let expected = domain.or(&both_true, &both_false);
+        assert!(domain.equivalent(&equiv_result, &expected));
+
+        // x ⇔ ¬x should be ⊥
+        let contradiction = domain.equiv(&x, &not_x);
+        assert!(domain.is_bottom(&contradiction));
+
+        // ⊤ ⇔ ⊤ should be ⊤
+        let top = domain.top();
+        let top_equiv = domain.equiv(&top, &top);
+        assert!(domain.is_top(&top_equiv));
+
+        // ⊥ ⇔ ⊥ should be ⊤
+        let bottom = domain.bottom();
+        let bottom_equiv = domain.equiv(&bottom, &bottom);
+        assert!(domain.is_top(&bottom_equiv));
+    }
+
+    #[test]
+    fn test_imply_equiv_relationship() {
+        let domain = BddControlDomain::new();
+        domain.allocate_var("x");
+        domain.allocate_var("y");
+
+        let x = domain.mk_var_true("x");
+        let y = domain.mk_var_true("y");
+
+        // x ⇔ y ≡ (x ⇒ y) ∧ (y ⇒ x)
+        let equiv_result = domain.equiv(&x, &y);
+        let xy_imply = domain.imply(&x, &y);
+        let yx_imply = domain.imply(&y, &x);
+        let both_implications = domain.and(&xy_imply, &yx_imply);
+        assert!(domain.equivalent(&equiv_result, &both_implications));
+    }
+
+    #[test]
+    fn test_imply_transitivity() {
+        let domain = BddControlDomain::new();
+        domain.allocate_var("x");
+        domain.allocate_var("y");
+        domain.allocate_var("z");
+
+        let x = domain.mk_var_true("x");
+        let y = domain.mk_var_true("y");
+        let z = domain.mk_var_true("z");
+
+        // (x ⇒ y) ∧ (y ⇒ z) ⇒ (x ⇒ z)
+        let xy = domain.imply(&x, &y);
+        let yz = domain.imply(&y, &z);
+        let xz = domain.imply(&x, &z);
+
+        let premise = domain.and(&xy, &yz);
+        let transitivity = domain.imply(&premise, &xz);
+        assert!(domain.is_top(&transitivity));
+    }
+
+    #[test]
+    fn test_equiv_symmetry() {
+        let domain = BddControlDomain::new();
+        domain.allocate_var("x");
+        domain.allocate_var("y");
+
+        let x = domain.mk_var_true("x");
+        let y = domain.mk_var_true("y");
+
+        // x ⇔ y should be the same as y ⇔ x
+        let xy_equiv = domain.equiv(&x, &y);
+        let yx_equiv = domain.equiv(&y, &x);
+        assert!(domain.equivalent(&xy_equiv, &yx_equiv));
+    }
+
+    #[test]
+    fn test_optimized_implies() {
+        let domain = BddControlDomain::new();
+        domain.allocate_var("x");
+        domain.allocate_var("y");
+
+        let x = domain.mk_var_true("x");
+        let y = domain.mk_var_true("y");
+        let not_x = domain.mk_var_false("x");
+
+        // Test the optimized implies check
+        assert!(domain.implies(&x, &x)); // reflexive
+        assert!(!domain.implies(&x, &not_x)); // contradiction
+
+        let top = domain.top();
+        let bottom = domain.bottom();
+        assert!(domain.implies(&x, &top)); // anything implies top
+        assert!(domain.implies(&bottom, &x)); // bottom implies anything
+
+        // x ∧ y implies x
+        let xy = domain.and(&x, &y);
+        assert!(domain.implies(&xy, &x));
+        assert!(domain.implies(&xy, &y));
+
+        // x does not imply x ∧ y
+        assert!(!domain.implies(&x, &xy));
+    }
+
+    #[test]
+    fn test_optimized_equivalent() {
+        let domain = BddControlDomain::new();
+        domain.allocate_var("x");
+
+        let x1 = domain.mk_var_true("x");
+        let x2 = domain.mk_var_true("x");
+        let not_x = domain.mk_var_false("x");
+
+        // Same BDD refs should be equivalent (optimized path)
+        assert!(domain.equivalent(&x1, &x2));
+
+        // Different formulas should not be equivalent
+        assert!(!domain.equivalent(&x1, &not_x));
+
+        // Logically equivalent but constructed differently
+        let double_neg = domain.not(&not_x);
+        assert!(domain.equivalent(&x1, &double_neg));
     }
 }
 
