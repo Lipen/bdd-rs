@@ -648,6 +648,10 @@ fn main() {
 
 ```rust
 // Build abstract syntax tree
+//   x := 0;
+//   while (x < 10) {
+//       x := x + 1;
+//   }
 let program = Stmt::Seq(
     Box::new(Stmt::Assign(
         "x".into(),
