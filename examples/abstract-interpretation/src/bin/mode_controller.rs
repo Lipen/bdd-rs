@@ -19,7 +19,8 @@ use abstract_interpretation::*;
 use std::rc::Rc;
 
 fn main() {
-    println!("=== Mode-Based Controller Analysis (B4) ===\n");
+    println!("=== Mode-Based Controller Analysis (B4) ===");
+    println!();
 
     // System description
     println!("SYSTEM DESCRIPTION:");
@@ -52,7 +53,8 @@ fn main() {
 
 /// Path-insensitive analysis: merges all control states
 fn analyze_path_insensitive() {
-    println!("--- Path-Insensitive Analysis ---\n");
+    println!("--- Path-Insensitive Analysis ---");
+    println!();
 
     let domain = IntervalDomain;
 
@@ -82,20 +84,23 @@ fn analyze_path_insensitive() {
     merged = domain.join(&merged, &active_state);
     merged = domain.join(&merged, &error_state);
 
-    println!("\nAfter merging all control paths:");
+    println!();
+    println!("After merging all control paths:");
     println!("  mode ∈ {{INIT, READY, ACTIVE, ERROR}} (all modes possible)");
 
     if let Some((low, high)) = domain.get_bounds(&merged, &"actuator".to_string()) {
         println!("  actuator ∈ [{}, {}]", low, high);
     }
 
-    println!("\n⚠️  IMPRECISION: Cannot verify that actuator=1 only in ACTIVE mode!");
-    println!("⚠️  False alarm: actuator might be 1 in ERROR mode (not actually possible)");
+    println!();
+    println!("⚠️ IMPRECISION: Cannot verify that actuator=1 only in ACTIVE mode!");
+    println!("⚠️ False alarm: actuator might be 1 in ERROR mode (not actually possible)");
 }
 
 /// Path-sensitive analysis: maintains separate states per control mode
 fn analyze_path_sensitive() {
-    println!("--- Path-Sensitive Analysis (BDD Control) ---\n");
+    println!("--- Path-Sensitive Analysis (BDD Control) ---");
+    println!();
 
     let control_domain = Rc::new(BddControlDomain::new());
     let numeric_domain = Rc::new(IntervalDomain);
@@ -152,7 +157,8 @@ fn analyze_path_sensitive() {
     let state_active = product.mk_single_partition(ctrl_active, num_active);
     let state_error = product.mk_single_partition(ctrl_error, num_error);
 
-    println!("\nMode States Created:");
+    println!();
+    println!("Mode States Created:");
     println!("  INIT (00):   actuator ∈ [0,0]");
     println!("  READY (01):  actuator ∈ [0,0]");
     println!("  ACTIVE (10): actuator ∈ [1,1] ✓");
@@ -164,7 +170,8 @@ fn analyze_path_sensitive() {
     all_states = product.join(&all_states, &state_active);
     all_states = product.join(&all_states, &state_error);
 
-    println!("\n--- Verification ---");
+    println!();
+    println!("--- Verification ---");
     println!("✓ All safety properties verified!");
     println!("✓ Mode tracking: Each partition corresponds to exactly one mode");
     println!("✓ Actuator control:");
@@ -174,11 +181,13 @@ fn analyze_path_sensitive() {
     println!("    - In ERROR: actuator = 0");
     println!("✓ No false alarms: BDD partitioning maintains precise invariants");
 
-    println!("\n=== Precision Comparison ===");
+    println!();
+    println!("=== Precision Comparison ===");
     println!("Path-Insensitive: actuator ∈ [0,1] for all modes (IMPRECISE)");
     println!("Path-Sensitive:   actuator ∈ [1,1] in ACTIVE, [0,0] elsewhere (PRECISE)");
 
-    println!("\n=== Key Insights ===");
+    println!();
+    println!("=== Key Insights ===");
     println!("• BDD control domain tracks mode transitions precisely");
     println!("• Each mode has its own numeric invariant (partition)");
     println!("• Safety property \"actuator=1 only in ACTIVE\" is verified");

@@ -19,16 +19,39 @@ use abstract_interpretation::*;
 use std::rc::Rc;
 
 fn main() {
-    println!("=== Traffic Light Controller Analysis ===\n");
+    println!("=== Traffic Light Controller Analysis ===");
+    println!();
+
+    // System description
+    println!("SYSTEM DESCRIPTION:");
+    println!("  A traffic light controller with 3 states cycling:");
+    println!("    RED → GREEN → YELLOW → RED (repeat)");
+    println!();
+    println!("  Variables:");
+    println!("    • state_bit0, state_bit1: 2-bit state encoding");
+    println!("    • timer: Countdown timer for each state");
+    println!();
+
+    println!("SAFETY PROPERTIES TO VERIFY:");
+    println!("  P1: Light is always in exactly one state {{RED, GREEN, YELLOW}}");
+    println!("  P2: Timer bounds depend on current state:");
+    println!("      - RED state: timer ∈ [0, 60]");
+    println!("      - GREEN state: timer ∈ [0, 45]");
+    println!("      - YELLOW state: timer ∈ [0, 5]");
+    println!("  P3: Mutual exclusion: never RED and GREEN simultaneously");
+    println!();
+    println!("{}", "=".repeat(60));
+    println!();
 
     analyze_path_insensitive();
-    println!("\n{}", "=".repeat(60));
+    println!("\n{}\n", "=".repeat(60));
     analyze_path_sensitive();
 }
 
 /// Path-insensitive analysis: merges all light states
 fn analyze_path_insensitive() {
-    println!("--- Path-Insensitive Analysis ---\n");
+    println!("--- Path-Insensitive Analysis ---");
+    println!();
 
     let domain = IntervalDomain;
 
@@ -51,19 +74,22 @@ fn analyze_path_insensitive() {
     println!("  GREEN:  timer ∈ [0, 45]");
     println!("  YELLOW: timer ∈ [0, 5]");
 
-    println!("\nAfter merging all states:");
+    println!();
+    println!("After merging all states:");
     if let Some((low, high)) = domain.get_bounds(&merged, &"timer".to_string()) {
         println!("  timer ∈ [{}, {}]", low, high);
     }
 
-    println!("\n⚠️  IMPRECISION: Cannot determine which state the light is in!");
-    println!("⚠️  Lost precision: timer could be 60 in YELLOW state (impossible!)");
-    println!("⚠️  Cannot verify: \"YELLOW state has timer ≤ 5\"");
+    println!();
+    println!("⚠️ IMPRECISION: Cannot determine which state the light is in!");
+    println!("⚠️ Lost precision: timer could be 60 in YELLOW state (impossible!)");
+    println!("⚠️ Cannot verify: \"YELLOW state has timer ≤ 5\"");
 }
 
 /// Path-sensitive analysis: maintains separate state for each light color
 fn analyze_path_sensitive() {
-    println!("--- Path-Sensitive Analysis (BDD Control) ---\n");
+    println!("--- Path-Sensitive Analysis (BDD Control) ---");
+    println!();
 
     let control_domain = Rc::new(BddControlDomain::new());
     let numeric_domain = Rc::new(IntervalDomain);
@@ -82,8 +108,8 @@ fn analyze_path_sensitive() {
     println!("Control variables allocated:");
     println!("  state_bit0 (id: {})", state_bit0);
     println!("  state_bit1 (id: {})", state_bit1);
-
-    println!("\nState encoding:");
+    println!();
+    println!("State encoding:");
     println!("  RED (00):    bit1=0, bit0=0");
     println!("  GREEN (01):  bit1=0, bit0=1");
     println!("  YELLOW (10): bit1=1, bit0=0");
@@ -111,7 +137,8 @@ fn analyze_path_sensitive() {
     let state_green = product.mk_single_partition(ctrl_green.clone(), num_green);
     let state_yellow = product.mk_single_partition(ctrl_yellow.clone(), num_yellow);
 
-    println!("\n--- Created States ---");
+    println!();
+    println!("--- Created States ---");
     println!("RED state (00):    timer ∈ [0, 60]");
     println!("GREEN state (01):  timer ∈ [0, 45]");
     println!("YELLOW state (10): timer ∈ [0, 5]");
@@ -121,15 +148,18 @@ fn analyze_path_sensitive() {
     all_states = product.join(&all_states, &state_green);
     all_states = product.join(&all_states, &state_yellow);
 
-    println!("\n--- After Join (Path-Sensitive) ---");
+    println!();
+    println!("--- After Join (Path-Sensitive) ---");
     println!("Number of partitions: 3 (one per light state)");
-    println!("\nEach partition maintains precise timer bounds:");
+    println!();
+    println!("Each partition maintains precise timer bounds:");
     println!("  RED partition:    timer ∈ [0, 60]");
     println!("  GREEN partition:  timer ∈ [0, 45]");
     println!("  YELLOW partition: timer ∈ [0, 5]");
 
     // Verify safety properties
-    println!("\n=== Safety Property Verification ===");
+    println!();
+    println!("=== Safety Property Verification ===");
 
     // Check mutual exclusion: RED and GREEN are disjoint
     let red_and_green = control_domain.and(&ctrl_red, &ctrl_green);
@@ -143,19 +173,21 @@ fn analyze_path_sensitive() {
     println!("    GREEN: timer ≤ 45");
     println!("    YELLOW: timer ≤ 5");
 
-    println!("\n=== Precision Comparison ===");
+    println!();
+    println!("=== Precision Comparison ===");
     println!("Path-Insensitive:");
     println!("  • Single merged state: timer ∈ [0, 60]");
     println!("  • Cannot verify YELLOW timer bound (timer ≤ 5)");
     println!("  • Lost information about current state");
-
-    println!("\nPath-Sensitive (BDD Control):");
+    println!();
+    println!("Path-Sensitive (BDD Control):");
     println!("  • 3 separate partitions: one per light color");
     println!("  • Precise timer bounds: RED [0,60], GREEN [0,45], YELLOW [0,5]");
     println!("  • All safety properties verified!");
     println!("  • Mutual exclusion guaranteed by disjoint control states");
 
-    println!("\n=== Key Insights ===");
+    println!();
+    println!("=== Key Insights ===");
     println!("• BDD encodes 3 states using 2 Boolean variables");
     println!("• Each state maintains its own numeric invariant (timer bound)");
     println!("• Control-sensitive product prevents false alarms");
