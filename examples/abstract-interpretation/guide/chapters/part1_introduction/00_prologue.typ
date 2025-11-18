@@ -1,0 +1,430 @@
+// Prologue: The Software Verification Challenge
+
+#import "../../theme.typ": *
+
+= Prologue: The Software Verification Challenge <prologue>
+
+#reading-path(path: "essential") #h(0.5em) #reading-path(path: "beginner")
+
+_November 4, 1996.
+Paris, France._
+
+The inaugural flight of the Ariane 5 rocket—Europe's most advanced launch vehicle—lasted 37 seconds.
+The rocket carried four satellites worth over \$500 million.
+It veered off course and was destroyed.
+The cause: a software defect.
+A 64-bit floating-point number was converted to a 16-bit signed integer without overflow protection.
+This caused cascading failures in the inertial reference system.
+
+The inquiry board's report stated:
+_"The failure could have been avoided by... appropriate protection against overflow."_
+
+#v(1em)
+
+_June 1985-1987.
+Multiple medical facilities._
+
+The Therac-25 radiation therapy machine delivered massive overdoses to at least six patients.
+Three died from radiation poisoning.
+The root cause: race conditions in the control software combined with inadequate safety interlocks.
+The software lacked proper synchronization between the operator console and the machine controller.
+
+#v(1em)
+
+_April 2014._
+
+Heartbleed was discovered in OpenSSL—software protecting approximately two-thirds of all web servers.
+The vulnerability allowed attackers to read arbitrary server memory.
+This exposed passwords, cryptographic keys, and personal data.
+The defect: a missing bounds check in the heartbeat extension.
+
+```c
+// Vulnerable code (simplified)
+int length = request.length;  // Attacker-controlled
+char* response = malloc(length);
+memcpy(response, data, length);  // No validation of 'data' size
+```
+
+#v(1em)
+
+== Testing is Insufficient
+
+These failures share a common property:
+they are logical errors that testing alone cannot reliably detect.
+The programs executed correctly under test conditions.
+They passed their test suites.
+In production, under specific conditions, they failed catastrophically.
+
+Testing encounters fundamental limitations:
+
+*Infinite input space.*
+A function accepting two 32-bit integers has $2^(64)$ possible inputs.
+Exhaustive testing is infeasible.
+
+*Rare conditions.*
+Defects often manifest only under unusual input combinations, timing windows, or state sequences.
+Testing finds common-case bugs effectively.
+Rare bugs persist.
+
+*Emergent complexity.*
+Modern software systems comprise multiple interacting components.
+Component interactions create emergent behaviors not captured by unit testing.
+
+Consider this function:
+
+```rust
+fn divide(x: i32, y: i32) -> i32 {
+    x / y
+}
+```
+
+Testing validates several cases:
+- `divide(10, 2)` returns `5`
+- `divide(7, 3)` returns `2`
+- `divide(-10, 2)` returns `-5`
+- `divide(0, 5)` returns `0`
+
+The function appears correct.
+However, `divide(10, 0)` causes a runtime panic.
+`divide(i32::MIN, -1)` triggers overflow.
+
+We could add more tests.
+But how do we determine when testing is sufficient?
+How do we guarantee coverage of all cases?
+
+== Formal Verification
+
+Instead of testing individual inputs, we seek to prove program correctness for _all possible inputs_.
+
+Mathematical verification can guarantee:
+- No division by zero occurs
+- Array accesses remain in bounds
+- Arithmetic operations do not overflow
+- Pointers reference valid memory
+- Concurrent operations are properly synchronized
+
+Formal verification replaces testing's "probably works" with mathematics' "provably correct."
+
+#example-box(number: "0.1", title: "Loop Invariant Verification")[
+  Consider this array processing loop:
+
+  ```rust
+  fn process_array(arr: &mut [i32]) {
+      let mut i = 0;
+      while i < arr.len() {
+          arr[i] = arr[i] * 2;
+          i += 1;
+      }
+  }
+  ```
+
+  Property to verify: `arr[i]` never accesses beyond bounds.
+
+  We establish the loop invariant:
+  $ 0 <= i <= "arr.len()" $
+
+  - *Initially*: `i = 0`, so $0 <= 0 <= "arr.len()"$
+  - *Loop body*: If invariant holds and $i < "arr.len()"$, then `arr[i]` is safe
+  - *After increment*: `i += 1` maintains $i <= "arr.len()"$
+  - *Termination*: Loop exits when $i >= "arr.len()"$
+
+  By mathematical induction, all accesses are safe.
+  No testing required—we have a proof.
+]
+
+== The Challenge
+
+Complete verification is computationally intractable for most programs.
+
+#historical-note(
+  person: "Alan Turing",
+  year: "1936",
+  title: "The Halting Problem",
+  image-path: none,
+)[
+  Turing proved that no algorithm can determine whether an arbitrary program terminates on arbitrary input.
+  This fundamental result establishes theoretical limits on program analysis.
+  Perfect program verification is undecidable.
+]
+
+Formal verification faces several obstacles:
+
+*Computational complexity.*
+Precise program analysis often requires exponential time or space.
+For non-trivial programs, exact analysis becomes infeasible.
+
+*State space explosion.*
+A program with $n$ variables, each holding one of $k$ values, has $k^n$ possible states.
+Even 10 boolean variables yield 1024 states.
+Real programs have thousands of variables.
+
+*Undecidability.*
+Determining whether code is reachable, whether loops terminate, or whether assertions hold is undecidable in the general case.
+
+To make verification tractable, we must approximate.
+
+== Abstract Interpretation
+
+#historical-note(
+  person: "Patrick Cousot and Radhia Cousot",
+  year: "1977",
+  title: "Abstract Interpretation Framework",
+  image-path: none,
+)[
+  The Cousots developed the mathematical framework of abstract interpretation at the University of Grenoble.
+  Their work provided a principled foundation for approximating program semantics while guaranteeing soundness.
+  Abstract interpretation has become fundamental to modern program analysis.
+]
+
+Abstract interpretation is a mathematical framework for approximating program behavior.
+Rather than tracking exact values, we track properties of values.
+
+Instead of computing with concrete values ($x = 5$, $y = -3$, $z = 0$), we reason about abstract properties ($x > 0$, $y < 0$, $z = 0$).
+
+Consider tracking whether variables are positive, negative, or zero:
+
+```rust
+x = 5           // x is positive
+y = x + 10      // y is positive (positive + positive = positive)
+z = x - x       // z is zero (positive - itself = zero)
+w = x - y       // w is negative (positive - larger positive = negative)
+```
+
+We do not know exact values.
+We know properties that hold for all possible executions.
+
+The analysis guarantees: if it reports "x is positive," then x is positive in all executions.
+The analysis may be imprecise: if it reports "x is unknown," x might still be positive—we simply cannot determine this from our abstraction.
+
+This approach trades precision for decidability and efficiency:
+- Analysis always terminates
+- Results are sound: proven properties hold in all executions
+- Results may be approximate: we may fail to prove true properties
+
+#example-box(number: "0.2", title: "Sign Domain")[
+  Consider an abstract domain tracking sign information:
+
+  *Concrete values*: $x in {..., -2, -1, 0, 1, 2, ...}$ (infinite)
+
+  *Abstract signs*: $x in {"Neg", "Zero", "Pos", "Unknown"}$
+
+  For operation `y = x + 1`:
+
+  - If $x = "Pos"$, then $y = "Pos"$ (positive + 1 = positive)
+  - If $x = "Zero"$, then $y = "Pos"$ (0 + 1 = positive)
+  - If $x = "Neg"$, then $y in {"Neg", "Zero", "Pos"}$ (depends on x's value)
+
+  For $x = -1$: $y = 0$ (Zero)
+
+  For $x = -2$: $y = -1$ (Neg)
+
+  For $x = -100$: $y = -99$ (Neg)
+
+  Safe approximation for Neg input: $y = "Unknown"$ (over-approximates all possibilities)
+
+  We reduce infinite concrete values to four abstract values while maintaining soundness.
+]
+
+== Path Sensitivity
+
+Abstract interpretation analyzes program behavior across all execution paths.
+Real programs contain control flow: conditionals, loops, and state-dependent behavior.
+
+Consider an embedded controller:
+
+```rust
+enum Mode { OFF, STANDBY, ACTIVE }
+
+let mut mode = Mode::OFF;
+let mut power = 0;
+
+if battery_ok && temperature < 25 {
+    mode = Mode::ACTIVE;
+    power = 100;
+} else if battery_ok {
+    mode = Mode::STANDBY;
+    power = 20;
+}
+
+match mode {
+    Mode::ACTIVE => assert!(power == 100),
+    Mode::STANDBY => assert!(power == 20),
+    Mode::OFF => assert!(power == 0),
+}
+```
+
+A path-insensitive analysis merges information from all branches:
+- After conditionals: `power ∈ {0, 20, 100}`
+- The analysis cannot verify the assertions—correlation between `mode` and `power` is lost
+
+A path-sensitive analysis maintains separate invariants:
+- When `mode = ACTIVE`: `power = 100`
+- When `mode = STANDBY`: `power = 20`
+- When `mode = OFF`: `power = 0`
+
+All assertions verify successfully.
+
+However, path-sensitive analysis faces the path explosion problem:
+a program with $n$ independent boolean conditions has $2^n$ distinct paths.
+Enumerating paths explicitly becomes infeasible.
+
+For 30 boolean flags: 1,073,741,824 paths.
+
+We require path sensitivity without path explosion.
+
+== Binary Decision Diagrams
+
+#historical-note(
+  person: "Randal Bryant",
+  year: "1986",
+  title: "Graph-Based Algorithms for Boolean Function Manipulation",
+  image-path: none,
+)[
+  Bryant introduced Reduced Ordered Binary Decision Diagrams (ROBDDs) at Carnegie Mellon University.
+  His canonical representation enabled efficient manipulation of boolean functions.
+  BDDs became fundamental to hardware verification and symbolic model checking.
+]
+
+Binary Decision Diagrams provide a canonical, compact representation of boolean functions.
+A boolean function with $n$ variables requires $2^n$ truth table entries.
+A BDD can represent the same function using $O(n)$ nodes for many practical cases.
+
+BDDs achieve compression through structural sharing:
+multiple paths through the diagram share common substructure.
+
+#example-box(number: "0.3", title: "BDD Representation")[
+  Consider function $f$ encoding valid system states:
+
+  $ f(x_1, x_2, x_3) = (x_1 and x_2) or (not x_1 and x_3) $
+
+  Truth table: 8 rows
+
+  BDD representation: 4 decision nodes + 2 terminals
+
+  The BDD shares structure: both branches leading to the same outcome merge into a single subgraph.
+  This structural sharing provides exponential compression for many boolean functions.
+]
+
+For program analysis:
+
+*Path conditions* can be encoded as boolean formulas.
+Each program path corresponds to a conjunction of conditions.
+The set of all feasible paths is a boolean function.
+
+BDDs represent this function compactly, enabling:
+- Efficient path-sensitive analysis without explicit path enumeration
+- Symbolic state space exploration
+- Precise modeling of control-dependent properties
+
+A BDD-based analysis maintains one compact representation instead of exponentially many explicit paths.
+
+== Combining BDDs with Abstract Interpretation
+
+BDDs enable symbolic representation of control states.
+Abstract domains track properties of data values.
+Combining these techniques yields path-sensitive analysis with controlled complexity.
+
+The approach:
+- Use BDDs to represent sets of control configurations (which conditions hold)
+- Use abstract domains to represent sets of data values (intervals, signs, etc.)
+- Maintain the product: for each control configuration, track corresponding data constraints
+
+Instead of enumerating $2^n$ paths, we maintain a single BDD encoding all reachable control states, coupled with abstract values for each configuration.
+
+#example-box(number: "0.4", title: "BDD-Based Path-Sensitive Analysis")[
+  Returning to the mode controller:
+
+  ```rust
+  if battery_ok && temperature < 25 {
+      mode = ACTIVE; power = 100;
+  } else if battery_ok {
+      mode = STANDBY; power = 20;
+  }
+  ```
+
+  BDD representation encodes three feasible control paths:
+  - $"battery"_"ok" and "temp" < 25 arrow.r.double ("mode" = "ACTIVE" and "power" = 100)$
+  - $"battery"_"ok" and "temp" >= 25 arrow.r.double ("mode" = "STANDBY" and "power" = 20)$
+  - $not "battery"_"ok" arrow.r.double ("mode" = "OFF" and "power" = 0)$
+
+  Single BDD captures all paths compactly.
+  Abstract domain tracks exact power values per configuration.
+  All assertions verify successfully.
+]
+
+This combination provides:
+- Path sensitivity: maintains separate invariants per control path
+- Scalability: symbolic representation avoids exponential blowup
+- Soundness: mathematical guarantees from abstract interpretation framework
+- Automation: no manual proof effort required
+
+== Guide Structure
+
+This guide develops understanding from intuition to implementation.
+
+*Part I: Foundations (Chapters 1-6)*
+
+Chapter 1 introduces abstract interpretation through concrete examples.
+Chapter 2 examines why control flow complicates analysis.
+Chapter 3 explains BDD structure and operations.
+Chapter 4 combines BDDs with abstract domains.
+Chapter 5 presents real-world applications.
+Chapter 6 provides worked examples using the bdd-rs library.
+
+*Part II: Formal Development (Chapters 7-15)*
+
+Chapter 7 establishes the mathematical theory of abstract domains.
+Chapter 8 formalizes concrete and abstract semantics.
+Chapter 9 develops BDD-based control abstractions.
+Chapter 10 constructs product domains rigorously.
+Chapter 11 proves soundness theorems.
+Chapter 12 addresses implementation techniques.
+Chapter 13 presents experimental evaluation.
+Chapter 14 surveys related work.
+Chapter 15 discusses future directions.
+
+*Part III: Appendices*
+
+Mathematical prerequisites, BDD algorithms, proof details, and comprehensive bibliography.
+
+== Prerequisites
+
+Part I assumes:
+- Programming experience (Rust examples, but concepts are language-agnostic)
+- Basic understanding of program semantics
+- Familiarity with boolean logic
+
+Part II additionally requires:
+- Mathematical maturity (reading formal definitions and proofs)
+- Understanding of partial orders and lattices
+- Familiarity with fixpoint theory
+
+== Learning Objectives
+
+After completing this guide, you will:
+
+1. Understand abstract interpretation's theoretical foundations
+2. Recognize when path-sensitive analysis is necessary
+3. Apply BDD-based techniques to verification problems
+4. Implement abstract domains using the bdd-rs library
+5. Evaluate precision-performance tradeoffs systematically
+6. Read and understand program analysis research literature
+
+== Beginning the Journey
+
+Software failure has consequences:
+rockets explode, patients die, systems are compromised.
+Testing finds some bugs.
+Formal verification can prove their absence.
+
+Abstract interpretation provides a mathematical framework for sound, automatic program analysis.
+BDDs enable efficient symbolic reasoning about control flow.
+Together, they make path-sensitive verification practical.
+
+The following chapters develop this synthesis rigorously.
+
+#v(2em)
+
+#align(right)[
+  _Chapter 1: Abstraction and Approximation $->$_
+]
