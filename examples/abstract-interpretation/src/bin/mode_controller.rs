@@ -15,8 +15,9 @@
 //! The BDD control domain should maintain precise mode tracking and prevent
 //! false alarms about invalid actuator states.
 
-use abstract_interpretation::*;
 use std::rc::Rc;
+
+use abstract_interpretation::*;
 
 fn main() {
     println!("=== Mode-Based Controller Analysis (B4) ===");
@@ -180,14 +181,14 @@ fn analyze_path_sensitive() {
 
     // Verify partition count
     assert_eq!(all_states.partition_count(), 4, "Should have 4 partitions (one per mode)");
-    println!("✓ P1: All 4 modes represented as separate partitions");
+    println!("✅ P1: All 4 modes represented as separate partitions");
 
     // Verify each mode has the correct actuator bounds
     // INIT: actuator = 0
     if let Some(num_state) = all_states.get(&ctrl_init) {
         if let Some((low, high)) = numeric_domain.get_bounds(num_state, &"actuator".to_string()) {
             assert_eq!((low, high), (0, 0), "INIT mode: actuator should be [0,0]");
-            println!("✓ P2: In INIT mode: actuator = 0");
+            println!("✅ P2: In INIT mode: actuator = 0");
         }
     }
 
@@ -195,7 +196,7 @@ fn analyze_path_sensitive() {
     if let Some(num_state) = all_states.get(&ctrl_ready) {
         if let Some((low, high)) = numeric_domain.get_bounds(num_state, &"actuator".to_string()) {
             assert_eq!((low, high), (0, 0), "READY mode: actuator should be [0,0]");
-            println!("✓ P2: In READY mode: actuator = 0");
+            println!("✅ P2: In READY mode: actuator = 0");
         }
     }
 
@@ -203,7 +204,7 @@ fn analyze_path_sensitive() {
     if let Some(num_state) = all_states.get(&ctrl_active) {
         if let Some((low, high)) = numeric_domain.get_bounds(num_state, &"actuator".to_string()) {
             assert_eq!((low, high), (1, 1), "ACTIVE mode: actuator should be [1,1]");
-            println!("✓ P4: In ACTIVE mode: actuator = 1 (only mode where actuator can be 1)");
+            println!("✅ P4: In ACTIVE mode: actuator = 1 (only mode where actuator can be 1)");
         }
     }
 
@@ -211,18 +212,20 @@ fn analyze_path_sensitive() {
     if let Some(num_state) = all_states.get(&ctrl_error) {
         if let Some((low, high)) = numeric_domain.get_bounds(num_state, &"actuator".to_string()) {
             assert_eq!((low, high), (0, 0), "ERROR mode: actuator should be [0,0]");
-            println!("✓ P3: In ERROR mode: actuator = 0");
+            println!("✅ P3: In ERROR mode: actuator = 0");
         }
     }
 
     // Verify mutual exclusion by checking control states are disjoint
     let active_and_error = control_domain.and(&ctrl_active, &ctrl_error);
-    assert!(control_domain.is_bottom(&active_and_error), "ACTIVE and ERROR should be mutually exclusive");
-    println!("✓ Mutual exclusion verified: ACTIVE ∧ ERROR = ⊥");
+    assert!(
+        control_domain.is_bottom(&active_and_error),
+        "ACTIVE and ERROR should be mutually exclusive"
+    );
+    println!("✅ Mutual exclusion verified: ACTIVE ∧ ERROR = ⊥");
 
-    println!("✓ All safety properties verified!");
+    println!("✅ All safety properties verified!");
     println!("✓ No false alarms: BDD partitioning maintains precise invariants");
-
     println!();
     println!("=== Precision Comparison ===");
     println!("Path-Insensitive: actuator ∈ [0,1] for all modes (IMPRECISE)");

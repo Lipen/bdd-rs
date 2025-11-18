@@ -15,8 +15,9 @@
 //! Show that BDD control domain maintains precise timer bounds per state,
 //! while path-insensitive analysis loses precision by merging all states.
 
-use abstract_interpretation::*;
 use std::rc::Rc;
+
+use abstract_interpretation::*;
 
 fn main() {
     println!("=== Traffic Light Controller Analysis ===");
@@ -186,15 +187,18 @@ fn analyze_path_sensitive() {
 
     // P1: Verify partition count
     assert_eq!(all_states.partition_count(), 3, "Should have 3 partitions (one per light state)");
-    println!("✓ P1: Light is always in exactly one of 3 states");
+    println!("✅ P1: Light is always in exactly one of 3 states");
 
     // Check mutual exclusion: RED and GREEN are disjoint
     let red_and_green = control_domain.and(&ctrl_red, &ctrl_green);
-    assert!(control_domain.is_bottom(&red_and_green), "RED and GREEN should be mutually exclusive");
-    println!("✓ P3: Mutual exclusion verified: RED ∧ GREEN = ⊥ (impossible)");
+    assert!(
+        control_domain.is_bottom(&red_and_green),
+        "RED and GREEN should be mutually exclusive"
+    );
+    println!("✅ P3: Mutual exclusion verified: RED ∧ GREEN = ⊥ (impossible)");
 
     // P2: Timer bounds are verified above (assertions passed)
-    println!("✓ P2: Timer bounds verified per state:");
+    println!("✅ P2: Timer bounds verified per state:");
     println!("      RED: timer ∈ [0, 60]");
     println!("      GREEN: timer ∈ [0, 45]");
     println!("      YELLOW: timer ∈ [0, 5]");
