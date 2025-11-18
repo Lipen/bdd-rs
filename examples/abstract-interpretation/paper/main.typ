@@ -352,7 +352,7 @@ where $E_"CS"$ consists of finite maps ${(phi_i, e_i)}_(i=1)^k$ satisfying:
 === Partial Order
 
 $
-  Psi_1 lle Psi_2 quad "iff" quad forall (phi_1, e_1) in Psi_1 . exists (phi_2, e_2) in Psi_2 . phi_1 lle phi_2 and e_1 subset.eq_N e_2
+  Psi_1 lle Psi_2 quad "iff" quad forall (phi_1, e_1) in Psi_1 . thin exists (phi_2, e_2) in Psi_2 . thin phi_1 lle phi_2 and e_1 scripts(subset.eq)_N e_2
 $
 
 Every partition in $Psi_1$ is refined by some partition in $Psi_2$ with a less precise numeric element.
