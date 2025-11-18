@@ -284,7 +284,7 @@ pub mod sign;
 pub mod transfer;
 
 // Re-exports for convenience
-pub use bdd_control::{BddControlDomain, ControlState};
+pub use bdd_control::{BddControlDomain, ControlSensitiveElement, ControlSensitiveProduct, ControlState};
 pub use constant::{ConstValue, ConstantDomain, ConstantElement};
 pub use domain::AbstractDomain;
 pub use expr::{NumExpr, NumPred, Stmt};
