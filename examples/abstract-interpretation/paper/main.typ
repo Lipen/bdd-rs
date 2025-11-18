@@ -750,31 +750,33 @@ We conduct comprehensive empirical evaluation of our BDD-based path-sensitive an
 
 We implement three control-intensive benchmarks:
 
-#table(
-  columns: (1.5fr, 1fr, 1fr, 2fr),
-  align: (left, center, center, left),
-  [*Benchmark*], [*States*], [*Variables*], [*Properties*],
+#align(center)[
+  #table(
+    columns: 4,
+    align: (left, center, center, left),
+    table.header([*Benchmark*], [*States*], [*Variables*], [*Properties*]),
 
-  [Mode Controller], [4], [3], [Actuator = 1 only in ACTIVE],
-  [Traffic Light], [3], [2], [Timer bounds per state],
-  [Protocol FSM], [4], [3], [data_size > 0 only in DATA],
-)
+    [Mode Controller], [4], [3], [Actuator = 1 only in ACTIVE],
+    [Traffic Light], [3], [2], [Timer bounds per state],
+    [Protocol FSM], [4], [3], [data_size > 0 only in DATA],
+  )
+]
 
 Each benchmark exhibits the pattern where numeric invariants depend critically on control state.
 
 == Results: Precision (RQ1)
 
 #figure(
+  caption: [Precision comparison: Path-insensitive loses critical invariants that path-sensitive BDD analysis preserves.],
   table(
-    columns: (2fr, 1.5fr, 1.5fr, 1fr),
+    columns: 4,
     align: (left, left, left, center),
-    [*Benchmark*], [*Path-Insensitive*], [*Path-Sensitive (BDD)*], [*Verified?*],
+    table.header([*Benchmark*], [*Path-Insensitive*], [*Path-Sensitive (BDD)*], [*Verified?*]),
 
     [Mode Controller], [`actuator ∈ [0,1]`], [`actuator = 1` in ACTIVE \ `actuator = 0` elsewhere], [✅],
     [Traffic Light], [`timer ∈ [0,60]`], [RED: `[0,60]` \ GREEN: `[0,45]` \ YELLOW: `[0,5]`], [✅],
     [Protocol FSM], [`data_size ∈ [0,1500]`], [`data_size ∈ [1,1500]` in DATA \ `data_size = 0` elsewhere], [✅],
   ),
-  caption: [Precision comparison: Path-insensitive loses critical invariants that path-sensitive BDD analysis preserves.],
 )
 
 *Key Finding:* BDD-based path sensitivity eliminates false alarms in all three benchmarks.
@@ -783,16 +785,16 @@ Path-insensitive analysis cannot verify the key safety properties due to over-ap
 == Results: Performance (RQ2)
 
 #figure(
+  caption: [Performance measurements show negligible overhead for BDD operations.],
   table(
-    columns: (2fr, 1fr, 1fr, 1fr),
+    columns: 4,
     align: (left, right, right, right),
-    [*Benchmark*], [*Analysis Time*], [*BDD Nodes*], [*Partitions*],
+    table.header([*Benchmark*], [*Analysis Time*], [*BDD Nodes*], [*Partitions*]),
 
     [Mode Controller], [< 1ms], [12], [4],
     [Traffic Light], [< 1ms], [8], [3],
     [Protocol FSM], [< 1ms], [12], [4],
   ),
-  caption: [Performance measurements show negligible overhead for BDD operations.],
 )
 
 *Key Finding:* The overhead of BDD operations is negligible (< 1ms) for these benchmarks.
