@@ -89,8 +89,8 @@ use crate::NumericDomain;
 /// the shared BDD manager's node table.
 #[derive(Clone)]
 pub struct ControlState {
-    /// BDD representing the control constraint
-    bdd_ref: Ref,
+    /// BDD representing the control constraint (Boolean formula φ)
+    phi: Ref,
     /// Shared BDD manager
     manager: Rc<Bdd>,
     /// Human-readable description (for debugging)
@@ -99,9 +99,9 @@ pub struct ControlState {
 
 impl ControlState {
     /// Create a new control state from a BDD reference.
-    pub fn new(bdd_ref: Ref, manager: Rc<Bdd>) -> Self {
+    pub fn new(phi: Ref, manager: Rc<Bdd>) -> Self {
         Self {
-            bdd_ref,
+            phi,
             manager,
             description: None,
         }
@@ -113,9 +113,9 @@ impl ControlState {
         self
     }
 
-    /// Get the BDD reference.
-    pub fn bdd_ref(&self) -> Ref {
-        self.bdd_ref
+    /// Get the BDD reference (Boolean formula φ).
+    pub fn phi(&self) -> Ref {
+        self.phi
     }
 
     /// Get the shared BDD manager.
@@ -125,12 +125,12 @@ impl ControlState {
 
     /// Check if this control state is satisfiable (not false).
     pub fn is_sat(&self) -> bool {
-        self.bdd_ref != self.manager.zero
+        self.phi != self.manager.zero
     }
 
     /// Check if this control state is a tautology (true).
     pub fn is_tautology(&self) -> bool {
-        self.bdd_ref == self.manager.one
+        self.phi == self.manager.one
     }
 
     /// Check if this control state is satisfiable (has at least one solution).
@@ -151,7 +151,7 @@ impl PartialEq for ControlState {
     fn eq(&self, other: &Self) -> bool {
         // Two control states are equal if they represent the same BDD
         // BDD nodes are canonical, so reference equality is sufficient
-        self.bdd_ref == other.bdd_ref
+        self.phi == other.phi
     }
 }
 
@@ -161,12 +161,12 @@ impl fmt::Debug for ControlState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(desc) = &self.description {
             write!(f, "ControlState({})", desc)
-        } else if self.bdd_ref == self.manager.zero {
+        } else if self.phi == self.manager.zero {
             write!(f, "ControlState(⊥)")
-        } else if self.bdd_ref == self.manager.one {
+        } else if self.phi == self.manager.one {
             write!(f, "ControlState(⊤)")
         } else {
-            write!(f, "ControlState(BDD:{})", self.bdd_ref)
+            write!(f, "ControlState(φ:{})", self.phi)
         }
     }
 }
@@ -175,12 +175,12 @@ impl fmt::Display for ControlState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(desc) = &self.description {
             write!(f, "{}", desc)
-        } else if self.bdd_ref == self.manager.zero {
+        } else if self.phi == self.manager.zero {
             write!(f, "⊥")
-        } else if self.bdd_ref == self.manager.one {
+        } else if self.phi == self.manager.one {
             write!(f, "⊤")
         } else {
-            write!(f, "BDD({})", self.bdd_ref)
+            write!(f, "φ({})", self.phi)
         }
     }
 }
@@ -307,8 +307,8 @@ impl BddControlDomain {
     /// ```
     pub fn mk_var_true(&self, var: &str) -> ControlState {
         let var_id = self.allocate_var(var);
-        let bdd_ref = self.manager.mk_var(var_id);
-        ControlState::new(bdd_ref, Rc::clone(&self.manager)).with_description(format!("{} = true", var))
+        let phi = self.manager.mk_var(var_id);
+        ControlState::new(phi, Rc::clone(&self.manager)).with_description(format!("{} = true", var))
     }
 
     /// Create a control state where the variable is false.
@@ -325,33 +325,33 @@ impl BddControlDomain {
     /// ```
     pub fn mk_var_false(&self, var: &str) -> ControlState {
         let var_id = self.allocate_var(var);
-        let var_bdd = self.manager.mk_var(var_id);
-        let bdd_ref = self.manager.apply_not(var_bdd);
-        ControlState::new(bdd_ref, Rc::clone(&self.manager)).with_description(format!("{} = false", var))
+        let var_phi = self.manager.mk_var(var_id);
+        let phi = self.manager.apply_not(var_phi);
+        ControlState::new(phi, Rc::clone(&self.manager)).with_description(format!("{} = false", var))
     }
 
     /// Conjunction: φ₁ ∧ φ₂
     ///
     /// Creates a control state representing the intersection of two control states.
     pub fn and(&self, s1: &ControlState, s2: &ControlState) -> ControlState {
-        let bdd_ref = self.manager.apply_and(s1.bdd_ref, s2.bdd_ref);
-        ControlState::new(bdd_ref, Rc::clone(&self.manager))
+        let phi = self.manager.apply_and(s1.phi, s2.phi);
+        ControlState::new(phi, Rc::clone(&self.manager))
     }
 
     /// Disjunction: φ₁ ∨ φ₂
     ///
     /// Creates a control state representing the union of two control states.
     pub fn or(&self, s1: &ControlState, s2: &ControlState) -> ControlState {
-        let bdd_ref = self.manager.apply_or(s1.bdd_ref, s2.bdd_ref);
-        ControlState::new(bdd_ref, Rc::clone(&self.manager))
+        let phi = self.manager.apply_or(s1.phi, s2.phi);
+        ControlState::new(phi, Rc::clone(&self.manager))
     }
 
     /// Negation: ¬φ
     ///
     /// Creates a control state representing the complement.
     pub fn not(&self, s: &ControlState) -> ControlState {
-        let bdd_ref = self.manager.apply_not(s.bdd_ref);
-        ControlState::new(bdd_ref, Rc::clone(&self.manager))
+        let phi = self.manager.apply_not(s.phi);
+        ControlState::new(phi, Rc::clone(&self.manager))
     }
 
     /// Implication: φ₁ ⇒ φ₂
@@ -359,8 +359,8 @@ impl BddControlDomain {
     /// Equivalent to: ¬φ₁ ∨ φ₂
     pub fn implies(&self, s1: &ControlState, s2: &ControlState) -> bool {
         // φ₁ ⇒ φ₂ is equivalent to checking if φ₁ ∧ ¬φ₂ is unsatisfiable
-        let not_s2 = self.manager.apply_not(s2.bdd_ref);
-        let and_result = self.manager.apply_and(s1.bdd_ref, not_s2);
+        let not_s2 = self.manager.apply_not(s2.phi);
+        let and_result = self.manager.apply_and(s1.phi, not_s2);
         and_result == self.manager.zero
     }
 
@@ -460,7 +460,7 @@ impl AbstractDomain for BddControlDomain {
     /// assert!(domain.is_bottom(&impossible));
     /// ```
     fn is_bottom(&self, elem: &Self::Element) -> bool {
-        elem.bdd_ref == self.manager.zero
+        elem.phi == self.manager.zero
     }
 
     /// Check if an element is top (all paths reachable).
@@ -480,7 +480,7 @@ impl AbstractDomain for BddControlDomain {
     /// assert!(domain.is_top(&all_paths));
     /// ```
     fn is_top(&self, elem: &Self::Element) -> bool {
-        elem.bdd_ref == self.manager.one
+        elem.phi == self.manager.one
     }
 
     /// Partial order: φ₁ ⊑ φ₂ iff φ₁ ⇒ φ₂ (logical implication).
@@ -1139,8 +1139,8 @@ struct HashableControlState(ControlState);
 
 impl Hash for HashableControlState {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        // Hash the BDD reference value directly (Ref implements Hash)
-        self.0.bdd_ref.hash(state);
+        // Hash the Boolean formula φ directly (Ref implements Hash)
+        self.0.phi.hash(state);
     }
 }
 
