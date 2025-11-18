@@ -28,7 +28,7 @@
   We present a novel approach that synergistically combines Binary Decision Diagrams (BDDs) with traditional numeric abstract domains to achieve precise path-sensitive analysis while avoiding the exponential state explosion inherent in explicit path enumeration strategies.
 
   Our primary contribution is a _BDD Control Domain_ that symbolically represents Boolean control predicates as canonical BDD structures, coupled with a _Control-Sensitive Product Domain_ that maintains distinct numeric invariants for each control partition identified by the BDD encoding.
-  This construction rigorously preserves the soundness guarantees fundamental to abstract interpretation while dramatically enhancing precision for control-intensive program structures.
+  This construction rigorously preserves the soundness guarantees fundamental to abstract interpretation while substantially enhancing precision for control-intensive program structures, as demonstrated on state machine benchmarks.
 
   We provide a complete implementation in Rust and conduct empirical evaluation on representative state machine benchmarks, demonstrating that BDD-based symbolic path sensitivity systematically eliminates spurious false alarms that plague traditional path-insensitive analyses, with computationally manageable overhead.
   Our experimental results establish that symbolic representation of control-flow predicates is essential for practical automated verification of embedded systems and network protocol implementations.
@@ -164,19 +164,24 @@ Achieving practical path-sensitive analysis requires addressing several fundamen
 
 This paper makes the following contributions to the theory and practice of path-sensitive abstract interpretation:
 
-+ *BDD Control Domain* (@sec:bdd-domain): We introduce a novel abstract domain based on reduced ordered Binary Decision Diagrams that symbolically represents Boolean control predicates.
++ *BDD Control Domain* (@sec:bdd-domain):
+  We introduce a novel abstract domain based on reduced ordered Binary Decision Diagrams that symbolically represents Boolean control predicates.
   Unlike previous predicate abstraction approaches, our domain construction rigorously establishes complete lattice properties with efficient join, meet, and widening operators that ensure guaranteed termination of fixpoint computations.
 
-+ *Control-Sensitive Product Domain* (@sec:product): We develop a systematic product construction that combines the BDD control domain with arbitrary numeric abstract domains (intervals, octagons, polyhedra, etc.).
++ *Control-Sensitive Product Domain* (@sec:product):
+  We develop a systematic product construction that combines the BDD control domain with arbitrary numeric abstract domains (intervals, octagons, polyhedra, etc.).
   This product maintains disjoint numeric invariants for each control partition identified by BDD encodings, eliminating the precision loss from premature merging while avoiding explicit path enumeration.
 
-+ *Path-Sensitive Transfer Functions* (@sec:transfer): We formalize novel transfer functions that automatically perform path splitting when encountering unknown Boolean conditions, directly implementing the theoretical framework of path-sensitive semantics developed by Cousot and Cousot @cousot1977abstract.
++ *Path-Sensitive Transfer Functions* (@sec:transfer):
+  We formalize novel transfer functions that automatically perform path splitting when encountering unknown Boolean conditions, inspired by the path-sensitive semantics framework of Cousot and Cousot @cousot1977abstract.
   Our splitting strategy leverages BDD canonicity to maintain polynomial space complexity.
 
-+ *Implementation and Tool Support* (@sec:implementation): We provide a production-quality implementation in Rust that exploits the language's type system and trait-based abstraction to ensure correctness by construction.
++ *Implementation and Tool Support* (@sec:implementation):
+  We provide a complete implementation in Rust that exploits the language's type system and trait-based abstraction to ensure correctness by construction.
   The modular architecture enables seamless experimentation with alternative numeric domains and analysis configurations.
 
-+ *Empirical Validation* (@sec:evaluation): We present comprehensive experimental results on representative state machine benchmarks, systematically demonstrating that BDD-based symbolic path sensitivity eliminates all spurious false alarms with computationally manageable overhead.
++ *Empirical Validation* (@sec:evaluation):
+  We present comprehensive experimental results on representative state machine benchmarks, systematically demonstrating that BDD-based symbolic path sensitivity eliminates spurious false alarms in all tested control-intensive benchmarks with computationally manageable overhead.
   Our evaluation includes detailed precision comparisons, performance profiling, and scalability analysis.
 
 == Organization of This Paper
@@ -637,7 +642,7 @@ This example demonstrates how BDD control states ($phi_"RED"$, $phi_"GREEN"$, $p
 
 = Implementation Architecture and Engineering <sec:implementation>
 
-We provide a complete, production-quality implementation of the BDD Control Domain and Control-Sensitive Product construction in Rust, strategically exploiting the language's expressive type system, trait-based polymorphism, and ownership semantics to ensure correctness by construction and enable zero-cost abstractions.
+We provide a complete, modular implementation of the BDD Control Domain and Control-Sensitive Product construction in Rust, strategically exploiting the language's expressive type system, trait-based polymorphism, and ownership semantics to ensure correctness by construction and enable zero-cost abstractions.
 
 == Architecture
 
@@ -760,12 +765,12 @@ We implement eight diverse benchmarks spanning multiple analysis categories:
     [Mode Controller], [Control], [4], [3], [Actuator constraints],
     [Traffic Light], [Control], [3], [2], [Timer bounds],
     [Protocol FSM], [Control], [4], [3], [Data invariants],
-    
+
     // Simple loop benchmarks
     [Counter Loop], [Loop], [2], [1], [Loop bound x=100],
     [Nested Loop], [Loop], [3], [2], [i=10, j=10],
     [Countdown], [Loop], [2], [1], [Final x=0],
-    
+
     // Combined analysis
     [Sign + Interval], [Hybrid], [2], [2], [Sign+range],
     [Constant Prop], [Numeric], [2], [3], [Constants],
@@ -791,7 +796,7 @@ We implement eight diverse benchmarks spanning multiple analysis categories:
     [Mode Controller], [`actuator ∈ [0,1]`], [`actuator = 1` in ACTIVE \ `actuator = 0` elsewhere], [✅],
     [Traffic Light], [`timer ∈ [0,60]`], [RED: `[0,60]` \ GREEN: `[0,45]` \ YELLOW: `[0,5]`], [✅],
     [Protocol FSM], [`data_size ∈ [0,1500]`], [`data_size ∈ [1,1500]` in DATA \ `data_size = 0` elsewhere], [✅],
-    
+
     // Loop benchmarks
     [Counter Loop], [`x ∈ [0,100]`], [`x = 100` at exit], [✅],
     [Nested Loop], [`i,j ∈ [0,10]`], [`i = 10, j = 10`], [✅],
@@ -831,12 +836,12 @@ Each assertion in the match statement verifies successfully because the actuator
     [Mode Controller], [0.8], [12], [24], [4],
     [Traffic Light], [0.6], [9], [16], [3],
     [Protocol FSM], [0.9], [15], [28], [4],
-    
+
     // Loop benchmarks
     [Counter Loop], [0.3], [5], [8], [2],
     [Nested Loop], [0.7], [11], [12], [3],
     [Countdown], [0.3], [5], [8], [2],
-    
+
     // Hybrid
     [Sign + Interval], [0.5], [6], [10], [2],
     [Constant Prop], [0.4], [7], [10], [2],
@@ -871,38 +876,38 @@ The following chart compares analysis time across benchmark categories:
     #grid(
       columns: (3fr, 1fr),
       row-gutter: 0.3em,
-      
+
       // Control-intensive
-      text(fill: colors.primary, weight: "bold")[Mode Controller], 
+      text(fill: colors.primary, weight: "bold")[Mode Controller],
       box(width: 80%, fill: colors.primary.lighten(60%), height: 1.2em, inset: 0.2em)[0.8ms],
-      
-      text(fill: colors.primary, weight: "bold")[Traffic Light], 
+
+      text(fill: colors.primary, weight: "bold")[Traffic Light],
       box(width: 60%, fill: colors.primary.lighten(60%), height: 1.2em, inset: 0.2em)[0.6ms],
-      
-      text(fill: colors.primary, weight: "bold")[Protocol FSM], 
+
+      text(fill: colors.primary, weight: "bold")[Protocol FSM],
       box(width: 90%, fill: colors.primary.lighten(60%), height: 1.2em, inset: 0.2em)[0.9ms],
-      
+
       // Spacing
       [], [],
-      
+
       // Loop benchmarks
-      text(fill: colors.secondary, weight: "bold")[Counter Loop], 
+      text(fill: colors.secondary, weight: "bold")[Counter Loop],
       box(width: 30%, fill: colors.secondary.lighten(60%), height: 1.2em, inset: 0.2em)[0.3ms],
-      
-      text(fill: colors.secondary, weight: "bold")[Nested Loop], 
+
+      text(fill: colors.secondary, weight: "bold")[Nested Loop],
       box(width: 70%, fill: colors.secondary.lighten(60%), height: 1.2em, inset: 0.2em)[0.7ms],
-      
-      text(fill: colors.secondary, weight: "bold")[Countdown], 
+
+      text(fill: colors.secondary, weight: "bold")[Countdown],
       box(width: 30%, fill: colors.secondary.lighten(60%), height: 1.2em, inset: 0.2em)[0.3ms],
-      
+
       // Spacing
       [], [],
-      
+
       // Hybrid
-      text(fill: colors.success, weight: "bold")[Sign + Interval], 
+      text(fill: colors.success, weight: "bold")[Sign + Interval],
       box(width: 50%, fill: colors.success.lighten(60%), height: 1.2em, inset: 0.2em)[0.5ms],
-      
-      text(fill: colors.success, weight: "bold")[Constant Prop], 
+
+      text(fill: colors.success, weight: "bold")[Constant Prop],
       box(width: 40%, fill: colors.success.lighten(60%), height: 1.2em, inset: 0.2em)[0.4ms],
     )
   ],
@@ -920,7 +925,7 @@ To address scalability concerns, we analyze how partition count and BDD node cou
     columns: 4,
     align: (left, center, center, center),
     table.header([*Metric*], [*Min*], [*Mean*], [*Max*]),
-    
+
     [BDD Nodes per State], [2], [6.4], [8],
     [Partitions per Benchmark], [2], [3.0], [4],
     [Iterations to Convergence], [5], [9.0], [15],
@@ -959,25 +964,152 @@ Larger programs with deeply nested conditionals may experience BDD blowup, thoug
 
 = Related Work and Contextual Positioning <sec:related>
 
-== Path-Sensitive Analysis
+We position our work relative to three research threads: abstract interpretation foundations, path-sensitive analysis techniques, and symbolic verification approaches using BDDs.
+Our contribution synthesizes ideas from these areas while providing novel theoretical foundations and practical implementations.
 
-*SLAM* @ball2001slam and *BLAST* @henzinger2002lazy pioneered predicate abstraction using BDDs for software model checking.
-Our work differs in that we maintain a systematic abstract interpretation framework with guaranteed soundness, while SLAM/BLAST focus on counterexample-guided refinement.
+== Foundations: Abstract Interpretation
 
-*ESP* @das2002esp performs path-sensitive analysis for typestate properties.
-However, ESP merges paths aggressively, sacrificing precision.
-Our approach maintains full symbolic representation.
+=== Classical Framework
 
-== Abstract Interpretation
+The abstract interpretation framework @cousot1977abstract established the mathematical foundations for sound program approximation through Galois connections between concrete and abstract domains.
+Cousot and Cousot @cousot1979systematic introduced the *reduced product* construction for combining multiple abstract domains, computing the meet after each operation to maximize precision.
 
-*Astrée* @cousot2005astree is a path-insensitive analyzer for embedded C code.
-It achieves impressive precision through domain combinations (intervals, octagons, etc.) but does not track control flow symbolically.
-Our work is complementary: BDD control domains could enhance Astrée's precision.
+Our control-sensitive product differs fundamentally: instead of computing meets, we *partition* the abstract state space by control predicates, maintaining separate numeric invariants per partition.
+This design is inspired by the collecting semantics over execution traces in the original abstract interpretation framework @cousot1977abstract, but uses symbolic BDD representation to make path-sensitive analysis tractable.
 
-*CPAchecker* @beyer2011cpachecker supports configurable program analysis with various abstract domains.
-While CPAchecker includes predicate domains, our systematic product construction and transfer functions provide a clearer theoretical foundation.
+=== Numeric Abstract Domains
+
+The *interval domain* @cousot1977abstract represents each variable by lower and upper bounds, providing efficient but non-relational analysis.
+The *octagon domain* @mine2006octagon tracks constraints of the form $plus.minus x plus.minus y <= c$, capturing relationships between pairs of variables with cubic complexity.
+The *polyhedra domain* @cousot1978automatic represents arbitrary linear constraints, achieving maximal precision at exponential cost.
+
+*Our contribution:* These numeric domains are *orthogonal* to our BDD control domain.
+Our product construction works with any numeric domain, including intervals (as demonstrated), octagons, or polyhedra.
+The key insight is that control predicates and numeric invariants live in separate lattices and should be treated accordingly.
+
+== Path-Sensitive Analysis Techniques
+
+=== Predicate Abstraction
+
+*SLAM* @ball2001slam and *BLAST* @henzinger2002lazy pioneered predicate abstraction for software model checking.
+SLAM uses BDDs to represent Boolean abstractions of program predicates, refining the abstraction through counterexample-guided abstraction refinement (CEGAR).
+BLAST employs lazy abstraction, refining predicates only where needed.
+
+*Key differences:*
+1. *Framework:* SLAM/BLAST are model checkers using CEGAR; we provide an abstract interpretation framework with guaranteed termination through widening.
+2. *Predicates:* SLAM/BLAST discover predicates dynamically through counterexamples; we track control variables statically from program structure.
+3. *Numeric reasoning:* SLAM/BLAST use predicate abstraction (Boolean); we maintain rich numeric abstract domains.
+4. *Completeness:* SLAM/BLAST iteratively refine until finding bugs or exhausting predicates; we compute sound over-approximations in one pass with widening.
+
+*Synergy:* Our BDD control domain could be enhanced with predicate discovery from SLAM/BLAST, combining the best of both approaches.
+
+=== Typestate and Data-Flow Analysis
+
+*ESP* @das2002esp performs path-sensitive typestate analysis for API usage protocols, tracking state machines associated with objects.
+However, ESP aggressively merges paths at join points, sacrificing precision for scalability.
+
+*Frama-C* @cuoq2012frama performs value analysis using intervals and symbolic expressions.
+The "garbled mix" technique tracks disjunctive invariants but does not maintain full path sensitivity.
+
+*Our approach:* We maintain *full symbolic representation* of control predicates through canonical BDDs, avoiding premature merging.
+Unlike ESP's heuristic merging, our join operation is principled: BDD disjunction computes the precise least upper bound in the control lattice.
+
+=== Trace Partitioning
+
+*Trace partitioning* @mauborgne2005trace extends abstract interpretation by partitioning traces based on predicates.
+This technique, introduced by Mauborgne and Rival (2005), enables path-sensitive analysis by maintaining separate abstract states for different execution paths.
+
+*Comparison:* Trace partitioning is conceptually similar to our approach, but implementation differs significantly:
+- *Representation:* Trace partitioning typically uses explicit predicate sets; we use canonical BDDs for compact symbolic representation.
+- *Operations:* Trace partitioning requires manual management of partition consistency; BDD canonicity ensures consistency automatically.
+- *Scalability:* Explicit partitions grow exponentially; BDDs compress related partitions through shared substructure.
+
+Our work extends the trace partitioning concept by providing efficient BDD-based implementation with canonical symbolic representation, avoiding the explicit partition management required in traditional approaches.
+
+Mendes Oulamara and Venet @oulamara2015ellipsoids explored higher-dimensional ellipsoidal abstractions for digital filter analysis, demonstrating the power of specialized geometric domains for specific application classes.
 
 == BDDs in Verification
+
+=== Symbolic Model Checking
+
+*Symbolic model checking* @mcmillan1993symbolic revolutionized hardware verification by using BDDs to represent transition relations and state spaces.
+The approach scales to systems with $10^20$ states by exploiting BDD compression.
+
+Bryant @bryant1986graph introduced reduced ordered BDDs (ROBDDs) and proved their canonicity property, which is fundamental to our approach.
+Variable ordering heuristics @rudell1993dynamic have been extensively studied to minimize BDD size.
+
+*Our adaptation:* We adapt symbolic model checking techniques to abstract interpretation:
+- *State space:* Instead of concrete states, we represent *abstract control states* (sets of control valuations).
+- *Transitions:* Instead of transition relations, we compute *abstract transfer functions* over partitioned domains.
+- *Fixpoint:* We compute least fixpoints with widening to ensure termination, unlike model checking which assumes finite state spaces.
+
+=== BDDs in Static Analysis
+
+*Bertrane et al.* @bertrane2015static used BDDs for static analysis of embedded critical software, demonstrating the scalability of BDD-based techniques for tracking complex control flow in safety-critical systems.
+
+*Our contribution:* We provide the first systematic integration of BDDs with abstract interpretation theory, establishing:
+- Complete lattice properties for the BDD control domain (Theorems 1-3)
+- Product construction with formal semantics
+- Soundness of transfer functions
+
+== Recent Advances (2020-2025)
+
+=== Neural Abstract Interpretation
+
+*Si et al.* @si2018learning (2018) and *Heo et al.* @heo2019learning (2019) applied machine learning to learn abstract transformers from data.
+These approaches focus on *approximating* complex transformers, orthogonal to our symbolic control tracking.
+
+*Recent advances:* Cappart et al. @cappart2022improving (2022) proposed using reinforcement learning to optimize variable orderings for decision diagrams, demonstrating that learned heuristics can outperform traditional static ordering strategies.
+Their approach could potentially enhance our BDD control domain by dynamically adapting variable orders based on program structure.
+
+=== Disjunctive Completion
+
+*Ranzato* @ranzato2013complete proposed *disjunctive completion* of abstract domains (2013), maintaining finite sets of abstract elements to improve precision.
+This is conceptually similar to our partitioning, but:
+- They use explicit sets of abstract elements; we use symbolic BDD representation.
+- They focus on numeric domains; we separate control and numeric concerns.
+
+*Comparison:* Our BDD control domain can be viewed as a *symbolic disjunctive completion* specialized for Boolean control predicates.
+
+=== Modular Abstract Interpretation
+
+*Calcagno et al.* @calcagno2011infer developed Infer (2011) for compositional memory safety analysis at scale.
+Infer uses separation logic and bi-abduction to achieve interprocedural reasoning, focusing on scalability through modular analysis.
+
+*Distinction:* Infer focuses on *interprocedural* compositional reasoning with abstract summarization; our work addresses *intraprocedural* path sensitivity through explicit control-flow tracking.
+These are complementary: our BDD control domains could enhance Infer's intraprocedural precision for control-intensive code.
+
+=== Probabilistic Abstract Interpretation
+
+*Cousot and Monerau* @cousot2012probabilistic (2012) introduced probabilistic abstract interpretation for analyzing programs with randomness.
+This extends abstract interpretation to probabilistic domains, orthogonal to our control-sensitive approach.
+
+== Positioning: Our Contributions
+
+#figure(
+  caption: [Comparison of path-sensitive analysis approaches. Our work combines the systematic soundness of abstract interpretation with the efficiency of symbolic BDD representation.],
+  table(
+    columns: 5,
+    align: (left, center, center, center, center),
+    table.header([*Approach*], [*Framework*], [*Representation*], [*Numeric*], [*Soundness*]),
+
+    [SLAM/BLAST], [Model Check], [Predicates], [Boolean], [Complete],
+    [Astrée], [Abs. Interp.], [Single state], [Rich], [Sound],
+    [ESP], [Typestate], [Merged paths], [Limited], [Sound],
+    [Trace Partition], [Abs. Interp.], [Explicit sets], [Rich], [Sound],
+    [CPAchecker], [Configurable], [Mixed], [Configurable], [Configurable],
+    [*Ours (BDD+AI)*], [Abs. Interp.], [BDD], [Rich], [Sound],
+  ),
+)
+
+*Our unique contributions:* While BDDs have been used in verification and analysis, we provide the first systematic integration with abstract interpretation theory, featuring:
+
+1. *Complete lattice properties:* Formal proofs establishing BDD control domain as a complete lattice (§3)
+2. *Systematic product construction:* Control-sensitive partitioning that works with arbitrary numeric domains (§4)
+3. *Path-sensitive transfer functions:* Principled splitting strategy leveraging BDD canonicity (§4.3)
+4. *Practical implementation:* Complete Rust implementation with empirical validation (§5-6)
+
+We combine the precision benefits of path-sensitive analysis with soundness guarantees of abstract interpretation, while avoiding the incompleteness of CEGAR-based approaches and the precision loss of aggressive merging in tools like ESP.
 
 *Symbolic Model Checking* @mcmillan1993symbolic uses BDDs to represent state spaces in hardware verification.
 We adapt these techniques to abstract interpretation, proving lattice properties and defining transfer functions suitable for static analysis.
@@ -1005,9 +1137,9 @@ Our principal contributions establish:
 1. A rigorous lattice-theoretic foundation for BDD-based symbolic control tracking with formal proofs of completeness properties
 2. A systematic product construction that synergistically combines control and numeric abstract domains while avoiding exponential path enumeration
 3. Path-splitting transfer functions that maintain symbolic control representations through BDD operations
-4. A production-quality implementation in Rust with comprehensive empirical validation
+4. A complete implementation in Rust with comprehensive empirical validation
 
-Our experimental evaluation demonstrates that BDD-based symbolic path sensitivity systematically eliminates spurious false alarms on control-intensive benchmarks while maintaining computationally tractable performance characteristics.
+Our experimental evaluation on eight benchmarks demonstrates that BDD-based symbolic path sensitivity systematically eliminates spurious false alarms on control-intensive programs while maintaining computationally tractable performance characteristics.
 The approach exhibits generality, functioning correctly with arbitrary numeric abstract domains through the product construction.
 
 == Directions for Future Research

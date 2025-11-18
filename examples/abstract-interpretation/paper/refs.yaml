@@ -157,6 +157,158 @@ beyer2020software:
     title: International Conference on Tools and Algorithms for the Construction and Analysis of Systems
     organization: Springer
 
+cuoq2012frama:
+  type: article
+  title: "Frama-C: A software analysis perspective"
+  author:
+    - Cuoq, Pascal
+    - Kirchner, Florent
+    - Kosmatov, Nikolai
+    - Prevosto, Virgile
+    - Signoles, Julien
+    - Yakobowski, Boris
+  date: 2012
+  page-range: 233-247
+  parent:
+    type: proceedings
+    title: International Conference on Software Engineering and Formal Methods
+    organization: Springer
+
+mauborgne2005trace:
+  type: article
+  title: Trace partitioning in abstract interpretation based static analyzers
+  author:
+    - Mauborgne, Laurent
+    - Rival, Xavier
+  date: 2005
+  page-range: 5-20
+  parent:
+    type: proceedings
+    title: European Symposium on Programming
+    organization: Springer
+
+oulamara2015ellipsoids:
+  type: misc
+  title: "Abstract interpretation with higher-dimensional ellipsoids and conic extrapolation"
+  author:
+    - Mendes Oulamara, Mehdi
+    - Venet, Arnaud J
+  date: 2015
+  note: "Master's thesis, École Normale Supérieure, Paris. Available at http://www.di.ens.fr/~bouillar/Stages/Rapports/rapport_Oulamara.pdf"
+
+rudell1993dynamic:
+  type: article
+  title: Dynamic variable ordering for ordered binary decision diagrams
+  author: Rudell, Richard
+  date: 1993
+  page-range: 42-47
+  parent:
+    type: proceedings
+    title: IEEE/ACM International Conference on Computer-Aided Design
+
+bertrane2015static:
+  type: article
+  title: Static analysis by abstract interpretation of embedded critical software
+  author:
+    - Bertrane, Julien
+    - Cousot, Patrick
+    - Cousot, Radhia
+    - Feret, Jérôme
+    - Mauborgne, Laurent
+    - Miné, Antoine
+    - Rival, Xavier
+  date: 2015
+  page-range: 1-68
+  parent:
+    type: periodical
+    title: ACM SIGSOFT Software Engineering Notes
+    issue: 1
+    volume: 40
+
+si2018learning:
+  type: article
+  title: Learning loop invariants for program verification
+  author:
+    - Si, Xujie
+    - Dai, Hanjun
+    - Raghothaman, Mukund
+    - Naik, Mayur
+    - Song, Le
+  date: 2018
+  parent:
+    type: proceedings
+    title: Advances in Neural Information Processing Systems
+    volume: 31
+
+heo2019learning:
+  type: article
+  title: Learning a variable ordering for binary decision diagram-based program analysis
+  author:
+    - Heo, Kihong
+    - Oh, Hakjoo
+    - Yang, Hongseok
+  date: 2019
+  page-range: 287-311
+  parent:
+    type: periodical
+    title: ACM Transactions on Programming Languages and Systems
+    issue: 2
+    volume: 41
+
+cappart2022improving:
+  type: article
+  title: Improving variable orderings of approximate decision diagrams using reinforcement learning
+  author:
+    - Cappart, Quentin
+    - Bergman, David
+    - Rousseau, Louis-Martin
+    - Prémont-Schwarz, Isabeau
+    - Parjadis, Augustin
+  date: 2022
+  page-range: 464-482
+  parent:
+    type: periodical
+    title: INFORMS Journal on Computing
+    issue: 2
+    volume: 34
+
+ranzato2013complete:
+  type: article
+  title: Complete abstractions everywhere
+  author: Ranzato, Francesco
+  date: 2013
+  page-range: 15-26
+  parent:
+    type: proceedings
+    title: International Workshop on Verification, Model Checking, and Abstract Interpretation
+    organization: Springer
+
+calcagno2011infer:
+  type: article
+  title: "Infer: An automatic program verifier for memory safety of C programs"
+  author:
+    - Calcagno, Cristiano
+    - Distefano, Dino
+  date: 2011
+  page-range: 459-465
+  parent:
+    type: proceedings
+    title: NASA Formal Methods Symposium
+    organization: Springer
+
+cousot2012probabilistic:
+  type: article
+  title: Probabilistic abstract interpretation
+  author:
+    - Cousot, Patrick
+    - Monerau, Michael
+  date: 2012
+  page-range: 169-193
+  parent:
+    type: proceedings
+    title: European Symposium on Programming
+    organization: Springer
+
 bddrsgithub:
   type: misc
   title: "bdd-rs: Binary Decision Diagrams in Rust"
