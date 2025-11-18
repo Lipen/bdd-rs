@@ -72,29 +72,72 @@ Traditional abstract interpretation frameworks @cousot1977abstract deliberately 
 
 Consider the following illustrative example that demonstrates the fundamental precision loss inherent in path-insensitive analysis:
 
-#example-box[
+#example-box(title: "Running Example 1: Embedded Heater Controller")[
   ```rust
-  let mut x = 0;
-  let mut mode = 0;
+  enum Mode { OFF, STANDBY, HEATING }
 
-  if sensor_a { mode = 1; }
-  if sensor_b { mode = 2; }
+  fn heater_controller(temp: i32, power_ok: bool) {
+      let mut mode = Mode::OFF;
+      let mut heater_power = 0;  // Watts: 0-2000
 
-  if mode == 1 {
-      x = 10;  // Path 1: x = 10
-  } else if mode == 2 {
-      x = 20;  // Path 2: x = 20
-  } else {
-      x = 0;   // Path 3: x = 0
+      // State transitions based on conditions
+      if power_ok && temp < 18 {
+          mode = Mode::HEATING;
+          heater_power = 2000;
+      } else if power_ok && temp < 22 {
+          mode = Mode::STANDBY;
+          heater_power = 500;
+      }
+
+      // Safety property: power limits depend on mode
+      match mode {
+          Mode::HEATING  => assert!(heater_power == 2000),
+          Mode::STANDBY  => assert!(heater_power == 500),
+          Mode::OFF      => assert!(heater_power == 0),
+      }
   }
-  // Path-insensitive: x ∈ [0, 20]
-  // Path-sensitive: x ∈ {0, 10, 20} depending on mode
   ```
+
+  *Path-insensitive analysis:* \
+  Merges all paths $->$ `heater_power ∈ [0, 2000]` $->$ *Cannot verify assertions!*
+
+  *Path-sensitive analysis:* Maintains separate states:
+  - When `mode = HEATING`: `heater_power = 2000` #YES
+  - When `mode = STANDBY`: `heater_power = 500` #YES
+  - When `mode = OFF`: `heater_power = 0` #YES
 ]
 
-Path-insensitive analysis merges all feasible paths at control-flow join points, computing the abstract join operation and concluding that `x ∈ [0, 20]`.
-While this over-approximation maintains soundness, it fundamentally loses the crucial invariant that `x` depends deterministically on the `mode` variable through well-defined control predicates.
+Path-insensitive analysis merges all feasible paths at control-flow join points, computing the abstract join operation and concluding that `heater_power ∈ [0, 2000]`.
+While this over-approximation maintains soundness, it fundamentally loses the crucial invariant that `heater_power` depends deterministically on the `mode` variable through well-defined _control predicates_.
 For safety-critical embedded systems where mode variables directly control actuators, sensors, or resource allocation policies, such imprecision systematically generates spurious false alarms that undermine the practical utility of the verification approach.
+
+$
+  A = emptyset
+$
+
+*We revisit this example throughout the paper*, demonstrating how BDD control domains (@sec:bdd-domain) capture the mode structure symbolically, and how the control-sensitive product (@sec:product) maintains precise power constraints per mode.
+
+#v(0.5em)
+
+// State machine visualization for heater controller
+#state-machine(
+  states: (
+    (id: "off", label: "OFF", pos: (0, 0)),
+    (id: "standby", label: "STANDBY", pos: (3, 0)),
+    (id: "heating", label: "HEATING", pos: (1.5, 2)),
+  ),
+  transitions: (
+    (from: "off", to: "standby", label: "power_ok ∧ temp < 22", curve: 0),
+    (from: "standby", to: "heating", label: "temp < 18", curve: 0),
+    (from: "heating", to: "standby", label: "temp ≥ 18", curve: 0),
+    (from: "standby", to: "off", label: "¬power_ok", curve: 0),
+    (from: "heating", to: "off", label: "¬power_ok", curve: 0),
+  ),
+  initial: "off",
+  caption: [State machine for the heater controller. Each state enforces specific power constraints: OFF (0W), STANDBY (500W), HEATING (2000W). Transitions depend on Boolean conditions and temperature thresholds.],
+)
+
+#v(0.5em)
 
 == Motivation and Application Domains
 
@@ -214,6 +257,76 @@ For path-sensitive analysis, BDDs are particularly attractive because:
 1. They can represent sets of control states symbolically
 2. Operations like checking path feasibility reduce to BDD operations
 3. Canonical form enables efficient equality checking
+
+=== Example: BDD Representation
+
+#example-box(title: "Running Example 2: Boolean Function and BDD")[
+  Consider the Boolean function from a simple alarm system:
+  $ f(a, b, c) = (a and b) or (not a and c) $
+  where:
+  - $a$ = "door_open" sensor
+  - $b$ = "motion_detected" sensor
+  - $c$ = "window_broken" sensor
+
+  This function activates the alarm in two scenarios:
+  1. Door is open AND motion detected
+  2. Door is closed AND window is broken
+
+  The truth table has $2^3 = 8$ rows, but the BDD representation uses only 4 nodes (plus 2 terminals), demonstrating the compactness property.
+  The canonical structure enables efficient checking: "Is alarm activated when door is closed?" reduces to following the $a = 0$ edge in the BDD.
+]
+
+#v(0.5em)
+
+// Truth table for the alarm function
+#truth-table(
+  vars: ("a", "b", "c"),
+  rows: (
+    (0, 0, 0, 0),
+    (0, 0, 1, 1),
+    (0, 1, 0, 0),
+    (0, 1, 1, 1),
+    (1, 0, 0, 0),
+    (1, 0, 1, 0),
+    (1, 1, 0, 1),
+    (1, 1, 1, 1),
+  ),
+  caption: [Truth table for alarm function $f(a,b,c) = (a and b) or (not a and c)$. The function evaluates to 1 (alarm activated) for 4 out of 8 input combinations.],
+)
+
+#v(0.5em)
+
+// BDD visualization for f(a,b,c) = (a ∧ b) ∨ (¬a ∧ c)
+// Variable order: a < b < c
+#bdd-diagram(
+  nodes: (
+    // Root node: variable a
+    (id: "a", var: "a", pos: (0, 0)),
+    // Second level: variables b and c
+    (id: "b", var: "b", pos: (-1.5, -1.8)),
+    (id: "c", var: "c", pos: (1.5, -1.8)),
+    // Terminal nodes
+    (id: "1", var: "1", pos: (0, -3.5), terminal: true),
+    (id: "0", var: "0", pos: (-2, -3.5), terminal: true),
+  ),
+  edges: (
+    // From a: low edge (a=0) goes to c, high edge (a=1) goes to b
+    (from: "a", to: "c", low: true),
+    (from: "a", to: "b", low: false),
+    // From b: low edge (b=0) goes to 0, high edge (b=1) goes to 1
+    (from: "b", to: "0", low: true),
+    (from: "b", to: "1", low: false),
+    // From c: low edge (c=0) goes to 0, high edge (c=1) goes to 1
+    (from: "c", to: "0", low: true),
+    (from: "c", to: "1", low: false),
+  ),
+  caption: [BDD representation of $f(a, b, c) = (a and b) or (not a and c)$ with variable order $a < b < c$. Solid edges represent high (1) branches, dashed edges represent low (0) branches. The reduced structure shares the terminal nodes.],
+)
+
+#v(0.5em)
+
+*Key insight:* In our heater controller (Example 1), the mode transitions form a Boolean function over conditions `power_ok` and temperature comparisons.
+Representing this as a BDD allows efficient manipulation of all mode combinations simultaneously.
 
 #pagebreak()
 
@@ -414,8 +527,91 @@ This is the key to path-sensitive precision.
 
 The splitting logic implements the insight from @cousot1977abstract that path-sensitivity requires maintaining multiple abstract states.
 
-#example-box(title: "Example: Path Splitting")[
-  Consider the code:
+=== Running Example 3: Traffic Light Controller
+
+#example-box(title: "Running Example 3: Traffic Light with Timing Constraints")[
+  Consider a traffic light controller with timing constraints:
+  ```rust
+  enum State { RED, YELLOW, GREEN }
+
+  fn traffic_light_step(state: State, timer: i32) -> (State, i32) {
+      let mut next_state = state;
+      let mut next_timer = timer + 1;
+
+      match state {
+          State::RED => {
+              if timer >= 30 {
+                  next_state = State::GREEN;
+                  next_timer = 0;
+              }
+              assert!(0 <= timer && timer <= 30);
+          },
+          State::GREEN => {
+              if timer >= 25 {
+                  next_state = State::YELLOW;
+                  next_timer = 0;
+              }
+              assert!(0 <= timer && timer <= 25);
+          },
+          State::YELLOW => {
+              if timer >= 5 {
+                  next_state = State::RED;
+                  next_timer = 0;
+              }
+              assert!(0 <= timer && timer <= 5);
+          },
+      }
+      (next_state, next_timer)
+  }
+  ```
+
+  *Control-Sensitive Product Analysis:*
+
+  The product domain maintains three partitions:
+  - $(phi_"RED", [0, 30])$: When in RED state, timer is in $[0, 30]$
+  - $(phi_"GREEN", [0, 25])$: When in GREEN state, timer is in $[0, 25]$
+  - $(phi_"YELLOW", [0, 5])$: When in YELLOW state, timer is in $[0, 5]$
+
+  Each assertion verifies successfully because the timer bounds are *partition-specific*.
+  Path-insensitive analysis would merge to `timer ∈ [0, 30]` and fail to verify the GREEN and YELLOW assertions.
+]
+
+This example demonstrates how BDD control states ($phi_"RED"$, $phi_"GREEN"$, $phi_"YELLOW"$) partition the abstract state space, enabling precise numeric invariants per control mode.
+
+#v(0.5em)
+
+// State machine for traffic light
+#state-machine(
+  states: (
+    (id: "red", label: "RED", pos: (0, 0)),
+    (id: "green", label: "GREEN", pos: (2.5, 1.5)),
+    (id: "yellow", label: "YELLOW", pos: (2.5, -1.5)),
+  ),
+  transitions: (
+    (from: "red", to: "green", label: "timer ≥ 30", curve: 0),
+    (from: "green", to: "yellow", label: "timer ≥ 25", curve: 0),
+    (from: "yellow", to: "red", label: "timer ≥ 5", curve: 0),
+  ),
+  initial: "red",
+  caption: [Traffic light state machine with timing constraints. Each state has distinct timer bounds enforced through control-sensitive partitioning.],
+)
+
+#v(0.5em)
+
+// Partition table showing control-sensitive product
+#partition-diagram(
+  partitions: (
+    (state: "RED", formula: "φ_RED", invariant: "timer ∈ [0, 30]"),
+    (state: "GREEN", formula: "φ_GREEN", invariant: "timer ∈ [0, 25]"),
+    (state: "YELLOW", formula: "φ_YELLOW", invariant: "timer ∈ [0, 5]"),
+  ),
+  caption: [Control-sensitive product domain partitions for traffic light. Each BDD control state maintains distinct numeric invariants for the timer variable.],
+)
+
+#v(0.5em)
+
+#example-box(title: "Path Splitting in Action")[
+  Now consider an unknown sensor condition:
   ```rust
   if unknown_condition {
       x = 10;
