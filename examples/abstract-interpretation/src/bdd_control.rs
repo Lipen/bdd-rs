@@ -1423,7 +1423,19 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
     }
 
     /// Create element from single partition
-    fn mk_element(&self, control_state: ControlState, numeric_elem: N::Element) -> ControlSensitiveElement<N> {
+    ///
+    /// This is a convenience method for creating a control-sensitive element
+    /// with exactly one partition (control state → numeric state mapping).
+    ///
+    /// # Arguments
+    ///
+    /// * `control_state` - The control state for this partition
+    /// * `numeric_elem` - The numeric abstract value for this partition
+    ///
+    /// # Returns
+    ///
+    /// A new element with a single partition, or an empty element if either input is bottom.
+    pub fn mk_single_partition(&self, control_state: ControlState, numeric_elem: N::Element) -> ControlSensitiveElement<N> {
         let mut partitions = HashMap::new();
         if !self.control_domain.is_bottom(&control_state) && !self.numeric_domain.is_bottom(&numeric_elem) {
             partitions.insert(HashableControlState(control_state), numeric_elem);
