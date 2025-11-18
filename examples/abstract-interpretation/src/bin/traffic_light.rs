@@ -150,28 +150,54 @@ fn analyze_path_sensitive() {
 
     println!();
     println!("--- After Join (Path-Sensitive) ---");
-    println!("Number of partitions: 3 (one per light state)");
+    println!("Number of partitions: {} (one per light state)", all_states.partition_count());
     println!();
+
+    // Verify and display actual timer bounds from each partition
     println!("Each partition maintains precise timer bounds:");
-    println!("  RED partition:    timer ∈ [0, 60]");
-    println!("  GREEN partition:  timer ∈ [0, 45]");
-    println!("  YELLOW partition: timer ∈ [0, 5]");
+
+    // RED: timer ∈ [0, 60]
+    if let Some(num_state) = all_states.get(&ctrl_red) {
+        if let Some((low, high)) = numeric_domain.get_bounds(num_state, &"timer".to_string()) {
+            assert_eq!((low, high), (0, 60), "RED state: timer should be [0,60]");
+            println!("  RED partition:    timer ∈ [{}, {}]", low, high);
+        }
+    }
+
+    // GREEN: timer ∈ [0, 45]
+    if let Some(num_state) = all_states.get(&ctrl_green) {
+        if let Some((low, high)) = numeric_domain.get_bounds(num_state, &"timer".to_string()) {
+            assert_eq!((low, high), (0, 45), "GREEN state: timer should be [0,45]");
+            println!("  GREEN partition:  timer ∈ [{}, {}]", low, high);
+        }
+    }
+
+    // YELLOW: timer ∈ [0, 5]
+    if let Some(num_state) = all_states.get(&ctrl_yellow) {
+        if let Some((low, high)) = numeric_domain.get_bounds(num_state, &"timer".to_string()) {
+            assert_eq!((low, high), (0, 5), "YELLOW state: timer should be [0,5]");
+            println!("  YELLOW partition: timer ∈ [{}, {}]", low, high);
+        }
+    }
 
     // Verify safety properties
     println!();
     println!("=== Safety Property Verification ===");
 
+    // P1: Verify partition count
+    assert_eq!(all_states.partition_count(), 3, "Should have 3 partitions (one per light state)");
+    println!("✓ P1: Light is always in exactly one of 3 states");
+
     // Check mutual exclusion: RED and GREEN are disjoint
     let red_and_green = control_domain.and(&ctrl_red, &ctrl_green);
-    if control_domain.is_bottom(&red_and_green) {
-        println!("✓ Mutual exclusion: RED ∧ GREEN = ⊥ (impossible)");
-    }
+    assert!(control_domain.is_bottom(&red_and_green), "RED and GREEN should be mutually exclusive");
+    println!("✓ P3: Mutual exclusion verified: RED ∧ GREEN = ⊥ (impossible)");
 
-    // Check timer bounds per state
-    println!("✓ Timer bounds verified per state:");
-    println!("    RED: timer ≤ 60");
-    println!("    GREEN: timer ≤ 45");
-    println!("    YELLOW: timer ≤ 5");
+    // P2: Timer bounds are verified above (assertions passed)
+    println!("✓ P2: Timer bounds verified per state:");
+    println!("      RED: timer ∈ [0, 60]");
+    println!("      GREEN: timer ∈ [0, 45]");
+    println!("      YELLOW: timer ∈ [0, 5]");
 
     println!();
     println!("=== Precision Comparison ===");

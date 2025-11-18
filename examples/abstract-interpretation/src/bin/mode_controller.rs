@@ -152,10 +152,10 @@ fn analyze_path_sensitive() {
     let num_error = numeric_domain.interval(&"actuator".to_string(), 0, 0);
 
     // Create control-sensitive elements for each mode
-    let state_init = product.mk_single_partition(ctrl_init, num_init);
-    let state_ready = product.mk_single_partition(ctrl_ready, num_ready);
-    let state_active = product.mk_single_partition(ctrl_active, num_active);
-    let state_error = product.mk_single_partition(ctrl_error, num_error);
+    let state_init = product.mk_single_partition(ctrl_init.clone(), num_init);
+    let state_ready = product.mk_single_partition(ctrl_ready.clone(), num_ready);
+    let state_active = product.mk_single_partition(ctrl_active.clone(), num_active);
+    let state_error = product.mk_single_partition(ctrl_error.clone(), num_error);
 
     println!();
     println!("Mode States Created:");
@@ -171,14 +171,56 @@ fn analyze_path_sensitive() {
     all_states = product.join(&all_states, &state_error);
 
     println!();
+    println!("After joining all states:");
+    println!("  Number of partitions: {} (one per mode)", all_states.partition_count());
+    println!("  Control states remain distinct (not merged!)");
+
+    println!();
     println!("--- Verification ---");
+
+    // Verify partition count
+    assert_eq!(all_states.partition_count(), 4, "Should have 4 partitions (one per mode)");
+    println!("✓ P1: All 4 modes represented as separate partitions");
+
+    // Verify each mode has the correct actuator bounds
+    // INIT: actuator = 0
+    if let Some(num_state) = all_states.get(&ctrl_init) {
+        if let Some((low, high)) = numeric_domain.get_bounds(num_state, &"actuator".to_string()) {
+            assert_eq!((low, high), (0, 0), "INIT mode: actuator should be [0,0]");
+            println!("✓ P2: In INIT mode: actuator = 0");
+        }
+    }
+
+    // READY: actuator = 0
+    if let Some(num_state) = all_states.get(&ctrl_ready) {
+        if let Some((low, high)) = numeric_domain.get_bounds(num_state, &"actuator".to_string()) {
+            assert_eq!((low, high), (0, 0), "READY mode: actuator should be [0,0]");
+            println!("✓ P2: In READY mode: actuator = 0");
+        }
+    }
+
+    // ACTIVE: actuator = 1
+    if let Some(num_state) = all_states.get(&ctrl_active) {
+        if let Some((low, high)) = numeric_domain.get_bounds(num_state, &"actuator".to_string()) {
+            assert_eq!((low, high), (1, 1), "ACTIVE mode: actuator should be [1,1]");
+            println!("✓ P4: In ACTIVE mode: actuator = 1 (only mode where actuator can be 1)");
+        }
+    }
+
+    // ERROR: actuator = 0
+    if let Some(num_state) = all_states.get(&ctrl_error) {
+        if let Some((low, high)) = numeric_domain.get_bounds(num_state, &"actuator".to_string()) {
+            assert_eq!((low, high), (0, 0), "ERROR mode: actuator should be [0,0]");
+            println!("✓ P3: In ERROR mode: actuator = 0");
+        }
+    }
+
+    // Verify mutual exclusion by checking control states are disjoint
+    let active_and_error = control_domain.and(&ctrl_active, &ctrl_error);
+    assert!(control_domain.is_bottom(&active_and_error), "ACTIVE and ERROR should be mutually exclusive");
+    println!("✓ Mutual exclusion verified: ACTIVE ∧ ERROR = ⊥");
+
     println!("✓ All safety properties verified!");
-    println!("✓ Mode tracking: Each partition corresponds to exactly one mode");
-    println!("✓ Actuator control:");
-    println!("    - In INIT: actuator = 0");
-    println!("    - In READY: actuator = 0");
-    println!("    - In ACTIVE: actuator = 1 (only mode where actuator can be 1)");
-    println!("    - In ERROR: actuator = 0");
     println!("✓ No false alarms: BDD partitioning maintains precise invariants");
 
     println!();
