@@ -104,24 +104,99 @@
 //! ```
 //!
 //! ### Lattice Structure
+//!
+//! The points-to domain forms a **powerset lattice** P(Locations) over memory locations.
+//! However, the implementation uses special flags for efficiency.
+//!
+//! #### Theoretical View: Pure Powerset Lattice
+//!
+//! In theory, we have the powerset lattice P(Locations) ∪ {⊥}:
+//!
 //! ```text
-//!                    ⊤ (all locations)
-//!                   /│\
-//!                  / │ \
-//!        {x,y,z} {x,y} {y,z} {x,z}  (sets of locations)
-//!                  \ │ /
-//!                   \│/
-//!              {x}  {y}  {z}  (singletons)
-//!                   \│/
-//!                    ∅ (empty set - points nowhere)
-//!                    │
-//!                    ⊥ (unreachable code)
+//!                    {x,y,z} (all locations)
+//!                   /   |   \
+//!                  /    |    \
+//!              {x,y}  {x,z}  {y,z}     ← 2-element subsets
+//!                 |\   /\   /|
+//!                 | \ /  \ / |
+//!                 | / \  / \ |
+//!                {x}  {y}  {z}         ← singletons
+//!                  \   |   /
+//!                   \  |  /
+//!                      ∅               ← empty set (points nowhere)
+//!                      |
+//!                      ⊥               ← unreachable code
 //! ```
 //!
-//! **Partial Order**: elem1 ⊑ elem2 means elem1 is "more precise" than elem2
-//! - `{x}` ⊑ `{x,y}` (singleton is more precise than set)
-//! - `⊥` ⊑ everything (unreachable is more precise than anything)
-//! - everything ⊑ `⊤` (any knowledge is more precise than "unknown")
+//! - Ordering: `A ⊑ B` iff `A ⊆ B` (subset = more precise)
+//! - Join: `A ⊔ B = A ∪ B` (union of targets)
+//! - Meet: `A ⊓ B = A ∩ B` (intersection of targets)
+//!
+//! #### Implementation View: Lifted Lattice with Flags
+//!
+//! In practice, [`PointsToElement`] uses special flags for ⊥ and ⊤:
+//!
+//! ```rust,no_run
+//! pub struct PointsToElement {
+//!     points_to: HashMap<String, Ref>,  // BDD-encoded sets
+//!     is_bottom: bool,                   // ⊥ flag (unreachable)
+//!     is_top: bool,                      // ⊤ flag (unknown)
+//! }
+//! ```
+//!
+//! **Why flags?** Efficiency and special semantics:
+//!
+//! 1. **Bottom (⊥)**: Represents unreachable code
+//!    - `is_bottom = true` → All operations return ⊥
+//!    - No need to store actual sets (unreachable = no information needed)
+//!    - Example: `if (false) { p = &x; }` → this code is ⊥
+//!
+//! 2. **Top (⊤)**: Represents "unknown/all locations"
+//!    - `is_top = true` → Pointer may point to anything
+//!    - Conservative approximation without enumerating all locations
+//!    - Example: `p = external_function();` → conservatively ⊤
+//!
+//! 3. **Regular Sets**: BDD-encoded points-to sets
+//!    - `is_bottom = false, is_top = false`
+//!    - Each pointer variable → BDD representing target locations
+//!    - Example: `p = &x; q = &y;` → explicit sets {x}, {y}
+//!
+//! **Lattice Operations in Implementation**:
+//!
+//! ```text
+//! Bottom propagation:
+//!   ⊥ ⊔ A = A        (unreachable joins to reachable)
+//!   ⊥ ⊓ A = ⊥        (unreachable meets to unreachable)
+//!   ⊥ ⊑ A = true     (unreachable is most precise)
+//!
+//! Top propagation:
+//!   ⊤ ⊔ A = ⊤        (unknown absorbs everything)
+//!   ⊤ ⊓ A = A        (unknown refines to known)
+//!   A ⊑ ⊤ = true     (everything is less precise than unknown)
+//!
+//! Regular sets:
+//!   {x} ⊔ {y} = {x,y}      (BDD OR)
+//!   {x,y} ⊓ {y,z} = {y}    (BDD AND)
+//!   {x} ⊑ {x,y} = true     (BDD implication)
+//! ```
+//!
+//! **Complete Lattice Structure**:
+//!
+//! ```text
+//!                      ⊤ (is_top=true)
+//!                     /|\
+//!                    / | \
+//!         {x,y,z}  ... (all explicit sets) ...  {x}  {y}  {z}
+//!                    \ | /
+//!                     \|/
+//!                      ∅ (empty BDD, points nowhere)
+//!                      |
+//!                      ⊥ (is_bottom=true)
+//! ```
+//!
+//! - **Height**: n + 3 (⊥, explicit sets, ⊤)
+//! - **⊥ vs ∅**: ⊥ = unreachable, ∅ = reachable but points nowhere
+//! - **⊤ vs {all}**: ⊤ = don't know, {all} = explicitly know it's all locations
 //!
 //! ## Analysis Algorithms: Andersen vs Steensgaard
 //!
@@ -170,63 +245,146 @@
 //!
 //! ## BDD Representation
 //!
-//! We use **Binary Decision Diagrams** to compactly represent points-to sets:
+//! We use **Binary Decision Diagrams** (BDDs) to compactly represent points-to sets:
 //!
-//! ### Encoding
+//! ### Encoding Scheme
+//!
+//! Each memory location is assigned a unique BDD variable:
 //! ```text
-//! Each location → unique BDD variable
-//! Location x → variable v₁
-//! Location y → variable v₂
-//! Location z → variable v₃
-//!
-//! Points-to set = disjunction (OR) of variables:
-//! p points to {x,y} → BDD: v₁ ∨ v₂
-//! q points to {x}   → BDD: v₁
+//! Location x       → BDD variable v₁
+//! Location y       → BDD variable v₂
+//! Location heap(1) → BDD variable v₃
+//! ...
 //! ```
 //!
-//! ### Operations
+//! A points-to set is encoded as a **disjunction** (OR) of BDD variables:
 //! ```text
-//! Union (Join):        pts(p) ∪ pts(q)  →  BDD_p ∨ BDD_q
-//! Intersection (Meet): pts(p) ∩ pts(q)  →  BDD_p ∧ BDD_q
-//! Subset Test:         pts(p) ⊆ pts(q)  →  BDD_p ∧ ¬BDD_q = ⊥
+//! p points to {x}     → BDD: v₁
+//! p points to {x,y}   → BDD: v₁ ∨ v₂
+//! p points to {x,y,z} → BDD: v₁ ∨ v₂ ∨ v₃
+//! p points to ∅       → BDD: ⊥ (false)
+//! p points to all     → BDD: ⊤ (true)
 //! ```
 //!
-//! ### Why BDDs?
-//! - **Canonical**: Unique representation for each set
-//! - **Compact**: Shared structure for common subsets
-//! - **Efficient**: Operations in O(|BDD₁| × |BDD₂|)
+//! ### BDD Operations on Points-to Sets
 //!
-//! ## Flow-Sensitivity vs Flow-Insensitivity
-//!
-//! ### Flow-Insensitive (Simpler, faster)
+//! Set operations map directly to BDD operations:
 //! ```text
-//! Treats entire program as one big set of statements.
-//! Same points-to set for variable throughout program.
+//! Union (⊔):         pts(p) ∪ pts(q)  →  BDD_p ∨ BDD_q
+//! Intersection (⊓):  pts(p) ∩ pts(q)  →  BDD_p ∧ BDD_q
+//! Difference:        pts(p) \ pts(q)  →  BDD_p ∧ ¬BDD_q
+//! Subset test:       pts(p) ⊆ pts(q)  →  (BDD_p ∧ ¬BDD_q) = ⊥
+//! Disjoint test:     pts(p) ∩ pts(q) = ∅  →  (BDD_p ∧ BDD_q) = ⊥
 //! ```
-//! Example:
+//!
+//! ### Example: Alias Analysis with BDDs
+//!
+//! ```text
+//! Given:
+//!   p points to {x,y}  →  BDD_p = v₁ ∨ v₂
+//!   q points to {y,z}  →  BDD_q = v₂ ∨ v₃
+//!
+//! May-alias check: Do p and q share any targets?
+//!   BDD_p ∧ BDD_q = (v₁ ∨ v₂) ∧ (v₂ ∨ v₃) = v₂
+//!   Result: ≠ ⊥, so YES they may alias (through y)
+//!
+//! Must-alias check: Do p and q point to exactly the same single location?
+//!   Check: |decode(BDD_p)| = 1 ∧ |decode(BDD_q)| = 1 ∧ BDD_p = BDD_q
+//!   Result: NO (p has 2 targets, q has 2 targets)
+//! ```
+//!
+//! ### Why BDDs Are Ideal for Points-to Analysis
+//!
+//! 1. **Canonical Representation**: Each set has exactly one BDD representation
+//!    - Easy to check equality: just compare BDD references
+//!    - No need for set normalization
+//!
+//! 2. **Shared Structure**: Common subsets share BDD nodes
+//!    - Memory efficient for programs with similar pointer patterns
+//!    - Example: 1000 pointers to `{x,y}` → one shared BDD
+//!
+//! 3. **Efficient Operations**: Set operations in O(|BDD₁| × |BDD₂|) time
+//!    - Much faster than explicit set operations for large sets
+//!    - Union/intersection without iterating elements
+//!
+//! 4. **Symbolic Computation**: Handle large or infinite domains
+//!    - Can represent "all heap locations" symbolically
+//!    - No need to enumerate all possibilities
+//!
+//! ## Flow-Sensitivity: Tracking Pointer Changes Over Time
+//!
+//! Points-to analysis can be either **flow-insensitive** (simple, fast) or
+//! **flow-sensitive** (precise, slower). This implementation supports **flow-sensitive**
+//! analysis through the abstract interpretation framework.
+//!
+//! ### Flow-Insensitive Analysis
+//!
+//! **Idea**: Treat the entire program as one big set of statements, ignoring order.
+//! Merge all assignments to the same variable.
+//!
 //! ```c
-//! p = &x;  // pts(p) = {x}
-//! use(p);
-//! p = &y;  // pts(p) = {x,y}  ← Merges with previous!
-//! use(p);
-//! ```
-//! Result: `pts(p) = {x,y}` everywhere (conservative)
+//! int x, y;
+//! int *p;
 //!
-//! ### Flow-Sensitive (This implementation - more precise)
-//! ```text
-//! Different points-to set at each program point.
-//! Tracks how pointers change over time.
+//! p = &x;  // pts(p) = {x}
+//! use(p);  // What does p point to here?
+//! p = &y;  // pts(p) = {x,y}  ← Conservative merge!
+//! use(p);  // What does p point to here?
 //! ```
-//! Example:
+//!
+//! **Result**: `pts(p) = {x,y}` **everywhere** in the function.
+//! - Conservative (sound) but imprecise
+//! - Both `use(p)` calls see `{x,y}` even though first only sees `{x}`
+//! - Faster to compute (no need to track control flow)
+//!
+//! ### Flow-Sensitive Analysis (This Implementation)
+//!
+//! **Idea**: Track how points-to sets change at each program point.
+//! Different states before/after each statement.
+//!
 //! ```c
-//! p = &x;  // pts(p) = {x}
-//! use(p);  // pts(p) = {x}  ← Still just x
-//! p = &y;  // pts(p) = {y}  ← Overwrites!
-//! use(p);  // pts(p) = {y}  ← Now just y
-//! ```
-//! Result: Precise information at each point
+//! int x, y;
+//! int *p;
 //!
-//! ## Complete Usage Example
+//! // State₀: p points to nothing
+//! p = &x;
+//! // State₁: pts(p) = {x}
+//! use(p);  // Sees {x}
+//! // State₂: pts(p) = {x}
+//! p = &y;
+//! // State₃: pts(p) = {y}  ← Overwrites previous!
+//! use(p);  // Sees {y}
+//! // State₄: pts(p) = {y}
+//! ```
+//!
+//! **Result**: Precise information at each point.
+//! - First `use(p)` sees `{x}`, second sees `{y}`
+//! - More expensive (must track states at all program points)
+//! - Essential for precise alias analysis
+//!
+//! ### Flow-Sensitivity with Branches
+//!
+//! ```c
+//! int x, y, z;
+//! int *p = &x;         // State₀: pts(p) = {x}
+//!
+//! if (condition) {
+//!     p = &y;          // Then: pts(p) = {y}
+//! } else {
+//!     p = &z;          // Else: pts(p) = {z}
+//! }
+//! // Join point: pts(p) = {y} ⊔ {z} = {y,z}
+//!
+//! use(*p);             // May access y OR z
+//! ```
+//!
+//! **Join operation** merges states from different control flow paths:
+//! - After if-else, `pts(p) = {y,z}` (union of both branches)
+//! - Conservative: represents all possible execution paths
+//!
+//! ## Complete Usage Examples
+//!
+//! ### Example 1: Basic Pointer Assignment
 //!
 //! ```rust,ignore
 //! use abstract_interpretation::*;
@@ -234,31 +392,115 @@
 //!
 //! // Create domain with BDD manager
 //! let domain = PointsToDomain::new();
-//! let mut state = PointsToElement::new(domain.bdd());
+//! let mut state = PointsToElement::new(Rc::clone(domain.manager()));
 //!
-//! // C code: int x, y; int *p, *q;
+//! // C code: int x, y; int *p;
 //! let x = Location::Stack("x".to_string());
 //! let y = Location::Stack("y".to_string());
 //!
 //! // C code: p = &x;
 //! state = domain.assign_address(&state, "p", &x);
-//! assert_eq!(domain.decode_bdd(state.get("p")), hashset!{x.clone()});
-//!
-//! // C code: q = p;
-//! state = domain.assign_copy(&state, "q", "p");
-//! assert!(state.must_alias(&domain, "p", "q"));  // Definitely alias
-//!
-//! // C code: if (...) { p = &y; }
-//! let then_state = domain.assign_address(&state, "p", &y);
-//! state = domain.join(&state, &then_state);  // Merge branches
-//!
-//! // After if: p may point to {x, y}
-//! assert_eq!(domain.decode_bdd(state.get("p")).len(), 2);
-//! assert!(state.may_alias(&domain, "p", "q"));  // May alias
-//! assert!(!state.must_alias(&domain, "p", "q")); // Not definite
+//! let targets = domain.decode_bdd(state.get("p"));
+//! assert_eq!(targets, hashset!{x.clone()});
 //! ```
 //!
-//! See [`PointsToDomain`], [`PointsToElement`], and [`Location`] for more details.
+//! ### Example 2: Pointer Copy and Aliasing
+//!
+//! ```rust,ignore
+//! // C code: p = &x; q = p;
+//! state = domain.assign_address(&state, "p", &x);
+//! state = domain.assign_copy(&state, "q", "p");
+//!
+//! // Both point to x, so they must alias
+//! assert!(state.must_alias(&domain, "p", "q"));
+//! assert!(state.may_alias(&domain, "p", "q"));
+//! ```
+//!
+//! ### Example 3: Conditional Assignment (Join)
+//!
+//! ```rust,ignore
+//! // Initial: p = &x
+//! let mut state1 = PointsToElement::new(Rc::clone(domain.manager()));
+//! state1 = domain.assign_address(&state1, "p", &x);
+//!
+//! // Then branch: p = &y
+//! let state_then = domain.assign_address(&state1, "p", &y);
+//!
+//! // Else branch: keep p = &x
+//! let state_else = state1.clone();
+//!
+//! // Join: merge both branches
+//! let state_merged = domain.join(&state_then, &state_else);
+//!
+//! // After if: p may point to {x, y}
+//! let targets = domain.decode_bdd(state_merged.get("p"));
+//! assert_eq!(targets.len(), 2);
+//! assert!(targets.contains(&x));
+//! assert!(targets.contains(&y));
+//! ```
+//!
+//! ### Example 4: Heap Allocation
+//!
+//! ```rust,ignore
+//! // C code: p = malloc(...);  // Allocation site 1
+//! state = domain.assign_alloc(&state, "p", 1);
+//!
+//! // C code: q = malloc(...);  // Allocation site 2
+//! state = domain.assign_alloc(&state, "q", 2);
+//!
+//! // Different allocation sites → no aliasing
+//! assert!(!state.must_alias(&domain, "p", "q"));
+//! assert!(!state.may_alias(&domain, "p", "q"));
+//! ```
+//!
+//! ### Example 5: Load and Store Operations
+//!
+//! ```rust,ignore
+//! // C code:
+//! // int x, y;
+//! // int *p = &x;
+//! // int *q = &y;
+//! // int **pp = &p;
+//!
+//! state = domain.assign_address(&state, "p", &x);
+//! state = domain.assign_address(&state, "q", &y);
+//! state = domain.assign_address(&state, "pp", &Location::Stack("p".to_string()));
+//!
+//! // C code: *pp = q;  (Store: what pp points to now points to y)
+//! state = domain.assign_store(&state, "pp", "q");
+//!
+//! // Now p points to y (via *pp = q)
+//! let p_targets = domain.decode_bdd(state.get("p"));
+//! assert!(p_targets.contains(&y));
+//!
+//! // C code: int *r = *pp;  (Load: r gets what pp points to)
+//! state = domain.assign_load(&state, "r", "pp");
+//!
+//! // r now points to same as p (both point to y)
+//! assert!(state.must_alias(&domain, "r", "p"));
+//! ```
+//!
+//! ### Example 6: Null Pointer Handling
+//!
+//! ```rust,ignore
+//! // C code: p = NULL;
+//! state = domain.assign_null(&state, "p");
+//!
+//! let targets = domain.decode_bdd(state.get("p"));
+//! assert_eq!(targets, hashset!{Location::Null});
+//!
+//! // Check for null before dereference
+//! if targets.contains(&Location::Null) {
+//!     println!("Warning: p may be NULL - unsafe to dereference!");
+//! }
+//! ```
+//!
+//! For complete working examples, see:
+//! - `examples/pointsto_example.rs` - Step-by-step demonstrations
+//! - `examples/realistic_programs.rs` - Real-world scenarios
+//! - `tests/domain_integration.rs` - Integration with numeric domains
+//!
+//! See also: [`PointsToDomain`], [`PointsToElement`], [`Location`]
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
