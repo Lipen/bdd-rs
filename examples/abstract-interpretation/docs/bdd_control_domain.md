@@ -432,6 +432,252 @@ Given `M = {(φ₁, e₁), ..., (φₖ, eₖ)}`:
 
 ---
 
+## 4.5 Deep Connection: BDDs, Shannon Expansion, and ITE
+
+### 4.5.1 The Insight: Maps as Generalized ITEs
+
+**Observation:** The partition representation `Map[BDD → NumericElem]` is isomorphic to a generalized if-then-else (ITE) structure.
+
+**Example:**
+
+```text
+Current representation (Map):
+{
+    flag = true  ↦ x ∈ [0, 10],
+    flag = false ↦ x ∈ [-5, 5]
+}
+
+Equivalent ITE representation:
+ITE(flag,
+    x ∈ [0, 10],      // then-branch
+    x ∈ [-5, 5]       // else-branch
+)
+
+Shannon Expansion (BDD basis):
+f(x₁,...,xₙ) = x₁ · f(1,x₂,...,xₙ) + x̄₁ · f(0,x₂,...,xₙ)
+               ↑                      ↑
+               then-branch            else-branch
+```
+
+**SMT-LIB Form:**
+
+```smtlib
+(ite flag
+     (and (>= x 0) (<= x 10))
+     (and (>= x -5) (<= x 5)))
+```
+
+### 4.5.2 Why Not Use BDD Nodes Directly?
+
+**The Natural Question:** Since BDDs already encode ITE structures internally, why maintain a separate `Map[BDD → Value]`? Why not embed values directly in BDD nodes?
+
+**Answer:** We hit fundamental **type system and algorithmic** limitations.
+
+#### Limitation 1: BDD Canonicity Requires Uniform Node Types
+
+**Standard BDD Node:**
+
+```rust
+struct BddNode {
+    var: VarId,           // Decision variable
+    low: NodeRef,         // Else-branch (var = false)
+    high: NodeRef,        // Then-branch (var = true)
+}
+```
+
+**Key Property:** Canonicity requires **structural sharing**.
+
+- Nodes `(x₁, low, high)` are deduplicated via hash-consing
+- Two nodes with same `(var, low, high)` must be **identical**
+- This enables `O(1)` equality checking and efficient operations
+
+**Problem with Embedded Values:**
+
+```rust
+struct ValueBddNode<V> {
+    var: VarId,
+    low: NodeRef,
+    high: NodeRef,
+    value: V,              // ⚠️ Breaks canonicity!
+}
+```
+
+If different BDD paths lead to the same boolean structure but different values, we get:
+
+```text
+Node₁: (x₁, false, true, value=Interval[0,10])
+Node₂: (x₁, false, true, value=Interval[5,15])
+
+Problem: Same structure (x₁, false, true) but different values!
+```
+
+We lose canonical form → no more structural sharing → exponential blowup.
+
+#### Limitation 2: Abstract Domain Operations Don't Respect BDD Structure
+
+**BDD Operations Are Boolean:**
+
+- `and(φ₁, φ₂)` → produces BDD for `φ₁ ∧ φ₂`
+- `or(φ₁, φ₂)` → produces BDD for `φ₁ ∨ φ₂`
+- Result structure determined by **boolean formula**, not values
+
+**Abstract Domain Operations Need Different Merge Logic:**
+
+```text
+Join (⊔) example:
+
+Map₁: { x>5 ↦ [10,20] }
+Map₂: { x>5 ↦ [15,25] }
+
+BDD level:   x>5 ∧ x>5 = x>5        (structure unchanged)
+Value level: [10,20] ⊔ [15,25] = [10,25]  (interval join)
+
+Result: { x>5 ↦ [10,25] }
+```
+
+The value merge `[10,20] ⊔ [15,25]` is **independent** of the BDD structure. We can't derive it from Shannon expansion alone.
+
+#### Limitation 3: Non-Boolean Values Have No Natural BDD Encoding
+
+**Shannon Expansion Only Works for Boolean Functions:**
+
+```text
+f: Bool^n → Bool    ✓ Can represent as BDD
+g: Bool^n → Interval ✗ Interval is not {0,1}
+```
+
+**Numeric domains are not Boolean:**
+
+- `Interval[0,10]` has infinitely many concrete values
+- Cannot enumerate as Boolean formula
+- No natural "true" vs "false" interpretation
+
+**Multi-valued Decision Diagrams (MDDs)?**
+
+Yes, but:
+
+- Lose canonicity (no unique representation)
+- Lose efficient operations (no hash-consing)
+- Explosion in node count
+
+### 4.5.3 What We Gain by Separation
+
+**Current Design:**
+
+```rust
+struct ControlSensitiveElement<N> {
+    partitions: Map[BDD → N::Element],
+    //              ↑          ↑
+    //           Boolean    Arbitrary domain
+}
+```
+
+**Benefits:**
+
+1. **BDD Layer:**
+   - Maintains canonical form
+   - Efficient boolean operations
+   - Structural sharing (exponential savings)
+   - Standard BDD algorithms apply
+
+2. **Value Layer:**
+   - Arbitrary abstract domains (intervals, octagons, polyhedra)
+   - Domain-specific operations (widening, narrowing)
+   - Independent of control structure
+
+3. **Clean Separation:**
+   - `control_domain.and(φ₁, φ₂)` → pure BDD operation
+   - `numeric_domain.join(n₁, n₂)` → pure domain operation
+   - Map manages correspondence
+
+### 4.5.4 Alternative: Functional Representation
+
+**Theoretical Alternative:** Represent as a function `φ → N::Element`.
+
+```rust
+struct FunctionalElement<N> {
+    f: Box<dyn Fn(&ControlState) -> N::Element>
+}
+```
+
+**Problems:**
+
+1. **No Equality:** Functions aren't comparable
+   - Can't check `elem₁ == elem₂`
+   - Breaks lattice theory requirements
+
+2. **No Enumeration:** Can't list all partitions
+   - Fixpoint algorithms need to iterate partitions
+   - Join/meet need explicit partition sets
+
+3. **No Optimization:** Can't detect redundant partitions
+   - `{ x>5 ↦ [0,10], x>5 ↦ [0,10] }` → should merge
+   - Function representation hides this
+
+### 4.5.5 Future Direction: Algebraic Decision Diagrams (ADDs)
+
+**Closer to Your Vision:** ADDs extend BDDs with terminal values.
+
+```text
+ADD Node:
+  if terminal: return Value
+  else: ITE(var, high_subtree, low_subtree)
+
+Example ADD for our domain:
+        x>5?
+       /    \
+   [10,20]  [0,5]
+
+Directly encodes: ITE(x>5, [10,20], [0,5])
+```
+
+**Why We Don't Use ADDs (Yet):**
+
+1. **Library Support:**
+   - `bdd-rs` doesn't support ADDs
+   - Would need custom implementation
+
+2. **Canonicity Still Limited:**
+   - ADDs lose full canonicity when values aren't totally ordered
+   - Intervals/polyhedra don't have canonical normal form
+
+3. **Operation Complexity:**
+   - ADD operations more complex than BDD + Map
+   - Need to handle value merge at every node
+
+**When ADDs Make Sense:**
+
+- When values are **enumerable** (finite domain)
+- When values have **total order** (e.g., min/max of integers)
+- When terminal count is **small** (< 100 distinct values)
+
+**Our Case:**
+
+- Intervals: ✓ Totally ordered (by inclusion)
+- Polyhedra: ✗ Partial order only
+- Terminal count: Potentially large (every partition can have unique interval)
+
+### 4.5.6 Summary: Why the Map Abstraction?
+
+| Aspect | Direct BDD Embedding | Map[BDD → Value] | ADD |
+|--------|---------------------|------------------|-----|
+| **Canonicity** | ✗ Broken | ✓ BDD layer canonical | △ Limited |
+| **Arbitrary Domains** | ✗ Boolean only | ✓ Any domain | △ Enumerable only |
+| **Efficient Ops** | ✗ Lost sharing | ✓ Both layers efficient | △ Complex |
+| **Equality** | ✗ No comparison | ✓ Partition-wise | △ Requires value order |
+| **Implementation** | ✗ Requires BDD rewrite | ✓ Uses std library | ✗ Custom code |
+
+**Conclusion:** The `Map[BDD → Value]` representation is a **pragmatic engineering choice** that:
+
+- Leverages existing BDD libraries
+- Supports arbitrary abstract domains
+- Maintains both BDD and domain operations efficiently
+- Provides clean separation of concerns
+
+The ITE connection you identified is **correct** — it's the underlying mathematical structure. The Map representation is the **practical realization** that navigates the constraints of canonical forms, type systems, and algorithmic efficiency.
+
+---
+
 ## 5. Control Variable Discovery
 
 ### 5.1 Static Analysis
