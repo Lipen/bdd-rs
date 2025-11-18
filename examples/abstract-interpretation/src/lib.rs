@@ -12,7 +12,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```no_run
 //! use abstract_interpretation::*;
 //! use std::rc::Rc;
 //! use bdd_rs::bdd::Bdd;

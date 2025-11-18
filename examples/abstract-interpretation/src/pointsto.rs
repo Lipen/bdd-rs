@@ -136,7 +136,7 @@
 //!
 //! In practice, [`PointsToElement`] uses special flags for ⊥ and ⊤:
 //!
-//! ```rust,no_run
+//! ```ignore
 //! pub struct PointsToElement {
 //!     points_to: HashMap<String, Ref>,  // BDD-encoded sets
 //!     is_bottom: bool,                   // ⊥ flag (unreachable)
@@ -386,9 +386,9 @@
 //!
 //! ### Example 1: Basic Pointer Assignment
 //!
-//! ```rust,ignore
-//! use abstract_interpretation::*;
-//! use std::rc::Rc;
+//! ```ignore
+//! # use abstract_interpretation::*;
+//! # use std::rc::Rc;
 //!
 //! // Create domain with BDD manager
 //! let domain = PointsToDomain::new();
@@ -406,7 +406,7 @@
 //!
 //! ### Example 2: Pointer Copy and Aliasing
 //!
-//! ```rust,ignore
+//! ```ignore
 //! // C code: p = &x; q = p;
 //! state = domain.assign_address(&state, "p", &x);
 //! state = domain.assign_copy(&state, "q", "p");
@@ -418,7 +418,7 @@
 //!
 //! ### Example 3: Conditional Assignment (Join)
 //!
-//! ```rust,ignore
+//! ```ignore
 //! // Initial: p = &x
 //! let mut state1 = PointsToElement::new(Rc::clone(domain.manager()));
 //! state1 = domain.assign_address(&state1, "p", &x);
@@ -441,7 +441,7 @@
 //!
 //! ### Example 4: Heap Allocation
 //!
-//! ```rust,ignore
+//! ```ignore
 //! // C code: p = malloc(...);  // Allocation site 1
 //! state = domain.assign_alloc(&state, "p", 1);
 //!
@@ -455,7 +455,7 @@
 //!
 //! ### Example 5: Load and Store Operations
 //!
-//! ```rust,ignore
+//! ```ignore
 //! // C code:
 //! // int x, y;
 //! // int *p = &x;
@@ -482,7 +482,7 @@
 //!
 //! ### Example 6: Null Pointer Handling
 //!
-//! ```rust,ignore
+//! ```ignore
 //! // C code: p = NULL;
 //! state = domain.assign_null(&state, "p");
 //!
@@ -527,7 +527,7 @@ use crate::AbstractDomain;
 ///
 /// # Examples
 ///
-/// ```rust,ignore
+/// ```ignore
 /// // Stack variable in function
 /// let x = Location::Stack("x".to_string());  // Lives in function scope
 ///
@@ -603,7 +603,7 @@ impl fmt::Display for Location {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```ignore
 /// let mut map = LocationMap::new();
 ///
 /// let x = Location::Stack("x".to_string());
@@ -699,7 +699,7 @@ impl Default for LocationMap {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```ignore
 /// let domain = PointsToDomain::new();
 /// let mut elem = PointsToElement::new(domain.bdd());
 ///
@@ -859,7 +859,7 @@ impl PartialEq for PointsToElement {
 ///
 /// # Example: Linked List Traversal
 ///
-/// ```rust,ignore
+/// ```ignore
 /// let domain = PointsToDomain::new();
 /// let mut state = PointsToElement::new(domain.bdd());
 ///
@@ -975,7 +975,7 @@ impl PointsToDomain {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// // C code: int x; int *p = &x;
     /// let x = Location::Stack("x".to_string());
     /// let state = domain.assign_address(&state, "p", &x);
@@ -1034,7 +1034,7 @@ impl PointsToDomain {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// // C code:
     /// // int x, y;
     /// // int *p = &x;
@@ -1105,7 +1105,7 @@ impl PointsToDomain {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// // C code:
     /// // int x, y;
     /// // int *a = &x;
@@ -1293,7 +1293,7 @@ impl PointsToElement {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// // C code:
     /// // int x;
     /// // int *p = &x;
@@ -1309,7 +1309,7 @@ impl PointsToElement {
     ///
     /// # Counterexample: May alias but not must alias
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// // C code:
     /// // int x, y;
     /// // int *p = condition ? &x : &y;  // p points to {x, y}
@@ -1358,7 +1358,7 @@ impl PointsToElement {
     ///
     /// # Example: Aliasing through shared location
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// // C code:
     /// // int x, y;
     /// // int *p = condition ? &x : &y;  // p → {x, y}
@@ -1380,7 +1380,7 @@ impl PointsToElement {
     ///
     /// # Example: No aliasing (disjoint sets)
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// // C code:
     /// // int x, y;
     /// // int *p = &x;  // p → {x}
