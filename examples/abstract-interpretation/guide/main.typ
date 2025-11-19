@@ -225,8 +225,9 @@ We develop complete lattice theory, fixpoint theorems, Galois connections, and a
 
 #include "chapters/part2_deep_dive/08_fixpoint_algorithms.typ"
 
+#include "chapters/part2_deep_dive/09_advanced_galois.typ"
+
 // Future chapters:
-// #include "chapters/part2_deep_dive/09_galois_connections.typ"
 // #include "chapters/part2_deep_dive/10_widening_narrowing.typ"
 // ... etc
 
