@@ -187,9 +187,20 @@ Let's dive in!
 
 #include "chapters/part1_introduction/00_prologue.typ"
 
+#include "chapters/part1_introduction/01_abstraction.typ"
+
+#include "chapters/part1_introduction/02_control_flow.typ"
+
+#include "chapters/part1_introduction/03_bdds.typ"
+
+#include "chapters/part1_introduction/04_bdd_programming.typ"
+
+#include "chapters/part1_introduction/05_combining.typ"
+
+#include "chapters/part1_introduction/06_symbolic_executor.typ"
+
 // Additional chapters will be included as we create them
 // #include "chapters/part1_introduction/01_abstract_interpretation.typ"
-// #include "chapters/part1_introduction/02_control_flow.typ"
 // ... etc
 
 // ============================================================================

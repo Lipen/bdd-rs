@@ -57,16 +57,16 @@ In production, under specific conditions, they failed catastrophically.
 
 Testing encounters fundamental limitations:
 
-*Infinite input space.*
+_Infinite input space._
 A function accepting two 32-bit integers has $2^(64)$ possible inputs.
 Exhaustive testing is infeasible.
 
-*Rare conditions.*
+_Rare conditions._
 Defects often manifest only under unusual input combinations, timing windows, or state sequences.
 Testing finds common-case bugs effectively.
 Rare bugs persist.
 
-*Emergent complexity.*
+_Emergent complexity._
 Modern software systems comprise multiple interacting components.
 Component interactions create emergent behaviors not captured by unit testing.
 
@@ -142,23 +142,23 @@ Complete verification is computationally intractable for most programs.
   title: "The Halting Problem",
   image-path: none,
 )[
-  Turing proved that no algorithm can determine whether an arbitrary program terminates on arbitrary input.
+  Turing proved that _no algorithm_ can determine whether an arbitrary program terminates on arbitrary input.
   This fundamental result establishes theoretical limits on program analysis.
-  Perfect program verification is undecidable.
+  Perfect program verification is _undecidable_.
 ]
 
 Formal verification faces several obstacles:
 
-*Computational complexity.*
+_Computational complexity._
 Precise program analysis often requires exponential time or space.
 For non-trivial programs, exact analysis becomes infeasible.
 
-*State space explosion.*
+_State space explosion._
 A program with $n$ variables, each holding one of $k$ values, has $k^n$ possible states.
 Even 10 boolean variables yield 1024 states.
 Real programs have thousands of variables.
 
-*Undecidability.*
+_Undecidability._
 Determining whether code is reachable, whether loops terminate, or whether assertions hold is undecidable in the general case.
 
 To make verification tractable, we must approximate.
@@ -204,9 +204,9 @@ This approach trades precision for decidability and efficiency:
 #example-box(number: "0.2", title: "Sign Domain")[
   Consider an abstract domain tracking sign information:
 
-  *Concrete values*: $x in {..., -2, -1, 0, 1, 2, ...}$ (infinite)
+  _Concrete values:_ $x in {..., -2, -1, 0, 1, 2, ...}$ (infinite)
 
-  *Abstract signs*: $x in {"Neg", "Zero", "Pos", "Unknown"}$
+  _Abstract signs:_ $x in {"Neg", "Zero", "Pos", "Unknown"}$
 
   For operation `y = x + 1`:
 
@@ -307,7 +307,7 @@ multiple paths through the diagram share common substructure.
 
 For program analysis:
 
-*Path conditions* can be encoded as boolean formulas.
+_Path conditions_ can be encoded as boolean formulas.
 Each program path corresponds to a conjunction of conditions.
 The set of all feasible paths is a boolean function.
 
@@ -325,9 +325,9 @@ Abstract domains track properties of data values.
 Combining these techniques yields path-sensitive analysis with controlled complexity.
 
 The approach:
-- Use BDDs to represent sets of control configurations (which conditions hold)
-- Use abstract domains to represent sets of data values (intervals, signs, etc.)
-- Maintain the product: for each control configuration, track corresponding data constraints
+- Use BDDs to represent sets of _control configurations_ (which conditions hold)
+- Use abstract domains to represent sets of _data values_ (intervals, signs, etc.)
+- Maintain the _product_: for each control configuration, track corresponding data constraints
 
 Instead of enumerating $2^n$ paths, we maintain a single BDD encoding all reachable control states, coupled with abstract values for each configuration.
 
@@ -353,10 +353,10 @@ Instead of enumerating $2^n$ paths, we maintain a single BDD encoding all reacha
 ]
 
 This combination provides:
-- Path sensitivity: maintains separate invariants per control path
-- Scalability: symbolic representation avoids exponential blowup
-- Soundness: mathematical guarantees from abstract interpretation framework
-- Automation: no manual proof effort required
+- _Path sensitivity:_ maintains separate invariants per control path
+- _Scalability:_ symbolic representation avoids exponential blowup
+- _Soundness:_ mathematical guarantees from abstract interpretation framework
+- _Automation:_ no manual proof effort required
 
 == Guide Structure
 

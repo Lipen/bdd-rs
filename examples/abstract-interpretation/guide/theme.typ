@@ -11,7 +11,7 @@
   // Primary colors - darker and more vibrant
   primary: rgb("#1d4ed8"), // Deep blue
   secondary: rgb("#6d28d9"), // Rich purple
-  accent: rgb("#047857"), // Forest green
+  accent: rgb("#0891b2"), // Cyan
   // Text colors - darker for better readability
   text: rgb("#111827"), // Near black
   text-light: rgb("#4b5563"), // Dark gray
@@ -289,9 +289,11 @@
     spacing: 0.8em,
   )
 
-  // Emphasis and strong
-  show emph: set text(style: "italic", fill: colors.secondary)
-  show strong: set text(weight: "bold", fill: colors.primary)
+  // Colored emphasis
+  show emph: set text(fill: colors.accent)
+
+  // Colored bold text
+  show strong: set text(fill: colors.primary)
 
   // Links
   show link: it => {
@@ -761,7 +763,7 @@
 // Chapter Summaries
 // ============================================================================
 
-#let chapter-summary(title: "Chapter Summary", items) = {
+#let chapter-summary(title: "Chapter Summary", ..items) = {
   block(
     fill: colors.bg-subtle,
     stroke: 1pt + colors.line,
@@ -778,7 +780,7 @@
     )
     #v(spacing.small)
 
-    #for item in items {
+    #for item in items.pos() {
       [• #item]
       v(spacing.tiny)
     }
