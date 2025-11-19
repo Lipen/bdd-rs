@@ -27,6 +27,87 @@ Two core types:
 - `Bdd`: The BDD manager (owns all nodes)
 - `Ref`: A lightweight handle to a BDD node
 
+#figure(
+  caption: [Manager-centric architecture. The `Bdd` manager owns all nodes in a hash table, maintaining canonicity. `Ref` values are lightweight handles (just node IDs) that point into the manager's storage.],
+
+  cetz.canvas({
+    import cetz.draw: *
+
+    // Helper functions
+    let draw-manager-box(pos, width, height) = {
+      rect(
+        pos,
+        (pos.at(0) + width, pos.at(1) + height),
+        fill: colors.bg-code,
+        stroke: colors.primary + 2pt,
+        radius: 0.15,
+      )
+    }
+
+    let draw-hash-entry(pos, var-label, size: 0.8) = {
+      let w = 1.2
+      let h = 0.5
+      rect(pos, (pos.at(0) + w, pos.at(1) + h), fill: white, stroke: colors.secondary + 1pt, radius: 0.05)
+      content((pos.at(0) + w / 2, pos.at(1) + h / 2), text(size: size * 1em, fill: colors.secondary)[#var-label])
+    }
+
+    let draw-ref-handle(pos, label) = {
+      circle(pos, radius: 0.25, fill: colors.success, stroke: colors.success + 1.5pt)
+      content(pos, text(fill: white, size: 0.7em, weight: "bold")[#label])
+    }
+
+    let draw-pointer(from-pos, to-pos) = {
+      line(from-pos, to-pos, stroke: colors.success + 1.5pt, mark: (end: ">"))
+    }
+
+    // Manager box
+    draw-manager-box((0, 0), 5, 3.5)
+    content((2.5, 3.2), text(fill: colors.primary, weight: "bold", size: 0.9em)[`Bdd` Manager], anchor: "north")
+
+    // Hash table visualization
+    content((0.3, 2.8), text(fill: colors.text-light, size: 0.75em)[Hash Table:], anchor: "west")
+
+    draw-hash-entry((0.5, 2.2), "Node 1: $(x_1)$", size: 0.7)
+    draw-hash-entry((0.5, 1.6), "Node 2: $(x_2)$", size: 0.7)
+    draw-hash-entry((0.5, 1.0), "Node 3: $(x_1 and x_2)$", size: 0.7)
+    draw-hash-entry((0.5, 0.4), "...", size: 0.7)
+
+    // Cache visualization
+    content((2.5, 2.8), text(fill: colors.text-light, size: 0.75em)[Operation Cache:], anchor: "west")
+    rect((2.5, 0.4), (4.7, 2.6), fill: white, stroke: colors.accent + 1pt, radius: 0.05)
+    content((3.6, 2.2), text(size: 0.65em)[AND(1,2) $->$ 3])
+    content((3.6, 1.8), text(size: 0.65em)[OR(1,2) $->$ 4])
+    content((3.6, 1.4), text(size: 0.65em)[NOT(1) $->$ 5])
+    content((3.6, 0.8), text(size: 0.65em)[...])
+
+    // Ref handles outside manager
+    draw-ref-handle((6, 2.5), "x")
+    draw-ref-handle((6, 1.5), "y")
+    draw-ref-handle((6, 0.5), "f")
+
+    content((6.8, 2.5), text(size: 0.75em)[`Ref` (id=1)], anchor: "west")
+    content((6.8, 1.5), text(size: 0.75em)[`Ref` (id=2)], anchor: "west")
+    content((6.8, 0.5), text(size: 0.75em)[`Ref` (id=3)], anchor: "west")
+
+    // Pointers from refs to manager
+    draw-pointer((5.75, 2.5), (1.7, 2.45))
+    draw-pointer((5.75, 1.5), (1.7, 1.85))
+    draw-pointer((5.75, 0.5), (1.7, 1.25))
+
+    // Labels
+    content(
+      (6, 3.5),
+      text(fill: colors.text-light, size: 0.75em, style: "italic")[Lightweight handles],
+      anchor: "west",
+    )
+    content(
+      (0.5, -0.3),
+      text(fill: colors.text-light, size: 0.75em, style: "italic")[Centralized storage],
+      anchor: "west",
+    )
+  }),
+) <fig:manager-architecture>
+
 #info-box(title: "Manager-Centric Design")[
   *Critical invariant:* All BDD operations go through the manager.
 
@@ -330,6 +411,67 @@ Cofactors are the foundation of many BDD algorithms.
 Shannon expansion:
 $f = (x and f[x <- 1]) or (not x and f[x <- 0])$
 
+#figure(
+  caption: [Shannon expansion decomposes a BDD at variable $x$ into two cofactors. The BDD for $f$ has high edge pointing to $f[x <- 1]$ and low edge to $f[x <- 0]$. This recursive decomposition is the foundation of the BDD data structure.],
+
+  cetz.canvas({
+    import cetz.draw: *
+
+    // Helper functions
+    let draw-function-box(pos, label, color: colors.secondary) = {
+      rect(
+        (pos.at(0) - 0.8, pos.at(1) - 0.4),
+        (pos.at(0) + 0.8, pos.at(1) + 0.4),
+        fill: colors.bg-code,
+        stroke: color + 1.5pt,
+        radius: 0.1,
+      )
+      content(pos, text(fill: color, size: 0.8em)[#label])
+    }
+
+    let draw-var-node(pos, var-label) = {
+      circle(pos, radius: 0.35, fill: white, stroke: colors.primary + 1.5pt)
+      content(pos, text(fill: colors.primary, size: 0.8em)[#var-label])
+    }
+
+    let draw-edge(from-pos, to-pos, dashed: false, label: none) = {
+      let stroke-style = if dashed { (paint: colors.error, dash: "dashed", thickness: 1.5pt) } else {
+        colors.success + 1.5pt
+      }
+      line(from-pos, to-pos, stroke: stroke-style, mark: (end: ">"))
+      if label != none {
+        let mid-x = (from-pos.at(0) + to-pos.at(0)) / 2
+        let mid-y = (from-pos.at(1) + to-pos.at(1)) / 2
+        content((mid-x, mid-y), text(size: 0.65em, fill: colors.text-light)[#label], anchor: "south")
+      }
+    }
+
+    // Original function
+    draw-function-box((0, 3), $f(x, y, z)$, color: colors.primary)
+
+    // Equals sign
+    content((0, 2), text(size: 1.2em)[$=$])
+
+    // Shannon expansion formula
+    content((0, 1), text(size: 0.85em)[$(x and f[x <- 1]) or (not x and f[x <- 0])$])
+
+    // Visual representation
+    content((0, -0.3),text(fill: colors.text-light, size: 0.75em)[Visual structure:], anchor: "north")
+
+    draw-var-node((0, -1.2), $x$)
+
+    draw-function-box((-2, -2.8), $f[x <- 1]$)
+    draw-function-box((2, -2.8), $f[x <- 0]$)
+
+    draw-edge((0, -1.55), (-2, -2.4), label: "high")
+    draw-edge((0, -1.55), (2, -2.4), dashed: true, label: "low")
+
+    // Annotations
+    content((-3.5, -2.8), text(size: 0.7em, fill: colors.success)[assume $x = 1$], anchor: "east")
+    content((3.5, -2.8), text(size: 0.7em, fill: colors.error)[assume $x = 0$], anchor: "west")
+  }),
+) <fig:shannon-expansion>
+
 #info-box(title: "Cofactors vs Quantification")[
   - *Cofactor:* Fixes variable to specific value
   - *Quantification:* Eliminates variable (OR or AND over both values)
@@ -452,6 +594,87 @@ For long-running analyses, consider:
 === Variable Ordering
 
 Remember: variable ordering is critical.
+
+#figure(
+  caption: [Variable ordering impact on BDD size. Both BDDs represent $(x_1 and y_1) or (x_2 and y_2)$. Left: good ordering groups related variables $(x_1, y_1, x_2, y_2)$ resulting in 6 nodes. Right: bad ordering interleaves them $(x_1, x_2, y_1, y_2)$ resulting in 8 nodes. For this simple example the difference is small, but for larger problems bad ordering causes exponential blowup.],
+
+  cetz.canvas({
+    import cetz.draw: *
+
+    // Helper functions
+    let draw-bdd-node(pos, label) = {
+      circle(pos, radius: 0.3, fill: white, stroke: colors.primary + 1.5pt)
+      content(pos, text(fill: colors.primary, size: 0.75em)[#label])
+    }
+
+    let draw-terminal(pos, value) = {
+      let color-choice = if value == "1" { colors.success } else { colors.error }
+      rect(
+        (pos.at(0) - 0.25, pos.at(1) - 0.25),
+        (pos.at(0) + 0.25, pos.at(1) + 0.25),
+        fill: color-choice,
+        stroke: color-choice + 1.5pt,
+        radius: 0.05,
+      )
+      content(pos, text(fill: white, size: 0.75em, weight: "bold")[#value])
+    }
+
+    let draw-bdd-edge(from-pos, to-pos, is-low: false) = {
+      let stroke-style = if is-low { (paint: colors.error, dash: "dashed", thickness: 1pt) } else {
+        colors.success + 1pt
+      }
+      line(from-pos, to-pos, stroke: stroke-style, mark: (end: ">"))
+    }
+
+    // Good ordering
+    content((-3, 3.5), text(fill: colors.success, weight: "bold", size: 0.9em)[Good: $(x_1, y_1, x_2, y_2)$])
+    content((-3, 3), text(fill: colors.text-light, size: 0.75em)[6 nodes])
+
+    draw-bdd-node((-3, 2.2), $x_1$)
+    draw-bdd-node((-4, 1.2), $y_1$)
+    draw-bdd-node((-2, 1.2), $x_2$)
+    draw-bdd-node((-2.5, 0.2), $y_2$)
+    draw-terminal((-4, 0.2), "1")
+    draw-terminal((-1.5, 0.2), "0")
+
+    // Good ordering edges
+    draw-bdd-edge((-3, 1.9), (-4, 1.5))
+    draw-bdd-edge((-3, 1.9), (-2, 1.5), is-low: true)
+    draw-bdd-edge((-4, 0.9), (-4, 0.45))
+    draw-bdd-edge((-4, 0.9), (-1.5, 0.45), is-low: true)
+    draw-bdd-edge((-2, 0.9), (-2.5, 0.5))
+    draw-bdd-edge((-2, 0.9), (-1.5, 0.45), is-low: true)
+    draw-bdd-edge((-2.5, -0.1), (-4, 0.0))
+    draw-bdd-edge((-2.5, -0.1), (-1.5, 0.0), is-low: true)
+
+    // Bad ordering
+    content((3, 3.5), text(fill: colors.error, weight: "bold", size: 0.9em)[Bad: $(x_1, x_2, y_1, y_2)$])
+    content((3, 3), text(fill: colors.text-light, size: 0.75em)[8 nodes])
+
+    draw-bdd-node((3, 2.2), $x_1$)
+    draw-bdd-node((2, 1.4), $x_2$)
+    draw-bdd-node((4, 1.4), $x_2$)
+    draw-bdd-node((1.5, 0.6), $y_1$)
+    draw-bdd-node((2.5, 0.6), $y_1$)
+    draw-bdd-node((3.5, 0.6), $y_1$)
+    draw-terminal((2, -0.2), "1")
+    draw-terminal((4, -0.2), "0")
+
+    // Bad ordering edges (simplified to show complexity)
+    draw-bdd-edge((3, 1.9), (2, 1.7))
+    draw-bdd-edge((3, 1.9), (4, 1.7), is-low: true)
+    draw-bdd-edge((2, 1.1), (1.5, 0.9))
+    draw-bdd-edge((2, 1.1), (2.5, 0.9), is-low: true)
+    draw-bdd-edge((4, 1.1), (3.5, 0.9))
+    draw-bdd-edge((4, 1.1), (4, 0.05), is-low: true)
+    draw-bdd-edge((1.5, 0.3), (2, 0.05))
+    draw-bdd-edge((1.5, 0.3), (4, 0.05), is-low: true)
+    draw-bdd-edge((2.5, 0.3), (2, 0.05))
+    draw-bdd-edge((2.5, 0.3), (4, 0.05), is-low: true)
+    draw-bdd-edge((3.5, 0.3), (2, 0.05))
+    draw-bdd-edge((3.5, 0.3), (4, 0.05), is-low: true)
+  }),
+) <fig:variable-ordering-impact>
 
 The best practice is grouping related variables together --- those from the same statement or representing the same object.
 Order control variables before data variables when possible, and leverage any domain knowledge about your problem's structure.

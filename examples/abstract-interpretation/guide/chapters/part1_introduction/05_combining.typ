@@ -47,22 +47,69 @@ The architecture has three components working together.
 + The *abstract data domain* tracks variable properties like signs or intervals.
 + The *combined domain* pairs the BDD control state with the abstract data state to give us the full picture.
 
-[Architecture diagram would go here]
+#figure(
+  caption: [Three-component architecture for path-sensitive analysis. The combined state pairs a BDD representing the path condition with an abstract environment. When paths branch, the BDD splits while the data domain is copied. At join points, BDDs merge with OR and data domains join in the abstract lattice.],
 
-```
-┌─────────────────────────────────────┐
-│  Combined Analysis State            │
-├─────────────────────────────────────┤
-│                                     │
-│  ┌─────────────┐  ┌──────────────┐ │
-│  │ BDD Control │  │ Data Domain  │ │
-│  │             │  │              │ │
-│  │ Path: b     │  │ x ↦ +        │ │
-│  │             │  │ y ↦ ⊤        │ │
-│  └─────────────┘  └──────────────┘ │
-│                                     │
-└─────────────────────────────────────┘
-```
+  cetz.canvas({
+    import cetz.draw: *
+
+    // Helper functions
+    let draw-component-box(pos, width, height, label, color) = {
+      rect(pos, (pos.at(0) + width, pos.at(1) + height), fill: colors.bg-code, stroke: color + 2pt, radius: 0.15)
+      content(
+        (pos.at(0) + width / 2, pos.at(1) + height - 0.3),
+        text(fill: color, weight: "bold", size: 0.85em)[#label],
+        anchor: "north",
+      )
+    }
+
+    let draw-content-line(pos, body, size: 0.75) = {
+      content(pos, text(size: size * 1em)[#body], anchor: "west")
+    }
+
+    let draw-bracket(x1, x2, y, label) = {
+      line((x1, y), (x2, y), stroke: colors.text-light + 1pt)
+      line((x1, y), (x1, y - 0.1), stroke: colors.text-light + 1pt)
+      line((x2, y), (x2, y - 0.1), stroke: colors.text-light + 1pt)
+      content(((x1 + x2) / 2, y + 0.15), text(size: 0.7em, fill: colors.text-light)[#label], anchor: "south")
+    }
+
+    // Main combined state box
+    draw-component-box((0, 2), 7, 2.5, "Combined Analysis State", colors.primary)
+
+    // BDD control component
+    draw-component-box((0.3, 2.5), 3, 1.5, "BDD Control", colors.secondary)
+    draw-content-line((0.5, 3.3), [Path condition:])
+    draw-content-line((0.5, 2.95), [$b = x_1 and not x_2$])
+
+    // Data domain component
+    draw-component-box((3.7, 2.5), 3, 1.5, "Data Domain", colors.accent)
+    draw-content-line((3.9, 3.3), [Variable map:])
+    draw-content-line((3.9, 2.95), [$x arrow.r.bar plus.minus$])
+    draw-content-line((3.9, 2.65), [$y arrow.r.bar top$])
+
+    // Operation arrows below
+    content((3.5, 1.5), text(fill: colors.primary, weight: "bold", size: 0.85em)[Key Operations:], anchor: "north")
+
+    // Branch operation
+    content((1.5, 0.8), text(size: 0.75em)[*Branch:*], anchor: "north")
+    content((1.5, 0.5), text(size: 0.7em)[Update BDD $->$], anchor: "north")
+    content((1.5, 0.25), text(size: 0.7em)[Keep data], anchor: "north")
+
+    // Assign operation
+    content((3.5, 0.8), text(size: 0.75em)[*Assign:*], anchor: "north")
+    content((3.5, 0.5), text(size: 0.7em)[Keep BDD $->$], anchor: "north")
+    content((3.5, 0.25), text(size: 0.7em)[Update data], anchor: "north")
+
+    // Join operation
+    content((5.5, 0.8), text(size: 0.75em)[*Join:*], anchor: "north")
+    content((5.5, 0.5), text(size: 0.7em)[BDD: OR $->$], anchor: "north")
+    content((5.5, 0.25), text(size: 0.7em)[Data: $union.sq$], anchor: "north")
+
+    draw-bracket(0.3, 3.3, 2.2, "Control state")
+    draw-bracket(3.7, 6.7, 2.2, "Data state")
+  }),
+) <fig:three-component-architecture>
 
 The key operations follow naturally from this structure.
 - When we *branch*, we update the BDD with the condition while keeping the data domain unchanged.
@@ -201,6 +248,83 @@ impl PathSensitiveState {
 
 Each branch gets a separate state with updated path condition.
 Data environment is cloned (remains unchanged by branching).
+
+#figure(
+  caption: [State branching on a condition. The input state splits into two: true branch gets path $(b and c)$, false branch gets $(b and not c)$. The data environment is copied to both branches unchanged. Later, at the join point, paths merge with OR and data values join in the lattice.],
+
+  cetz.canvas({
+    import cetz.draw: *
+
+    // Helper functions
+    let draw-state-box(pos, width, height, path-label, data-label) = {
+      rect(
+        pos,
+        (pos.at(0) + width, pos.at(1) + height),
+        fill: colors.bg-code,
+        stroke: colors.primary + 1.5pt,
+        radius: 0.1,
+      )
+
+      // Path section
+      rect(
+        (pos.at(0), pos.at(1) + height / 2),
+        (pos.at(0) + width, pos.at(1) + height),
+        fill: rgb("#e0e7ff"),
+        stroke: none,
+      )
+      content(
+        (pos.at(0) + width / 2, pos.at(1) + height - 0.25),
+        text(size: 0.7em, fill: colors.secondary)[#path-label],
+        anchor: "north",
+      )
+
+      // Data section
+      content((pos.at(0) + width / 2, pos.at(1) + 0.25), text(size: 0.7em)[#data-label], anchor: "south")
+    }
+
+    let draw-arrow(from-pos, to-pos, label: none) = {
+      line(from-pos, to-pos, stroke: colors.primary + 1.5pt, mark: (end: ">"))
+      if label != none {
+        let mid-x = (from-pos.at(0) + to-pos.at(0)) / 2
+        let mid-y = (from-pos.at(1) + to-pos.at(1)) / 2
+        content((mid-x + 0.5, mid-y), text(size: 0.65em, fill: colors.text-light)[#label], anchor: "west")
+      }
+    }
+
+    // Initial state
+    draw-state-box((0, 2.5), 2.2, 1, "Path: $b$", "Env: $x arrow.r.bar plus.minus$")
+    content((-0.3, 3), text(size: 0.75em, fill: colors.text-light)[Input state], anchor: "east")
+
+    // Branch point
+    content((1.1, 1.8), text(size: 0.8em, fill: colors.primary, weight: "bold")[Branch on $c$])
+
+    // True branch state
+    draw-state-box((-1.5, 0.2), 2.2, 1, "Path: $b and c$", "Env: $x arrow.r.bar plus.minus$")
+    content((-2.8, 0.7), text(size: 0.7em, fill: colors.success)[True branch], anchor: "east")
+
+    // False branch state
+    draw-state-box((2, 0.2), 2.2, 1, "Path: $b and not c$", "Env: $x arrow.r.bar plus.minus$")
+    content((4.5, 0.7), text(size: 0.7em, fill: colors.error)[False branch], anchor: "west")
+
+    // Branching arrows
+    draw-arrow((1.1, 2.5), (-0.4, 1.2), label: "true")
+    draw-arrow((1.1, 2.5), (3.1, 1.2), label: "false")
+
+    // Join point
+    content((1.1, -0.5), text(size: 0.8em, fill: colors.primary, weight: "bold")[Join])
+
+    // Joined state
+    draw-state-box((0, -2), 2.2, 1, "Path: $b$", "Env: $x arrow.r.bar plus.minus$")
+
+    // Join arrows
+    draw-arrow((-0.4, 0.2), (1.1, -1))
+    draw-arrow((3.1, 0.2), (1.1, -1))
+
+    // Annotations
+    content((-2.5, -1.5), text(size: 0.65em, fill: colors.text-light)[$(b and c) or$], anchor: "east")
+    content((-2.5, -1.75), text(size: 0.65em, fill: colors.text-light)[$(b and not c) = b$], anchor: "east")
+  }),
+) <fig:state-branching>
 
 === Assignment
 
@@ -589,7 +713,7 @@ In the next chapter, we build a complete symbolic executor using these technique
     Need sufficiently precise data domains (intervals better than signs).
   ],
   [
-    *Main Insight:*
+    *Main insight:*
     BDDs provide compact representation of path conditions, enabling path-sensitive abstract interpretation without explicit path enumeration.
   ],
 )

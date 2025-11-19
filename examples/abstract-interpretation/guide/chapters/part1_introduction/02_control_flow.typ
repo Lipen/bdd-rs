@@ -35,7 +35,81 @@ We cannot analyze each path separately.
 
 We represent programs as _control flow graphs_ (CFGs).
 
-[CFG diagram would go here showing nodes for basic blocks and edges for control flow]
+#figure(
+  caption: [Control Flow Graph for the compute function. Circles represent conditions, rectangles are statements. Four distinct paths exist from entry to exit.],
+
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Helper functions for consistent CFG drawing
+    let draw-entry-exit(pos, label, color) = {
+      circle(pos, radius: 0.35, fill: color.lighten(80%), stroke: color + 2pt)
+      content(pos, text(fill: color, size: 0.75em, weight: "bold")[#label])
+    }
+
+    let draw-statement(pos, body, width: 0.8) = {
+      rect(
+        (pos.at(0) - width, pos.at(1) - 0.35),
+        (pos.at(0) + width, pos.at(1) + 0.35),
+        fill: white,
+        stroke: colors.primary + 1.5pt,
+        radius: 0.1,
+      )
+      content(pos, text(fill: colors.text, size: 0.7em)[#body])
+    }
+
+    let draw-condition(pos, body) = {
+      circle(pos, radius: 0.5, fill: white, stroke: colors.secondary + 2pt)
+      content(pos, text(fill: colors.secondary, size: 0.75em)[#body])
+    }
+
+    let draw-flow-edge(from, to, label: none, label-side: "west", branch-color: colors.primary) = {
+      line(from, to, stroke: branch-color + 1pt, mark: (end: ">"))
+      if label != none {
+        let mid = ((from.at(0) + to.at(0)) / 2, (from.at(1) + to.at(1)) / 2)
+        content(mid, text(fill: branch-color, size: 0.7em)[#label], anchor: label-side)
+      }
+    }
+
+    // Positions
+    let entry = (0, 6)
+    let init = (0, 5)
+    let cond1 = (0, 3.5)
+    let then1 = (-2, 2)
+    let cond2 = (0, 2)
+    let then2 = (2, 0.5)
+    let exit = (0, 0)
+
+    // Draw structure
+    draw-flow-edge(entry, init, branch-color: colors.primary)
+    draw-flow-edge(init, cond1, branch-color: colors.primary)
+    draw-flow-edge(cond1, then1, label: "yes", label-side: "east", branch-color: colors.success)
+    draw-flow-edge(cond1, cond2, label: "no", label-side: "west", branch-color: colors.error)
+
+    // From then1 to cond2 (via waypoints)
+    line(then1, (-2, 1), stroke: colors.primary + 1pt)
+    line((-2, 1), (0, 1), stroke: colors.primary + 1pt)
+    draw-flow-edge((0, 1), cond2, branch-color: colors.primary)
+
+    draw-flow-edge(cond2, then2, label: "yes", label-side: "west", branch-color: colors.success)
+    draw-flow-edge(cond2, exit, label: "no", label-side: "west", branch-color: colors.error)
+
+    // From then2 to exit
+    line(then2, (2, -0.5), stroke: colors.primary + 1pt)
+    line((2, -0.5), (0, -0.5), stroke: colors.primary + 1pt)
+    draw-flow-edge((0, -0.5), exit, branch-color: colors.primary)
+
+    // Draw nodes
+    draw-entry-exit(entry, "Entry", colors.accent)
+    draw-statement(init, "result = 0")
+    draw-condition(cond1, [$x > 0$?])
+    draw-statement(then1, "result += x", width: 0.9)
+    draw-condition(cond2, [$y > 0$?])
+    draw-statement(then2, "result += y", width: 0.9)
+    draw-entry-exit(exit, "Exit", colors.success)
+  }),
+) <fig:cfg-example>
+#v(0.5em)
 
 #definition(title: "Control Flow Graph")[
   A CFG is a directed graph where:
@@ -43,24 +117,6 @@ We represent programs as _control flow graphs_ (CFGs).
   - Edges represent possible control flow
   - One entry node, one or more exit nodes
 ]
-
-Example CFG for our function:
-
-```
-Entry
-  ↓
-[result = 0]
-  ↓
-[x > 0?] ---no--> [y > 0?] ---no--> Exit
-  ↓                 ↓
-  yes               yes
-  ↓                 ↓
-[result += x] -> [y > 0?]
-                   ↓
-                   yes
-                   ↓
-                [result += y] -> Exit
-```
 
 Each path through the CFG corresponds to one possible execution.
 
@@ -108,6 +164,78 @@ Real programs have millions or billions of paths.
   Adding one more branch doubles the number of paths.
   Explicit path enumeration is infeasible for real programs.
 ]
+
+#figure(
+  caption: [Path explosion: each branch doubles the number of paths. With 3 branches we have 8 paths; with 30 branches we'd have over 1 billion paths.],
+
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Helper functions
+    let draw-path-node(pos, level, is-leaf: false) = {
+      let node-color = if is-leaf { colors.error } else { colors.primary }
+      let node-fill = if is-leaf { colors.error.lighten(60%) } else { colors.primary.lighten(70%) }
+      circle(pos, radius: 0.15, fill: node-fill, stroke: node-color)
+    }
+
+    let draw-tree-edge(from, to) = {
+      line(from, to, stroke: colors.text-light + 0.8pt)
+    }
+
+    // Tree structure
+    let levels = (1, 2, 4, 8)
+    let y-spacing = 1.8
+    let max-width = 8
+
+    for (level, count) in levels.enumerate() {
+      let y = -level * y-spacing
+      let spacing = max-width / (count + 1)
+
+      for i in range(0, count) {
+        let x = (i + 1) * spacing - max-width / 2
+        draw-path-node((x, y), level, is-leaf: level == 3)
+
+        // Edges to children
+        if level < levels.len() - 1 {
+          let next-spacing = max-width / (levels.at(level + 1) + 1)
+          let child-left = (2 * i + 1) * next-spacing - max-width / 2
+          let child-right = (2 * i + 2) * next-spacing - max-width / 2
+          draw-tree-edge((x, y - 0.15), (child-left, y - y-spacing + 0.15))
+          draw-tree-edge((x, y - 0.15), (child-right, y - y-spacing + 0.15))
+        }
+      }
+
+      // Labels
+      content(
+        (-max-width / 2 - 1, y),
+        text(fill: colors.text-light, size: 0.75em)[#count path#if count > 1 [s]],
+        anchor: "east",
+      )
+    }
+
+    // Level labels
+    content((-max-width / 2 - 2.5, 0), text(fill: colors.text, size: 0.75em, weight: "bold")[Start], anchor: "east")
+    content((-max-width / 2 - 2.5, -y-spacing), text(fill: colors.text, size: 0.75em)[1 branch], anchor: "east")
+    content(
+      (-max-width / 2 - 2.5, -2 * y-spacing),
+      text(fill: colors.text, size: 0.75em)[2 branches],
+      anchor: "east",
+    )
+    content(
+      (-max-width / 2 - 2.5, -3 * y-spacing),
+      text(fill: colors.text, size: 0.75em)[3 branches],
+      anchor: "east",
+    )
+
+    // Annotation
+    content(
+      (0, -3 * y-spacing - 0.8),
+      text(fill: colors.error, size: 0.8em, style: "italic")[$2^n$ exponential growth],
+      anchor: "north",
+    )
+  }),
+) <fig:path-explosion>
+#v(0.5em)
 
 == Path-Sensitive vs Path-Insensitive Analysis
 
@@ -427,7 +555,7 @@ In the next chapter, we introduce Binary Decision Diagrams formally and see how 
     Path-insensitive analysis suffices when properties don't depend on control flow correlations.
   ],
   [
-    *Main Insight:*
+    *Main insight:*
     BDDs transform intractable path-sensitive analysis into a practical technique by compressing exponential path sets into compact symbolic representations.
   ],
 )

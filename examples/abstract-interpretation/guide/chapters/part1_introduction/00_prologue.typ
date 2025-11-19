@@ -343,9 +343,9 @@ Instead of enumerating $2^n$ paths, we maintain a single BDD encoding all reacha
   ```
 
   BDD representation encodes three feasible control paths:
-  - $"battery"_"ok" and "temp" < 25 arrow.r.double ("mode" = "ACTIVE" and "power" = 100)$
-  - $"battery"_"ok" and "temp" >= 25 arrow.r.double ("mode" = "STANDBY" and "power" = 20)$
-  - $not "battery"_"ok" arrow.r.double ("mode" = "OFF" and "power" = 0)$
+  - $"battery"_"ok" and "temp" < 25 => ("mode" = "ACTIVE" and "power" = 100)$
+  - $"battery"_"ok" and "temp" >= 25 => ("mode" = "STANDBY" and "power" = 20)$
+  - $not "battery"_"ok" => ("mode" = "OFF" and "power" = 0)$
 
   Single BDD captures all paths compactly.
   Abstract domain tracks exact power values per configuration.

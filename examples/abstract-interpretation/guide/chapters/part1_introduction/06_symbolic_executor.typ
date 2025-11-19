@@ -52,7 +52,58 @@ Components:
 3. *Interpreter:* Execute statements, update state
 4. *Path explorer:* Manage multiple paths, detect bugs
 
-[Architecture diagram would go here]
+#figure(
+  caption: [Symbolic executor architecture. The path explorer manages a worklist of symbolic states, each containing a BDD path condition and symbolic environment. The interpreter processes statements, forking states at branches. Bug detectors check for violations by querying path feasibility.],
+
+  cetz.canvas({
+    import cetz.draw: *
+
+    // Helper functions
+    let draw-component(pos, width, height, label, color) = {
+      rect(pos, (pos.at(0) + width, pos.at(1) + height), fill: colors.bg-code, stroke: color + 2pt, radius: 0.15)
+      content((pos.at(0) + width / 2, pos.at(1) + height / 2), text(
+        fill: color,
+        weight: "bold",
+        size: 0.8em,
+      )[#label])
+    }
+
+    let draw-data-box(pos, width, height, label) = {
+      rect(pos, (pos.at(0) + width, pos.at(1) + height), fill: white, stroke: colors.secondary + 1pt, radius: 0.08)
+      content((pos.at(0) + width / 2, pos.at(1) + height - 0.2), text(size: 0.7em)[#label], anchor: "north")
+    }
+
+    let draw-connection(from-pos, to-pos) = {
+      line(from-pos, to-pos, stroke: colors.primary + 1pt, mark: (end: ">"))
+    }
+
+    // Main components
+    draw-component((0, 3.2), 2.5, 0.8, [Path Explorer], colors.primary)
+    draw-component((3.5, 3.2), 2.5, 0.8, [Interpreter], colors.accent)
+    draw-component((6.5, 3.2), 2, 0.8, [Bug Detector], colors.error)
+
+    // Worklist of states
+    content((1.25, 2.5), text(size: 0.75em, fill: colors.text-light)[Worklist:], anchor: "north")
+    draw-data-box((0.2, 1.5), 2.1, 0.8, [State 1])
+    draw-data-box((0.2, 0.5), 2.1, 0.8, [State 2])
+    content((1.25, -0.1), text(size: 0.7em, fill: colors.text-light)[...], anchor: "north")
+
+    // Symbolic state details
+    content((4.75, 2.5), text(size: 0.75em, fill: colors.text-light)[Symbolic State:], anchor: "north")
+    draw-data-box((3.5, 1.8), 2.5, 0.5, [Path: BDD])
+    draw-data-box((3.5, 1.1), 2.5, 0.5, [Env: Var $->$ Expr])
+
+    // Connections
+    draw-connection((1.25, 3.2), (4.75, 3.2))
+    draw-connection((4.75, 3.2), (7.5, 3.2))
+    draw-connection((2.3, 2.0), (3.5, 2.0))
+
+    // Labels on connections
+    content((2.5, 3.4), text(size: 0.65em, fill: colors.text-light)[pop state], anchor: "south")
+    content((5.75, 3.4), text(size: 0.65em, fill: colors.text-light)[check], anchor: "south")
+    content((2.5, 2.2), text(size: 0.65em, fill: colors.text-light)[current], anchor: "south")
+  }),
+) <fig:symbolic-executor-architecture>
 
 == Expression Language
 
@@ -247,6 +298,81 @@ This is simplified; real symbolic execution would:
 - Simplify expressions based on learned conditions
 - Update abstract domains (e.g., if `x < 0`, mark x as negative)
 - Prune infeasible paths
+
+#figure(
+  caption: [Path forking at conditional branches. Starting from an initial state, each `if` condition allocates a fresh BDD variable and splits into two states. The true branch updates the path with $(p and c)$, the false branch with $(p and not c)$ where $p$ is the current path condition. Both branches inherit the symbolic environment, which may be refined based on the learned condition.],
+
+  cetz.canvas({
+    import cetz.draw: *
+
+    // Helper functions
+    let draw-exec-state(pos, path-label, env-label) = {
+      rect(
+        (pos.at(0) - 1, pos.at(1) - 0.5),
+        (pos.at(0) + 1, pos.at(1) + 0.5),
+        fill: colors.bg-code,
+        stroke: colors.primary + 1.5pt,
+        radius: 0.1,
+      )
+      content((pos.at(0), pos.at(1) + 0.15), text(size: 0.65em)[#path-label])
+      content((pos.at(0), pos.at(1) - 0.15), text(size: 0.65em, fill: colors.text-light)[#env-label])
+    }
+
+    let draw-condition(pos, cond-label) = {
+      circle(pos, radius: 0.3, fill: white, stroke: colors.accent + 1.5pt)
+      content(pos, text(size: 0.7em, fill: colors.accent)[#cond-label])
+    }
+
+    let draw-fork-edge(from-pos, to-pos, is-true: true) = {
+      let color-choice = if is-true { colors.success } else { colors.error }
+      line(from-pos, to-pos, stroke: color-choice + 1.5pt, mark: (end: ">"))
+    }
+
+    // Initial state
+    draw-exec-state((0, 3), "Path: $top$", "x: $alpha$")
+    content((-1.5, 3), text(size: 0.7em, fill: colors.text-light)[Initial], anchor: "east")
+
+    // First condition
+    draw-condition((0, 1.8), $c_1$)
+    line((0, 2.5), (0, 2.1), stroke: colors.primary + 1pt, mark: (end: ">"))
+
+    // First fork
+    draw-exec-state((-2.5, 0.5), "Path: $c_1$", "x: $alpha$")
+    draw-exec-state((2.5, 0.5), "Path: $not c_1$", "x: $alpha$")
+
+    draw-fork-edge((0, 1.5), (-2.5, 1.0), is-true: true)
+    draw-fork-edge((0, 1.5), (2.5, 1.0), is-true: false)
+
+    content((-1, 1.2), text(size: 0.6em, fill: colors.success)[true], anchor: "south")
+    content((1, 1.2), text(size: 0.6em, fill: colors.error)[false], anchor: "south")
+
+    // Second conditions on branches
+    draw-condition((-2.5, -0.7), $c_2$)
+    line((-2.5, 0), (-2.5, -0.4), stroke: colors.primary + 1pt, mark: (end: ">"))
+
+    draw-condition((2.5, -0.7), $c_3$)
+    line((2.5, 0), (2.5, -0.4), stroke: colors.primary + 1pt, mark: (end: ">"))
+
+    // Final states
+    draw-exec-state((-4, -2), "Path: $c_1 and c_2$", "x: $alpha$")
+    draw-exec-state((-1, -2), "Path: $c_1 and not c_2$", "x: $alpha$")
+    draw-exec-state((1.5, -2), "Path: $not c_1 and c_3$", "x: $alpha$")
+    draw-exec-state((4, -2), "Path: $not c_1 and not c_3$", "x: $alpha$")
+
+    // Fork edges to final states
+    draw-fork-edge((-2.5, -1.0), (-4, -1.5), is-true: true)
+    draw-fork-edge((-2.5, -1.0), (-1, -1.5), is-true: false)
+    draw-fork-edge((2.5, -1.0), (1.5, -1.5), is-true: true)
+    draw-fork-edge((2.5, -1.0), (4, -1.5), is-true: false)
+
+    // Annotation
+    content(
+      (0, -2.8),
+      text(size: 0.7em, fill: colors.text-light, style: "italic")[4 paths explored],
+      anchor: "north",
+    )
+  }),
+) <fig:path-forking>
 
 == Program Representation
 
@@ -616,7 +742,7 @@ Part II dives deeper into practical analysis techniques.
     BDDs for control, abstract domains for data. Best of both worlds.
   ],
   [
-    *Main Insight:*
+    *Main insight:*
     BDD-based symbolic execution provides practical path-sensitive analysis by compactly representing path conditions while exploring feasible program paths.
   ],
 )
