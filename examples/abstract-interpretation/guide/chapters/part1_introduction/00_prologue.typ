@@ -9,15 +9,23 @@
 _November 4, 1996.
 Paris, France._
 
-The inaugural flight of the Ariane 5 rocket—Europe's most advanced launch vehicle—lasted 37 seconds.
+The inaugural flight of the Ariane 5 rocket --- Europe's most advanced launch vehicle --- lasted 37 seconds.
 The rocket carried four satellites worth over \$500 million.
 It veered off course and was destroyed.
-The cause: a software defect.
-A 64-bit floating-point number was converted to a 16-bit signed integer without overflow protection.
+
+The cause: a software bug inherited from the Ariane 4 without revalidation.
+A 64-bit floating-point number representing horizontal velocity was converted to a 16-bit signed integer.
+The value exceeded 32,767 (the maximum for a 16-bit signed integer).
+No overflow protection was implemented --- the code threw an exception.
 This caused cascading failures in the inertial reference system.
+Both the primary and backup systems failed identically from the same bug.
 
 The inquiry board's report stated:
 _"The failure could have been avoided by... appropriate protection against overflow."_
+
+The defective code worked correctly in the Ariane 4, where horizontal velocities never exceeded the threshold.
+Ariane 5's more powerful engines produced higher acceleration.
+The assumption that certain values would remain bounded no longer held.
 
 #v(1em)
 
@@ -26,8 +34,19 @@ Multiple medical facilities._
 
 The Therac-25 radiation therapy machine delivered massive overdoses to at least six patients.
 Three died from radiation poisoning.
-The root cause: race conditions in the control software combined with inadequate safety interlocks.
+Three others suffered severe radiation injuries.
+
+The bug emerged from the interaction of three factors:
+Race conditions in the control software allowed the operator to modify treatment parameters during a brief timing window.
 The software lacked proper synchronization between the operator console and the machine controller.
+Hardware safety interlocks present in previous models had been removed, with their function moved to software.
+
+When an operator corrected a data entry error within approximately eight seconds, the software entered an inconsistent state.
+The machine configured itself to deliver the electron beam at full power without the beam spreader plate in position.
+Patients received doses hundreds of times higher than intended.
+
+The race condition occurred so rarely during testing that it went undetected.
+Only experienced operators, who worked quickly and knew common data entry patterns, triggered the bug frequently enough to cause injury.
 
 #v(1em)
 
@@ -36,7 +55,7 @@ _April 2014._
 Heartbleed was discovered in OpenSSL—software protecting approximately two-thirds of all web servers.
 The vulnerability allowed attackers to read arbitrary server memory.
 This exposed passwords, cryptographic keys, and personal data.
-The defect: a missing bounds check in the heartbeat extension.
+The bug: a missing bounds check in the heartbeat extension.
 
 ```c
 // Vulnerable code (simplified)
@@ -49,26 +68,29 @@ memcpy(response, data, length);  // No validation of 'data' size
 
 == Testing is Insufficient
 
-These failures share a common property:
-they are logical errors that testing alone cannot reliably detect.
+These failures share a pattern:
+they involve logical errors that testing alone cannot reliably detect.
 The programs executed correctly under test conditions.
 They passed their test suites.
-In production, under specific conditions, they failed catastrophically.
+Under specific production conditions, they failed catastrophically.
 
 Testing encounters fundamental limitations:
 
 _Infinite input space._
-A function accepting two 32-bit integers has $2^(64)$ possible inputs.
-Exhaustive testing is infeasible.
+A function accepting two 32-bit integers has $2^(64) approx 1.8 times 10^19$ possible inputs.
+Testing one input per nanosecond would require over 580 years to cover all cases.
 
 _Rare conditions._
 Defects often manifest only under unusual input combinations, timing windows, or state sequences.
+The Therac-25 race condition required specific timing (sub-second window) combined with specific operator behavior.
 Testing finds common-case bugs effectively.
-Rare bugs persist.
+Rare bugs persist until they occur in production.
 
 _Emergent complexity._
-Modern software systems comprise multiple interacting components.
+Modern systems comprise multiple interacting components.
 Component interactions create emergent behaviors not captured by unit testing.
+The Ariane 5 software worked correctly in isolation.
+It failed when integrated with a system producing different operating conditions.
 
 Consider this function:
 
@@ -162,6 +184,42 @@ _Undecidability._
 Determining whether code is reachable, whether loops terminate, or whether assertions hold is undecidable in the general case.
 
 To make verification tractable, we must approximate.
+
+#figure(
+  caption: [The verification landscape. Different approaches trade off precision, automation, and scalability. Abstract interpretation occupies the sweet spot: fully automatic, scalable to large codebases, with tunable precision through domain choice.],
+
+  cetz.canvas({
+    import cetz.draw: *
+
+    // Helper functions
+    let draw-approach(pos, label, precision, automation, scalability, color) = {
+      circle(pos, radius: 0.4, fill: color.lighten(70%), stroke: color + 1.5pt)
+      content(pos, [#text(size: 0.7em, fill: color)[#label]])
+    }
+
+    let draw-axis-label(pos, text-content) = {
+      content(pos, [#text(size: 0.75em, fill: colors.text-light)[#text-content]])
+    }
+
+    // Axes
+    line((0, 0), (8, 0), stroke: colors.text-light + 1pt, mark: (end: ">"))
+    line((0, 0), (0, 6), stroke: colors.text-light + 1pt, mark: (end: ">"))
+    draw-axis-label((8.5, 0), [Scalability])
+    draw-axis-label((0, 6.5), [Precision])
+
+    // Approaches positioned by their tradeoffs
+    draw-approach((1.5, 5), [Theorem\nProving], "high", "low", "low", colors.secondary)
+    draw-approach((2.5, 4.5), [SMT\nSolvers], "high", "medium", "medium", colors.secondary)
+    draw-approach((4, 3.5), [Abstract\nInterpretation], "medium", "high", "high", colors.primary)
+    draw-approach((6, 2), [Type\nSystems], "low", "high", "high", colors.accent)
+    draw-approach((2, 1.5), [Symbolic\nExecution], "high", "medium", "low", colors.warning)
+    draw-approach((7, 1), [Testing], "varies", "high", "high", colors.error)
+
+    // Annotations
+    content((4, 0.8), [#text(size: 0.65em, fill: colors.primary, style: "italic")[This guide's focus]], anchor: "north")
+    line((4, 1.2), (4, 3), stroke: colors.primary + 1pt, mark: (end: ">"))
+  }),
+) <fig:verification-landscape>
 
 == Abstract Interpretation
 
