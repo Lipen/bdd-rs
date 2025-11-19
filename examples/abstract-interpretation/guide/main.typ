@@ -41,18 +41,22 @@ Whether you're a student encountering formal methods for the first time, a pract
 
 This guide serves multiple audiences, each with different backgrounds and goals:
 
-*Complete Beginners* #reading-path(path: "beginner"):
+#reading-path(path: "beginner")
+*Complete Beginners:*
 If you're new to program verification and formal methods, start with Part I.
 We'll build intuition through concrete examples before introducing mathematical formalism.
 No prior knowledge of abstract interpretation or BDDs is assumed—just basic programming experience and curiosity.
 
-*Practitioners* #reading-path(path: "implementation"):
+#reading-path(path: "implementation")
+*Practitioners:*
 If you're a software engineer interested in applying verification techniques to real systems, focus on Part I (Chapters 1-5) for conceptual understanding, then jump to Part II (Chapter 12) for implementation details and benchmarks.
 
-*Researchers and Students* #reading-path(path: "advanced"):
+#reading-path(path: "advanced")
+*Researchers and Students:*
 If you're already familiar with program analysis basics, you might skim Part I and dive into Part II, which provides complete mathematical foundations, proofs, and connections to research literature.
 
-*Educators*: This guide is structured to support a one-semester course on program analysis, with progressive exercises, worked examples, and discussion prompts throughout.
+*Educators*:
+This guide is structured to support a one-semester course on program analysis, with progressive exercises, worked examples, and discussion prompts throughout.
 
 == What Makes This Guide Different
 
@@ -106,7 +110,7 @@ We've marked sections with icons to help you navigate:
 #grid(
   columns: 2,
   column-gutter: 1em,
-  row-gutter: 0.8em,
+  inset: 5pt,
 
   reading-path(path: "essential"), [Must-read for everyone],
 

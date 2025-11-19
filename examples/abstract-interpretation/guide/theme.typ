@@ -805,16 +805,20 @@
   }
 
   box(
-    fill: color.lighten(85%),
-    stroke: 1pt + color,
-    radius: 4pt,
-    inset: (x: 0.6em, y: 0.3em),
-  )[
-    #text(
-      size: 0.85em,
-      fill: color,
-      weight: "medium",
-      [#icon #label],
-    )
-  ]
+    inset: (x: 0.1em),
+    baseline: 0.1em,
+    box(
+      fill: color.lighten(85%),
+      stroke: 1pt + color,
+      radius: 4pt,
+      inset: (x: 0.5em, bottom: 0.4em, top: 0.2em),
+    )[
+      #text(
+        size: 0.85em,
+        fill: color,
+        weight: "medium",
+        [#icon #label],
+      )
+    ],
+  )
 }
