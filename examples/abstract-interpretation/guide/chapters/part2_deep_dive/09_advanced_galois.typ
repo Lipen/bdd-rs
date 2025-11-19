@@ -361,13 +361,15 @@ Transformers on product domains must maintain reduction.
 #example-box[
   *Domain comparison for `x := x * x`:*
 
-  | Domain | Result for $x in [-2, 2]$ | Cost |
-  |--------|---------------------------|------|
-  | Sign | $top$ | Low |
-  | Interval | $[-4, 4]$ | Medium |
-  | Sign × Interval (unreduced) | $("Top", [-4, 4])$ | Medium |
-  | Sign × Interval (reduced) | $("NonNeg", [0, 4])$ | High |
-  | Octagon | $x^2 in [0, 4]$ | Very High |
+  #table(
+    columns: 3,
+    table.header([Domain], [Result for $x in [-2, 2]$], [Cost]),
+    [Sign], [$top$], [Low],
+    [Interval], [$[-4, 4]$], [Medium],
+    [Sign × Interval (unreduced)], [$(top, [-4, 4])$], [Medium],
+    [Sign × Interval (reduced)], [$("NonNeg", [0, 4])$], [High],
+    [Octagon], [$x^2 in [0, 4]$], [Very High],
+  )
 
   Reduced product eliminates negative results, but at computational cost.
 ]
