@@ -77,7 +77,7 @@ The partial order represents the *precision ordering* in abstract interpretation
     draw.content((7, 0), text(size: 9pt, fill: colors.text-light)[Most precise])
     draw.line((6.5, 4), (6.5, 0), stroke: colors.text-light + 0.5pt, mark: (end: ">"))
     draw.content((7.5, 2), rotate(270deg, text(size: 9pt, fill: colors.text-light)[Precision]))
-  })
+  }),
 )
 
 #definition(title: "Upper and Lower Bounds")[
@@ -379,7 +379,7 @@ This gives us the standard fixpoint iteration algorithm used in dataflow analysi
     // Annotations
     draw.content((x-iter, y-bot - 0.6), text(size: 8pt, fill: colors.text-light)[Start: $x_0 = bot$])
     draw.content((x-iter, y-top + 0.6), text(size: 8pt, fill: colors.text-light)[Ascending chain])
-  })
+  }),
 )
 
 #example-box[
@@ -443,7 +443,7 @@ Galois connections formalize the relationship between concrete and abstract doma
 
     // Adjunction property
     draw.content((3.25, 0.3), text(size: 9pt, fill: colors.text-light)[$alpha(c) <=_A a <==> c <=_C gamma(a)$])
-  })
+  }),
 )
 
 #theorem(title: "Properties of Galois Connections")[
@@ -477,22 +477,26 @@ Galois connections formalize the relationship between concrete and abstract doma
   Abstract domain: $A = {"Bot", "Neg", "Zero", "Pos", "Top"}$
 
   Abstraction $alpha: cal(P)(ZZ) -> A$:
-  $ alpha(S) = cases(
-    "Bot" & "if" S = emptyset,
-    "Neg" & "if" S subset.eq ZZ^-,
-    "Zero" & "if" S = {0},
-    "Pos" & "if" S subset.eq ZZ^+,
-    "Top" & "otherwise"
-  ) $
+  $
+    alpha(S) = cases(
+      "Bot" & "if" S = emptyset,
+      "Neg" & "if" S subset.eq ZZ^-,
+      "Zero" & "if" S = {0},
+      "Pos" & "if" S subset.eq ZZ^+,
+      "Top" & "otherwise"
+    )
+  $
 
   Concretization $gamma: A -> cal(P)(ZZ)$:
-  $ gamma(a) = cases(
-    emptyset & "if" a = "Bot",
-    ZZ^- & "if" a = "Neg",
-    {0} & "if" a = "Zero",
-    ZZ^+ & "if" a = "Pos",
-    ZZ & "if" a = "Top"
-  ) $
+  $
+    gamma(a) = cases(
+      emptyset & "if" a = "Bot",
+      ZZ^- & "if" a = "Neg",
+      {0} & "if" a = "Zero",
+      ZZ^+ & "if" a = "Pos",
+      ZZ & "if" a = "Top"
+    )
+  $
 
   Verify adjunction: $alpha(S) <=_A a <==> S subset.eq gamma(a)$
 ]
@@ -508,8 +512,8 @@ For infinite-height lattices, Kleene iteration may not terminate.
 
   + *Upper bound*: $forall x, y: x <= x widen y$ and $y <= x widen y$
   + *Convergence*: For any increasing chain $x_0 <= x_1 <= x_2 <= dots$, the sequence
-     $ y_0 = x_0, quad y_(i+1) = y_i widen x_(i+1) $
-     stabilizes after finitely many steps
+    $ y_0 = x_0, quad y_(i+1) = y_i widen x_(i+1) $
+    stabilizes after finitely many steps
 ]
 
 Widening trades precision for termination: it may over-approximate, but guarantees convergence.
@@ -518,10 +522,12 @@ Widening trades precision for termination: it may over-approximate, but guarante
   *Interval widening:*
 
   For intervals $[a, b]$ and $[c, d]$:
-  $ [a, b] widen [c, d] = [
-    cases(a & "if" c >= a, -infinity & "if" c < a),
-    cases(b & "if" d <= b, +infinity & "if" d > b)
-  ] $
+  $
+    [a, b] widen [c, d] = [
+      cases(a & "if" c >= a, -infinity & "if" c < a),
+      cases(b & "if" d <= b, +infinity & "if" d > b)
+    ]
+  $
 
   If bounds are not stable, widen to infinity to ensure convergence.
 
@@ -564,17 +570,17 @@ Narrowing refines an over-approximation obtained by widening, recovering some pr
 
     // Iteration points
     let pts = (
-      (0, 0.5),    // x0
-      (1, 1.0),    // x1
-      (2, 1.8),    // x2
-      (3, 3.5),    // x3 - widening jump!
-      (4, 3.5),    // x4 - stable
-      (5, 3.5),    // start narrowing
-      (6, 3.2),    // n1
-      (7, 2.8),    // n2
-      (8, 2.6),    // n3
-      (9, 2.5),    // n4
-      (10, 2.5),   // stable
+      (0, 0.5), // x0
+      (1, 1.0), // x1
+      (2, 1.8), // x2
+      (3, 3.5), // x3 - widening jump!
+      (4, 3.5), // x4 - stable
+      (5, 3.5), // start narrowing
+      (6, 3.2), // n1
+      (7, 2.8), // n2
+      (8, 2.6), // n3
+      (9, 2.5), // n4
+      (10, 2.5), // stable
     )
 
     for i in range(pts.len() - 1) {
@@ -596,7 +602,7 @@ Narrowing refines an over-approximation obtained by widening, recovering some pr
     draw.line((3, 3.8), (3, 3.6), stroke: colors.warning + 1pt, mark: (end: ">"))
 
     draw.content((10, 2.8), text(size: 8pt, fill: colors.success)[Fixpoint])
-  })
+  }),
 )
 
 == Chapter Summary

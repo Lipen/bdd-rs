@@ -144,7 +144,7 @@ Chaotic iteration can be wasteful: updating a variable when its inputs haven't c
 
     // Worklist state
     draw.content((4, 0), text(weight: "bold")[Worklist: ${x_2, x_5}$])
-  })
+  }),
 )
 
 #theorem(title: "Worklist Correctness")[
@@ -207,14 +207,13 @@ The order of processing the worklist affects performance significantly.
     draw.line("b3", "exit", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
 
     // Back edge (loop)
-    draw.bezier("b3.west", "b1.west", (0.8, 2), (0.8, 3.5),
-           stroke: colors.warning + 1pt, mark: (end: ">"))
+    draw.bezier("b3.west", "b1.west", (0.8, 2), (0.8, 3.5), stroke: colors.warning + 1pt, mark: (end: ">"))
     draw.content((0.3, 2.7), text(size: 8pt, fill: colors.warning)[Back edge])
 
     // Annotation
     draw.content((5.5, 2.5), text(size: 9pt, fill: colors.text-light)[RPO: 1, 2, 3, 4, 5])
     draw.content((5.5, 2), text(size: 9pt, fill: colors.text-light)[Minimizes iterations])
-  })
+  }),
 )
 
 == Complexity Analysis
@@ -327,7 +326,11 @@ Narrowing is optional but often improves precision significantly.
     draw.line((0, 0), (phase2-end + 1, 0), stroke: colors.text-light + 0.8pt, mark: (end: ">"))
 
     // Phase dividers
-    draw.line((phase1-end, -0.5), (phase1-end, 4.5), stroke: (paint: colors.text-light, thickness: 0.5pt, dash: "dashed"))
+    draw.line((phase1-end, -0.5), (phase1-end, 4.5), stroke: (
+      paint: colors.text-light,
+      thickness: 0.5pt,
+      dash: "dashed",
+    ))
     draw.content((phase1-end / 2, -1), text(size: 9pt, fill: colors.primary)[Phase 1: Widening])
     draw.content(((phase1-end + phase2-end) / 2, -1), text(size: 9pt, fill: colors.accent)[Phase 2: Narrowing])
 
@@ -361,7 +364,7 @@ Narrowing is optional but often improves precision significantly.
     // True lfp reference
     draw.line((0, y-lfp), (phase2-end + 1, y-lfp), stroke: (paint: colors.text-light, thickness: 0.5pt, dash: "dotted"))
     draw.content((phase2-end + 1.8, y-lfp), text(size: 8pt, fill: colors.text-light)[True lfp])
-  })
+  }),
 )
 
 == Delayed Widening
