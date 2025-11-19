@@ -403,12 +403,12 @@ Part II additionally requires:
 
 After completing this guide, you will:
 
-1. Understand abstract interpretation's theoretical foundations
-2. Recognize when path-sensitive analysis is necessary
-3. Apply BDD-based techniques to verification problems
-4. Implement abstract domains using the bdd-rs library
-5. Evaluate precision-performance tradeoffs systematically
-6. Read and understand program analysis research literature
++ Understand abstract interpretation's theoretical foundations
++ Recognize when path-sensitive analysis is necessary
++ Apply BDD-based techniques to verification problems
++ Implement abstract domains using the bdd-rs library
++ Evaluate precision-performance tradeoffs systematically
++ Read and understand program analysis research literature
 
 == Beginning the Journey
 
