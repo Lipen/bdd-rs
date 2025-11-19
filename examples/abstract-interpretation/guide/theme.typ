@@ -293,6 +293,9 @@
     spacing: 0.8em,
   )
 
+  // Fix emptyset symbol
+  show sym.emptyset: set text(font: "Libertinus Sans")
+
   // Colored emphasis
   show emph: set text(fill: colors.accent)
 
