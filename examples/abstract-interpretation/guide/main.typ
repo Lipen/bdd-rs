@@ -60,7 +60,7 @@ Unlike traditional academic papers or reference manuals, this guide:
 - *Tells a story*:
   Concepts build progressively, motivating each idea before formalizing it
 - *Shows real code*:
-  Every concept is backed by working Rust implementations in the bdd-rs library
+  Every concept is backed by working Rust implementations
 - *Balances rigor and intuition*:
   Mathematical precision is maintained while providing accessible explanations
 - *Connects to practice*:
