@@ -5,7 +5,7 @@
 Theory and fragments are valuable, but nothing beats a complete working example.
 This chapter implements a simple symbolic executor using BDDs and abstract interpretation.
 
-We'll analyze real Rust functions, track path conditions symbolically, and detect bugs.
+This chapter will analyze real Rust functions, track path conditions symbolically, and detect bugs.
 
 == What is Symbolic Execution?
 
@@ -29,16 +29,19 @@ Symbolic execution:
 // Path 2: α ≥ 0 → result = α
 ```
 
-We generate path conditions (Boolean formulas) and symbolic expressions for outputs.
+Symbolic execution generates path conditions (Boolean formulas) and symbolic expressions for outputs.
 
 #definition(title: "Symbolic Execution")[
-  Execute a program with symbolic inputs, maintaining:
-  - *Path condition:* Boolean formula describing current path
-  - *Symbolic state:* Mapping variables to symbolic expressions
-  - *Path exploration:* Fork at branches, explore both paths
+  Symbolic execution runs a program with symbolic inputs while maintaining three key elements.
+  + The *path condition* is a Boolean formula describing the current execution path.
+  + The *symbolic state* maps each variable to a symbolic expression.
+  + During *path exploration*, we fork at branches to explore both possibilities.
 ]
 
-Our twist: use BDDs for path conditions and abstract domains for symbolic values.
+This implementation takes a hybrid approach.
+Rather than using explicit formulas or constraint solvers for path conditions, it represents them compactly as BDDs.
+The symbolic values themselves remain as expressions, but the feasibility of paths is tracked through BDD operations.
+This combines the precision of symbolic execution with the efficiency of BDD-based path representation explored in earlier chapters.
 
 == Architecture Overview
 
@@ -473,14 +476,13 @@ Two paths, both feasible, both satisfy assertion (if checked properly).
 
 == Enhancements for Real Systems
 
-Our toy executor lacks:
-
-1. *Expression simplification:* Constant folding, algebraic simplification
-2. *Abstract domain integration:* Use intervals/signs to refine paths
-3. *SMT solver integration:* Check path feasibility and assertion violations
-4. *Loop handling:* Bounded unrolling or fixpoint iteration
-5. *Function calls:* Inlining or summary-based analysis
-6. *Memory model:* Pointers, heap allocation
+This toy executor lacks several features needed for production use.
+It needs *expression simplification* through constant folding and algebraic simplification.
+*Abstract domain integration* would let us use intervals or signs to refine paths.
+*SMT solver integration* is essential for checking path feasibility and assertion violations.
+*Loop handling* requires either bounded unrolling or fixpoint iteration.
+*Function calls* demand inlining or summary-based analysis.
+Finally, a proper *memory model* must handle pointers and heap allocation.
 
 For production:
 
@@ -523,54 +525,43 @@ fn check_sat(bdd: Ref, cond: &Cond) -> bool {
 
 === Path Explosion
 
-Even with BDDs, deeply nested branches explode.
+Even with BDDs, deeply nested branches create explosion.
 
-Mitigation:
+Mitigation strategies:
 - Bound exploration depth
 - Prioritize paths (heuristics)
 - Merge similar paths aggressively
 
 === Variable Ordering
 
-BDD size depends on ordering of condition variables.
+BDD size depends critically on the ordering of condition variables.
 
-Strategy:
+Strategies:
 - Allocate variables in program order
 - Group related conditions
 - Use heuristics based on control flow structure
 
 === Performance
 
-Symbolic execution is expensive.
+Symbolic execution is inherently expensive.
 
-Tips:
+Optimization tips:
 - Cache BDD operations (built-in)
 - Prune infeasible paths early
 - Use abstract domains to eliminate paths (e.g., if sign analysis proves x > 0, don't explore x < 0 branch)
 
 == Real-World Applications
 
-Symbolic execution is used in:
+Symbolic execution sees widespread use across several domains.
 
-*Bug finding:* KLEE, S2E, Mayhem
-- Automatically find crashes, security vulnerabilities
-- Generate test cases
-
-*Verification:* Why3, Frama-C
-- Prove program correctness
-- Often combined with abstract interpretation
-
-*Concolic testing:* SAGE, DART
-- Hybrid concrete + symbolic execution
-- Guide concrete execution with symbolic constraints
-
-*Smart contract verification:* Mythril, Manticore
-- Analyze Ethereum smart contracts
-- Detect vulnerabilities (reentrancy, overflow)
+For bug finding, tools like KLEE, S2E, and Mayhem automatically find crashes and security vulnerabilities while generating test cases.
+In verification, systems like Why3 and Frama-C prove program correctness, often combining symbolic execution with abstract interpretation.
+Concolic testing tools such as SAGE and DART provide hybrid concrete and symbolic execution, using symbolic constraints to guide concrete execution.
+For smart contract verification, analyzers like Mythril and Manticore examine Ethereum smart contracts to detect vulnerabilities like reentrancy and integer overflow.
 
 == Summary
 
-We built a simple symbolic executor:
+The chapter built a simple symbolic executor:
 - Expression and statement language
 - Symbolic state with BDD path conditions
 - Interpreter exploring all paths
@@ -583,7 +574,7 @@ Key takeaways:
 - Real systems integrate abstract domains and SMT solvers
 
 This completes Part I: Foundations.
-We've covered abstract interpretation, BDDs, and their combination.
+Part I covered abstract interpretation, BDDs, and their combination.
 
 Part II dives deeper into practical analysis techniques.
 

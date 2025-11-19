@@ -42,11 +42,10 @@ But with $n$ conditions, we get $2^n$ explicit states.
 
 == Architecture
 
-Three components:
-
-1. *BDD control domain:* Tracks feasible paths using BDD operations
-2. *Abstract data domain:* Tracks variable properties (signs, intervals, etc.)
-3. *Combined domain:* Pairs BDD control state with abstract data state
+The architecture has three components working together.
++ The *BDD control domain* tracks feasible paths using BDD operations.
++ The *abstract data domain* tracks variable properties like signs or intervals.
++ The *combined domain* pairs the BDD control state with the abstract data state to give us the full picture.
 
 [Architecture diagram would go here]
 
@@ -65,10 +64,10 @@ Three components:
 └─────────────────────────────────────┘
 ```
 
-Operations:
-- *Branch:* Update BDD with condition, keep data domain
-- *Assignment:* Keep BDD, update data domain
-- *Join:* Merge BDDs with OR, join data domains
+The key operations follow naturally from this structure.
+- When we *branch*, we update the BDD with the condition while keeping the data domain unchanged.
+- During *assignment*, we keep the BDD path and update only the data domain.
+- At *join* points, we merge BDDs with OR and join the data domains together.
 
 == The BDD Control Domain
 

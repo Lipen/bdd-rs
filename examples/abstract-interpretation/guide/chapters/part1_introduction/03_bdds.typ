@@ -37,10 +37,10 @@ fn majority(x: bool, y: bool, z: bool) -> bool {
 }
 ```
 
-Representation options:
-- *Truth tables:* $2^n$ rows, exponential size
-- *Boolean formulas:* Size varies, but no canonical form
-- *BDDs:* Often compact, _canonical_ form
+We have several ways to represent Boolean functions.
+- Truth tables require $2^n$ rows --- exponential size.
+- Boolean formulas vary in size but lack a canonical form.
+- BDDs often achieve compact representation while providing a _canonical_ form.
 
 == Decision Trees: The Starting Point
 
@@ -69,9 +69,9 @@ For function $f(x, y) = x and y$:
 - Path `x=1, y=1`: Output 1
 
 #info-box(title: "Decision Tree Properties")[
-  - Size: $O(2^n)$ nodes for $n$ variables
-  - Evaluation: $O(n)$ time (one test per variable)
-  - No sharing: Same subtrees may appear multiple times
+  A decision tree has $O(2^n)$ nodes for $n$ variables.
+  Evaluation takes $O(n)$ time since we test each variable at most once along any path.
+  However, the same subtrees may appear multiple times throughout the tree without sharing.
 ]
 
 == From Trees to DAGs: Sharing Structure
@@ -121,7 +121,7 @@ Two reduction rules transform decision trees into canonical BDDs:
 Apply these exhaustively to get a _Reduced Ordered BDD_ (ROBDD).
 
 #example-box(number: "3.1", title: "Reduction in Action")[
-  Original decision tree for $f(x, y) = x$:
+  Consider the original decision tree for the function $f(x, y) = x$:
 
   ```
          x
@@ -135,10 +135,13 @@ Apply these exhaustively to get a _Reduced Ordered BDD_ (ROBDD).
   0      1 0      1
   ```
 
-  After merging: Both y nodes are identical, merge them.
-  After elimination: The y node's output doesn't depend on y, eliminate it.
+  We first apply the merge rule.
+  Both $y$ nodes compute identical functions, so we merge them into one.
+  Then we apply the elimination rule.
+  The $y$ node's output doesn't actually depend on $y$ --- both edges point to the same children.
+  We can eliminate it entirely.
 
-  Final ROBDD:
+  The final ROBDD is remarkably simple:
   ```
        x
       / \
@@ -147,7 +150,7 @@ Apply these exhaustively to get a _Reduced Ordered BDD_ (ROBDD).
    [0]    [1]
   ```
 
-  Reduced from 7 nodes to 3 nodes!
+  We've reduced from 7 nodes down to just 3!
 ]
 
 == Canonicity: The Magic Property
@@ -186,22 +189,16 @@ Different orderings produce different (but equivalent) BDDs.
 ]
 
 #example-box(number: "3.2", title: "Ordering Matters")[
-  Consider $f(x_1, x_2, x_3, x_4) = (x_1 and x_2) or (x_3 and x_4)$.
+  Consider the formula $f(x_1, x_2, x_3, x_4) = (x_1 and x_2) or (x_3 and x_4)$.
 
-  *Good ordering:* $x_1 < x_2 < x_3 < x_4$
+  With the ordering $x_1 < x_2 < x_3 < x_4$, the BDD can test the pair $x_1, x_2$ together, then test $x_3, x_4$ together.
+  This natural grouping produces a small BDD with around 6-8 nodes.
 
-  The BDD can test $x_1, x_2$ together, then $x_3, x_4$ together.
-  Result: Small BDD (around 6-8 nodes).
+  But with the interleaved ordering $x_1 < x_3 < x_2 < x_4$, the BDD must alternate between testing the two subformulas.
+  This forces more complex structure, resulting in a larger BDD with around 10-12 nodes.
 
-  *Bad ordering:* $x_1 < x_3 < x_2 < x_4$
-
-  Must interleave testing different subformulas.
-  Result: Larger BDD (around 10-12 nodes).
-
-  For extreme cases (like integer comparison), bad ordering creates exponential blowup.
-]
-
-Famous example: integer comparison.
+  For extreme cases like integer comparison, bad ordering creates exponential blowup rather than just a constant factor increase.
+]Famous example: integer comparison.
 
 Consider testing if two $n$-bit integers are equal: $f = (x_1 = y_1) and dots.h.c and (x_n = y_n)$.
 

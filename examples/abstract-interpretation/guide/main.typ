@@ -44,7 +44,7 @@ This guide serves multiple audiences, each with different backgrounds and goals:
 #reading-path(path: "beginner")
 *Complete Beginners:*
 If you're new to program verification and formal methods, start with Part I.
-We'll build intuition through concrete examples before introducing mathematical formalism.
+The guide builds intuition through concrete examples before introducing mathematical formalism.
 No prior knowledge of abstract interpretation or BDDs is assumed—just basic programming experience and curiosity.
 
 #reading-path(path: "implementation")
@@ -63,11 +63,11 @@ This guide is structured to support a one-semester course on program analysis, w
 Unlike traditional academic papers or reference manuals, this guide:
 
 - *Tells a story*:
-  We build concepts progressively, motivating each idea before formalizing it
+  Concepts build progressively, motivating each idea before formalizing it
 - *Shows real code*:
   Every concept is backed by working Rust implementations in the bdd-rs library
 - *Balances rigor and intuition*:
-  We maintain mathematical precision while providing accessible explanations
+  Mathematical precision is maintained while providing accessible explanations
 - *Connects to practice*:
   Real-world applications and case studies demonstrate where these techniques shine
 - *Provides multiple paths*:
@@ -147,7 +147,8 @@ This guide is part of a larger ecosystem:
 == Acknowledgments
 
 This guide builds on decades of research in abstract interpretation, pioneered by Patrick and Radhia Cousot, and symbolic verification using BDDs, advanced by Randal Bryant and many others.
-We're grateful to the formal methods community for creating the foundations on which this work stands.
+This work builds on decades of research in formal methods and program analysis.
+The foundations come from pioneers like Patrick Cousot, Radhia Cousot, Randal Bryant, and countless others who developed the theory and practice of abstract interpretation and BDDs.
 
 The bdd-rs library and this guide are open-source projects, welcoming contributions from the community.
 Thank you to everyone who has contributed code, feedback, and insights.
@@ -157,7 +158,7 @@ Thank you to everyone who has contributed code, feedback, and insights.
 Program verification is a journey from informal reasoning to mathematical certainty.
 This guide will equip you with powerful tools for analyzing programs automatically, guaranteeing properties that testing alone cannot ensure.
 
-Whether you're here to understand how verification works, to apply these techniques to your own code, or to advance the state of the art, we hope you find this guide valuable.
+Whether you're here to understand how verification works, to apply these techniques to your own code, or to advance the state of the art, this guide aims to be a valuable resource.
 
 Let's dive in!
 

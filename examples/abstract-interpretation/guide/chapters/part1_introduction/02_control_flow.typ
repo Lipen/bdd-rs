@@ -22,10 +22,10 @@ fn compute(x: i32, y: i32) -> i32 {
 ```
 
 Even with just two `if` statements, we have four possible paths:
-1. Both conditions false
-2. First true, second false
-3. First false, second true
-4. Both conditions true
++ Both conditions false
++ First true, second false
++ First false, second true
++ Both conditions true
 
 With $n$ independent branches, we get $2^n$ paths.
 A function with 30 branches has over a billion paths.
@@ -261,31 +261,27 @@ fn control_heater(temp: i32, time: i32, mode: Mode) -> Action {
 }
 ```
 
-Path conditions (simplified):
-1. `mode=Off`
-2. `mode≠Off ∧ temp<MIN ∧ time>EMERG`
-3. `mode≠Off ∧ temp<MIN ∧ time≤EMERG`
-4. `mode≠Off ∧ temp≥MIN ∧ temp>MAX`
-5. `mode≠Off ∧ temp≥MIN ∧ temp≤MAX ∧ mode=Eco ∧ time>ECO`
-6. `mode≠Off ∧ temp≥MIN ∧ temp≤MAX ∧ (mode≠Eco ∨ time≤ECO)`
+The path conditions become increasingly complex (simplified here):
++ The first path requires only `mode=Off`.
++ The second demands `mode≠Off ∧ temp<MIN ∧ time>EMERG`.
++ The third needs `mode≠Off ∧ temp<MIN ∧ time≤EMERG`.
++ Path 4 involves `mode≠Off ∧ temp≥MIN ∧ temp>MAX`.
++ The fifth combines `mode≠Off ∧ temp≥MIN ∧ temp≤MAX ∧ mode=Eco ∧ time>ECO`.
++ Finally, path 6 requires `mode≠Off ∧ temp≥MIN ∧ temp≤MAX ∧ (mode≠Eco ∨ time≤ECO)`.
 
-Without BDDs:
-- Must track 6 separate states
-- Each state duplication multiplies cost
-- Loops create infinite unrolling
+Without BDDs, we must track six separate states explicitly.
+Each state duplication multiplies the analysis cost, and loops create infinite unrolling.
 
-With BDDs:
-- Single BDD encodes all 6 path conditions
-- Boolean operations (∧, ∨, ¬) are efficient
-- Common subformulas are shared
+With BDDs, a single structure encodes all six path conditions.
+Boolean operations (∧, ∨, ¬) execute efficiently, and common subformulas are automatically shared across paths.
 
 #example-box(number: "2.2", title: "BDD Compression")[
-  The 6 path conditions above share structure:
-  - All except path 1 have `mode≠Off`
-  - Paths 2-3 share `temp<MIN`
-  - Paths 5-6 share complex conjunction
+  The 6 path conditions above share substantial structure.
+  All except the first share the constraint `mode≠Off`.
+  Paths 2 and 3 both include `temp<MIN`.
+  Meanwhile, paths 5 and 6 share a complex conjunction of temperature constraints.
 
-  A BDD representing these conditions reuses nodes, resulting in far fewer nodes than explicit enumeration.
+  A BDD representing these conditions reuses nodes for shared structure, resulting in far fewer nodes than explicit enumeration would require.
 ]
 
 == Handling Loops
@@ -299,23 +295,23 @@ while count < n {
 }
 ```
 
-Possible iterations: 0, 1, 2, ..., $n$, or even infinite if `n` is unknown.
+The loop might iterate 0 times, once, twice, all the way up to $n$ times, or even infinitely if `n` is unknown.
 
-Path-insensitive analysis uses _fixpoint iteration_ (from Chapter 1).
-Path-sensitive analysis does the same, but with BDD-represented paths.
+Path-insensitive analysis uses _fixpoint iteration_ (from Chapter 1) to handle this.
+Path-sensitive analysis does the same, but represents the path sets with BDDs rather than merging everything together.
 
 Strategy:
-1. Start with entry path: $b_0 = "true"$ (all paths enabled)
-2. Iterate:
++ Start with entry path: $b_0 = "true"$ (all paths enabled)
++ Iterate:
   - Compute paths that exit loop
   - Compute paths that continue
   - Merge with widening if needed
-3. Stop when BDD stabilizes
++ Stop when BDD stabilizes
 
-The BDD encodes which loop iterations are feasible.
+The BDD ultimately encodes which loop iterations are feasible under various conditions.
 
 #insight-box[
-  *Key Insight:* BDDs turn the exponential path explosion into a compact symbolic representation.
+  BDDs turn the exponential path explosion into a compact symbolic representation.
   Operations on path sets become BDD operations, which are often efficient despite worst-case exponential complexity.
 ]
 
@@ -323,39 +319,33 @@ The BDD encodes which loop iterations are feasible.
 
 === Symbolic Execution
 
-Symbolic execution also tracks path conditions but maintains them as logical formulas.
+Symbolic execution also tracks path conditions, but maintains them as logical formulas.
 
-Differences:
-- Symbolic execution queries SMT solvers at each branch (expensive)
-- Our approach uses BDD operations (often faster for boolean conditions)
-- Symbolic execution aims for exact solutions
-- Our approach abstracts numeric values (more scalable)
+The key difference lies in how conditions are handled.
+- Symbolic execution queries SMT solvers at each branch point, which can be expensive.
+- BDD-based approach uses BDD operations instead, which are often faster for Boolean conditions.
 
-Both suffer from path explosion; symbolic execution typically limits search depth.
+Symbolic execution aims for _exact solutions_ to constraints, while BDD-based approach _abstracts_ numeric values for better scalability.
+
+Both techniques suffer from path explosion, though symbolic execution typically addresses this by limiting search depth.
 
 === Model Checking
 
-Model checking explores state space explicitly or symbolically.
+Model checking explores the state space either explicitly or symbolically.
+- Model checking focuses on verifying specific properties expressed in temporal logic.
+- Abstract interpretation, by contrast, computes the full set of reachable states.
 
-Differences:
-- Model checking checks specific properties (temporal logic)
-- Abstract interpretation computes all reachable states
-- Model checking often uses BDDs for state representation
-- Our approach uses BDDs for _path_ representation within abstract interpretation
-
-Both use BDDs but for different purposes.
+Both use BDDs, but for different purposes: model checking uses them for state representation, while the BDD-based approach uses them for _path_ representation within abstract interpretation.
 
 === Type Systems
 
 Type systems are path-insensitive by design.
 
-Differences:
-- Types merge all paths at join points
-- No path explosion, very fast
-- Very imprecise for value-dependent properties
-- Cannot verify assertions like "x > 0"
+Types merge information from all paths at join points.
+This makes type checking very fast with no path explosion.
+However, the cost is precision: types cannot verify value-dependent properties like "$x > 0$".
 
-Type systems are a special case of abstract interpretation with extreme abstraction.
+Type systems represent a special case of abstract interpretation with extreme abstraction.
 
 == When Do We Need Path Sensitivity?
 
@@ -363,10 +353,10 @@ Not always!
 Path-insensitive analysis suffices for many properties.
 
 #info-box(title: "When Path Sensitivity Helps")[
-  1. *Correlated variables:* Properties depend on relationships between variables
-  2. *Conditional invariants:* Assertions hold only on some paths
-  3. *Error paths:* Detecting bugs in specific scenarios
-  4. *Precise null checking:* Tracking which pointers are null on which paths
+  + *Correlated variables:* Properties depend on relationships between variables
+  + *Conditional invariants:* Assertions hold only on some paths
+  + *Error paths:* Detecting bugs in specific scenarios
+  + *Precise null checking:* Tracking which pointers are null on which paths
 ]
 
 Examples requiring path sensitivity:

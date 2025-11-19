@@ -30,13 +30,10 @@ Two core types:
 #info-box(title: "Manager-Centric Design")[
   *Critical invariant:* All BDD operations go through the manager.
 
-  `Ref` is just a handle (like a pointer).
+  Think of `Ref` as just a handle --- like a pointer to a node.
   The manager owns the actual nodes and maintains canonicity through hash consing.
-
-  Never call methods directly on `Ref` --- use manager methods instead.
-]
-
-== Creating Variables
+  You should never call methods directly on `Ref`; instead, use manager methods for all operations.
+]== Creating Variables
 
 Variables are the building blocks.
 
@@ -456,10 +453,8 @@ For long-running analyses, consider:
 
 Remember: variable ordering is critical.
 
-Good practices:
-- Group related variables (same statement, same object)
-- Order control variables before data
-- Use domain knowledge
+The best practice is grouping related variables together --- those from the same statement or representing the same object.
+Order control variables before data variables when possible, and leverage any domain knowledge about your problem's structure.
 
 Bad example:
 
@@ -471,6 +466,8 @@ let x2 = bdd.mk_var(3);  // From statement A
 let y2 = bdd.mk_var(4);  // From statement B
 ```
 
+This interleaves variables from different statements, forcing the BDD to alternate between unrelated concerns.
+
 Good example:
 
 ```rust
@@ -481,19 +478,19 @@ let y1 = bdd.mk_var(3);  // From statement B
 let y2 = bdd.mk_var(4);  // From statement B
 ```
 
-=== When to Use BDDs
+Grouping variables from the same statement allows the BDD to exploit structural relationships.
 
-BDDs excel when:
-- Boolean structure in problem (control flow, flags)
-- Many shared substructures
-- Need for canonicity (equality checks)
+=== When to Use BDDs?
 
-BDDs struggle when:
-- Problems lack structure (random formulas)
-- Large bit-vector arithmetic (multiplication)
-- Variable ordering is inherently bad
+BDDs excel when your problem has Boolean structure --- control flow, flags, or state machines.
+They shine when many substructures are shared across different parts of the problem.
+Their canonicity makes them perfect when you need efficient equality checks.
 
-For such cases, consider alternatives (SAT solvers, SMT).
+However, BDDs struggle with problems that lack inherent structure, like random formulas.
+Large bit-vector arithmetic, especially multiplication, defeats BDD compression.
+Some problems simply have variable orderings that are inherently bad no matter how you arrange them.
+
+For such cases, consider alternatives like SAT solvers or SMT solvers instead.
 
 == Common Pitfalls
 

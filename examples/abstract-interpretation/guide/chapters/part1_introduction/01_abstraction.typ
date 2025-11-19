@@ -22,11 +22,11 @@ A perfect 1:1 scale map would be useless—as complex as the territory itself.
 A useful map _abstracts_: buildings become dots, roads become lines, elevations become contour lines.
 The map loses information (you cannot see individual windows) but gains tractability (you can plan a route).
 
-Similarly, abstract interpretation creates a "map" of program behaviors:
-- _Concrete semantics_: all possible executions (infinite, uncomputable)
-- _Abstract semantics_: a finite representation that safely over-approximates all executions
+Similarly, abstract interpretation creates a "map" of program behaviors.
+- The _concrete semantics_ describes all possible executions—infinite and uncomputable.
+- The _abstract semantics_ provides a finite representation that safely over-approximates all executions.
 
-The key property: _soundness_.
+The key property is _soundness_.
 If the abstract analysis says "property P holds," then P truly holds in all concrete executions.
 The analysis may report "don't know" (false positives) but never "safe" when the program is actually unsafe (no false negatives).
 
@@ -101,23 +101,24 @@ The _sign domain_ tracks whether variables are negative, zero, or positive.
 === Domain Elements
 
 $
-  "Sign" = {"Bot", "Neg", "Zero", "Pos", "Top"}
+  "Sign" = {bot, "Neg", "Zero", "Pos", top}
 $
 
-- $bot$ (_bottom_): unreachable state or no information
-- $"Neg"$: strictly negative ($x < 0$)
-- $"Zero"$: exactly zero ($x = 0$)
-- $"Pos"$: strictly positive ($x > 0$)
-- $top$ (_top_): unknown sign (could be any value)
+The domain has five basic elements:
+- $bot$ (_bottom_) represents an unreachable state or no information
+- $top$ (_top_) represents unknown sign—the value could be anything.
+- Between them lie the concrete signs:
+  - $"Neg"$ for strictly negative values ($x < 0$)
+  - $"Zero"$ for exactly zero
+  - $"Pos"$ for strictly positive values ($x > 0$)
 
 We can extend this with compound signs:
 
 $
-  "SignExt" = {"Bot", "Neg", "Zero", "Pos", "NonNeg", "NonPos", "Top"}
+  "SignExt" = {bot, "Neg", "Zero", "Pos", "NonNeg", "NonPos", top}
 $
 
-- $"NonNeg"$: non-negative ($x >= 0$, so $"Zero" union "Pos"$)
-- $"NonPos"$: non-positive ($x <= 0$, so $"Zero" union "Neg"$)
+The compound signs $"NonNeg"$ (non-negative, covering $"Zero" union "Pos"$) and $"NonPos"$ (non-positive, covering $"Zero" union "Neg"$) provide intermediate precision when we know a value's relationship to zero but not its exact sign.
 
 === The Lattice Structure
 
