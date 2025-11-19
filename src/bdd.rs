@@ -283,6 +283,42 @@ impl Bdd {
         self.is_zero(node_ref) || self.is_one(node_ref)
     }
 
+    /// Returns the constant false BDD.
+    ///
+    /// This is a convenience method equivalent to accessing `bdd.zero` directly.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let f = bdd.mk_false();
+    /// assert!(bdd.is_zero(f));
+    /// assert_eq!(f, bdd.zero);
+    /// ```
+    pub fn mk_false(&self) -> Ref {
+        self.zero
+    }
+
+    /// Returns the constant true BDD.
+    ///
+    /// This is a convenience method equivalent to accessing `bdd.one` directly.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let t = bdd.mk_true();
+    /// assert!(bdd.is_one(t));
+    /// assert_eq!(t, bdd.one);
+    /// ```
+    pub fn mk_true(&self) -> Ref {
+        self.one
+    }
+
     pub fn mk_node(&self, v: u32, low: Ref, high: Ref) -> Ref {
         // debug!("mk(v = {}, low = {}, high = {})", v, low, high);
 
