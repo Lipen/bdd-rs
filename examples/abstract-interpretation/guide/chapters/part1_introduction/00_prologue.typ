@@ -422,24 +422,19 @@ This guide develops understanding from intuition to implementation.
 
 *Part I: Foundations (Chapters 1-6)*
 
-Chapter 1 introduces abstract interpretation through concrete examples.
-Chapter 2 examines why control flow complicates analysis.
-Chapter 3 explains BDD structure and operations.
-Chapter 4 combines BDDs with abstract domains.
-Chapter 5 presents real-world applications.
-Chapter 6 provides worked examples using the bdd-rs library.
+@ch-abstraction introduces abstract interpretation through concrete examples.
+@ch-control-flow examines why control flow complicates analysis.
+@ch-bdds explains BDD structure and operations.
+@ch-bdd-programming shows how to program with BDDs.
+@ch-combining-domains combines BDDs with abstract domains.
+@ch-symbolic-executor provides a complete symbolic execution example.
 
-*Part II: Formal Development (Chapters 7-15)*
+*Part II: Formal Development (Chapters 7-10)*
 
-Chapter 7 establishes the mathematical theory of abstract domains.
-Chapter 8 formalizes concrete and abstract semantics.
-Chapter 9 develops BDD-based control abstractions.
-Chapter 10 constructs product domains rigorously.
-Chapter 11 proves soundness theorems.
-Chapter 12 addresses implementation techniques.
-Chapter 13 presents experimental evaluation.
-Chapter 14 surveys related work.
-Chapter 15 discusses future directions.
+@ch-lattice-theory establishes lattice theory, fixpoint theorems, and Galois connections.
+@ch-fixpoint-algorithms presents chaotic iteration and worklist algorithms.
+@ch-advanced-galois develops advanced transformer theory and reduced products.
+@ch-domain-combinations synthesizes BDD-based path-sensitive analysis techniques.
 
 *Part III: Appendices*
 
@@ -447,12 +442,12 @@ Mathematical prerequisites, BDD algorithms, proof details, and comprehensive bib
 
 == Prerequisites
 
-Part I assumes:
+@part-i assumes:
 - Programming experience (Rust examples, but concepts are language-agnostic)
 - Basic understanding of program semantics
 - Familiarity with boolean logic
 
-Part II additionally requires:
+@part-ii additionally requires:
 - Mathematical maturity (reading formal definitions and proofs)
 - Understanding of partial orders and lattices
 - Familiarity with fixpoint theory
@@ -484,5 +479,5 @@ The following chapters develop this synthesis rigorously.
 #v(2em)
 
 #align(right)[
-  _Chapter 1: Abstraction and Approximation $->$_
+  _@ch-abstraction $->$_
 ]

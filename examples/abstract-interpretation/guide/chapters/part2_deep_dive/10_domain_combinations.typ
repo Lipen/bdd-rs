@@ -59,7 +59,7 @@ Trace partitioning is the foundation of path-sensitive analysis: different paths
 
 == BDD Control Domain as Trace Partitioning
 
-BDD control domains (Chapter 5 of Part I) implement trace partitioning efficiently.
+BDD control domains (@ch-combining-domains) implement trace partitioning efficiently.
 
 #definition(title: "BDD Control Domain")[
   The *BDD control domain* represents sets of control predicates as BDDs:
@@ -122,7 +122,7 @@ Combining BDD control with numeric data domains creates a powerful path-sensitiv
   $ gamma((f, d)) = {sigma mid(|) sigma "satisfies" f "and" sigma in gamma_D (d)} $
 ]
 
-This is a *direct product* (Chapter 9). We can enhance it with reduction to exploit relationships between control and data.
+This is a *direct product* (@ch-advanced-galois). We can enhance it with reduction to exploit relationships between control and data.
 
 #example-box[
   *Interval domain product:*

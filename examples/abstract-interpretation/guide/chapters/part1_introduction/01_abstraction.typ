@@ -2,7 +2,7 @@
 
 #import "../../theme.typ": *
 
-= The World of Abstract Interpretation <ch:abstraction>
+= The World of Abstract Interpretation <ch-abstraction>
 
 #reading-path(path: "essential") #h(0.5em) #reading-path(path: "beginner")
 
@@ -767,5 +767,5 @@ In the next chapter, we examine why control flow complicates this picture and wh
 #v(2em)
 
 #align(right)[
-  _Chapter 2: Understanding Control Flow $->$_
+  _@ch-control-flow $->$_
 ]

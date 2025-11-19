@@ -1,6 +1,6 @@
 #import "../../theme.typ": *
 
-= Enter Binary Decision Diagrams <enter-bdds>
+= Enter Binary Decision Diagrams <ch-bdds>
 
 We've seen why path explosion is a problem and glimpsed that BDDs solve it.
 Now we examine _how_ BDDs achieve this compression.
@@ -611,7 +611,7 @@ Program path conditions have structure:
 2. *Repetition:* Same conditions appear on many paths
 3. *Hierarchy:* Outer conditions constrain inner ones
 
-Example from Chapter 2:
+Example from @ch-control-flow:
 
 ```rust
 if mode == Mode::Off {

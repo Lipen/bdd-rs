@@ -4,7 +4,7 @@
 
 #reading-path(path: "advanced")
 
-Chapter 7 introduced Galois connections as the mathematical foundation relating concrete and abstract domains.
+@ch-lattice-theory introduced Galois connections as the mathematical foundation relating concrete and abstract domains.
 This chapter explores advanced topics: abstract transformers, best transformers, completeness, and the reduced product construction --- essential tools for designing precise and efficient analyses.
 
 == From Concrete to Abstract Transformers
@@ -149,7 +149,7 @@ While best transformers are most precise, computing them may be expensive or imp
 
 == Reduced Product Construction
 
-Product domains (Chapter 10 of Part I) combine multiple abstractions.
+Product domains (@ch-combining-domains) combine multiple abstractions.
 The *reduced product* refines this by exploiting relationships between component domains.
 
 #definition(title: "Direct Product")[

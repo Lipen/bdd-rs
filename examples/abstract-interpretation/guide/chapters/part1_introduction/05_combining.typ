@@ -1,8 +1,8 @@
 #import "../../theme.typ": *
 
-= Combining BDDs with Abstract Domains <combining-bdds-abstract-domains>
+= Combining BDDs with Abstract Domains <ch-combining-domains>
 
-We've seen abstract domains (Chapter 1) and BDDs (Chapters 3-4) separately.
+We've seen abstract domains (@ch-abstraction) and BDDs (@ch-bdds, @ch-bdd-programming) separately.
 Now we combine them: BDDs track _which paths are feasible_, abstract domains track _what values variables can have_.
 
 This combination yields path-sensitive abstract interpretation.
@@ -159,7 +159,7 @@ Let's implement path-sensitive sign analysis.
 
 === Data Domain: Sign Lattice
 
-From Chapter 1:
+From @ch-abstraction:
 
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -579,9 +579,9 @@ This maintains full path-sensitivity but risks state explosion.
   - Use BDD size as indicator (merge when BDD grows too large)
 ]
 
-== Integration with Abstract Domains from Chapter 1
+== Integration with Abstract Domains
 
-Recall the `AbstractDomain` trait:
+Recall the `AbstractDomain` trait (from @ch-abstraction):
 
 ```rust
 trait AbstractDomain {

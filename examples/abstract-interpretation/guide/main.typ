@@ -187,6 +187,8 @@ Let's dive in!
 // Part I: Gentle Introduction
 // ============================================================================
 
+= Part I: Gentle Introduction <part-i>
+
 #set page(numbering: "1")
 #counter(page).update(1)
 

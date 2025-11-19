@@ -1,6 +1,6 @@
 #import "../../theme.typ": *
 
-= Understanding Control Flow <understanding-control-flow>
+= Understanding Control Flow <ch-control-flow>
 
 Abstract interpretation handles data abstraction elegantly, as we saw with the sign domain.
 But real programs have branches, loops, and complex control flow.
@@ -425,7 +425,7 @@ while count < n {
 
 The loop might iterate 0 times, once, twice, all the way up to $n$ times, or even infinitely if `n` is unknown.
 
-Path-insensitive analysis uses _fixpoint iteration_ (from Chapter 1) to handle this.
+Path-insensitive analysis uses _fixpoint iteration_ (from @ch-abstraction) to handle this.
 Path-sensitive analysis does the same, but represents the path sets with BDDs rather than merging everything together.
 
 Strategy:

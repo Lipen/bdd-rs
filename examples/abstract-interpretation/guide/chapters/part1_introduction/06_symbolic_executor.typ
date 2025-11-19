@@ -1,6 +1,6 @@
 #import "../../theme.typ": *
 
-= A Complete Example: Symbolic Executor <symbolic-executor-example>
+= A Complete Example: Symbolic Executor <ch-symbolic-executor>
 
 Theory and fragments are valuable, but nothing beats a complete working example.
 This chapter implements a simple symbolic executor using BDDs and abstract interpretation.
@@ -699,10 +699,10 @@ Key takeaways:
 - Branching creates multiple states
 - Real systems integrate abstract domains and SMT solvers
 
-This completes Part I: Foundations.
-Part I covered abstract interpretation, BDDs, and their combination.
+This completes @part-i: Foundations.
+@part-i covered abstract interpretation, BDDs, and their combination.
 
-Part II dives deeper into practical analysis techniques.
+@part-ii dives deeper into mathematical foundations and advanced techniques.
 
 #chapter-summary(
   [

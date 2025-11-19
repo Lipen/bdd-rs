@@ -1,6 +1,6 @@
 #import "../../theme.typ": *
 
-= Programming with BDDs: The `bdd-rs` Library <programming-with-bdds>
+= Programming with BDDs: The `bdd-rs` Library <ch-bdd-programming>
 
 Theory is elegant, but programs need implementations.
 The `bdd-rs` library provides a practical, efficient BDD implementation in Rust.
