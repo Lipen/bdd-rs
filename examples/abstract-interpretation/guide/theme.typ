@@ -107,6 +107,15 @@
 #let MAYBE = text(colors.warning, weight: "bold")[?]
 
 // ============================================================================
+// Document Metadata State
+// ============================================================================
+
+#let doc-title = state("doc-title", none)
+#let doc-subtitle = state("doc-subtitle", none)
+#let doc-authors = state("doc-authors", ())
+#let doc-date = state("doc-date", none)
+
+// ============================================================================
 // Document Layout Function
 // ============================================================================
 
@@ -118,6 +127,12 @@
   header-title: "Abstract Interpretation with BDDs",
   doc,
 ) = {
+  // Store metadata in state for access by make-title
+  doc-title.update(title)
+  doc-subtitle.update(subtitle)
+  doc-authors.update(authors)
+  doc-date.update(date)
+
   // Base text styling
   set text(
     font: fonts.body,
@@ -755,19 +770,26 @@
 // Title Page Helpers
 // ============================================================================
 
-#let make-title(title, subtitle: none, authors: (), date: none) = {
+#let make-title() = context {
+  let title = doc-title.get()
+  let subtitle = doc-subtitle.get()
+  let authors = doc-authors.get()
+  let date = doc-date.get()
+
   set align(center)
 
   v(3cm)
 
   // Main title
-  text(
-    size: 2.8em,
-    weight: "bold",
-    fill: colors.primary,
-    font: fonts.heading,
-    title,
-  )
+  if title != none {
+    text(
+      size: 2.8em,
+      weight: "bold",
+      fill: colors.primary,
+      font: fonts.heading,
+      title,
+    )
+  }
 
   v(spacing.medium)
 
