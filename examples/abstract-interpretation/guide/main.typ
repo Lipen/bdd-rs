@@ -77,11 +77,11 @@ Unlike traditional academic papers or reference manuals, this guide:
 
 This guide is organized into three parts:
 
-*Part I: Gentle Introduction (Chapters 1-6)* starts from first principles, building intuition about program abstraction, control flow, and symbolic representations.
+*Part I: Gentle Introduction (Chapters 0-6)* starts from first principles, building intuition about program abstraction, control flow, and symbolic representations.
 Through running examples like heater controllers and traffic lights, we motivate why BDD-based path-sensitive analysis matters.
 This part is accessible to anyone with programming background.
 
-*Part II: Deep Dive (Chapters 7-15)* provides complete theoretical foundations, formal proofs, implementation techniques, and research connections.
+*Part II: Deep Dive (Chapters 7-10)* provides complete theoretical foundations, formal proofs, implementation techniques, and research connections.
 This part enables readers to understand the mathematics deeply and implement their own analyses.
 
 *Part III: Appendices* offer reference material: mathematical prerequisites, complete code walkthroughs, benchmark specifications, and an annotated bibliography.
@@ -205,8 +205,7 @@ Let's dive in!
 #include "chapters/part1_introduction/06_symbolic_executor.typ"
 
 // Additional chapters will be included as we create them
-// #include "chapters/part1_introduction/01_abstract_interpretation.typ"
-// ... etc
+// Future: Part I could be expanded with more application examples
 
 // ============================================================================
 // Part II: Deep Dive
@@ -227,9 +226,7 @@ We develop complete lattice theory, fixpoint theorems, Galois connections, and a
 
 #include "chapters/part2_deep_dive/09_advanced_galois.typ"
 
-// Future chapters:
-// #include "chapters/part2_deep_dive/10_widening_narrowing.typ"
-// ... etc
+#include "chapters/part2_deep_dive/10_domain_combinations.typ"
 
 // ============================================================================
 // Part III: Appendices
