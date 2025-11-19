@@ -2,6 +2,7 @@
 // Modern, warm, inviting design optimized for learning
 
 #import "@preview/cetz:0.4.2"
+#import "@preview/lovelace:0.3.0"
 
 // ============================================================================
 // Color Palette
@@ -83,14 +84,17 @@
 // Mathematical Symbols
 // ============================================================================
 
-#let ljoin = $union.sq$           // ⊔ join
-#let lmeet = $inter.sq$           // ⊓ meet
-#let widen = $nabla$              // ∇ widening
-#let narrow = $triangle$          // △ narrowing
-#let lle = $subset.eq.sq$         // ⊑ less-or-equal
-#let lge = $supset.eq.sq$         // ⊒ greater-or-equal
-#let lbot = $bot$                 // ⊥ bottom
-#let ltop = $top$                 // ⊤ top
+#let rel(x) = math.class("relation", x)
+#let nrel(x) = rel(math.cancel(x))
+
+#let ljoin = sym.union.sq       // ⊔ join
+#let lmeet = sym.inter.sq       // ⊓ meet
+#let widen = rel($nabla$)       // ∇ widening
+#let narrow = rel($triangle$)   // △ narrowing
+#let lle = $subset.eq.sq$       // ⊑ less-or-equal
+#let lge = $supset.eq.sq$       // ⊒ greater-or-equal
+#let lbot = $bot$               // ⊥ bottom
+#let ltop = $top$               // ⊤ top
 
 // ============================================================================
 // Helper Symbols
@@ -593,6 +597,7 @@
 #let theorem-counter = counter("theorem")
 #let lemma-counter = counter("lemma")
 #let proposition-counter = counter("proposition")
+#let algorithm-counter = counter("algorithm")
 
 #let definition(title: none, body) = context {
   definition-counter.step()
@@ -677,6 +682,47 @@
         size: 0.65em,
         fill: colors.text-light,
       ),
+    )
+  ]
+}
+
+// Algorithm environment with lovelace integration
+#let algorithm(
+  title: none,
+  hooks: 0.5em,
+  booktabs: false,
+  numbered-title: [],
+  body,
+) = context {
+  algorithm-counter.step()
+  let number = algorithm-counter.display()
+  let display-title = if title != none {
+    [Algorithm #number: #title]
+  } else {
+    [Algorithm #number]
+  }
+
+  block(
+    fill: rgb("#fefce8"), // Subtle yellow background
+    stroke: (left: 3pt + colors.warning),
+    inset: spacing.inset-medium,
+    radius: 4pt,
+    width: 100%,
+    breakable: true,
+  )[
+    #text(
+      font: fonts.heading,
+      weight: "bold",
+      fill: colors.warning,
+      size: 0.95em,
+      display-title,
+    )
+    #v(spacing.small)
+    #lovelace.pseudocode-list(
+      hooks: hooks,
+      booktabs: booktabs,
+      numbered-title: numbered-title,
+      body,
     )
   ]
 }

@@ -212,7 +212,22 @@ Let's dive in!
 // Part II: Deep Dive
 // ============================================================================
 
-// #include "chapters/part2_deep_dive/07_lattice_theory.typ"
+#pagebreak()
+
+= Part II: Deep Dive <part-ii>
+
+#reading-path(path: "advanced")
+
+Part II provides rigorous mathematical foundations for abstract interpretation.
+We develop complete lattice theory, fixpoint theorems, Galois connections, and advanced analysis techniques with formal proofs and implementation guidance.
+
+#include "chapters/part2_deep_dive/07_lattice_theory.typ"
+
+#include "chapters/part2_deep_dive/08_fixpoint_algorithms.typ"
+
+// Future chapters:
+// #include "chapters/part2_deep_dive/09_galois_connections.typ"
+// #include "chapters/part2_deep_dive/10_widening_narrowing.typ"
 // ... etc
 
 // ============================================================================
