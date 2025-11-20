@@ -384,7 +384,6 @@ impl<P: Predicate> SymbolicNFA<P> {
         }
 
         let minterms = build_minterms(&preds);
-        println!("Minterms: {:?}", minterms);
         let n = self.states;
         let mcount = minterms.len();
         let mut reach: Vec<Vec<Vec<StateId>>> = vec![vec![Vec::new(); mcount]; n];

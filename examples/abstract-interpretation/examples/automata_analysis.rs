@@ -1,13 +1,31 @@
-//! Automata Domain Example
+//! Symbolic Automata Domain Analysis Example
 //!
-//! This example demonstrates how to use the `AutomataDomain` to analyze string properties.
-//! We will construct automata representing different string formats (e.g., identifiers, numbers)
-//! and perform abstract operations like join and meet to analyze potential string values.
+//! This example demonstrates how to use the `AutomataDomain` for string analysis.
+//! We model different string formats using symbolic automata and analyze their properties
+//! using abstract domain operations: join (union), meet (intersection), and subset checking.
+//!
+//! ## String Languages Being Analyzed
+//!
+//! 1. **Identifiers**: `[a-zA-Z_][a-zA-Z0-9_]*`
+//!    - Valid: "my_var", "_private", "var123"
+//!    - Invalid: "123var" (starts with digit), "$invalid" (special char)
+//!
+//! 2. **Integers**: `[0-9]+`
+//!    - Valid: "123", "0", "999"
+//!    - Invalid: "12a" (contains letter)
+//!
+//! ## Analysis Scenarios
+//!
+//! - **Union (Join)**: Variable that can be *either* an identifier or an integer
+//! - **Intersection (Meet)**: Strings that are *both* identifiers and integers (empty!)
+//! - **Subset (Le)**: Check if specific strings belong to a language
 
 use abstract_interpretation::*;
 
 fn main() {
-    println!("=== Automata Domain Analysis Example ===");
+    println!("\n╔══════════════════════════════════════════════════════════╗");
+    println!("║  Symbolic Automata Domain Analysis                       ║");
+    println!("╚══════════════════════════════════════════════════════════╝\n");
 
     let domain = AutomataDomain;
 
@@ -20,8 +38,23 @@ fn main() {
     let underscore = CharClass::single('_');
     let identifier_char = alphanumeric.or(&underscore);
 
+    // ========================================================================
+    // Scenario 1: Identifier Language
+    // ========================================================================
+    // Language being analyzed:
+    //   Regex: [a-zA-Z_][a-zA-Z0-9_]*
+    //   Examples:
+    //     ✓ "my_var", "_private", "var123", "CamelCase"
+    //     ✗ "123var" (starts with digit), "$invalid" (special char)
+    println!("\n{}", "═".repeat(60));
+    println!("Scenario 1: Identifier Language");
+    println!("{}\n", "═".repeat(60));
+
+    println!("Language: [a-zA-Z_][a-zA-Z0-9_]*");
+    println!("Description: Valid programming language identifiers\n");
+
     // 2. Construct an automaton for valid identifiers: [a-zA-Z_][a-zA-Z0-9_]*
-    println!("\nConstructing Identifier Automaton...");
+    println!("Constructing Symbolic Automaton...");
     let mut nfa_ident = SymbolicNFA::new();
     let start = nfa_ident.start; // state 0
     let body = nfa_ident.add_state(true); // state 1 (accepting)
@@ -32,19 +65,45 @@ fn main() {
     nfa_ident.add_transition(body, identifier_char.clone(), body);
 
     let dfa_ident = nfa_ident.determinize();
-    println!("Identifier DFA has {} states", dfa_ident.states);
-    println!("DFA Transitions: {:?}", dfa_ident.transitions);
+    println!("  States: {}", dfa_ident.states);
+    println!("  Accepting: {:?}", dfa_ident.accepting);
+    println!();
 
     // Test some strings
-    assert!(dfa_ident.accepts("my_var"));
-    assert!(dfa_ident.accepts("_private"));
-    assert!(dfa_ident.accepts("var123"));
-    assert!(!dfa_ident.accepts("123var")); // Starts with digit
-    println!("- 'my_var' accepted: {}", dfa_ident.accepts("my_var"));
-    println!("- '123var' accepted: {}", dfa_ident.accepts("123var"));
+    println!("Test Acceptance:");
+    let test_cases = [
+        ("my_var", true),
+        ("_private", true),
+        ("var123", true),
+        ("CamelCase", true),
+        ("123var", false),
+        ("$invalid", false),
+    ];
+
+    for (input, expected) in &test_cases {
+        let result = dfa_ident.accepts(input);
+        let mark = if result == *expected { "✓" } else { "✗" };
+        println!("  {} '{}' -> {}", mark, input, result);
+        assert_eq!(result, *expected, "Unexpected result for '{}'", input);
+    }
+
+    // ========================================================================
+    // Scenario 2: Integer Language
+    // ========================================================================
+    // Language being analyzed:
+    //   Regex: [0-9]+
+    //   Examples:
+    //     ✓ "123", "0", "999"
+    //     ✗ "12a" (contains letter), "" (empty)
+    println!("\n{}", "═".repeat(60));
+    println!("Scenario 2: Integer Language");
+    println!("{}\n", "═".repeat(60));
+
+    println!("Language: [0-9]+");
+    println!("Description: Integer literals (one or more digits)\n");
 
     // 3. Construct an automaton for integer literals: [0-9]+
-    println!("\nConstructing Integer Automaton...");
+    println!("Constructing Symbolic Automaton...");
     let mut nfa_int = SymbolicNFA::new();
     let start = nfa_int.start;
     let body = nfa_int.add_state(true);
@@ -53,41 +112,107 @@ fn main() {
     nfa_int.add_transition(body, digit.clone(), body);
 
     let dfa_int = nfa_int.determinize();
-    println!("Integer DFA has {} states", dfa_int.states);
-    assert!(dfa_int.accepts("123"));
-    assert!(!dfa_int.accepts("12a"));
+    println!("  States: {}", dfa_int.states);
+    println!("  Accepting: {:?}", dfa_int.accepting);
+    println!();
+
+    println!("Test Acceptance:");
+    let test_cases = [
+        ("123", true),
+        ("0", true),
+        ("999", true),
+        ("12a", false),
+        ("", false),
+    ];
+
+    for (input, expected) in &test_cases {
+        let result = dfa_int.accepts(input);
+        let mark = if result == *expected { "✓" } else { "✗" };
+        println!("  {} '{}' -> {}", mark, input, result);
+        assert_eq!(result, *expected, "Unexpected result for '{}'", input);
+    }
+
+    // ========================================================================
+    // Scenario 3: Union (Join) - Identifier OR Integer
+    // ========================================================================
+    // Analysis question: What if a variable can be either an identifier or integer?
+    println!("\n{}", "═".repeat(60));
+    println!("Scenario 3: Union (Join) - Identifier OR Integer");
+    println!("{}\n", "═".repeat(60));
 
     // 4. Analyze a scenario:
     // Let's say we have a variable `x` that can be either an identifier OR an integer.
     // We want to compute the abstract state for `x`.
-    println!("\nComputing Abstract State for (Identifier | Integer)...");
+    println!("Computing: Identifier ⊔ Integer");
+    println!("Description: Strings that are EITHER identifiers OR integers\n");
 
     let state_x = domain.join(&dfa_ident, &dfa_int);
 
-    println!("Joined DFA has {} states", state_x.states);
-    println!("- 'var1' accepted: {}", state_x.accepts("var1"));
-    println!("- '99' accepted: {}", state_x.accepts("99"));
-    println!("- '$invalid' accepted: {}", state_x.accepts("$invalid"));
+    println!("Result:");
+    println!("  States: {}", state_x.states);
+    println!();
 
-    assert!(state_x.accepts("var1"), "Union should accept identifier 'var1'");
-    assert!(state_x.accepts("99"), "Union should accept integer '99'");
-    assert!(!state_x.accepts("$invalid"), "Union should reject invalid string '$invalid'");
+    println!("Test Acceptance:");
+    let test_cases = [
+        ("var1", true, "identifier"),
+        ("99", true, "integer"),
+        ("_private", true, "identifier"),
+        ("$invalid", false, "neither"),
+        ("12a", false, "neither"),
+    ];
+
+    for (input, expected, desc) in &test_cases {
+        let result = state_x.accepts(input);
+        let mark = if result == *expected { "✓" } else { "✗" };
+        println!("  {} '{}' -> {} ({})", mark, input, result, desc);
+        assert_eq!(result, *expected, "Union should {} '{}'",
+                  if *expected { "accept" } else { "reject" }, input);
+    }
+
+    // ========================================================================
+    // Scenario 4: Intersection (Meet) - Identifier AND Integer
+    // ========================================================================
+    // Analysis question: What strings are BOTH identifiers AND integers?
+    println!("\n{}", "═".repeat(60));
+    println!("Scenario 4: Intersection (Meet) - Identifier AND Integer");
+    println!("{}\n", "═".repeat(60));
 
     // 5. Intersection (Meet)
     // What strings are BOTH identifiers AND integers?
     // Ideally this should be empty because identifiers can't start with a digit,
     // and integers must consist only of digits.
-    println!("\nComputing Intersection (Identifier & Integer)...");
+    println!("Computing: Identifier ⊓ Integer");
+    println!("Description: Strings that are BOTH identifiers AND integers");
+    println!("Expected: Empty (Bottom) - languages are disjoint\n");
+
     let intersection = domain.meet(&dfa_ident, &dfa_int);
 
+    println!("Result:");
+    println!("  Is Bottom? {}", domain.is_bottom(&intersection));
     assert!(
         domain.is_bottom(&intersection),
         "Intersection of disjoint languages should be empty"
     );
-    println!("Intersection is empty (Bottom) - Verified.");
+    println!("  ✓ Verified: Intersection is empty (as expected)\n");
+
+    println!("Explanation:");
+    println!("  - Identifiers start with [a-zA-Z_]");
+    println!("  - Integers start with [0-9]");
+    println!("  - These character sets are disjoint → no string can be both");
+
+    // ========================================================================
+    // Scenario 5: Subset (Le) - Singleton Language
+    // ========================================================================
+    // Analysis question: Is a specific string in a language?
+    println!("\n{}", "═".repeat(60));
+    println!("Scenario 5: Subset Checking - Singleton Languages");
+    println!("{}\n", "═".repeat(60));
 
     // 6. Subset Check (Le)
-    println!("\nChecking Subset Relationships...");
+    println!("Language: {{\"var1\"}} (singleton)");
+    println!("Description: Language containing only the string \"var1\"\n");
+
+    println!("Constructing Symbolic Automaton...");
     // "var1" is a specific identifier. Let's make a singleton DFA.
     let mut nfa_var1 = SymbolicNFA::new();
     let s0 = 0;
@@ -102,14 +227,22 @@ fn main() {
     nfa_var1.add_transition(s3, CharClass::single('1'), s4);
 
     let dfa_var1 = nfa_var1.determinize();
+    println!("  States: {}", dfa_var1.states);
+    println!();
+
+    println!("Subset Queries:");
 
     let is_subset = domain.le(&dfa_var1, &dfa_ident);
-    println!("Is 'var1' singleton a subset of Identifiers? {}", is_subset);
-    assert!(is_subset);
+    println!("  {{\"var1\"}} ⊆ Identifiers? {}", is_subset);
+    assert!(is_subset, "\"var1\" should be an identifier");
+    println!("    ✓ Verified: \"var1\" is a valid identifier");
 
     let is_subset_int = domain.le(&dfa_var1, &dfa_int);
-    println!("Is 'var1' singleton a subset of Integers? {}", is_subset_int);
-    assert!(!is_subset_int);
+    println!("\n  {{\"var1\"}} ⊆ Integers? {}", is_subset_int);
+    assert!(!is_subset_int, "\"var1\" should not be an integer");
+    println!("    ✓ Verified: \"var1\" is not an integer");
 
-    println!("\nAnalysis Complete.");
+    println!("\n{}", "═".repeat(60));
+    println!("Analysis Complete - All Assertions Passed!");
+    println!("{}\n", "═".repeat(60));
 }
