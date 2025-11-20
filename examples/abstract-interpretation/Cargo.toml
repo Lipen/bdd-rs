@@ -12,3 +12,4 @@ num-traits = "0.2"
 simplelog = "0.12"
 
 [dev-dependencies]
+regex = "1.12"

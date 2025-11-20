@@ -864,6 +864,167 @@ impl AbstractDomain for StringNumericDomain {
     }
 }
 
+/// Regex Domain.
+///
+/// Tracks the structure of strings using Regular Expressions.
+///
+/// Lattice:
+/// Bottom <= Regex(r) <= Top (.*)
+///
+/// Note: This domain uses syntactic equality for ordering to avoid
+/// the high complexity of checking regex inclusion.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StringRegex {
+    Bottom,
+    Regex(String),
+    Top,
+}
+
+#[derive(Clone, Debug)]
+pub struct RegexDomain {
+    /// Maximum length of regex string before widening to Top.
+    /// Prevents infinite growth in loops.
+    pub max_length: usize,
+}
+
+impl RegexDomain {
+    pub fn new(max_length: usize) -> Self {
+        Self { max_length }
+    }
+
+    /// Create a regex from a constant string.
+    /// Escapes special regex characters.
+    pub fn from_string(&self, s: &str) -> StringRegex {
+        // Simple regex escaping
+        let escaped = s
+            .replace('\\', "\\\\")
+            .replace('.', "\\.")
+            .replace('+', "\\+")
+            .replace('*', "\\*")
+            .replace('?', "\\?")
+            .replace('(', "\\(")
+            .replace(')', "\\)")
+            .replace('[', "\\[")
+            .replace(']', "\\]")
+            .replace('{', "\\{")
+            .replace('}', "\\}")
+            .replace('|', "\\|")
+            .replace('^', "\\^")
+            .replace('$', "\\$");
+        StringRegex::Regex(escaped)
+    }
+
+    /// Create a regex from a raw pattern (assumed valid).
+    pub fn from_pattern(&self, p: &str) -> StringRegex {
+        StringRegex::Regex(p.to_string())
+    }
+
+    /// Concatenate two regexes.
+    /// r1 + r2 -> r1r2
+    pub fn concat(&self, elem1: &StringRegex, elem2: &StringRegex) -> StringRegex {
+        match (elem1, elem2) {
+            (StringRegex::Bottom, _) | (_, StringRegex::Bottom) => StringRegex::Bottom,
+            (StringRegex::Top, _) | (_, StringRegex::Top) => StringRegex::Top,
+            (StringRegex::Regex(r1), StringRegex::Regex(r2)) => {
+                // Wrap in parentheses if the regex contains alternation '|'
+                // to preserve precedence.
+                // Conservative check: if it contains '|', wrap it.
+                // (Even if escaped '\|', wrapping is safe).
+                let p1 = if r1.contains('|') { format!("({})", r1) } else { r1.clone() };
+                let p2 = if r2.contains('|') { format!("({})", r2) } else { r2.clone() };
+
+                let new_regex = format!("{}{}", p1, p2);
+                if new_regex.len() > self.max_length {
+                    StringRegex::Top
+                } else {
+                    StringRegex::Regex(new_regex)
+                }
+            }
+        }
+    }
+}
+
+impl Default for RegexDomain {
+    fn default() -> Self {
+        Self::new(100)
+    }
+}
+
+impl AbstractDomain for RegexDomain {
+    type Element = StringRegex;
+
+    fn bottom(&self) -> Self::Element {
+        StringRegex::Bottom
+    }
+
+    fn top(&self) -> Self::Element {
+        StringRegex::Top
+    }
+
+    fn is_bottom(&self, elem: &Self::Element) -> bool {
+        matches!(elem, StringRegex::Bottom)
+    }
+
+    fn is_top(&self, elem: &Self::Element) -> bool {
+        matches!(elem, StringRegex::Top)
+    }
+
+    fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool {
+        match (elem1, elem2) {
+            (StringRegex::Bottom, _) => true,
+            (_, StringRegex::Top) => true,
+            (StringRegex::Regex(r1), StringRegex::Regex(r2)) => r1 == r2, // Syntactic equality only
+            _ => false,
+        }
+    }
+
+    fn join(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        match (elem1, elem2) {
+            (StringRegex::Bottom, e) | (e, StringRegex::Bottom) => e.clone(),
+            (StringRegex::Top, _) | (_, StringRegex::Top) => StringRegex::Top,
+            (StringRegex::Regex(r1), StringRegex::Regex(r2)) => {
+                if r1 == r2 {
+                    StringRegex::Regex(r1.clone())
+                } else {
+                    // Union: r1|r2
+                    // No need to wrap in parentheses for join itself,
+                    // as '|' has lowest precedence.
+                    let new_regex = format!("{}|{}", r1, r2);
+                    if new_regex.len() > self.max_length {
+                        StringRegex::Top
+                    } else {
+                        StringRegex::Regex(new_regex)
+                    }
+                }
+            }
+        }
+    }
+
+    fn meet(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        match (elem1, elem2) {
+            (StringRegex::Bottom, _) | (_, StringRegex::Bottom) => StringRegex::Bottom,
+            (StringRegex::Top, e) | (e, StringRegex::Top) => e.clone(),
+            (StringRegex::Regex(r1), StringRegex::Regex(r2)) => {
+                if r1 == r2 {
+                    StringRegex::Regex(r1.clone())
+                } else {
+                    // Intersection of regexes is hard.
+                    // Conservative approximation: Bottom (assuming they are disjoint)
+                    // OR we could return one if we knew inclusion.
+                    // For now, return Bottom unless equal.
+                    StringRegex::Bottom
+                }
+            }
+        }
+    }
+
+    fn widen(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        // Widen uses the same logic as join (union), but checks length limit.
+        // Since join already checks length limit, we can just delegate.
+        self.join(elem1, elem2)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1074,5 +1235,42 @@ mod tests {
         assert_eq!(domain.from_string("-456"), StringNumeric::IntegerStr);
         assert_eq!(domain.from_string("123.45"), StringNumeric::FloatStr);
         assert_eq!(domain.from_string("abc"), StringNumeric::Top);
+    }
+
+    #[test]
+    fn test_regex_domain() {
+        let domain = RegexDomain::default();
+        let r1 = domain.from_string("abc");
+        let r2 = domain.from_string("def");
+        let top = StringRegex::Top;
+
+        // Order
+        assert!(domain.le(&r1, &r1));
+        assert!(!domain.le(&r1, &r2));
+        assert!(domain.le(&r1, &top));
+
+        // Concat: "abc" + "def" -> "abcdef"
+        let concat = domain.concat(&r1, &r2);
+        if let StringRegex::Regex(s) = concat {
+            assert_eq!(s, "abcdef");
+        } else {
+            panic!("Expected Regex");
+        }
+
+        // Join: "abc" | "def" -> "abc|def"
+        let joined = domain.join(&r1, &r2);
+        if let StringRegex::Regex(s) = joined {
+            assert_eq!(s, "abc|def");
+        } else {
+            panic!("Expected Regex");
+        }
+
+        // Widen (Length limit)
+        let small_domain = RegexDomain::new(10); // Very small limit
+        let long_r1 = small_domain.from_string("123456");
+        let long_r2 = small_domain.from_string("789012");
+        // "123456" + "789012" = 12 chars > 10 -> Top
+        let wide_concat = small_domain.concat(&long_r1, &long_r2);
+        assert_eq!(wide_concat, StringRegex::Top);
     }
 }
