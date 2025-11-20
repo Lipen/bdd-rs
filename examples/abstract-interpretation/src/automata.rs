@@ -15,28 +15,42 @@ use super::domain::AbstractDomain;
 // ============================================================================
 
 /// A canonical, comparable predicate over the alphabet (Unicode scalar values).
+///
+/// Predicates are the labels on the edges of the symbolic automata.
+/// They represent sets of characters.
 pub trait Predicate: Clone + Eq + Debug + Send + Sync + 'static {
     /// Is character `c` accepted by the predicate?
     fn contains(&self, c: char) -> bool;
 
     /// Conjunction (AND) of predicates.
+    /// Returns a predicate representing the intersection of the two sets of characters.
     fn and(&self, other: &Self) -> Self;
+
     /// Disjunction (OR) of predicates.
+    /// Returns a predicate representing the union of the two sets of characters.
     fn or(&self, other: &Self) -> Self;
-    /// Negation (NOT)
+
+    /// Negation (NOT).
+    /// Returns a predicate representing the complement of the set of characters.
     fn not(&self) -> Self;
 
     /// Is predicate empty?
+    /// Returns true if the predicate accepts no characters.
     fn is_empty(&self) -> bool;
 
     /// Full predicate (accepts everything).
+    /// Returns a predicate that accepts all valid Unicode scalar values.
     fn full() -> Self;
 
     /// Produce a canonical string key useful for hashing / deterministic ordering.
+    /// This key should uniquely identify the predicate content.
     fn canonical_key(&self) -> String;
 }
 
 /// A simple character-class predicate represented as a set of disjoint ranges.
+///
+/// This struct implements `Predicate` by maintaining a sorted list of disjoint
+/// character ranges (inclusive). It supports standard set operations (union, intersection, complement).
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct CharClass {
     // invariant: ranges are disjoint, sorted, non-adjacent
@@ -44,16 +58,20 @@ pub struct CharClass {
 }
 
 impl CharClass {
+    /// Create an empty character class (accepts nothing).
     pub fn empty() -> Self {
         CharClass { ranges: Vec::new() }
     }
 
+    /// Create a full character class (accepts all Unicode characters).
     pub fn full() -> Self {
         CharClass {
             ranges: vec![(0, 0x10FFFF)],
         }
     }
 
+    /// Create a character class from a list of ranges.
+    /// The ranges do not need to be sorted or disjoint; they will be normalized.
     pub fn from_ranges(mut ranges: Vec<(u32, u32)>) -> Self {
         ranges.sort_unstable();
         let mut out = Vec::<(u32, u32)>::new();
@@ -74,11 +92,13 @@ impl CharClass {
         CharClass { ranges: out }
     }
 
+    /// Create a character class containing a single character.
     pub fn single(ch: char) -> Self {
         let u = ch as u32;
         CharClass { ranges: vec![(u, u)] }
     }
 
+    /// Create a character class containing a range of characters [a, b].
     pub fn range(a: char, b: char) -> Self {
         CharClass::from_ranges(vec![(a as u32, b as u32)])
     }
@@ -173,6 +193,11 @@ impl Predicate for CharClass {
 
 pub type StateId = usize;
 
+/// A symbolic transition in an automaton.
+///
+/// Represents a transition from a source state (implicit) to a `target` state,
+/// guarded by a predicate `label`. If the predicate contains the input character,
+/// the transition can be taken.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SymbolicTransition<P: Predicate> {
     pub label: P,
@@ -180,6 +205,13 @@ pub struct SymbolicTransition<P: Predicate> {
 }
 
 /// Deterministic symbolic automaton (DFA).
+///
+/// A DFA consists of a set of states, a set of accepting states, and a transition function.
+/// In a symbolic DFA, transitions are labeled with predicates rather than single characters.
+/// For any state and any character, there must be at most one applicable transition (determinism).
+///
+/// This implementation allows partial DFAs (where some characters might have no transition),
+/// which implicitly lead to a non-accepting sink state.
 #[derive(Clone, Debug)]
 pub struct SymbolicDFA<P: Predicate> {
     pub states: usize,
@@ -216,6 +248,8 @@ impl<P: Predicate> PartialEq for SymbolicDFA<P> {
 }
 
 impl<P: Predicate> SymbolicDFA<P> {
+    /// Create a new DFA with `states` number of states.
+    /// Initially, no states are accepting and there are no transitions.
     pub fn new(states: usize) -> Self {
         SymbolicDFA {
             states,
@@ -224,6 +258,7 @@ impl<P: Predicate> SymbolicDFA<P> {
         }
     }
 
+    /// Check if the DFA accepts the given string `input`.
     pub fn accepts(&self, input: &str) -> bool {
         let mut cur = 0usize;
         for ch in input.chars() {
@@ -242,6 +277,10 @@ impl<P: Predicate> SymbolicDFA<P> {
         self.accepting[cur]
     }
 
+    /// Compute the complement of the language accepted by this DFA.
+    ///
+    /// This operation first completes the DFA (making it total) and then flips
+    /// the accepting status of all states.
     pub fn complement(&self) -> Self
     where
         P: Clone + Ord,
@@ -254,6 +293,10 @@ impl<P: Predicate> SymbolicDFA<P> {
         out
     }
 
+    /// Make the DFA complete (total).
+    ///
+    /// Adds a sink state and transitions to it for any character that doesn't
+    /// have a defined transition from a state.
     pub fn complete(&mut self)
     where
         P: Clone + Ord,
@@ -337,6 +380,11 @@ impl<P: Predicate> SymbolicDFA<P> {
 // NFA Builder & Algorithms
 // ============================================================================
 
+/// Nondeterministic symbolic automaton (NFA).
+///
+/// Used primarily as a builder for DFAs. It supports multiple transitions on the same
+/// character from a single state, and epsilon transitions are not explicitly supported
+/// (though one could model them, this implementation focuses on character-based transitions).
 #[derive(Clone, Debug)]
 pub struct SymbolicNFA<P: Predicate> {
     pub start: StateId,
@@ -346,6 +394,7 @@ pub struct SymbolicNFA<P: Predicate> {
 }
 
 impl<P: Predicate> SymbolicNFA<P> {
+    /// Create a new NFA with a single start state (0).
     pub fn new() -> Self {
         SymbolicNFA {
             start: 0,
@@ -355,6 +404,8 @@ impl<P: Predicate> SymbolicNFA<P> {
         }
     }
 
+    /// Add a new state to the NFA.
+    /// Returns the ID of the new state.
     pub fn add_state(&mut self, accepting: bool) -> StateId {
         let id = self.states;
         self.states += 1;
@@ -363,10 +414,17 @@ impl<P: Predicate> SymbolicNFA<P> {
         id
     }
 
+    /// Add a transition from `from` to `to` labeled with `pred`.
     pub fn add_transition(&mut self, from: StateId, pred: P, to: StateId) {
         self.transitions[from].push(SymbolicTransition { label: pred, target: to });
     }
 
+    /// Convert the NFA to an equivalent DFA using the subset construction algorithm.
+    ///
+    /// This process involves:
+    /// 1. Collecting all predicates from transitions.
+    /// 2. Generating a set of disjoint "minterms" (atomic predicates) that partition the input space.
+    /// 3. Performing the standard subset construction using these minterms as the alphabet.
     pub fn determinize(&self) -> SymbolicDFA<P>
     where
         P: Clone + Ord,
@@ -462,6 +520,10 @@ impl<P: Predicate> SymbolicNFA<P> {
     }
 }
 
+/// Build a set of disjoint minterms (atomic predicates) from a set of predicates.
+///
+/// The minterms partition the character space such that for any character `c` and any
+/// original predicate `p`, `p` either contains all characters in a minterm or none.
 fn build_minterms<P: Predicate + Clone + Ord>(preds: &[P]) -> Vec<P> {
     let mut boundaries: BTreeSet<u32> = BTreeSet::new();
 
@@ -532,6 +594,9 @@ fn build_minterms<P: Predicate + Clone + Ord>(preds: &[P]) -> Vec<P> {
     Vec::new()
 }
 
+/// Minimize a DFA using Hopcroft's algorithm (or a variation suitable for symbolic automata).
+///
+/// This implementation uses a partition refinement algorithm.
 pub fn minimize_dfa<P: Predicate + Clone + Ord>(dfa: &SymbolicDFA<P>) -> SymbolicDFA<P> {
     let n = dfa.states;
     let mut part: Vec<usize> = vec![0; n];
@@ -676,10 +741,14 @@ pub fn minimize_dfa<P: Predicate + Clone + Ord>(dfa: &SymbolicDFA<P>) -> Symboli
 }
 
 impl<P: Predicate + Clone + Ord> SymbolicDFA<P> {
+    /// Compute the union of two DFAs.
+    /// Returns a DFA that accepts a string if either input DFA accepts it.
     pub fn union(&self, other: &SymbolicDFA<P>) -> SymbolicDFA<P> {
         self.product(other, |a, b| a || b)
     }
 
+    /// Compute the intersection of two DFAs.
+    /// Returns a DFA that accepts a string if both input DFAs accept it.
     pub fn intersection(&self, other: &SymbolicDFA<P>) -> SymbolicDFA<P> {
         self.product(other, |a, b| a && b)
     }
@@ -784,6 +853,15 @@ impl<P: Predicate + Clone + Ord> SymbolicDFA<P> {
 // Abstract Domain Implementation
 // ============================================================================
 
+/// The symbolic automata abstract domain.
+///
+/// Elements of this domain are symbolic DFAs representing regular languages.
+/// The lattice operations are defined as follows:
+/// - `bottom`: Empty language.
+/// - `top`: Universal language (all strings).
+/// - `join`: Union of languages (minimized).
+/// - `meet`: Intersection of languages (minimized).
+/// - `le` (<=): Subset inclusion check.
 #[derive(Clone, Debug)]
 pub struct AutomataDomain;
 
