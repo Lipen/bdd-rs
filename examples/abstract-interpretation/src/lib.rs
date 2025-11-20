@@ -1,273 +1,122 @@
-//! BDD-Guided Abstract Interpretation Framework
+//! # Abstract Interpretation: A Case Study
 //!
-//! A comprehensive implementation of abstract interpretation with multiple abstract domains
-//! for static program analysis. This library demonstrates how different domains can be
-//! composed and used to analyze various program properties.
+//! This crate serves as a comprehensive case study and framework for building static analysis tools using
+//! **Abstract Interpretation**. It demonstrates how to verify program properties --- such as safety,
+//! termination, and correctness --- by mathematically approximating program behavior.
 //!
-//! # Overview
+//! ## Core Concept
 //!
-//! This framework provides:
-//! - **4 Abstract Domains**: Sign, Constant Propagation, Interval, and Points-to Analysis
-//! - **Lattice Theory**: Complete implementations with join, meet, widening, and narrowing
-//! - **BDD Integration**: Efficient pointer analysis using Binary Decision Diagrams
-//! - **Product Domains**: Compositional analysis combining multiple domains
-//! - **Transfer Functions**: Abstract semantics for program statements
-//! - **Fixpoint Engine**: Computes program invariants with termination guarantees
+//! Unlike standard testing (which checks one execution path) or fuzzing (which checks many),
+//! **Abstract Interpretation checks all possible execution paths simultaneously.**
 //!
-//! # Available Domains
+//! Instead of executing a program with concrete values (e.g., `let x = 5`), we execute it with
+//! **Abstract Values** (e.g., `let x = [Positive]`).
 //!
-//! ## 1. Sign Domain ([`SignDomain`])
+//! ### Why BDDs?
 //!
-//! Tracks the sign of numeric variables: Negative, Zero, Positive, etc.
+//! Traditional analyzers often lose precision at merge points (e.g., after an `if/else`) because they
+//! must merge conflicting states into a single approximation.
 //!
-//! **Use Cases**:
-//! - Detecting division by zero
-//! - Sign error detection (overflow/underflow)
-//! - Array index sign validation
+//! *   **Without BDDs**: "x is roughly between 0 and 10."
+//! *   **With BDDs**: "x is 5 IF flag_a is true, OR x is 9 IF flag_b is false."
 //!
-//! ```
+//! BDDs provide **path sensitivity** efficiently, allowing us to track complex boolean relationships
+//! without exponential memory growth.
+//!
+//! ## Abstract Execution
+//!
+//! By choosing different **Abstract Domains**, we can trade precision for speed.
+//!
+//! | Code | Concrete Execution | Interval Domain | Sign Domain |
+//! |------|--------------------|-----------------|-------------|
+//! | `let x = 5;` | `x = 5` | `x ∈ [5, 5]` | `x` is `Pos` |
+//! | `let y = x - 10;` | `y = -5` | `y ∈ [-5, -5]` | `y` is `Neg` |
+//! | `if y >= 0` | `false` (branch not taken) | `[-5, -5] >= 0` is **False** | `Neg >= 0` is **False** |
+//!
+//! ## Available Domains
+//!
+//! This framework provides a rich set of domains to track different aspects of program state.
+//!
+//! ### 1. Numeric Domains
+//! *   **[`IntervalDomain`]**: Tracks ranges (e.g., `x ∈ [0, 100]`). Ideal for array bounds checks.
+//! *   **[`SignDomain`]**: Tracks signs (`+`, `-`, `0`). Efficient for division-by-zero checks.
+//! *   **[`CongruenceDomain`]**: Tracks stride and offset (e.g., `x % 4 == 1`). Useful for memory alignment.
+//! *   **[`ConstantDomain`]**: Tracks constant values (e.g., `x = 42`).
+//!
+//! ### 2. Control Flow & BDDs
+//! *   **[`BddControlDomain`]**: Uses BDDs to track boolean flags and control flow history.
+//!     *   *Example*: "If `error_flag` is true, then `is_valid` must be false."
+//! *   **[`AutomataDomain`]**: Verifies state machine transitions (e.g., ensuring `open()` is called before `read()`).
+//!
+//! ### 3. Memory & Pointers
+//! *   **[`PointsToDomain`]**: Uses BDDs to efficiently track sets of memory locations a pointer might target (Alias Analysis).
+//!
+//! ### 4. String Analysis
+//! *   **[`StringPrefixDomain`]**: Tracks string prefixes (e.g., "Starts with 'https://'").
+//! *   **[`StringLengthDomain`]**: Tracks string lengths (e.g., "Length is at most 255").
+//!
+//! ## Theoretical Foundations
+//!
+//! Abstract Interpretation is based on **Lattice Theory**.
+//! An Abstract Domain is defined as a lattice `⟨D, ⊑, ⊥, ⊤, ⊔, ⊓⟩`:
+//!
+//! *   **`D` (Domain)**: The set of all possible abstract states.
+//! *   **`⊑` (Partial Order)**: The precision relation. `x ⊑ y` means `x` is more precise (contains fewer concrete behaviors) than `y`.
+//! *   **`⊥` (Bottom)**: The empty state (unreachable code).
+//! *   **`⊤` (Top)**: The unknown state (any behavior is possible).
+//! *   **`⊔` (Join)**: The least upper bound. Used to merge control flow paths.
+//! *   **`⊓` (Meet)**: The greatest lower bound. Used to refine states (e.g., at conditionals).
+//!
+//! ### Fixpoint Computation
+//!
+//! Analyzing loops is the hardest part of static analysis. We need to find an **invariant** --- a state that holds true before and after the loop body, regardless of how many times the loop executes.
+//!
+//! Mathematically, for a loop transfer function `F`, we seek the **Least Fixed Point (LFP)**, denoted as `lfp(F)`.
+//! This is the smallest state `X` such that `F(X) = X`.
+//!
+//! The **[`FixpointEngine`]** in this crate automates this process. It iteratively applies the transfer function until the state stabilizes (converges).
+//!
+//! ### Widening (∇) & Narrowing (△)
+//!
+//! For infinite height lattices (like Intervals), standard iteration might not converge in finite time (e.g., `[0, 1], [0, 2], [0, 3]...`).
+//!
+//! 1.  **Widening (∇)**: Accelerates convergence by over-approximating. If a value grows in consecutive iterations, widening jumps to a limit (e.g., `+∞`).
+//!     *   *Example*: If we see `x` go from `[0, 1]` to `[0, 2]`, we might guess `[0, +∞]` immediately.
+//! 2.  **Narrowing (△)**: Recovers precision lost by widening. Once a post-fixpoint is found (which is safe but imprecise), we iterate downwards to find a tighter bound.
+//!     *   *Example*: After guessing `[0, +∞]`, we check the loop condition `x < 10`. The narrowing step refines the state to `[0, 10]`.
+//!
+//! ## Example: Analyzing a Simple Program
+//!
+//! ```rust
 //! use abstract_interpretation::*;
 //!
-//! let domain = SignDomain;
-//! let state = domain.constant(&"x".to_string(), -5);
-//! assert_eq!(state.get("x"), Sign::Neg);
-//!
-//! // After: y = x + 10
-//! let expr = NumExpr::Add(
-//!     Box::new(NumExpr::Var("x".to_string())),
-//!     Box::new(NumExpr::Const(10))
-//! );
-//! let state = domain.assign(&state, &"y".to_string(), &expr);
-//! assert_eq!(state.get("y"), Sign::Top); // Neg + Pos = uncertain
-//! ```
-//!
-//! ## 2. Constant Propagation Domain ([`ConstantDomain`])
-//!
-//! Tracks exact constant values when known, enabling constant folding and dead code elimination.
-//!
-//! **Use Cases**:
-//! - Constant folding optimization
-//! - Dead code detection
-//! - Compile-time expression evaluation
-//!
-//! ```
-//! use abstract_interpretation::*;
-//!
-//! let domain = ConstantDomain;
-//! let mut state = domain.constant(&"x".to_string(), 7);
-//!
-//! // y = x + 3
-//! let expr = NumExpr::Add(
-//!     Box::new(NumExpr::Var("x".to_string())),
-//!     Box::new(NumExpr::Const(3))
-//! );
-//! state = domain.assign(&state, &"y".to_string(), &expr);
-//! assert_eq!(state.get("y"), ConstValue::Const(10)); // Exactly 10!
-//!
-//! // z = y * 2
-//! let expr = NumExpr::Mul(
-//!     Box::new(NumExpr::Var("y".to_string())),
-//!     Box::new(NumExpr::Const(2))
-//! );
-//! state = domain.assign(&state, &"z".to_string(), &expr);
-//! assert_eq!(state.get("z"), ConstValue::Const(20)); // Constant propagated
-//! ```
-//!
-//! ## 3. Interval Domain ([`IntervalDomain`])
-//!
-//! Tracks numeric ranges `[low, high]` for variables, supporting arithmetic with ±∞.
-//!
-//! **Use Cases**:
-//! - Array bounds checking
-//! - Buffer overflow detection
-//! - Loop bound analysis
-//!
-//! ```
-//! use abstract_interpretation::*;
-//!
+//! // 1. Define the domain (Intervals)
 //! let domain = IntervalDomain;
 //!
-//! // x in [0, 10]
-//! let state = domain.interval(&"x".to_string(), 0, 10);
+//! // 2. Define the program state (x = 0)
+//! let state = domain.interval(&"x".to_string(), 0, 0);
+//! println!("Initial state: {:?}", state); // x ∈ [0, 0]
 //!
-//! // Check bounds
-//! if let Some((low, high)) = domain.get_bounds(&state, &"x".to_string()) {
-//!     assert_eq!(low, 0);
-//!     assert_eq!(high, 10);
-//!     println!("Array access arr[x] is safe if array size > {}", high);
-//! }
+//! // 3. Analyze an assignment: x = x + 5
+//! let expr = NumExpr::Add(
+//!     Box::new(NumExpr::Var("x".to_string())),
+//!     Box::new(NumExpr::Const(5))
+//! );
+//!
+//! // Update the state with the new value
+//! let next_state = domain.assign(&state, &"x".to_string(), &expr);
+//!
+//! // 4. Verify the result
+//! let bounds = domain.get_bounds(&next_state, &"x".to_string()).unwrap();
+//! assert_eq!(bounds, (5, 5));
+//! println!("After assignment: x ∈ {:?}", bounds);
 //! ```
 //!
-//! ## 4. Points-to Analysis Domain ([`PointsToDomain`])
+//! ## Further Reading
 //!
-//! BDD-based pointer analysis tracking which memory locations pointers may reference.
-//!
-//! **Use Cases**:
-//! - Alias analysis (do two pointers point to the same location?)
-//! - Memory safety verification
-//! - Null pointer detection
-//! - Use-after-free detection
-//!
-//! ```
-//! use abstract_interpretation::*;
-//! use std::rc::Rc;
-//!
-//! let domain = PointsToDomain::new();
-//! let mut state = PointsToElement::new(Rc::clone(domain.bdd()));
-//!
-//! // p = &x; q = &y;
-//! state = domain.assign_address(&state, "p", &Location::Stack("x".to_string()));
-//! state = domain.assign_address(&state, "q", &Location::Stack("y".to_string()));
-//!
-//! // Check aliasing
-//! assert!(!state.must_alias(&domain, "p", "q")); // Different targets
-//!
-//! // p = q;
-//! state = domain.assign_copy(&state, "p", "q");
-//! assert!(state.must_alias(&domain, "p", "q")); // Now they alias!
-//! ```
-//!
-//! # Multi-Domain Analysis
-//!
-//! Domains can be combined for more powerful analysis:
-//!
-//! ```
-//! use abstract_interpretation::*;
-//! use std::rc::Rc;
-//!
-//! // Combine Sign + Interval + Points-to for comprehensive analysis
-//! let sign_domain = SignDomain;
-//! let interval_domain = IntervalDomain;
-//! let pointsto_domain = PointsToDomain::new();
-//!
-//! // Array access: arr[i] where i in [0, 9]
-//! let sign_state = sign_domain.interval(&"i".to_string(), 0, 9);
-//! let interval_state = interval_domain.interval(&"i".to_string(), 0, 9);
-//! let pointsto_state = PointsToElement::new(Rc::clone(pointsto_domain.bdd()));
-//!
-//! // Sign: i is non-negative (safe from negative index)
-//! assert_eq!(sign_state.get("i"), Sign::NonNeg);
-//!
-//! // Interval: i in [0,9] (safe for array of size 10)
-//! if let Some((low, high)) = interval_domain.get_bounds(&interval_state, &"i".to_string()) {
-//!     assert!(low >= 0 && high < 10);
-//! }
-//! ```
-//!
-//! # Lattice Theory
-//!
-//! All domains implement the [`AbstractDomain`] trait, providing:
-//!
-//! - **Bottom** (`⊥`): Unreachable state / empty set
-//! - **Top** (`⊤`): Unknown state / all possibilities
-//! - **Join** (`⊔`): Over-approximation (union/least upper bound)
-//! - **Meet** (`⊓`): Refinement (intersection/greatest lower bound)
-//! - **Widening** (`∇`): Accelerates fixpoint computation
-//! - **Narrowing** (`∆`): Refines over-approximations
-//!
-//! Example:
-//! ```
-//! use abstract_interpretation::*;
-//!
-//! let domain = SignDomain;
-//!
-//! let state1 = domain.constant(&"x".to_string(), 5);   // x = 5 → Pos
-//! let state2 = domain.constant(&"x".to_string(), -3);  // x = -3 → Neg
-//!
-//! // Join: x could be positive OR negative
-//! let joined = domain.join(&state1, &state2);
-//! assert_eq!(joined.get("x"), Sign::NonZero); // Pos ⊔ Neg = NonZero
-//!
-//! // Meet: x must be both positive AND negative (impossible!)
-//! let meet = domain.meet(&state1, &state2);
-//! assert!(domain.is_bottom(&meet)); // Contradiction → ⊥
-//! ```
-//!
-//! # Fixpoint Computation
-//!
-//! The [`FixpointEngine`] computes loop invariants using widening for termination:
-//!
-//! ```
-//! use abstract_interpretation::*;
-//!
-//! let domain = IntervalDomain;
-//! let engine = FixpointEngine {
-//!     domain: domain.clone(),
-//!     widening_threshold: 3,
-//!     narrowing_iterations: 2,
-//!     max_iterations: 100,
-//! };
-//!
-//! // Analyze: x = 0; while (x < 10) { x = x + 1; }
-//! let init = domain.constant(&"x".to_string(), 0);
-//!
-//! let transfer = |state: &IntervalElement| {
-//!     // x < 10
-//!     let guarded = domain.assume(&state, &NumPred::Lt(
-//!         NumExpr::Var("x".to_string()),
-//!         NumExpr::Const(10)
-//!     ));
-//!     // x = x + 1
-//!     domain.assign(&guarded, &"x".to_string(), &NumExpr::Add(
-//!         Box::new(NumExpr::Var("x".to_string())),
-//!         Box::new(NumExpr::Const(1))
-//!     ))
-//! };
-//!
-//! let result = engine.lfp(init, transfer);
-//! // After widening/narrowing: x in [0, 10]
-//! ```
-//!
-//! # Examples
-//!
-//! The library includes comprehensive examples:
-//!
-//! - **`pointsto_example.rs`**: Step-by-step pointer analysis
-//! - **`realistic_programs.rs`**: Real-world scenarios:
-//!   - Array bounds checking
-//!   - Constant propagation optimization
-//!   - Pointer alias analysis
-//!   - Combined multi-domain analysis
-//! - **`sign_analysis.rs`**: Sign domain demonstration
-//! - **`constant_propagation.rs`**: Dead code detection
-//! - **`simple_loops.rs`**: Fixpoint computation
-//!
-//! Run examples:
-//! ```bash
-//! cargo run --example realistic_programs
-//! cargo run --example pointsto_example
-//! ```
-//!
-//! # Testing
-//!
-//! The framework includes 91+ tests covering:
-//! - Individual domain operations (79 unit tests)
-//! - Multi-domain integration (10 tests)
-//! - Documentation examples (2 tests)
-//!
-//! ```bash
-//! cargo test                         # All tests
-//! cargo test sign::tests             # Sign domain tests
-//! cargo test pointsto::tests         # Pointer analysis tests
-//! cargo test --test domain_integration  # Integration tests
-//! ```
-//!
-//! # Architecture
-//!
-//! The framework follows these design principles:
-//!
-//! 1. **Modularity**: Each domain is independent and self-contained
-//! 2. **Composability**: Domains can be combined via product construction
-//! 3. **Extensibility**: New domains can be added by implementing [`AbstractDomain`]
-//! 4. **Soundness**: All operations over-approximate (conservative analysis)
-//! 5. **Efficiency**: BDDs provide compact representation for pointer sets
-//!
-//! # References
-//!
-//! - **Abstract Interpretation**: Cousot & Cousot (1977)
-//! - **Pointer Analysis**: Andersen (1994), Steensgaard (1996)
-//! - **BDD-based Analysis**: Bryant (1986), Whaley & Lam (2004)
-//! - **Interval Analysis**: Cousot & Cousot (1976)
+//! *   **`examples/realistic_programs.rs`**: Demonstrates complex scenarios combining multiple domains.
+//! *   **`examples/pointsto_example.rs`**: A deep dive into BDD-based pointer analysis.
+//! *   **Cousot & Cousot (1977)**: The foundational paper on Abstract Interpretation.
 //!
 //! For detailed documentation, see individual module pages.
 
@@ -291,6 +140,7 @@ pub mod type_domain;
 // Re-exports for convenience
 pub use automata::{AutomataDomain, CharClass, Predicate, SymbolicDFA, SymbolicNFA};
 pub use bdd_control::{BddControlDomain, ControlSensitiveElement, ControlSensitiveProduct, ControlState};
+pub use congruence::{Congruence, CongruenceDomain};
 pub use constant::{ConstValue, ConstantDomain, ConstantElement};
 pub use domain::AbstractDomain;
 pub use expr::{NumExpr, NumPred, Stmt};
