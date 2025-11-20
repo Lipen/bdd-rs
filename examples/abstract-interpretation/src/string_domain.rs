@@ -36,8 +36,8 @@ pub enum StringConst {
 /// String Constant Domain.
 ///
 /// A flat lattice where elements are ordered as:
-/// Bottom <= Constant(s) <= Top
-/// Constant(s1) <= Constant(s2) iff s1 == s2
+/// - `⊥ ⊑ Constant(s) ⊑ ⊤`
+/// - `Constant(s₁) ⊑ Constant(s₂) ⟺ s₁ == s₂`
 #[derive(Clone, Debug)]
 pub struct StringConstantDomain;
 
@@ -205,8 +205,8 @@ impl AbstractDomain for StringLengthDomain {
 /// Useful for checking if a string starts with a specific sequence (e.g. "https://").
 ///
 /// Lattice:
-/// Bottom <= Prefix(s) <= Prefix("") (Top)
-/// Prefix(long) <= Prefix(short) if short is prefix of long.
+/// - `⊥ ⊑ Prefix(s) ⊑ Prefix("")` (Top)
+/// - `Prefix(long) ⊑ Prefix(short)` if `short` is prefix of `long`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StringPrefix {
     Bottom,
@@ -395,8 +395,8 @@ impl AbstractDomain for CharacterSetDomain {
 /// Useful for checking file extensions or specific endings.
 ///
 /// Lattice:
-/// Bottom <= Suffix(s) <= Suffix("") (Top)
-/// Suffix(long) <= Suffix(short) if short is suffix of long.
+/// - `⊥ ⊑ Suffix(s) ⊑ Suffix("")` (Top)
+/// - `Suffix(long) ⊑ Suffix(short)` if `short` is suffix of `long`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StringSuffix {
     Bottom,
@@ -490,8 +490,8 @@ impl AbstractDomain for StringSuffixDomain {
 /// Tracks a set of substrings that MUST be present in the string.
 ///
 /// Lattice:
-/// Bottom <= Included(Set) <= Included({}) (Top)
-/// Included(A) <= Included(B) if B ⊆ A.
+/// - `⊥ ⊑ Included(Set) ⊑ Included({})` (Top)
+/// - `Included(A) ⊑ Included(B)` if `B ⊆ A`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StringInclusion {
     Bottom,
@@ -584,7 +584,7 @@ impl AbstractDomain for StringInclusionDomain {
 /// Tracks whether a string is "tainted" (from untrusted input) or "safe".
 ///
 /// Lattice:
-/// Bottom <= Safe <= Tainted (Top)
+/// - `⊥ ⊑ Safe ⊑ Tainted` (Top)
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Taint {
     Bottom,
@@ -869,7 +869,7 @@ impl AbstractDomain for StringNumericDomain {
 /// Tracks the structure of strings using Regular Expressions.
 ///
 /// Lattice:
-/// Bottom <= Regex(r) <= Top (.*)
+/// - `⊥ ⊑ Regex(r) ⊑ ⊤` (.*)
 ///
 /// Note: This domain uses syntactic equality for ordering to avoid
 /// the high complexity of checking regex inclusion.
@@ -973,7 +973,17 @@ impl AbstractDomain for RegexDomain {
         match (elem1, elem2) {
             (StringRegex::Bottom, _) => true,
             (_, StringRegex::Top) => true,
-            (StringRegex::Regex(r1), StringRegex::Regex(r2)) => r1 == r2, // Syntactic equality only
+            (StringRegex::Regex(r1), StringRegex::Regex(r2)) => {
+                if r1 == r2 {
+                    return true;
+                }
+                // Check if all components of r1 are in r2
+                // This assumes top-level alternation is used for join
+                let parts1: Vec<&str> = r1.split('|').collect();
+                let parts2: Vec<&str> = r2.split('|').collect();
+
+                parts1.iter().all(|p1| parts2.contains(p1))
+            }
             _ => false,
         }
     }
@@ -1272,5 +1282,117 @@ mod tests {
         // "123456" + "789012" = 12 chars > 10 -> Top
         let wide_concat = small_domain.concat(&long_r1, &long_r2);
         assert_eq!(wide_concat, StringRegex::Top);
+    }
+
+    #[test]
+    fn test_string_length_lattice_axioms() {
+        let domain = StringLengthDomain::new();
+        let samples = vec![
+            domain.bottom(),
+            domain.top(),
+            domain.assign_const(&domain.top(), "s", "hello"),
+            domain.assign_const(&domain.top(), "s", ""),
+        ];
+        test_lattice_axioms(&domain, &samples);
+    }
+
+    #[test]
+    fn test_string_prefix_lattice_axioms() {
+        let domain = StringPrefixDomain;
+        let samples = vec![
+            StringPrefix::Bottom,
+            StringPrefix::Prefix(String::new()),
+            StringPrefix::Prefix("a".to_string()),
+            StringPrefix::Prefix("ab".to_string()),
+            StringPrefix::Prefix("b".to_string()),
+        ];
+        test_lattice_axioms(&domain, &samples);
+    }
+
+    #[test]
+    fn test_character_set_lattice_axioms() {
+        let domain = CharacterSetDomain;
+        let samples = vec![
+            CharacterSet::Bottom,
+            CharacterSet::Top,
+            domain.from_string("a"),
+            domain.from_string("ab"),
+            domain.from_string("b"),
+        ];
+        test_lattice_axioms(&domain, &samples);
+    }
+
+    #[test]
+    fn test_string_suffix_lattice_axioms() {
+        let domain = StringSuffixDomain;
+        let samples = vec![
+            StringSuffix::Bottom,
+            StringSuffix::Suffix(String::new()),
+            StringSuffix::Suffix("a".to_string()),
+            StringSuffix::Suffix("ba".to_string()),
+            StringSuffix::Suffix("b".to_string()),
+        ];
+        test_lattice_axioms(&domain, &samples);
+    }
+
+    #[test]
+    fn test_string_inclusion_lattice_axioms() {
+        let domain = StringInclusionDomain;
+        let samples = vec![
+            StringInclusion::Bottom,
+            StringInclusion::Included(BTreeSet::new()),
+            domain.from_string("foo"),
+            domain.from_string("bar"),
+            domain.join(&domain.from_string("foo"), &domain.from_string("bar")),
+        ];
+        test_lattice_axioms(&domain, &samples);
+    }
+
+    #[test]
+    fn test_taint_lattice_axioms() {
+        let domain = TaintDomain;
+        let samples = vec![
+            Taint::Bottom,
+            Taint::Tainted,
+            Taint::Safe,
+        ];
+        test_lattice_axioms(&domain, &samples);
+    }
+
+    #[test]
+    fn test_string_case_lattice_axioms() {
+        let domain = StringCaseDomain;
+        let samples = vec![
+            StringCase::Bottom,
+            StringCase::Mixed,
+            StringCase::Lowercase,
+            StringCase::Uppercase,
+        ];
+        test_lattice_axioms(&domain, &samples);
+    }
+
+    #[test]
+    fn test_string_numeric_lattice_axioms() {
+        let domain = StringNumericDomain;
+        let samples = vec![
+            StringNumeric::Bottom,
+            StringNumeric::Top,
+            StringNumeric::IntegerStr,
+            StringNumeric::FloatStr,
+        ];
+        test_lattice_axioms(&domain, &samples);
+    }
+
+    #[test]
+    fn test_regex_lattice_axioms() {
+        let domain = RegexDomain::default();
+        let samples = vec![
+            StringRegex::Bottom,
+            StringRegex::Top,
+            domain.from_string("a"),
+            domain.from_string("b"),
+            domain.join(&domain.from_string("a"), &domain.from_string("b")),
+        ];
+        test_lattice_axioms(&domain, &samples);
     }
 }

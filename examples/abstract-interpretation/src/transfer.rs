@@ -7,12 +7,12 @@ use super::numeric::NumericDomain;
 
 /// Abstract transfer function for statements.
 ///
-/// Implements abstract semantics: ⟦stmt⟧♯: Element → Element
+/// Implements abstract semantics: `⟦stmt⟧♯: Element → Element`
 pub trait TransferFunction<D: AbstractDomain> {
     /// Type of program variables
     type Var: Clone;
 
-    /// Apply transfer function: ⟦stmt⟧♯(elem)
+    /// Apply transfer function: `⟦stmt⟧♯(elem)`
     fn apply(&self, domain: &D, elem: &D::Element, stmt: &Stmt<Self::Var>) -> D::Element;
 }
 

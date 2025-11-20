@@ -1,34 +1,86 @@
 //! Congruence Domain.
 //!
-//! Tracks modular arithmetic properties: x ≡ c (mod k).
-//! Useful for loop stride analysis, memory alignment, and array access safety.
+//! This module implements an abstract domain for tracking modular arithmetic properties
+//! of the form `x ≡ c (mod k)`.
+//!
+//! # Lattice Structure
+//!
+//! The domain is a lattice of congruence relations.
+//!
+//! *   **Elements**: Pairs `(c, k)` representing `{x ∈ ℤ | x ≡ c (mod k)}`.
+//! *   **Bottom** (`⊥`): Empty set (unreachable).
+//! *   **Top** (`⊤`): `ℤ` (represented as `0 (mod 1)`).
+//! *   **Order** (`⊑`): `(c₁, k₁) ⊑ (c₂, k₂) ⟺ k₂ | k₁ ∧ c₁ ≡ c₂ (mod k₂)`
+//! *   **Join** (`⊔`): `(c₁, k₁) ⊔ (c₂, k₂) = (c₁, gcd(k₁, k₂, |c₁ - c₂|))`.
+//! *   **Meet** (`⊓`): Chinese Remainder Theorem (CRT).
+//!
+//! # Use Cases
+//!
+//! *   **Loop Stride Analysis**: Determining that a loop counter increments by 4.
+//! *   **Memory Alignment**: Checking if a pointer is 8-byte aligned (`p ≡ 0 (mod 8)`).
+//! *   **Array Access Safety**: Verifying indices satisfy alignment requirements.
+//!
+//! # Example
+//!
+//! ```rust
+//! use abstract_interpretation::congruence::{Congruence, CongruenceDomain};
+//! use abstract_interpretation::domain::AbstractDomain;
+//!
+//! let domain = CongruenceDomain;
+//!
+//! // x is even (0 mod 2)
+//! let even = domain.new_congruence(0, 2);
+//!
+//! // y is 4 (4 mod 0) - constant
+//! let four = domain.constant(4);
+//!
+//! // 4 is even, so 4 <= even
+//! assert!(domain.le(&four, &even));
+//!
+//! // Join: 0 mod 4 ⊔ 2 mod 4 = 0 mod 2
+//! let two_mod_4 = domain.new_congruence(2, 4);
+//! let four_mod_4 = domain.new_congruence(0, 4); // equivalent to 0 mod 4
+//! let joined = domain.join(&two_mod_4, &four_mod_4);
+//! assert_eq!(joined, even);
+//! ```
 
 use num_integer::Integer;
 
 use crate::domain::AbstractDomain; // For gcd
 
-/// Represents a congruence relation: x ≡ c (mod k).
-/// Canonical form: 0 <= c < k.
-/// k = 0 means x is the constant c.
-/// k = 1 means Top (any integer).
+/// Represents a congruence relation: `x ≡ c (mod k)`.
+///
+/// # Canonical Form
+///
+/// *   `0 ≤ c < k` (if `k > 0`)
+/// *   `k = 0` means `x = c` (constant).
+/// *   `k = 1` means `x ∈ ℤ` (Top).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Congruence {
+    /// Bottom (`⊥`): Empty set.
     Bottom,
-    /// (c, k) where x ≡ c (mod k)
+    /// Value `(c, k)` representing `x ≡ c (mod k)`.
     Val(i64, i64),
 }
 
 /// Congruence Domain.
+///
+/// Implements the `AbstractDomain` trait for `Congruence`.
 #[derive(Clone, Debug)]
 pub struct CongruenceDomain;
 
 impl CongruenceDomain {
-    /// Create a constant congruence: x = c (i.e., x ≡ c (mod 0)).
+    /// Create a constant congruence: `x = c` (i.e., `x ≡ c (mod 0)`).
     pub fn constant(&self, c: i64) -> Congruence {
         Congruence::Val(c, 0)
     }
 
-    /// Create a generic congruence: x ≡ c (mod k).
+    /// Create a generic congruence: `x ≡ c (mod k)`.
+    ///
+    /// Automatically normalizes to canonical form:
+    /// *   `k` is non-negative.
+    /// *   `c` is reduced modulo `k` (if `k > 0`).
+    /// *   If `k=1`, returns Top (`0 (mod 1)`).
     pub fn new_congruence(&self, c: i64, k: i64) -> Congruence {
         if k == 0 {
             return Congruence::Val(c, 0);
@@ -41,7 +93,7 @@ impl CongruenceDomain {
         Congruence::Val(c, k)
     }
 
-    /// Add two congruences: (c1, k1) + (c2, k2) -> (c1+c2, gcd(k1, k2)).
+    /// Add two congruences: `(c₁, k₁) + (c₂, k₂) → (c₁+c₂, gcd(k₁, k₂))`.
     pub fn add(&self, elem1: &Congruence, elem2: &Congruence) -> Congruence {
         match (elem1, elem2) {
             (Congruence::Bottom, _) | (_, Congruence::Bottom) => Congruence::Bottom,
@@ -53,7 +105,7 @@ impl CongruenceDomain {
         }
     }
 
-    /// Multiply by a constant: (c, k) * n -> (c*n, k*n).
+    /// Multiply by a constant: `(c, k) * n → (c*n, k*n)`.
     pub fn mul_const(&self, elem: &Congruence, n: i64) -> Congruence {
         match elem {
             Congruence::Bottom => Congruence::Bottom,
@@ -128,6 +180,10 @@ impl AbstractDomain for CongruenceDomain {
                 // If exists, unique modulo lcm(k1, k2)
 
                 let g = k1.gcd(k2);
+                if g == 0 {
+                    // Both k1 and k2 are 0 (constants)
+                    return if c1 == c2 { *elem1 } else { Congruence::Bottom };
+                }
                 if (c1 - c2) % g != 0 {
                     return Congruence::Bottom;
                 }
@@ -218,5 +274,22 @@ mod tests {
         // (0, 2) * 2 -> (0, 4)
         let res_mul = domain.mul_const(&even, 2);
         assert_eq!(res_mul, domain.new_congruence(0, 4));
+    }
+
+    #[test]
+    fn test_congruence_lattice_axioms() {
+        use crate::domain::tests::test_lattice_axioms;
+        let domain = CongruenceDomain;
+        let samples = vec![
+            domain.bottom(),
+            domain.top(),
+            domain.constant(0),
+            domain.constant(1),
+            domain.new_congruence(0, 2), // Even
+            domain.new_congruence(1, 2), // Odd
+            domain.new_congruence(0, 4), // Multiple of 4
+            domain.new_congruence(2, 4), // 2 mod 4
+        ];
+        test_lattice_axioms(&domain, &samples);
     }
 }

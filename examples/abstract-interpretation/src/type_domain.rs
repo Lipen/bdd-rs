@@ -322,4 +322,18 @@ mod tests {
         assert!(d.may_be(&multi, Type::String));
         assert!(!d.may_be(&multi, Type::Boolean));
     }
+
+    #[test]
+    fn test_type_lattice_axioms() {
+        use crate::domain::tests::test_lattice_axioms;
+        let domain = TypeDomain::new();
+        let samples = vec![
+            domain.bottom(),
+            domain.top(),
+            domain.from_type(Type::Integer),
+            domain.from_type(Type::Float),
+            domain.from_types(&[Type::Integer, Type::Float]),
+        ];
+        test_lattice_axioms(&domain, &samples);
+    }
 }

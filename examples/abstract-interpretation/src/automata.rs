@@ -857,11 +857,11 @@ impl<P: Predicate + Clone + Ord> SymbolicDFA<P> {
 ///
 /// Elements of this domain are symbolic DFAs representing regular languages.
 /// The lattice operations are defined as follows:
-/// - `bottom`: Empty language.
-/// - `top`: Universal language (all strings).
-/// - `join`: Union of languages (minimized).
-/// - `meet`: Intersection of languages (minimized).
-/// - `le` (<=): Subset inclusion check.
+/// - `bottom` (`⊥`): Empty language.
+/// - `top` (`⊤`): Universal language (all strings).
+/// - `join` (`⊔`): Union of languages (minimized).
+/// - `meet` (`⊓`): Intersection of languages (minimized).
+/// - `le` (`⊑`): Subset inclusion check.
 #[derive(Clone, Debug)]
 pub struct AutomataDomain;
 
@@ -1077,5 +1077,28 @@ mod tests {
         // Original had 2 states. Complete adds 1 sink.
         // So dfa_compl should have at least 3 states (or 2 if it reused states, but implementation adds new state).
         assert!(dfa_compl.states >= 2);
+    }
+
+    #[test]
+    fn test_automata_lattice_axioms() {
+        use crate::domain::tests::test_lattice_axioms;
+        let domain = AutomataDomain;
+
+        // Helper to make DFA for single char
+        let make_char = |c: char| {
+            let mut nfa = SymbolicNFA::new();
+            let s1 = nfa.add_state(true);
+            nfa.add_transition(0, CharClass::single(c), s1);
+            nfa.determinize()
+        };
+
+        let samples = vec![
+            domain.bottom(),
+            domain.top(),
+            make_char('a'),
+            make_char('b'),
+            domain.join(&make_char('a'), &make_char('b')), // "a" | "b"
+        ];
+        test_lattice_axioms(&domain, &samples);
     }
 }

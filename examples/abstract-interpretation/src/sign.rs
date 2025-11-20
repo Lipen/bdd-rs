@@ -7,14 +7,14 @@
 //! # Elements
 //!
 //! The lattice has 8 elements representing sign properties:
-//! - ⊥ (Bottom): impossible/unreachable
+//! - `⊥` (Bottom): impossible/unreachable
 //! - `-` (Neg): strictly negative
 //! - `0` (Zero): exactly zero
 //! - `+` (Pos): strictly positive
 //! - `≤0` (NonPos): zero or negative
 //! - `≥0` (NonNeg): zero or positive
 //! - `≠0` (NonZero): negative or positive
-//! - ⊤ (Top): any value
+//! - `⊤` (Top): any value
 //!
 //! # Lattice Structure
 //!
@@ -37,21 +37,21 @@ use super::numeric::NumericDomain;
 /// Sign values representing abstract sign properties.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Sign {
-    /// Bottom: impossible/unreachable
+    /// Bottom (`⊥`): impossible/unreachable
     Bottom,
-    /// Strictly negative (< 0)
+    /// Strictly negative (`< 0`)
     Neg,
-    /// Exactly zero (= 0)
+    /// Exactly zero (`= 0`)
     Zero,
-    /// Strictly positive (> 0)
+    /// Strictly positive (`> 0`)
     Pos,
-    /// Non-positive (≤ 0): Zero ∪ Neg
+    /// Non-positive (`≤ 0`): `Zero ∪ Neg`
     NonPos,
-    /// Non-negative (≥ 0): Zero ∪ Pos
+    /// Non-negative (`≥ 0`): `Zero ∪ Pos`
     NonNeg,
-    /// Non-zero (≠ 0): Neg ∪ Pos
+    /// Non-zero (`≠ 0`): `Neg ∪ Pos`
     NonZero,
-    /// Top: any value
+    /// Top (`⊤`): any value
     Top,
 }
 

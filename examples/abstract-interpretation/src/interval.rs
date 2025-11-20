@@ -2,6 +2,16 @@
 //!
 //! The interval domain tracks lower and upper bounds for numeric variables.
 //! It's simple, efficient, but loses relational information between variables.
+//!
+//! # Lattice Structure
+//!
+//! The domain forms a lattice where elements are intervals `[l, h]`:
+//!
+//! - **Order** (`⊑`): `[l₁, h₁] ⊑ [l₂, h₂]` iff `l₂ ≤ l₁` and `h₁ ≤ h₂` (containment)
+//! - **Join** (`⊔`): `[l₁, h₁] ⊔ [l₂, h₂] = [min(l₁, l₂), max(h₁, h₂)]` (convex hull)
+//! - **Meet** (`⊓`): `[l₁, h₁] ⊓ [l₂, h₂] = [max(l₁, l₂), min(h₁, h₂)]` (intersection)
+//! - **Bottom** (`⊥`): Empty interval (e.g., `[1, 0]`)
+//! - **Top** (`⊤`): `[-∞, +∞]`
 
 use std::cmp::{max, min};
 use std::collections::HashMap;
@@ -11,7 +21,7 @@ use super::domain::AbstractDomain;
 use super::expr::{NumExpr, NumPred};
 use super::numeric::NumericDomain;
 
-/// Bound of an interval: -∞, finite value, or +∞.
+/// Bound of an interval: `-∞`, finite value, or `+∞`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Bound {
     NegInf,
@@ -80,7 +90,7 @@ impl fmt::Display for Bound {
     }
 }
 
-/// Interval: [low, high].
+/// Interval: `[low, high]`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Interval {
     pub low: Bound,

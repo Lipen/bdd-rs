@@ -18,23 +18,23 @@ pub trait NumericDomain: AbstractDomain {
     /// Numeric value type.
     type Value: Clone + Debug + PartialOrd;
 
-    /// Create element representing a constant assignment: var = value.
+    /// Create element representing a constant assignment: `var = value`.
     fn constant(&self, var: &Self::Var, value: Self::Value) -> Self::Element;
 
-    /// Create element representing an interval constraint: var ∈ [low, high].
+    /// Create element representing an interval constraint: `var ∈ [low, high]`.
     fn interval(&self, var: &Self::Var, low: Self::Value, high: Self::Value) -> Self::Element;
 
-    /// Apply assignment: var := expr.
+    /// Apply assignment: `var := expr`.
     ///
     /// Returns a new abstract element where `var` is bound to the result of `expr`.
     fn assign(&self, elem: &Self::Element, var: &Self::Var, expr: &NumExpr<Self::Var, Self::Value>) -> Self::Element;
 
-    /// Assume a predicate holds: elem ∧ pred.
+    /// Assume a predicate holds: `elem ∧ pred`.
     ///
     /// Refines the abstract element by adding constraint `pred`.
     fn assume(&self, elem: &Self::Element, pred: &NumPred<Self::Var, Self::Value>) -> Self::Element;
 
-    /// Project out a variable (existential quantification): ∃var. elem.
+    /// Project out a variable (existential quantification): `∃var. elem`.
     ///
     /// Removes all constraints on `var`.
     fn project(&self, elem: &Self::Element, var: &Self::Var) -> Self::Element;
@@ -42,7 +42,7 @@ pub trait NumericDomain: AbstractDomain {
     /// Get the constant value of a variable if it's uniquely determined.
     fn get_constant(&self, elem: &Self::Element, var: &Self::Var) -> Option<Self::Value>;
 
-    /// Get the interval bounds for a variable: [low, high].
+    /// Get the interval bounds for a variable: `[low, high]`.
     fn get_bounds(&self, elem: &Self::Element, var: &Self::Var) -> Option<(Self::Value, Self::Value)>;
 
     /// Rename variables using a substitution map.

@@ -158,12 +158,12 @@
 //!
 //! All domains implement the [`AbstractDomain`] trait, providing:
 //!
-//! - **Bottom** (⊥): Unreachable state / empty set
-//! - **Top** (⊤): Unknown state / all possibilities
-//! - **Join** (⊔): Over-approximation (union/least upper bound)
-//! - **Meet** (⊓): Refinement (intersection/greatest lower bound)
-//! - **Widening** (∇): Accelerates fixpoint computation
-//! - **Narrowing** (∆): Refines over-approximations
+//! - **Bottom** (`⊥`): Unreachable state / empty set
+//! - **Top** (`⊤`): Unknown state / all possibilities
+//! - **Join** (`⊔`): Over-approximation (union/least upper bound)
+//! - **Meet** (`⊓`): Refinement (intersection/greatest lower bound)
+//! - **Widening** (`∇`): Accelerates fixpoint computation
+//! - **Narrowing** (`∆`): Refines over-approximations
 //!
 //! Example:
 //! ```

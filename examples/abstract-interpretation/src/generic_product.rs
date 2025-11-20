@@ -95,3 +95,36 @@ where
         ProductElement(e1, e2)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::interval::IntervalDomain;
+    use crate::sign::SignDomain;
+    use crate::domain::tests::test_lattice_axioms;
+    use crate::numeric::NumericDomain;
+
+    #[test]
+    fn test_generic_product_lattice_axioms() {
+        let d1 = IntervalDomain;
+        let d2 = SignDomain;
+        let product = ProductDomain::new(d1.clone(), d2.clone());
+
+        // Create sample elements
+        let i_top = d1.top();
+        let i_const = d1.constant(&"x".to_string(), 5);
+
+        let s_top = d2.top();
+        let s_pos = d2.constant(&"x".to_string(), 5);
+
+        let samples = vec![
+            product.bottom(),
+            product.top(),
+            ProductElement(i_const.clone(), s_pos.clone()),
+            ProductElement(i_top.clone(), s_pos.clone()),
+            ProductElement(i_const.clone(), s_top.clone()),
+        ];
+
+        test_lattice_axioms(&product, &samples);
+    }
+}

@@ -7,11 +7,13 @@
 //! # Elements
 //!
 //! The lattice has three kinds of elements:
-//! - ⊥ (Bottom): impossible/unreachable
-//! - Const(n): exactly the constant value n
-//! - ⊤ (Top): unknown/non-constant
+//! - **Bottom** (`⊥`): impossible/unreachable
+//! - **Const(n)**: exactly the constant value `n`
+//! - **Top** (`⊤`): unknown/non-constant
 //!
 //! # Lattice Structure
+//!
+//! The domain forms a flat lattice:
 //!
 //! ```text
 //!           ⊤ (Top - Unknown)
@@ -21,11 +23,22 @@
 //!           ⊥ (Bottom)
 //! ```
 //!
+//! *   **Order** (`⊑`):
+//!     *   `⊥ ⊑ x` for all `x`
+//!     *   `x ⊑ ⊤` for all `x`
+//!     *   `Const(n) ⊑ Const(m)` iff `n = m`
+//! *   **Join** (`⊔`):
+//!     *   `Const(n) ⊔ Const(n) = Const(n)`
+//!     *   `Const(n) ⊔ Const(m) = ⊤` (if `n ≠ m`)
+//! *   **Meet** (`⊓`):
+//!     *   `Const(n) ⊓ Const(n) = Const(n)`
+//!     *   `Const(n) ⊓ Const(m) = ⊥` (if `n ≠ m`)
+//!
 //! # Properties
 //!
-//! - **Precision**: Exact for constants, loses all information otherwise
-//! - **Operations**: Arithmetic folds constants, produces Top on overflow or mixed operations
-//! - **Use Cases**: Constant folding, dead code detection, conditional simplification
+//! - **Precision**: Exact for constants, loses all information otherwise.
+//! - **Operations**: Arithmetic folds constants, produces Top on overflow or mixed operations.
+//! - **Use Cases**: Constant folding, dead code detection, conditional simplification.
 //!
 //! # Examples
 //!
@@ -53,11 +66,11 @@ use super::numeric::NumericDomain;
 /// Constant value in the lattice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ConstValue {
-    /// Bottom: impossible/unreachable
+    /// Bottom (`⊥`): impossible/unreachable
     Bottom,
-    /// Known constant value
+    /// Known constant value (`n`)
     Const(i64),
-    /// Top: unknown/non-constant
+    /// Top (`⊤`): unknown/non-constant
     Top,
 }
 

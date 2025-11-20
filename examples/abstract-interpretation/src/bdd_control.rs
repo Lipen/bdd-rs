@@ -15,11 +15,11 @@
 //!
 //! Where:
 //! - **Elements**: BDDs over Boolean control variables
-//! - **Partial Order**: φ₁ ⊑ φ₂ ⟺ φ₁ ⇒ φ₂ (logical implication)
-//! - **Join**: φ₁ ⊔ φ₂ = φ₁ ∨ φ₂ (disjunction)
-//! - **Meet**: φ₁ ⊓ φ₂ = φ₁ ∧ φ₂ (conjunction)
-//! - **Bottom**: false (unreachable)
-//! - **Top**: true (all paths reachable)
+//! - **Partial Order**: `φ₁ ⊑ φ₂` ⟺ `φ₁ ⇒ φ₂` (logical implication)
+//! - **Join**: `φ₁ ⊔ φ₂` = `φ₁ ∨ φ₂` (disjunction)
+//! - **Meet**: `φ₁ ⊓ φ₂` = `φ₁ ∧ φ₂` (conjunction)
+//! - **Bottom**: `false` (unreachable)
+//! - **Top**: `true` (all paths reachable)
 //!
 //! # Example
 //!
@@ -330,7 +330,7 @@ impl BddControlDomain {
         ControlState::new(phi, Rc::clone(&self.manager)).with_description(format!("{} = false", var))
     }
 
-    /// Conjunction: φ₁ ∧ φ₂
+    /// Conjunction: `φ₁ ∧ φ₂`
     ///
     /// Creates a control state representing the intersection of two control states.
     pub fn and(&self, s1: &ControlState, s2: &ControlState) -> ControlState {
@@ -338,7 +338,7 @@ impl BddControlDomain {
         ControlState::new(phi, Rc::clone(&self.manager))
     }
 
-    /// Disjunction: φ₁ ∨ φ₂
+    /// Disjunction: `φ₁ ∨ φ₂`
     ///
     /// Creates a control state representing the union of two control states.
     pub fn or(&self, s1: &ControlState, s2: &ControlState) -> ControlState {
@@ -346,7 +346,7 @@ impl BddControlDomain {
         ControlState::new(phi, Rc::clone(&self.manager))
     }
 
-    /// Negation: ¬φ
+    /// Negation: `¬φ`
     ///
     /// Creates a control state representing the complement.
     pub fn not(&self, s: &ControlState) -> ControlState {
@@ -354,7 +354,7 @@ impl BddControlDomain {
         ControlState::new(phi, Rc::clone(&self.manager))
     }
 
-    /// Implication: φ₁ ⇒ φ₂
+    /// Implication: `φ₁ ⇒ φ₂`
     ///
     /// Creates a control state representing the implication from `s1` to `s2`.
     pub fn imply(&self, s1: &ControlState, s2: &ControlState) -> ControlState {
@@ -362,7 +362,7 @@ impl BddControlDomain {
         ControlState::new(phi, Rc::clone(&self.manager))
     }
 
-    /// Equivalence: φ₁ ⇔ φ₂
+    /// Equivalence: `φ₁ ⇔ φ₂`
     ///
     /// Creates a control state representing the equivalence of `s1` and `s2`.
     pub fn equiv(&self, s1: &ControlState, s2: &ControlState) -> ControlState {
@@ -370,14 +370,14 @@ impl BddControlDomain {
         ControlState::new(phi, Rc::clone(&self.manager))
     }
 
-    /// Check if `s1` implies `s2` (φ₁ ⇒ φ₂).
+    /// Check if `s1` implies `s2` (`φ₁ ⇒ φ₂`).
     pub fn implies(&self, s1: &ControlState, s2: &ControlState) -> bool {
         self.manager.is_implies(s1.phi, s2.phi)
     }
 
     /// Check if two control states are equivalent.
     pub fn equivalent(&self, s1: &ControlState, s2: &ControlState) -> bool {
-        // φ₁ ≡ φ₂ iff they have the same canonical BDD representation
+        // `φ₁ ≡ φ₂` iff they have the same canonical BDD representation
         s1.phi == s2.phi
     }
 }
@@ -411,9 +411,9 @@ impl AbstractDomain for BddControlDomain {
     ///
     /// # Properties
     ///
-    /// - ⊥ ⊑ φ for all φ (bottom is the least element)
-    /// - ⊥ ⊓ φ = ⊥ (bottom annihilates meet)
-    /// - ⊥ ⊔ φ = φ (bottom is the identity for join)
+    /// - `⊥ ⊑ φ` for all `φ` (bottom is the least element)
+    /// - `⊥ ⊓ φ = ⊥` (bottom annihilates meet)
+    /// - `⊥ ⊔ φ = φ` (bottom is the identity for join)
     ///
     /// # Example
     ///
@@ -436,9 +436,9 @@ impl AbstractDomain for BddControlDomain {
     ///
     /// # Properties
     ///
-    /// - φ ⊑ ⊤ for all φ (top is the greatest element)
-    /// - ⊤ ⊔ φ = ⊤ (top annihilates join)
-    /// - ⊤ ⊓ φ = φ (top is the identity for meet)
+    /// - `φ ⊑ ⊤` for all `φ` (top is the greatest element)
+    /// - `⊤ ⊔ φ = ⊤` (top annihilates join)
+    /// - `⊤ ⊓ φ = φ` (top is the identity for meet)
     ///
     /// # Example
     ///
@@ -494,21 +494,21 @@ impl AbstractDomain for BddControlDomain {
         elem.phi == self.manager.one
     }
 
-    /// Partial order: φ₁ ⊑ φ₂ iff φ₁ ⇒ φ₂ (logical implication).
+    /// Partial order: `φ₁ ⊑ φ₂` iff `φ₁ ⇒ φ₂` (logical implication).
     ///
     /// Checks if elem1 is "more precise" or "smaller" than elem2.
     /// In the BDD control domain, this means elem1 implies elem2.
     ///
     /// # Interpretation
     ///
-    /// - φ₁ ⊑ φ₂ means: every control path in φ₁ is also in φ₂
-    /// - Equivalently: the set of satisfying assignments of φ₁ is a subset of φ₂
+    /// - `φ₁ ⊑ φ₂` means: every control path in `φ₁` is also in `φ₂`
+    /// - Equivalently: the set of satisfying assignments of `φ₁` is a subset of `φ₂`
     ///
     /// # Properties
     ///
-    /// - Reflexive: φ ⊑ φ
-    /// - Transitive: φ₁ ⊑ φ₂ ∧ φ₂ ⊑ φ₃ ⇒ φ₁ ⊑ φ₃
-    /// - Antisymmetric: φ₁ ⊑ φ₂ ∧ φ₂ ⊑ φ₁ ⇒ φ₁ = φ₂
+    /// - Reflexive: `φ ⊑ φ`
+    /// - Transitive: `φ₁ ⊑ φ₂ ∧ φ₂ ⊑ φ₃ ⇒ φ₁ ⊑ φ₃`
+    /// - Antisymmetric: `φ₁ ⊑ φ₂ ∧ φ₂ ⊑ φ₁ ⇒ φ₁ = φ₂`
     ///
     /// # Example
     ///
@@ -529,7 +529,7 @@ impl AbstractDomain for BddControlDomain {
         self.implies(elem1, elem2)
     }
 
-    /// Join (least upper bound): φ₁ ⊔ φ₂ = φ₁ ∨ φ₂ (disjunction).
+    /// Join (least upper bound): `φ₁ ⊔ φ₂` = `φ₁ ∨ φ₂` (disjunction).
     ///
     /// Computes the least element that is greater than or equal to both inputs.
     /// In the BDD control domain, this is logical OR.
@@ -541,10 +541,10 @@ impl AbstractDomain for BddControlDomain {
     ///
     /// # Properties
     ///
-    /// - Commutative: φ₁ ⊔ φ₂ = φ₂ ⊔ φ₁
-    /// - Associative: (φ₁ ⊔ φ₂) ⊔ φ₃ = φ₁ ⊔ (φ₂ ⊔ φ₃)
-    /// - Idempotent: φ ⊔ φ = φ
-    /// - φ₁ ⊑ (φ₁ ⊔ φ₂) and φ₂ ⊑ (φ₁ ⊔ φ₂)
+    /// - Commutative: `φ₁ ⊔ φ₂ = φ₂ ⊔ φ₁`
+    /// - Associative: `(φ₁ ⊔ φ₂) ⊔ φ₃ = φ₁ ⊔ (φ₂ ⊔ φ₃)`
+    /// - Idempotent: `φ ⊔ φ = φ`
+    /// - `φ₁ ⊑ (φ₁ ⊔ φ₂)` and `φ₂ ⊑ (φ₁ ⊔ φ₂)`
     ///
     /// # Example
     ///
@@ -564,7 +564,7 @@ impl AbstractDomain for BddControlDomain {
         self.or(elem1, elem2)
     }
 
-    /// Meet (greatest lower bound): φ₁ ⊓ φ₂ = φ₁ ∧ φ₂ (conjunction).
+    /// Meet (greatest lower bound): `φ₁ ⊓ φ₂` = `φ₁ ∧ φ₂` (conjunction).
     ///
     /// Computes the greatest element that is less than or equal to both inputs.
     /// In the BDD control domain, this is logical AND.
@@ -576,10 +576,10 @@ impl AbstractDomain for BddControlDomain {
     ///
     /// # Properties
     ///
-    /// - Commutative: φ₁ ⊓ φ₂ = φ₂ ⊓ φ₁
-    /// - Associative: (φ₁ ⊓ φ₂) ⊓ φ₃ = φ₁ ⊓ (φ₂ ⊓ φ₃)
-    /// - Idempotent: φ ⊓ φ = φ
-    /// - (φ₁ ⊓ φ₂) ⊑ φ₁ and (φ₁ ⊓ φ₂) ⊑ φ₂
+    /// - Commutative: `φ₁ ⊓ φ₂ = φ₂ ⊓ φ₁`
+    /// - Associative: `(φ₁ ⊓ φ₂) ⊓ φ₃ = φ₁ ⊓ (φ₂ ⊓ φ₃)`
+    /// - Idempotent: `φ ⊓ φ = φ`
+    /// - `(φ₁ ⊓ φ₂) ⊑ φ₁` and `(φ₁ ⊓ φ₂) ⊑ φ₂`
     ///
     /// # Example
     ///
@@ -601,7 +601,7 @@ impl AbstractDomain for BddControlDomain {
         self.and(elem1, elem2)
     }
 
-    /// Widening operator: φ₁ ∇ φ₂ = φ₁ ∨ φ₂ (same as join).
+    /// Widening operator: `φ₁ ∇ φ₂` = `φ₁ ∨ φ₂` (same as join).
     ///
     /// For BDD control domain, widening is the same as join because the lattice
     /// has **finite height** (2^n where n is the number of control variables).
@@ -1290,10 +1290,10 @@ mod tests {
 /// # Lattice Operations
 ///
 /// - **Bottom**: Empty map (no reachable states)
-/// - **Top**: Single entry (true → ⊤_numeric)
+/// - **Top**: Single entry (`true → ⊤_numeric`)
 /// - **Join**: Union of partitions with numeric join per key
 /// - **Meet**: Intersection of partitions with numeric meet per key
-/// - **Partial Order**: φ₁ ⊑ φ₂ if ∀ partition in φ₁, ∃ weaker partition in φ₂
+/// - **Partial Order**: `φ₁ ⊑ φ₂` if `∀` partition in `φ₁`, `∃` weaker partition in `φ₂`
 ///
 /// # Example
 ///
@@ -2198,8 +2198,8 @@ mod product_tests {
         numeric2.set("x".to_string(), Interval::constant(10));
 
         let mut partitions = HashMap::new();
-        partitions.insert(HashableControlState(flag_true), numeric1);
-        partitions.insert(HashableControlState(flag_false), numeric2);
+        partitions.insert(HashableControlState(flag_true), numeric1.clone());
+        partitions.insert(HashableControlState(flag_false), numeric2.clone());
 
         let elem = ControlSensitiveElement {
             partitions,
@@ -2449,5 +2449,50 @@ mod product_tests {
         if let Some(numeric) = result_false {
             assert_eq!(numeric.get("x"), Interval::constant(0));
         }
+    }
+
+    #[test]
+    fn test_bdd_control_lattice_axioms() {
+        let product = make_product_domain();
+        let control_domain = product.control_domain();
+        control_domain.allocate_var("flag");
+        let flag_true = control_domain.mk_var_true("flag");
+        let flag_false = control_domain.mk_var_false("flag");
+
+        let mut numeric1 = IntervalElement::new();
+        numeric1.set("x".to_string(), Interval::constant(5));
+
+        let mut numeric2 = IntervalElement::new();
+        numeric2.set("x".to_string(), Interval::constant(0));
+
+        let mut partitions1 = HashMap::new();
+        partitions1.insert(HashableControlState(flag_true.clone()), numeric1.clone());
+
+        let mut partitions2 = HashMap::new();
+        partitions2.insert(HashableControlState(flag_false.clone()), numeric2.clone());
+
+        let mut partitions3 = HashMap::new();
+        partitions3.insert(HashableControlState(flag_true.clone()), numeric1.clone());
+        partitions3.insert(HashableControlState(flag_false.clone()), numeric2.clone());
+
+        let elem1 = ControlSensitiveElement {
+            partitions: partitions1,
+            control_domain: Rc::clone(&product.control_domain),
+            numeric_domain: Rc::clone(&product.numeric_domain),
+        };
+
+        let elem2 = ControlSensitiveElement {
+            partitions: partitions2,
+            control_domain: Rc::clone(&product.control_domain),
+            numeric_domain: Rc::clone(&product.numeric_domain),
+        };
+
+        let elem3 = ControlSensitiveElement {
+            partitions: partitions3,
+            control_domain: Rc::clone(&product.control_domain),
+            numeric_domain: Rc::clone(&product.numeric_domain),
+        };
+
+        crate::domain::tests::test_lattice_axioms(&product, &vec![elem1, elem2, elem3]);
     }
 }

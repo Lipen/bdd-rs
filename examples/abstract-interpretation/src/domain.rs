@@ -10,9 +10,9 @@ use std::fmt::Debug;
 /// # Lattice Properties
 ///
 /// An abstract domain must satisfy:
-/// - Reflexivity: ∀a. a ⊑ a
-/// - Transitivity: ∀a,b,c. a ⊑ b ∧ b ⊑ c ⇒ a ⊑ c
-/// - Antisymmetry: ∀a,b. a ⊑ b ∧ b ⊑ a ⇒ a = b
+/// - Reflexivity: `∀a. a ⊑ a`
+/// - Transitivity: `∀a,b,c. a ⊑ b ∧ b ⊑ c ⇒ a ⊑ c`
+/// - Antisymmetry: `∀a,b. a ⊑ b ∧ b ⊑ a ⇒ a = b`
 /// - Join/Meet properties: See lattice theory
 pub trait AbstractDomain: Clone + Debug + Sized {
     /// The type representing abstract elements.
@@ -35,29 +35,29 @@ pub trait AbstractDomain: Clone + Debug + Sized {
     /// Returns true if elem1 represents a subset of states represented by elem2.
     fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool;
 
-    /// Join (⊔): least upper bound, over-approximation.
+    /// Join (`⊔`): least upper bound, over-approximation.
     ///
     /// Returns the smallest element that contains both inputs.
     /// Represents union of state sets.
     fn join(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element;
 
-    /// Meet (⊓): greatest lower bound, refinement.
+    /// Meet (`⊓`): greatest lower bound, refinement.
     ///
     /// Returns the largest element contained in both inputs.
     /// Represents intersection of state sets.
     fn meet(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element;
 
-    /// Widening (∇): accelerates convergence in fixpoint computation.
+    /// Widening (`∇`): accelerates convergence in fixpoint computation.
     ///
     /// Returns an over-approximation that ensures termination.
-    /// Must satisfy: elem1 ⊑ elem1 ∇ elem2
+    /// Must satisfy: `elem1 ⊑ elem1 ∇ elem2`
     ///
     /// **Why no default?** Widening must extrapolate (e.g., to ±∞) to force
     /// termination on ascending chains. Using join would not guarantee this.
     /// Each domain needs domain-specific widening logic.
     fn widen(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element;
 
-    /// Narrowing (∆): refines over-approximation after widening.
+    /// Narrowing (`∆`): refines over-approximation after widening.
     ///
     /// Returns a more precise element without losing convergence guarantees.
     /// Default implementation uses meet, which is safe and often sufficient.
