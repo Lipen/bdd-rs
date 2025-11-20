@@ -7,6 +7,10 @@
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::rc::Rc;
+
+use bdd_rs::bdd::Bdd;
+use bdd_rs::reference::Ref;
 
 use super::domain::AbstractDomain;
 
@@ -18,7 +22,7 @@ use super::domain::AbstractDomain;
 ///
 /// Predicates are the labels on the edges of the symbolic automata.
 /// They represent sets of characters.
-pub trait Predicate: Clone + Eq + Debug + Send + Sync + 'static {
+pub trait Predicate: Clone + Eq + Debug {
     /// Is character `c` accepted by the predicate?
     fn contains(&self, c: char) -> bool;
 
@@ -38,13 +42,15 @@ pub trait Predicate: Clone + Eq + Debug + Send + Sync + 'static {
     /// Returns true if the predicate accepts no characters.
     fn is_empty(&self) -> bool;
 
-    /// Full predicate (accepts everything).
-    /// Returns a predicate that accepts all valid Unicode scalar values.
-    fn full() -> Self;
-
     /// Produce a canonical string key useful for hashing / deterministic ordering.
     /// This key should uniquely identify the predicate content.
     fn canonical_key(&self) -> String;
+
+    /// Compute a set of disjoint minterms (atomic predicates) from a list of predicates.
+    ///
+    /// The minterms partition the input space such that for any input `x` and any
+    /// original predicate `p`, `p` either contains all of a minterm or none.
+    fn compute_minterms(preds: &[Self]) -> Vec<Self>;
 }
 
 /// A simple character-class predicate represented as a set of disjoint ranges.
@@ -173,10 +179,6 @@ impl Predicate for CharClass {
         self.ranges.is_empty()
     }
 
-    fn full() -> Self {
-        CharClass::full()
-    }
-
     fn canonical_key(&self) -> String {
         let mut s = String::new();
         for (a, b) in &self.ranges {
@@ -184,6 +186,310 @@ impl Predicate for CharClass {
             write!(&mut s, "{}-{};", a, b).unwrap();
         }
         s
+    }
+
+    fn compute_minterms(preds: &[Self]) -> Vec<Self> {
+        let mut boundaries: BTreeSet<u32> = BTreeSet::new();
+
+        for p in preds {
+            for (a, b) in &p.ranges {
+                boundaries.insert(*a);
+                if *b < 0x10FFFF {
+                    boundaries.insert(*b + 1);
+                }
+            }
+        }
+
+        if !boundaries.is_empty() {
+            let vecb: Vec<u32> = boundaries.into_iter().collect();
+            let mut atoms: Vec<(u32, u32)> = Vec::new();
+            for i in 0..vecb.len() {
+                let start = vecb[i];
+                let end = if i + 1 < vecb.len() { vecb[i + 1] - 1 } else { 0x10FFFF };
+                if start <= end {
+                    atoms.push((start, end));
+                }
+            }
+
+            let mut minterms: Vec<Self> = Vec::new();
+            let mut seen_sigs: HashSet<Vec<bool>> = HashSet::new();
+
+            for (s, _e) in atoms {
+                let rep = std::char::from_u32(s).unwrap_or('\u{FFFD}');
+                let mut sig = Vec::new();
+                for p in preds {
+                    sig.push(p.contains(rep));
+                }
+
+                if sig.iter().all(|&x| !x) {
+                    continue;
+                }
+                if seen_sigs.contains(&sig) {
+                    continue;
+                }
+                seen_sigs.insert(sig.clone());
+
+                // Construct minterm from signature
+                let mut m: Option<Self> = None;
+                for (i, &b) in sig.iter().enumerate() {
+                    let p = &preds[i];
+                    let part = if b { p.clone() } else { p.not() };
+                    m = Some(match m {
+                        None => part,
+                        Some(acc) => acc.and(&part),
+                    });
+                }
+                if let Some(final_m) = m {
+                    if !final_m.is_empty() {
+                        minterms.push(final_m);
+                    }
+                }
+            }
+            return minterms;
+        }
+        Vec::new()
+    }
+}
+
+/// A character predicate implemented using Binary Decision Diagrams (BDDs).
+///
+/// This implementation uses a shared BDD manager to represent sets of characters.
+/// The 21 bits of a Unicode scalar value are mapped to BDD variables 1..21.
+#[derive(Clone)]
+pub struct BddCharPredicate {
+    manager: Rc<Bdd>,
+    node: Ref,
+}
+
+impl BddCharPredicate {
+    /// Create a new BDD predicate from a BDD node and manager.
+    pub fn new(manager: Rc<Bdd>, node: Ref) -> Self {
+        BddCharPredicate { manager, node }
+    }
+
+    /// Create a predicate for a single character.
+    pub fn single(manager: Rc<Bdd>, c: char) -> Self {
+        let val = c as u32;
+        let mut node = manager.one;
+        // Encode bits 0..20 into variables 1..21
+        // We build a cube (conjunction of literals)
+        // Variable i corresponds to bit i-1
+        for i in 1..=21 {
+            let bit = (val >> (i - 1)) & 1;
+            let var = manager.mk_var(i);
+            let lit = if bit == 1 { var } else { manager.apply_not(var) };
+            node = manager.apply_and(node, lit);
+        }
+        BddCharPredicate { manager, node }
+    }
+
+    /// Create a predicate for a range of characters [start, end].
+    ///
+    /// This implementation uses bit-blasting to efficiently construct the BDD
+    /// for the range condition `start <= val <= end`.
+    pub fn range(manager: Rc<Bdd>, start: char, end: char) -> Self {
+        let s = start as u32;
+        let e = end as u32;
+
+        // range(a, b) = (val >= a) AND (val <= b)
+        let ge_start = Self::build_ge(&manager, s);
+        let le_end = Self::build_le(&manager, e);
+        let node = manager.apply_and(ge_start, le_end);
+
+        BddCharPredicate { manager, node }
+    }
+
+    /// Build BDD for val >= limit
+    fn build_ge(manager: &Rc<Bdd>, limit: u32) -> Ref {
+        // We construct the BDD for `val >= limit` by iterating from LSB to MSB.
+        //
+        // The logic is based on the recursive definition:
+        // GE(i, limit) =
+        //   if limit[i] == 1: v_i=1 AND GE(i-1, limit)
+        //   if limit[i] == 0: v_i=1 OR GE(i-1, limit)
+        //
+        // Base case: GE(-1, limit) = 1 (since we covered all bits and they were equal)
+        //
+        // We iterate i from 0 to 20, building the BDD bottom-up.
+
+        let mut res = manager.one; // True for the "equal" case at the end (val == limit is >= limit)
+
+        for i in 0..21 {
+            let bit_idx = i;
+            let var_idx = i + 1;
+            let var = manager.mk_var(var_idx);
+            let limit_bit = (limit >> bit_idx) & 1;
+
+            if limit_bit == 1 {
+                // If limit has 1, we must have 1 to be equal, or if we have 0 we are smaller (fail).
+                // So we need v_i=1 AND result_from_lower_bits
+                res = manager.apply_and(var, res);
+            } else {
+                // If limit has 0, if we have 1 we are greater (success immediately).
+                // If we have 0, we are equal so far, check lower bits.
+                // So v_i=1 OR result_from_lower_bits
+                res = manager.apply_or(var, res);
+            }
+        }
+        res
+    }
+
+    /// Build BDD for val <= limit
+    fn build_le(manager: &Rc<Bdd>, limit: u32) -> Ref {
+        // We construct the BDD for `val <= limit` by iterating from LSB to MSB.
+        //
+        // The logic is symmetric to build_ge:
+        // LE(i, limit) =
+        //   if limit[i] == 0: v_i=0 AND LE(i-1, limit)
+        //   if limit[i] == 1: v_i=0 OR LE(i-1, limit)
+
+        let mut res = manager.one;
+
+        for i in 0..21 {
+            let bit_idx = i;
+            let var_idx = i + 1;
+            let var = manager.mk_var(var_idx);
+            let limit_bit = (limit >> bit_idx) & 1;
+
+            if limit_bit == 0 {
+                // limit is 0. If v_i is 1, we are greater (fail).
+                // Must be 0.
+                let not_var = manager.apply_not(var);
+                res = manager.apply_and(not_var, res);
+            } else {
+                // limit is 1. If v_i is 0, we are smaller (success).
+                // If v_i is 1, check lower.
+                let not_var = manager.apply_not(var);
+                res = manager.apply_or(not_var, res);
+            }
+        }
+        res
+    }
+}
+
+impl PartialEq for BddCharPredicate {
+    fn eq(&self, other: &Self) -> bool {
+        // Assume they share the same manager.
+        // If not, this comparison is invalid, but we can't easily check manager equality (Rc ptr eq).
+        // For safety in this example, we assume correct usage.
+        self.node == other.node
+    }
+}
+
+impl Eq for BddCharPredicate {}
+
+impl Debug for BddCharPredicate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BddPred({})", self.node)
+    }
+}
+
+impl Predicate for BddCharPredicate {
+    fn contains(&self, c: char) -> bool {
+        let val = c as u32;
+        let mut curr = self.node;
+        // Traverse the BDD
+        while !self.manager.is_terminal(curr) {
+            let var_idx = self.manager.variable(curr.index());
+            if var_idx > 21 {
+                // Should not happen for char predicates
+                return false;
+            }
+            let bit_idx = var_idx - 1;
+            let bit = (val >> bit_idx) & 1;
+            if bit == 1 {
+                curr = self.manager.high_node(curr);
+            } else {
+                curr = self.manager.low_node(curr);
+            }
+        }
+        self.manager.is_one(curr)
+    }
+
+    fn and(&self, other: &Self) -> Self {
+        let node = self.manager.apply_and(self.node, other.node);
+        BddCharPredicate {
+            manager: self.manager.clone(),
+            node,
+        }
+    }
+
+    fn or(&self, other: &Self) -> Self {
+        let node = self.manager.apply_or(self.node, other.node);
+        BddCharPredicate {
+            manager: self.manager.clone(),
+            node,
+        }
+    }
+
+    fn not(&self) -> Self {
+        let node = self.manager.apply_not(self.node);
+        BddCharPredicate {
+            manager: self.manager.clone(),
+            node,
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.manager.is_zero(self.node)
+    }
+
+    fn canonical_key(&self) -> String {
+        // BDD node index is canonical within the manager.
+        self.node.index().to_string()
+    }
+
+    fn compute_minterms(preds: &[Self]) -> Vec<Self> {
+        if preds.is_empty() {
+            return Vec::new();
+        }
+        // All preds share the same manager (assumed)
+        let manager = preds[0].manager.clone();
+
+        let mut partition = vec![BddCharPredicate::new(manager.clone(), manager.one)];
+
+        for p in preds {
+            let mut next_partition = Vec::new();
+            for m in partition {
+                let m_and_p = m.and(p);
+                let m_and_not_p = m.and(&p.not());
+
+                if !m_and_p.is_empty() {
+                    next_partition.push(m_and_p);
+                }
+                if !m_and_not_p.is_empty() {
+                    next_partition.push(m_and_not_p);
+                }
+            }
+            partition = next_partition;
+        }
+
+        // Filter out regions where no predicate holds
+        let union_all = preds
+            .iter()
+            .fold(BddCharPredicate::new(manager.clone(), manager.zero), |acc, p| acc.or(p));
+
+        partition.retain(|m| !m.and(&union_all).is_empty());
+
+        partition
+    }
+}
+
+impl PartialOrd for BddCharPredicate {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for BddCharPredicate {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // Compare by node index and negation.
+        let i1 = self.node.index();
+        let i2 = other.node.index();
+        match i1.cmp(&i2) {
+            std::cmp::Ordering::Equal => self.node.is_negated().cmp(&other.node.is_negated()),
+            ord => ord,
+        }
     }
 }
 
@@ -281,12 +587,12 @@ impl<P: Predicate> SymbolicDFA<P> {
     ///
     /// This operation first completes the DFA (making it total) and then flips
     /// the accepting status of all states.
-    pub fn complement(&self) -> Self
+    pub fn complement(&self, universe: P) -> Self
     where
         P: Clone + Ord,
     {
         let mut out = self.clone();
-        out.complete();
+        out.complete(universe);
         for a in &mut out.accepting {
             *a = !*a;
         }
@@ -297,7 +603,7 @@ impl<P: Predicate> SymbolicDFA<P> {
     ///
     /// Adds a sink state and transitions to it for any character that doesn't
     /// have a defined transition from a state.
-    pub fn complete(&mut self)
+    pub fn complete(&mut self, universe: P)
     where
         P: Clone + Ord,
     {
@@ -315,7 +621,7 @@ impl<P: Predicate> SymbolicDFA<P> {
 
             let missing = match union_pred {
                 Some(u) => u.not(),
-                None => P::full(),
+                None => universe.clone(),
             };
 
             if !missing.is_empty() {
@@ -330,7 +636,7 @@ impl<P: Predicate> SymbolicDFA<P> {
             self.transitions.push(Vec::new());
             // Sink loops to itself on full
             self.transitions[sid].push(SymbolicTransition {
-                label: P::full(),
+                label: universe,
                 target: sid,
             });
 
@@ -363,7 +669,7 @@ impl<P: Predicate> SymbolicDFA<P> {
     }
 
     /// Check if language is full (complement is empty).
-    pub fn is_full_lang(&self) -> bool
+    pub fn is_full_lang(&self, universe: P) -> bool
     where
         P: Clone + Ord,
     {
@@ -372,7 +678,7 @@ impl<P: Predicate> SymbolicDFA<P> {
         // For simplicity, we assume completeness or use complement().is_empty_lang().
         // But complement() just flips accepting bits, so it relies on completeness.
         // Let's use complement().is_empty_lang() assuming completeness.
-        self.complement().is_empty_lang()
+        self.complement(universe).is_empty_lang()
     }
 }
 
@@ -441,7 +747,7 @@ impl<P: Predicate> SymbolicNFA<P> {
             return dfa;
         }
 
-        let minterms = build_minterms(&preds);
+        let minterms = P::compute_minterms(&preds);
         let n = self.states;
         let mcount = minterms.len();
         let mut reach: Vec<Vec<Vec<StateId>>> = vec![vec![Vec::new(); mcount]; n];
@@ -518,80 +824,6 @@ impl<P: Predicate> SymbolicNFA<P> {
 
         dfa
     }
-}
-
-/// Build a set of disjoint minterms (atomic predicates) from a set of predicates.
-///
-/// The minterms partition the character space such that for any character `c` and any
-/// original predicate `p`, `p` either contains all characters in a minterm or none.
-fn build_minterms<P: Predicate + Clone + Ord>(preds: &[P]) -> Vec<P> {
-    let mut boundaries: BTreeSet<u32> = BTreeSet::new();
-
-    for p in preds {
-        let key = p.canonical_key();
-        for part in key.split(';') {
-            if part.trim().is_empty() {
-                continue;
-            }
-            if let Some(idx) = part.find('-') {
-                let a = part[..idx].parse::<u32>().unwrap_or(0);
-                let b = part[idx + 1..].parse::<u32>().unwrap_or(0);
-                boundaries.insert(a);
-                if b < 0x10FFFF {
-                    boundaries.insert(b + 1);
-                }
-            }
-        }
-    }
-
-    if !boundaries.is_empty() {
-        let vecb: Vec<u32> = boundaries.into_iter().collect();
-        let mut atoms: Vec<(u32, u32)> = Vec::new();
-        for i in 0..vecb.len() {
-            let start = vecb[i];
-            let end = if i + 1 < vecb.len() { vecb[i + 1] - 1 } else { 0x10FFFF };
-            if start <= end {
-                atoms.push((start, end));
-            }
-        }
-
-        let mut minterms: Vec<P> = Vec::new();
-        let mut seen_sigs: HashSet<Vec<bool>> = HashSet::new();
-
-        for (s, _e) in atoms {
-            let rep = std::char::from_u32(s).unwrap_or('\u{FFFD}');
-            let mut sig = Vec::new();
-            for p in preds {
-                sig.push(p.contains(rep));
-            }
-
-            if sig.iter().all(|&x| !x) {
-                continue;
-            }
-            if seen_sigs.contains(&sig) {
-                continue;
-            }
-            seen_sigs.insert(sig.clone());
-
-            // Construct minterm from signature
-            let mut m: Option<P> = None;
-            for (i, &b) in sig.iter().enumerate() {
-                let p = &preds[i];
-                let part = if b { p.clone() } else { p.not() };
-                m = Some(match m {
-                    None => part,
-                    Some(acc) => acc.and(&part),
-                });
-            }
-            if let Some(final_m) = m {
-                if !final_m.is_empty() {
-                    minterms.push(final_m);
-                }
-            }
-        }
-        return minterms;
-    }
-    Vec::new()
 }
 
 /// Minimize a DFA using Hopcroft's algorithm (or a variation suitable for symbolic automata).
@@ -775,7 +1007,7 @@ impl<P: Predicate + Clone + Ord> SymbolicDFA<P> {
                 }
             }
         }
-        let minterms = build_minterms(&labels);
+        let minterms = P::compute_minterms(&labels);
 
         let mut index: HashMap<(StateId, StateId), StateId> = HashMap::new();
         let mut states: Vec<(StateId, StateId)> = Vec::new();
@@ -889,12 +1121,12 @@ impl AbstractDomain for AutomataDomain {
     }
 
     fn is_top(&self, elem: &Self::Element) -> bool {
-        elem.is_full_lang()
+        elem.is_full_lang(CharClass::full())
     }
 
     fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool {
         // L1 <= L2 iff L1 subset L2 iff L1 intersect (not L2) is empty
-        let not_l2 = elem2.complement();
+        let not_l2 = elem2.complement(CharClass::full());
         let intersection = elem1.intersection(&not_l2);
         intersection.is_empty_lang()
     }
@@ -998,7 +1230,7 @@ mod tests {
         assert!(!dfa.accepts("b"));
         assert!(!dfa.accepts("ab"));
 
-        let dfa_compl = dfa.complement();
+        let dfa_compl = dfa.complement(CharClass::full());
         assert!(!dfa_compl.accepts("aaaa"));
         assert!(dfa_compl.accepts("b"));
     }
@@ -1065,7 +1297,7 @@ mod tests {
         assert!(!dfa.accepts("aa"));
 
         // Complement of "a" should accept "b", "aa", "", etc.
-        let dfa_compl = dfa.complement();
+        let dfa_compl = dfa.complement(CharClass::full());
 
         assert!(!dfa_compl.accepts("a"));
         assert!(dfa_compl.accepts("b"));
@@ -1100,5 +1332,61 @@ mod tests {
             domain.join(&make_char('a'), &make_char('b')), // "a" | "b"
         ];
         test_lattice_axioms(&domain, &samples);
+    }
+
+    #[test]
+    fn test_bdd_predicate() {
+        let manager = Rc::new(Bdd::new(16));
+
+        // Single char 'a'
+        let p_a = BddCharPredicate::single(manager.clone(), 'a');
+        assert!(p_a.contains('a'));
+        assert!(!p_a.contains('b'));
+
+        // Single char 'b'
+        let p_b = BddCharPredicate::single(manager.clone(), 'b');
+        assert!(p_b.contains('b'));
+        assert!(!p_b.contains('a'));
+
+        // Union: 'a' | 'b'
+        let p_ab = p_a.or(&p_b);
+        assert!(p_ab.contains('a'));
+        assert!(p_ab.contains('b'));
+        assert!(!p_ab.contains('c'));
+
+        // Intersection: 'a' & 'b' -> empty
+        let p_and = p_a.and(&p_b);
+        assert!(p_and.is_empty());
+
+        // Not 'a'
+        let p_not_a = p_a.not();
+        assert!(!p_not_a.contains('a'));
+        assert!(p_not_a.contains('b'));
+
+        // Range 'a'..'c'
+        let p_range = BddCharPredicate::range(manager.clone(), 'a', 'c');
+        assert!(p_range.contains('a'));
+        assert!(p_range.contains('b'));
+        assert!(p_range.contains('c'));
+        assert!(!p_range.contains('d'));
+
+        // DFA with BDD predicates
+        let mut nfa = SymbolicNFA::new();
+        let s0 = 0;
+        let s1 = nfa.add_state(true);
+        nfa.add_transition(s0, p_a.clone(), s1);
+        let dfa = nfa.determinize();
+
+        assert!(dfa.accepts("a"));
+        assert!(!dfa.accepts("b"));
+
+        // Complement DFA
+        // We need a "full" predicate for complement
+        // Let's use range 0..10FFFF as full, or just BddCharPredicate::range(..., '\0', '\u{10FFFF}')
+        // Or simpler: BddCharPredicate::new(manager, manager.one)
+        let full = BddCharPredicate::new(manager.clone(), manager.one);
+        let dfa_compl = dfa.complement(full);
+        assert!(!dfa_compl.accepts("a"));
+        assert!(dfa_compl.accepts("b"));
     }
 }
