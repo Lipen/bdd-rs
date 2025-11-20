@@ -6,6 +6,13 @@
 //!
 //! - [`StringConstantDomain`]: Tracks exact string values (flat lattice).
 //! - [`StringLengthDomain`]: Tracks string lengths using intervals.
+//! - [`StringPrefixDomain`]: Tracks known prefixes.
+//! - [`StringSuffixDomain`]: Tracks known suffixes.
+//! - [`StringInclusionDomain`]: Tracks required substrings.
+//! - [`CharacterSetDomain`]: Tracks set of characters present.
+//! - [`TaintDomain`]: Tracks taint status (security).
+//! - [`StringCaseDomain`]: Tracks string casing (normalization).
+//! - [`StringNumericDomain`]: Tracks numeric validity.
 
 use std::collections::BTreeSet;
 use std::fmt::Debug;
@@ -572,6 +579,291 @@ impl AbstractDomain for StringInclusionDomain {
     }
 }
 
+/// Taint Analysis Domain.
+///
+/// Tracks whether a string is "tainted" (from untrusted input) or "safe".
+///
+/// Lattice:
+/// Bottom <= Safe <= Tainted (Top)
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Taint {
+    Bottom,
+    Safe,
+    Tainted,
+}
+
+#[derive(Clone, Debug)]
+pub struct TaintDomain;
+
+impl TaintDomain {
+    /// Mark a value as tainted (e.g. from user input).
+    pub fn taint(&self) -> Taint {
+        Taint::Tainted
+    }
+
+    /// Mark a value as safe (e.g. after sanitization).
+    pub fn sanitize(&self) -> Taint {
+        Taint::Safe
+    }
+
+    /// Concatenate taint values.
+    /// If any part is tainted, the result is tainted.
+    pub fn concat(&self, elem1: &Taint, elem2: &Taint) -> Taint {
+        match (elem1, elem2) {
+            (Taint::Bottom, _) | (_, Taint::Bottom) => Taint::Bottom,
+            (Taint::Tainted, _) | (_, Taint::Tainted) => Taint::Tainted,
+            (Taint::Safe, Taint::Safe) => Taint::Safe,
+        }
+    }
+}
+
+impl AbstractDomain for TaintDomain {
+    type Element = Taint;
+
+    fn bottom(&self) -> Self::Element {
+        Taint::Bottom
+    }
+
+    fn top(&self) -> Self::Element {
+        Taint::Tainted
+    }
+
+    fn is_bottom(&self, elem: &Self::Element) -> bool {
+        matches!(elem, Taint::Bottom)
+    }
+
+    fn is_top(&self, elem: &Self::Element) -> bool {
+        matches!(elem, Taint::Tainted)
+    }
+
+    fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool {
+        match (elem1, elem2) {
+            (Taint::Bottom, _) => true,
+            (_, Taint::Tainted) => true,
+            (Taint::Safe, Taint::Safe) => true,
+            _ => false,
+        }
+    }
+
+    fn join(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        match (elem1, elem2) {
+            (Taint::Bottom, e) | (e, Taint::Bottom) => e.clone(),
+            (Taint::Tainted, _) | (_, Taint::Tainted) => Taint::Tainted,
+            (Taint::Safe, Taint::Safe) => Taint::Safe,
+        }
+    }
+
+    fn meet(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        match (elem1, elem2) {
+            (Taint::Bottom, _) | (_, Taint::Bottom) => Taint::Bottom,
+            (Taint::Tainted, e) | (e, Taint::Tainted) => e.clone(),
+            (Taint::Safe, Taint::Safe) => Taint::Safe,
+        }
+    }
+
+    fn widen(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        self.join(elem1, elem2)
+    }
+}
+
+/// String Case Domain.
+///
+/// Tracks the casing of characters in the string.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StringCase {
+    Bottom,
+    Lowercase, // Only lowercase or non-cased
+    Uppercase, // Only uppercase or non-cased
+    Mixed,     // Both or unknown (Top)
+}
+
+#[derive(Clone, Debug)]
+pub struct StringCaseDomain;
+
+impl StringCaseDomain {
+    pub fn from_string(&self, s: &str) -> StringCase {
+        let has_upper = s.chars().any(|c| c.is_uppercase());
+        let has_lower = s.chars().any(|c| c.is_lowercase());
+
+        match (has_upper, has_lower) {
+            (false, false) => StringCase::Lowercase, // e.g. "123", treat as lower (or upper)
+            (false, true) => StringCase::Lowercase,
+            (true, false) => StringCase::Uppercase,
+            (true, true) => StringCase::Mixed,
+        }
+    }
+
+    pub fn to_upper(&self, _elem: &StringCase) -> StringCase {
+        StringCase::Uppercase
+    }
+
+    pub fn to_lower(&self, _elem: &StringCase) -> StringCase {
+        StringCase::Lowercase
+    }
+
+    pub fn concat(&self, elem1: &StringCase, elem2: &StringCase) -> StringCase {
+        match (elem1, elem2) {
+            (StringCase::Bottom, _) | (_, StringCase::Bottom) => StringCase::Bottom,
+            (StringCase::Mixed, _) | (_, StringCase::Mixed) => StringCase::Mixed,
+            (StringCase::Lowercase, StringCase::Lowercase) => StringCase::Lowercase,
+            (StringCase::Uppercase, StringCase::Uppercase) => StringCase::Uppercase,
+            _ => StringCase::Mixed,
+        }
+    }
+}
+
+impl AbstractDomain for StringCaseDomain {
+    type Element = StringCase;
+
+    fn bottom(&self) -> Self::Element {
+        StringCase::Bottom
+    }
+
+    fn top(&self) -> Self::Element {
+        StringCase::Mixed
+    }
+
+    fn is_bottom(&self, elem: &Self::Element) -> bool {
+        matches!(elem, StringCase::Bottom)
+    }
+
+    fn is_top(&self, elem: &Self::Element) -> bool {
+        matches!(elem, StringCase::Mixed)
+    }
+
+    fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool {
+        match (elem1, elem2) {
+            (StringCase::Bottom, _) => true,
+            (_, StringCase::Mixed) => true,
+            (StringCase::Lowercase, StringCase::Lowercase) => true,
+            (StringCase::Uppercase, StringCase::Uppercase) => true,
+            _ => false,
+        }
+    }
+
+    fn join(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        match (elem1, elem2) {
+            (StringCase::Bottom, e) | (e, StringCase::Bottom) => e.clone(),
+            (StringCase::Mixed, _) | (_, StringCase::Mixed) => StringCase::Mixed,
+            (StringCase::Lowercase, StringCase::Lowercase) => StringCase::Lowercase,
+            (StringCase::Uppercase, StringCase::Uppercase) => StringCase::Uppercase,
+            _ => StringCase::Mixed,
+        }
+    }
+
+    fn meet(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        match (elem1, elem2) {
+            (StringCase::Bottom, _) | (_, StringCase::Bottom) => StringCase::Bottom,
+            (StringCase::Mixed, e) | (e, StringCase::Mixed) => e.clone(),
+            (StringCase::Lowercase, StringCase::Lowercase) => StringCase::Lowercase,
+            (StringCase::Uppercase, StringCase::Uppercase) => StringCase::Uppercase,
+            _ => StringCase::Bottom, // Incompatible
+        }
+    }
+
+    fn widen(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        self.join(elem1, elem2)
+    }
+}
+
+/// String Numeric Domain.
+///
+/// Tracks if a string is a valid number representation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StringNumeric {
+    Bottom,
+    IntegerStr, // Valid integer
+    FloatStr,   // Valid float (includes integers)
+    Top,        // Unknown (could be number or not)
+}
+
+#[derive(Clone, Debug)]
+pub struct StringNumericDomain;
+
+impl StringNumericDomain {
+    pub fn from_string(&self, s: &str) -> StringNumeric {
+        if s.parse::<i64>().is_ok() {
+            StringNumeric::IntegerStr
+        } else if s.parse::<f64>().is_ok() {
+            StringNumeric::FloatStr
+        } else {
+            StringNumeric::Top
+        }
+    }
+
+    pub fn concat(&self, elem1: &StringNumeric, elem2: &StringNumeric) -> StringNumeric {
+        match (elem1, elem2) {
+            (StringNumeric::Bottom, _) | (_, StringNumeric::Bottom) => StringNumeric::Bottom,
+            (StringNumeric::IntegerStr, StringNumeric::IntegerStr) => {
+                // "1" + "2" = "12" (Integer)
+                // But "-1" + "-2" = "-1-2" (Not number)
+                // For simplicity, assume Top unless we check signs.
+                StringNumeric::Top
+            }
+            _ => StringNumeric::Top,
+        }
+    }
+}
+
+impl AbstractDomain for StringNumericDomain {
+    type Element = StringNumeric;
+
+    fn bottom(&self) -> Self::Element {
+        StringNumeric::Bottom
+    }
+
+    fn top(&self) -> Self::Element {
+        StringNumeric::Top
+    }
+
+    fn is_bottom(&self, elem: &Self::Element) -> bool {
+        matches!(elem, StringNumeric::Bottom)
+    }
+
+    fn is_top(&self, elem: &Self::Element) -> bool {
+        matches!(elem, StringNumeric::Top)
+    }
+
+    fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool {
+        match (elem1, elem2) {
+            (StringNumeric::Bottom, _) => true,
+            (_, StringNumeric::Top) => true,
+            (StringNumeric::IntegerStr, StringNumeric::IntegerStr) => true,
+            (StringNumeric::FloatStr, StringNumeric::FloatStr) => true,
+            (StringNumeric::IntegerStr, StringNumeric::FloatStr) => true, // Int is subset of Float
+            _ => false,
+        }
+    }
+
+    fn join(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        match (elem1, elem2) {
+            (StringNumeric::Bottom, e) | (e, StringNumeric::Bottom) => e.clone(),
+            (StringNumeric::Top, _) | (_, StringNumeric::Top) => StringNumeric::Top,
+            (StringNumeric::IntegerStr, StringNumeric::IntegerStr) => StringNumeric::IntegerStr,
+            (StringNumeric::FloatStr, StringNumeric::FloatStr) => StringNumeric::FloatStr,
+            (StringNumeric::IntegerStr, StringNumeric::FloatStr) | (StringNumeric::FloatStr, StringNumeric::IntegerStr) => {
+                StringNumeric::FloatStr
+            }
+        }
+    }
+
+    fn meet(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        match (elem1, elem2) {
+            (StringNumeric::Bottom, _) | (_, StringNumeric::Bottom) => StringNumeric::Bottom,
+            (StringNumeric::Top, e) | (e, StringNumeric::Top) => e.clone(),
+            (StringNumeric::IntegerStr, StringNumeric::IntegerStr) => StringNumeric::IntegerStr,
+            (StringNumeric::FloatStr, StringNumeric::FloatStr) => StringNumeric::FloatStr,
+            (StringNumeric::IntegerStr, StringNumeric::FloatStr) | (StringNumeric::FloatStr, StringNumeric::IntegerStr) => {
+                StringNumeric::IntegerStr
+            }
+        }
+    }
+
+    fn widen(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        self.join(elem1, elem2)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -718,5 +1010,69 @@ mod tests {
         } else {
             panic!("Expected Included");
         }
+    }
+
+    #[test]
+    fn test_taint_domain() {
+        let domain = TaintDomain;
+        let safe = Taint::Safe;
+        let tainted = Taint::Tainted;
+
+        // Order: Safe <= Tainted
+        assert!(domain.le(&safe, &tainted));
+        assert!(!domain.le(&tainted, &safe));
+
+        // Join: Safe ⊔ Tainted = Tainted
+        assert_eq!(domain.join(&safe, &tainted), Taint::Tainted);
+
+        // Concat: Safe + Safe = Safe
+        assert_eq!(domain.concat(&safe, &safe), Taint::Safe);
+        // Concat: Safe + Tainted = Tainted
+        assert_eq!(domain.concat(&safe, &tainted), Taint::Tainted);
+    }
+
+    #[test]
+    fn test_string_case_domain() {
+        let domain = StringCaseDomain;
+        let lower = StringCase::Lowercase;
+        let upper = StringCase::Uppercase;
+        let mixed = StringCase::Mixed;
+
+        // Order: Lower <= Mixed, Upper <= Mixed
+        assert!(domain.le(&lower, &mixed));
+        assert!(domain.le(&upper, &mixed));
+        // Lower and Upper are incomparable
+        assert!(!domain.le(&lower, &upper));
+        assert!(!domain.le(&upper, &lower));
+
+        // Join: Lower ⊔ Upper = Mixed
+        assert_eq!(domain.join(&lower, &upper), StringCase::Mixed);
+
+        // From string
+        assert_eq!(domain.from_string("abc"), StringCase::Lowercase);
+        assert_eq!(domain.from_string("ABC"), StringCase::Uppercase);
+        assert_eq!(domain.from_string("aBc"), StringCase::Mixed);
+        assert_eq!(domain.from_string("123"), StringCase::Lowercase); // Treated as lower (no upper chars)
+    }
+
+    #[test]
+    fn test_string_numeric_domain() {
+        let domain = StringNumericDomain;
+        let int_str = StringNumeric::IntegerStr;
+        let float_str = StringNumeric::FloatStr;
+        let top = StringNumeric::Top;
+
+        // Order: Int <= Float <= Top
+        assert!(domain.le(&int_str, &float_str));
+        assert!(domain.le(&float_str, &top));
+
+        // Join: Int ⊔ Float = Float
+        assert_eq!(domain.join(&int_str, &float_str), StringNumeric::FloatStr);
+
+        // From string
+        assert_eq!(domain.from_string("123"), StringNumeric::IntegerStr);
+        assert_eq!(domain.from_string("-456"), StringNumeric::IntegerStr);
+        assert_eq!(domain.from_string("123.45"), StringNumeric::FloatStr);
+        assert_eq!(domain.from_string("abc"), StringNumeric::Top);
     }
 }
