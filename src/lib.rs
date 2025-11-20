@@ -11,11 +11,11 @@
 //!
 //! ## Key Features
 //!
-//! *   **Manager-Centric Architecture**: All operations go through the [`Bdd`][crate::bdd::Bdd] manager. This ensures structural sharing (hash consing) and maintains the canonical form invariant.
-//! *   **Safe & Efficient**: We use lightweight [`Ref`][crate::reference::Ref] handles to reference nodes. This prevents invalid access while keeping memory overhead minimal.
-//! *   **Performance First**: Built-in operation caching (computed table) ensures that redundant computations are avoided.
-//! *   **1-Based Indexing**: Variables are 1-indexed (reserving 0 for internal use), simplifying integration with standard formats like DIMACS.
-//! *   **Rich API**: Full support for boolean operators (AND, OR, XOR, ITE), quantification (∃, ∀), and variable substitution.
+//! - **Manager-Centric Architecture**: All operations go through the [`Bdd`][crate::bdd::Bdd] manager. This ensures structural sharing (hash consing) and maintains the canonical form invariant.
+//! - **Safe & Efficient**: We use lightweight [`Ref`][crate::reference::Ref] handles to reference nodes. This prevents invalid access while keeping memory overhead minimal.
+//! - **Performance First**: Built-in operation caching (computed table) ensures that redundant computations are avoided.
+//! - **1-Based Indexing**: Variables are 1-indexed (reserving 0 for internal use), simplifying integration with standard formats like DIMACS.
+//! - **Rich API**: Full support for boolean operators (AND, OR, XOR, ITE), quantification (∃, ∀), and variable substitution.
 //!
 //! ## Quick Start
 //!
@@ -54,9 +54,9 @@
 //!
 //! ## Core Components
 //!
-//! *   **[`bdd`]**: The heart of the library. Contains the [`Bdd`][crate::bdd::Bdd] manager and core algorithms.
-//! *   **[`dot`]**: Utilities for visualizing BDDs using Graphviz.
-//! *   **[`sat`]**: Satisfiability solving and model counting.
+//! - **[`bdd`]**: The heart of the library. Contains the [`Bdd`][crate::bdd::Bdd] manager and core algorithms.
+//! - **[`dot`]**: Utilities for visualizing BDDs using Graphviz.
+//! - **[`sat`]**: Satisfiability solving and model counting.
 //!
 //! For a deep dive into the implementation details, check the [`bdd`] module documentation.
 

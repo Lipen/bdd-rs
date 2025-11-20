@@ -17,8 +17,8 @@
 //! Traditional analyzers often lose precision at merge points (e.g., after an `if/else`) because they
 //! must merge conflicting states into a single approximation.
 //!
-//! *   **Without BDDs**: "x is roughly between 0 and 10."
-//! *   **With BDDs**: "x is 5 IF flag_a is true, OR x is 9 IF flag_b is false."
+//! - **Without BDDs**: "x is roughly between 0 and 10."
+//! - **With BDDs**: "x is 5 IF flag_a is true, OR x is 9 IF flag_b is false."
 //!
 //! BDDs provide **path sensitivity** efficiently, allowing us to track complex boolean relationships
 //! without exponential memory growth.
@@ -38,34 +38,34 @@
 //! This framework provides a rich set of domains to track different aspects of program state.
 //!
 //! ### 1. Numeric Domains
-//! *   **[`IntervalDomain`]**: Tracks ranges (e.g., `x ∈ [0, 100]`). Ideal for array bounds checks.
-//! *   **[`SignDomain`]**: Tracks signs (`+`, `-`, `0`). Efficient for division-by-zero checks.
-//! *   **[`CongruenceDomain`]**: Tracks stride and offset (e.g., `x % 4 == 1`). Useful for memory alignment.
-//! *   **[`ConstantDomain`]**: Tracks constant values (e.g., `x = 42`).
+//! - **[`IntervalDomain`]**: Tracks ranges (e.g., `x ∈ [0, 100]`). Ideal for array bounds checks.
+//! - **[`SignDomain`]**: Tracks signs (`+`, `-`, `0`). Efficient for division-by-zero checks.
+//! - **[`CongruenceDomain`]**: Tracks stride and offset (e.g., `x % 4 == 1`). Useful for memory alignment.
+//! - **[`ConstantDomain`]**: Tracks constant values (e.g., `x = 42`).
 //!
 //! ### 2. Control Flow & BDDs
-//! *   **[`BddControlDomain`]**: Uses BDDs to track boolean flags and control flow history.
-//!     *   *Example*: "If `error_flag` is true, then `is_valid` must be false."
-//! *   **[`AutomataDomain`]**: Verifies state machine transitions (e.g., ensuring `open()` is called before `read()`).
+//! - **[`BddControlDomain`]**: Uses BDDs to track boolean flags and control flow history.
+//!   - *Example*: "If `error_flag` is true, then `is_valid` must be false."
+//! - **[`AutomataDomain`]**: Verifies state machine transitions (e.g., ensuring `open()` is called before `read()`).
 //!
 //! ### 3. Memory & Pointers
-//! *   **[`PointsToDomain`]**: Uses BDDs to efficiently track sets of memory locations a pointer might target (Alias Analysis).
+//! - **[`PointsToDomain`]**: Uses BDDs to efficiently track sets of memory locations a pointer might target (Alias Analysis).
 //!
 //! ### 4. String Analysis
-//! *   **[`StringPrefixDomain`]**: Tracks string prefixes (e.g., "Starts with 'https://'").
-//! *   **[`StringLengthDomain`]**: Tracks string lengths (e.g., "Length is at most 255").
+//! - **[`StringPrefixDomain`]**: Tracks string prefixes (e.g., "Starts with 'https://'").
+//! - **[`StringLengthDomain`]**: Tracks string lengths (e.g., "Length is at most 255").
 //!
 //! ## Theoretical Foundations
 //!
 //! Abstract Interpretation is based on **Lattice Theory**.
 //! An Abstract Domain is defined as a lattice `⟨D, ⊑, ⊥, ⊤, ⊔, ⊓⟩`:
 //!
-//! *   **`D` (Domain)**: The set of all possible abstract states.
-//! *   **`⊑` (Partial Order)**: The precision relation. `x ⊑ y` means `x` is more precise (contains fewer concrete behaviors) than `y`.
-//! *   **`⊥` (Bottom)**: The empty state (unreachable code).
-//! *   **`⊤` (Top)**: The unknown state (any behavior is possible).
-//! *   **`⊔` (Join)**: The least upper bound. Used to merge control flow paths.
-//! *   **`⊓` (Meet)**: The greatest lower bound. Used to refine states (e.g., at conditionals).
+//! - **`D` (Domain)**: The set of all possible abstract states.
+//! - **`⊑` (Partial Order)**: The precision relation. `x ⊑ y` means `x` is more precise (contains fewer concrete behaviors) than `y`.
+//! - **`⊥` (Bottom)**: The empty state (unreachable code).
+//! - **`⊤` (Top)**: The unknown state (any behavior is possible).
+//! - **`⊔` (Join)**: The least upper bound. Used to merge control flow paths.
+//! - **`⊓` (Meet)**: The greatest lower bound. Used to refine states (e.g., at conditionals).
 //!
 //! ### Fixpoint Computation
 //!
@@ -80,10 +80,10 @@
 //!
 //! For infinite height lattices (like Intervals), standard iteration might not converge in finite time (e.g., `[0, 1], [0, 2], [0, 3]...`).
 //!
-//! 1.  **Widening (∇)**: Accelerates convergence by over-approximating. If a value grows in consecutive iterations, widening jumps to a limit (e.g., `+∞`).
-//!     *   *Example*: If we see `x` go from `[0, 1]` to `[0, 2]`, we might guess `[0, +∞]` immediately.
-//! 2.  **Narrowing (△)**: Recovers precision lost by widening. Once a post-fixpoint is found (which is safe but imprecise), we iterate downwards to find a tighter bound.
-//!     *   *Example*: After guessing `[0, +∞]`, we check the loop condition `x < 10`. The narrowing step refines the state to `[0, 10]`.
+//! 1. **Widening (∇)**: Accelerates convergence by over-approximating. If a value grows in consecutive iterations, widening jumps to a limit (e.g., `+∞`).
+//!   - *Example*: If we see `x` go from `[0, 1]` to `[0, 2]`, we might guess `[0, +∞]` immediately.
+//! 2. **Narrowing (△)**: Recovers precision lost by widening. Once a post-fixpoint is found (which is safe but imprecise), we iterate downwards to find a tighter bound.
+//!   - *Example*: After guessing `[0, +∞]`, we check the loop condition `x < 10`. The narrowing step refines the state to `[0, 10]`.
 //!
 //! ## Example: Analyzing a Simple Program
 //!
@@ -114,9 +114,9 @@
 //!
 //! ## Further Reading
 //!
-//! *   **`examples/realistic_programs.rs`**: Demonstrates complex scenarios combining multiple domains.
-//! *   **`examples/pointsto_example.rs`**: A deep dive into BDD-based pointer analysis.
-//! *   **Cousot & Cousot (1977)**: The foundational paper on Abstract Interpretation.
+//! - **`examples/realistic_programs.rs`**: Demonstrates complex scenarios combining multiple domains.
+//! - **`examples/pointsto_example.rs`**: A deep dive into BDD-based pointer analysis.
+//! - **Cousot & Cousot (1977)**: The foundational paper on Abstract Interpretation.
 //!
 //! For detailed documentation, see individual module pages.
 

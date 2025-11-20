@@ -23,16 +23,16 @@
 //!           ⊥ (Bottom)
 //! ```
 //!
-//! *   **Order** (`⊑`):
-//!     *   `⊥ ⊑ x` for all `x`
-//!     *   `x ⊑ ⊤` for all `x`
-//!     *   `Const(n) ⊑ Const(m)` iff `n = m`
-//! *   **Join** (`⊔`):
-//!     *   `Const(n) ⊔ Const(n) = Const(n)`
-//!     *   `Const(n) ⊔ Const(m) = ⊤` (if `n ≠ m`)
-//! *   **Meet** (`⊓`):
-//!     *   `Const(n) ⊓ Const(n) = Const(n)`
-//!     *   `Const(n) ⊓ Const(m) = ⊥` (if `n ≠ m`)
+//! - **Order** (`⊑`):
+//!   - `⊥ ⊑ x` for all `x`
+//!   - `x ⊑ ⊤` for all `x`
+//!   - `Const(n) ⊑ Const(m)` iff `n = m`
+//! - **Join** (`⊔`):
+//!   - `Const(n) ⊔ Const(n) = Const(n)`
+//!   - `Const(n) ⊔ Const(m) = ⊤` (if `n ≠ m`)
+//! - **Meet** (`⊓`):
+//!   - `Const(n) ⊓ Const(n) = Const(n)`
+//!   - `Const(n) ⊓ Const(m) = ⊥` (if `n ≠ m`)
 //!
 //! # Properties
 //!

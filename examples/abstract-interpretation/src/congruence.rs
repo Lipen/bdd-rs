@@ -7,18 +7,18 @@
 //!
 //! The domain is a lattice of congruence relations.
 //!
-//! *   **Elements**: Pairs `(c, k)` representing `{x ∈ ℤ | x ≡ c (mod k)}`.
-//! *   **Bottom** (`⊥`): Empty set (unreachable).
-//! *   **Top** (`⊤`): `ℤ` (represented as `0 (mod 1)`).
-//! *   **Order** (`⊑`): `(c₁, k₁) ⊑ (c₂, k₂) ⟺ k₂ | k₁ ∧ c₁ ≡ c₂ (mod k₂)`
-//! *   **Join** (`⊔`): `(c₁, k₁) ⊔ (c₂, k₂) = (c₁, gcd(k₁, k₂, |c₁ - c₂|))`.
-//! *   **Meet** (`⊓`): Chinese Remainder Theorem (CRT).
+//! - **Elements**: Pairs `(c, k)` representing `{x ∈ ℤ | x ≡ c (mod k)}`.
+//! - **Bottom** (`⊥`): Empty set (unreachable).
+//! - **Top** (`⊤`): `ℤ` (represented as `0 (mod 1)`).
+//! - **Order** (`⊑`): `(c₁, k₁) ⊑ (c₂, k₂) ⟺ k₂ | k₁ ∧ c₁ ≡ c₂ (mod k₂)`
+//! - **Join** (`⊔`): `(c₁, k₁) ⊔ (c₂, k₂) = (c₁, gcd(k₁, k₂, |c₁ - c₂|))`.
+//! - **Meet** (`⊓`): Chinese Remainder Theorem (CRT).
 //!
 //! # Use Cases
 //!
-//! *   **Loop Stride Analysis**: Determining that a loop counter increments by 4.
-//! *   **Memory Alignment**: Checking if a pointer is 8-byte aligned (`p ≡ 0 (mod 8)`).
-//! *   **Array Access Safety**: Verifying indices satisfy alignment requirements.
+//! - **Loop Stride Analysis**: Determining that a loop counter increments by 4.
+//! - **Memory Alignment**: Checking if a pointer is 8-byte aligned (`p ≡ 0 (mod 8)`).
+//! - **Array Access Safety**: Verifying indices satisfy alignment requirements.
 //!
 //! # Example
 //!
@@ -52,9 +52,9 @@ use crate::domain::AbstractDomain; // For gcd
 ///
 /// # Canonical Form
 ///
-/// *   `0 ≤ c < k` (if `k > 0`)
-/// *   `k = 0` means `x = c` (constant).
-/// *   `k = 1` means `x ∈ ℤ` (Top).
+/// - `0 ≤ c < k` (if `k > 0`)
+/// - `k = 0` means `x = c` (constant).
+/// - `k = 1` means `x ∈ ℤ` (Top).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Congruence {
     /// Bottom (`⊥`): Empty set.
@@ -78,9 +78,9 @@ impl CongruenceDomain {
     /// Create a generic congruence: `x ≡ c (mod k)`.
     ///
     /// Automatically normalizes to canonical form:
-    /// *   `k` is non-negative.
-    /// *   `c` is reduced modulo `k` (if `k > 0`).
-    /// *   If `k=1`, returns Top (`0 (mod 1)`).
+    /// - `k` is non-negative.
+    /// - `c` is reduced modulo `k` (if `k > 0`).
+    /// - If `k=1`, returns Top (`0 (mod 1)`).
     pub fn new_congruence(&self, c: i64, k: i64) -> Congruence {
         if k == 0 {
             return Congruence::Val(c, 0);

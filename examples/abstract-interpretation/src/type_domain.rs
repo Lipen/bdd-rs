@@ -9,12 +9,12 @@
 //!
 //! The domain is a **powerset lattice** over a finite set of concrete types.
 //!
-//! *   **Elements**: [Sets][TypeSet] of possible [Type]s.
-//! *   **Bottom** (`⊥`): The empty set, representing unreachable code or a variable with no possible type.
-//! *   **Top** (`⊤`): The set of all possible types (or "unknown"), representing a variable that could be anything.
-//! *   **Order** (`⊑`): Subset inclusion. `A ⊑ B` iff `A ⊆ B`.
-//! *   **Join** (`⊔`): Set union. `A ⊔ B = A ∪ B`.
-//! *   **Meet** (`⊓`): Set intersection. `A ⊓ B = A ∩ B`.
+//! - **Elements**: [Sets][TypeSet] of possible [Type]s.
+//! - **Bottom** (`⊥`): The empty set, representing unreachable code or a variable with no possible type.
+//! - **Top** (`⊤`): The set of all possible types (or "unknown"), representing a variable that could be anything.
+//! - **Order** (`⊑`): Subset inclusion. `A ⊑ B` iff `A ⊆ B`.
+//! - **Join** (`⊔`): Set union. `A ⊔ B = A ∪ B`.
+//! - **Meet** (`⊓`): Set intersection. `A ⊓ B = A ∩ B`.
 //!
 //! Since the set of concrete types is finite, the lattice has finite height. Therefore, the widening
 //! operator (`∇`) is equivalent to the join operator (`⊔`), and convergence is guaranteed.
@@ -47,9 +47,9 @@ pub enum Type {
 /// Represents an abstract value in the type domain.
 ///
 /// It can be:
-/// *   `Bottom`: No type (contradiction/unreachable).
-/// *   `Set`: A specific non-empty set of possible types.
-/// *   `Top`: Any type (unknown).
+/// - `Bottom`: No type (contradiction/unreachable).
+/// - `Set`: A specific non-empty set of possible types.
+/// - `Top`: Any type (unknown).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeSet {
     /// Represents the empty set of types.
