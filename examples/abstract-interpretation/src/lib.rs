@@ -289,7 +289,7 @@ pub mod transfer;
 pub mod type_domain;
 
 // Re-exports for convenience
-pub use automata::{AutomataDomain, CharClass, SymbolicDFA, SymbolicNFA};
+pub use automata::{AutomataDomain, CharClass, Predicate, SymbolicDFA, SymbolicNFA};
 pub use bdd_control::{BddControlDomain, ControlSensitiveElement, ControlSensitiveProduct, ControlState};
 pub use constant::{ConstValue, ConstantDomain, ConstantElement};
 pub use domain::AbstractDomain;

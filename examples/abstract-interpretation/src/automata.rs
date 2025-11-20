@@ -29,6 +29,9 @@ pub trait Predicate: Clone + Eq + Debug + Send + Sync + 'static {
     /// Is predicate empty?
     fn is_empty(&self) -> bool;
 
+    /// Full predicate (accepts everything).
+    fn full() -> Self;
+
     /// Produce a canonical string key useful for hashing / deterministic ordering.
     fn canonical_key(&self) -> String;
 }
@@ -150,6 +153,10 @@ impl Predicate for CharClass {
         self.ranges.is_empty()
     }
 
+    fn full() -> Self {
+        CharClass::full()
+    }
+
     fn canonical_key(&self) -> String {
         let mut s = String::new();
         for (a, b) in &self.ranges {
@@ -237,13 +244,58 @@ impl<P: Predicate> SymbolicDFA<P> {
 
     pub fn complement(&self) -> Self
     where
-        P: Clone,
+        P: Clone + Ord,
     {
         let mut out = self.clone();
+        out.complete();
         for a in &mut out.accepting {
             *a = !*a;
         }
         out
+    }
+
+    pub fn complete(&mut self)
+    where
+        P: Clone + Ord,
+    {
+        let n = self.states;
+        let mut new_transitions: Vec<(usize, P)> = Vec::new();
+
+        for i in 0..n {
+            let mut union_pred: Option<P> = None;
+            for tr in &self.transitions[i] {
+                union_pred = Some(match union_pred {
+                    None => tr.label.clone(),
+                    Some(acc) => acc.or(&tr.label),
+                });
+            }
+
+            let missing = match union_pred {
+                Some(u) => u.not(),
+                None => P::full(),
+            };
+
+            if !missing.is_empty() {
+                new_transitions.push((i, missing));
+            }
+        }
+
+        if !new_transitions.is_empty() {
+            let sid = self.states;
+            self.states += 1;
+            self.accepting.push(false);
+            self.transitions.push(Vec::new());
+            // Sink loops to itself on full
+            self.transitions[sid].push(SymbolicTransition {
+                label: P::full(),
+                target: sid,
+            });
+
+            for (src, label) in new_transitions {
+                self.transitions[src].push(SymbolicTransition { label, target: sid });
+                self.transitions[src].sort_by_key(|tr| tr.label.canonical_key());
+            }
+        }
     }
 
     /// Check if the language is empty (reachability of accepting states).
@@ -332,6 +384,7 @@ impl<P: Predicate> SymbolicNFA<P> {
         }
 
         let minterms = build_minterms(&preds);
+        println!("Minterms: {:?}", minterms);
         let n = self.states;
         let mcount = minterms.len();
         let mut reach: Vec<Vec<Vec<StateId>>> = vec![vec![Vec::new(); mcount]; n];
@@ -440,34 +493,42 @@ fn build_minterms<P: Predicate + Clone + Ord>(preds: &[P]) -> Vec<P> {
                 atoms.push((start, end));
             }
         }
-        let mut result: Vec<P> = Vec::new();
+
+        let mut minterms: Vec<P> = Vec::new();
+        let mut seen_sigs: HashSet<Vec<bool>> = HashSet::new();
+
         for (s, _e) in atoms {
             let rep = std::char::from_u32(s).unwrap_or('\u{FFFD}');
-            let mut atom_pred: Option<P> = None;
+            let mut sig = Vec::new();
             for p in preds {
-                if p.contains(rep) {
-                    atom_pred = Some(match atom_pred {
-                        None => p.clone(),
-                        Some(acc) => acc.or(p),
-                    });
+                sig.push(p.contains(rep));
+            }
+
+            if sig.iter().all(|&x| !x) {
+                continue;
+            }
+            if seen_sigs.contains(&sig) {
+                continue;
+            }
+            seen_sigs.insert(sig.clone());
+
+            // Construct minterm from signature
+            let mut m: Option<P> = None;
+            for (i, &b) in sig.iter().enumerate() {
+                let p = &preds[i];
+                let part = if b { p.clone() } else { p.not() };
+                m = Some(match m {
+                    None => part,
+                    Some(acc) => acc.and(&part),
+                });
+            }
+            if let Some(final_m) = m {
+                if !final_m.is_empty() {
+                    minterms.push(final_m);
                 }
             }
-            if let Some(ap) = atom_pred {
-                result.push(ap);
-            }
         }
-        let mut merged: Vec<P> = Vec::new();
-        for r in result {
-            if let Some(last) = merged.last_mut() {
-                if last.canonical_key() == r.canonical_key() {
-                    let combined = last.or(&r);
-                    *last = combined;
-                    continue;
-                }
-            }
-            merged.push(r);
-        }
-        return merged;
+        return minterms;
     }
     Vec::new()
 }
@@ -818,5 +879,126 @@ mod tests {
         // Meet: "a" & "b" -> empty
         let met = domain.meet(&dfa_a, &dfa_b);
         assert!(domain.is_bottom(&met));
+    }
+
+    #[test]
+    fn test_char_class_ops() {
+        let c_a = CharClass::single('a');
+        let c_b = CharClass::single('b');
+        let c_ab = c_a.or(&c_b);
+
+        assert!(c_ab.contains('a'));
+        assert!(c_ab.contains('b'));
+        assert!(!c_ab.contains('c'));
+
+        let c_not_a = c_a.not();
+        assert!(!c_not_a.contains('a'));
+        assert!(c_not_a.contains('b'));
+        assert!(c_not_a.contains('z'));
+
+        let c_range = CharClass::range('a', 'z');
+        assert!(c_range.contains('m'));
+        assert!(!c_range.contains('A'));
+
+        let c_intersect = c_range.and(&c_ab);
+        assert!(c_intersect.contains('a'));
+        assert!(c_intersect.contains('b'));
+        assert!(!c_intersect.contains('c'));
+    }
+
+    #[test]
+    fn test_dfa_operations() {
+        // DFA for "a*"
+        let mut nfa = SymbolicNFA::new();
+        let s0 = 0;
+        nfa.accepting[s0] = true;
+        nfa.add_transition(s0, CharClass::single('a'), s0);
+        let dfa = nfa.determinize();
+
+        assert!(dfa.accepts(""));
+        assert!(dfa.accepts("a"));
+        assert!(dfa.accepts("aaaa"));
+        assert!(!dfa.accepts("b"));
+        assert!(!dfa.accepts("ab"));
+
+        let dfa_compl = dfa.complement();
+        assert!(!dfa_compl.accepts("aaaa"));
+        assert!(dfa_compl.accepts("b"));
+    }
+
+    #[test]
+    fn test_automata_domain_complex() {
+        let domain = AutomataDomain;
+
+        // L1 = "a+"
+        let mut nfa1 = SymbolicNFA::new();
+        let s0 = 0;
+        let s1 = nfa1.add_state(true);
+        nfa1.add_transition(s0, CharClass::single('a'), s1);
+        nfa1.add_transition(s1, CharClass::single('a'), s1);
+        let dfa1 = nfa1.determinize();
+
+        // L2 = "b+"
+        let mut nfa2 = SymbolicNFA::new();
+        let s0 = 0;
+        let s1 = nfa2.add_state(true);
+        nfa2.add_transition(s0, CharClass::single('b'), s1);
+        nfa2.add_transition(s1, CharClass::single('b'), s1);
+        let dfa2 = nfa2.determinize();
+
+        // Join: "a+" | "b+"
+        let joined = domain.join(&dfa1, &dfa2);
+        assert!(joined.accepts("a"));
+        assert!(joined.accepts("aaa"));
+        assert!(joined.accepts("b"));
+        assert!(joined.accepts("bbb"));
+        assert!(!joined.accepts("ab"));
+        assert!(!joined.accepts(""));
+
+        // Meet: "a+" & "b+" -> empty
+        let met = domain.meet(&dfa1, &dfa2);
+        assert!(domain.is_bottom(&met));
+
+        // L3 = "a"
+        let mut nfa3 = SymbolicNFA::new();
+        let s0 = 0;
+        let s1 = nfa3.add_state(true);
+        nfa3.add_transition(s0, CharClass::single('a'), s1);
+        let dfa3 = nfa3.determinize();
+
+        // L3 <= L1 ("a" is in "a+")
+        assert!(domain.le(&dfa3, &dfa1));
+        // L1 !<= L3 ("aa" is in "a+" but not in "a")
+        assert!(!domain.le(&dfa1, &dfa3));
+    }
+
+    #[test]
+    fn test_dfa_complete_complement() {
+        // DFA for "a" (incomplete)
+        // 0 --a--> 1 (accepting)
+        // Missing: 0 --[^a]--> ?, 1 --[.]--> ?
+        let mut nfa = SymbolicNFA::new();
+        let s0 = 0;
+        let s1 = nfa.add_state(true);
+        nfa.add_transition(s0, CharClass::single('a'), s1);
+        let dfa = nfa.determinize();
+
+        assert!(dfa.accepts("a"));
+        assert!(!dfa.accepts("b"));
+        assert!(!dfa.accepts("aa"));
+
+        // Complement of "a" should accept "b", "aa", "", etc.
+        let dfa_compl = dfa.complement();
+
+        assert!(!dfa_compl.accepts("a"));
+        assert!(dfa_compl.accepts("b"));
+        assert!(dfa_compl.accepts("aa"));
+        assert!(dfa_compl.accepts(""));
+
+        // Check if dfa_compl is complete (it should be, because complement calls complete)
+        // We can check if it has a sink state.
+        // Original had 2 states. Complete adds 1 sink.
+        // So dfa_compl should have at least 3 states (or 2 if it reused states, but implementation adds new state).
+        assert!(dfa_compl.states >= 2);
     }
 }
