@@ -305,3 +305,4 @@ pub use string_domain::{
     StringSuffixDomain,
 };
 pub use transfer::{NumericTransferFunction, TransferFunction};
+pub use type_domain::{Type, TypeDomain, TypeSet};
