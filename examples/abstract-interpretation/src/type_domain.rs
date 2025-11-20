@@ -1,49 +1,100 @@
-//! Type Domain.
+//! Type Abstract Domain.
 //!
-//! Tracks the runtime type of variables.
-//! Essential for analyzing dynamically typed languages or polymorphic code.
+//! This module implements an abstract domain for tracking the runtime types of variables.
+//! It is particularly useful for analyzing dynamically typed languages (like Python or JavaScript)
+//! or code with polymorphic values, where a variable may hold values of different types at different
+//! program points.
+//!
+//! # Lattice Structure
+//!
+//! The domain is a **powerset lattice** over a finite set of concrete types.
+//!
+//! *   **Elements**: Sets of possible `Type`s.
+//! *   **Bottom** (`⊥`): The empty set, representing unreachable code or a variable with no possible type.
+//! *   **Top** (`⊤`): The set of all possible types (or "unknown"), representing a variable that could be anything.
+//! *   **Order** (`⊑`): Subset inclusion. `A ⊑ B` iff `A ⊆ B`.
+//! *   **Join** (`⊔`): Set union. `A ⊔ B = A ∪ B`.
+//! *   **Meet** (`⊓`): Set intersection. `A ⊓ B = A ∩ B`.
+//!
+//! Since the set of concrete types is finite, the lattice has finite height. Therefore, the widening
+//! operator (`∇`) is equivalent to the join operator (`⊔`), and convergence is guaranteed.
 
 use std::collections::BTreeSet;
 use std::fmt::Debug;
 
 use crate::domain::AbstractDomain;
 
-/// Represents a concrete runtime type.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// Represents a concrete runtime type in the analyzed language.
+///
+/// This enum enumerates the fundamental types that the analysis tracks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Type {
+    /// Integer numbers (e.g., `42`, `-1`).
     Integer,
+    /// Floating-point numbers (e.g., `3.14`, `1.0e-5`).
     Float,
+    /// Boolean values (`true`, `false`).
     Boolean,
+    /// String literals.
     String,
+    /// Complex objects or structures.
     Object,
+    /// The null or undefined value.
     Null,
+    // Add more types as needed for specific languages (e.g., Array, Function).
 }
 
-/// Represents a set of possible types.
+/// Represents an abstract value in the type domain.
+///
+/// It can be:
+/// *   `Bottom`: No type (contradiction/unreachable).
+/// *   `Set`: A specific non-empty set of possible types.
+/// *   `Top`: Any type (unknown).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeSet {
+    /// Represents the empty set of types.
     Bottom,
+    /// Represents a specific subset of types.
+    /// Invariant: The set is never empty. An empty set is represented by `Bottom`.
     Set(BTreeSet<Type>),
+    /// Represents the set of all possible types.
     Top,
 }
 
-/// Type Domain.
+/// The Type Abstract Domain.
 ///
-/// Lattice:
-/// Bottom <= Set(types) <= Top
-/// Set(A) <= Set(B) iff A is subset of B.
+/// This struct implements the `AbstractDomain` trait for `TypeSet`.
 #[derive(Clone, Debug)]
 pub struct TypeDomain;
 
 impl TypeDomain {
-    /// Create a singleton type set.
+    /// Creates a new `TypeDomain`.
+    pub fn new() -> Self {
+        TypeDomain
+    }
+
+    /// Creates an abstract value representing a single concrete type.
     pub fn from_type(&self, t: Type) -> TypeSet {
         let mut set = BTreeSet::new();
         set.insert(t);
         TypeSet::Set(set)
     }
 
-    /// Check if a variable definitely has a specific type.
+    /// Creates an abstract value representing a set of concrete types.
+    pub fn from_types(&self, types: &[Type]) -> TypeSet {
+        if types.is_empty() {
+            return TypeSet::Bottom;
+        }
+        let mut set = BTreeSet::new();
+        for &t in types {
+            set.insert(t);
+        }
+        TypeSet::Set(set)
+    }
+
+    /// Checks if the abstract value represents *exactly* the given type (and no other).
+    ///
+    /// Returns `true` if the set contains only `t`.
     pub fn is_exactly(&self, elem: &TypeSet, t: Type) -> bool {
         match elem {
             TypeSet::Set(s) => s.len() == 1 && s.contains(&t),
@@ -51,7 +102,9 @@ impl TypeDomain {
         }
     }
 
-    /// Check if a variable *may* have a specific type.
+    /// Checks if the abstract value *may* contain the given type.
+    ///
+    /// Returns `true` if `t` is in the set of possible types, or if the value is `Top`.
     pub fn may_be(&self, elem: &TypeSet, t: Type) -> bool {
         match elem {
             TypeSet::Bottom => false,
@@ -59,36 +112,62 @@ impl TypeDomain {
             TypeSet::Set(s) => s.contains(&t),
         }
     }
+
+    /// Checks if the abstract value represents a numeric type (Integer or Float).
+    pub fn is_numeric(&self, elem: &TypeSet) -> bool {
+        match elem {
+            TypeSet::Bottom => false,
+            TypeSet::Top => true, // Could be numeric
+            TypeSet::Set(s) => s.iter().any(|t| matches!(t, Type::Integer | Type::Float)),
+        }
+    }
+}
+
+impl Default for TypeDomain {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AbstractDomain for TypeDomain {
     type Element = TypeSet;
 
+    /// Returns the bottom element (`⊥`), representing the empty set of types.
     fn bottom(&self) -> Self::Element {
         TypeSet::Bottom
     }
 
+    /// Returns the top element (`⊤`), representing the set of all types.
     fn top(&self) -> Self::Element {
         TypeSet::Top
     }
 
+    /// Checks if the element is bottom.
     fn is_bottom(&self, elem: &Self::Element) -> bool {
         matches!(elem, TypeSet::Bottom)
     }
 
+    /// Checks if the element is top.
     fn is_top(&self, elem: &Self::Element) -> bool {
         matches!(elem, TypeSet::Top)
     }
 
+    /// Partial order check: `elem1 ⊑ elem2`.
+    ///
+    /// Returns true if the set of types in `elem1` is a subset of `elem2`.
     fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool {
         match (elem1, elem2) {
             (TypeSet::Bottom, _) => true,
             (_, TypeSet::Top) => true,
+            (TypeSet::Top, _) => false,    // Top <= X only if X is Top (handled above)
+            (_, TypeSet::Bottom) => false, // X <= Bottom only if X is Bottom (handled above)
             (TypeSet::Set(s1), TypeSet::Set(s2)) => s1.is_subset(s2),
-            _ => false,
         }
     }
 
+    /// Join operation (`⊔`): Set union.
+    ///
+    /// Returns a new element containing all types present in either `elem1` or `elem2`.
     fn join(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
         match (elem1, elem2) {
             (TypeSet::Bottom, e) | (e, TypeSet::Bottom) => e.clone(),
@@ -101,6 +180,9 @@ impl AbstractDomain for TypeDomain {
         }
     }
 
+    /// Meet operation (`⊓`): Set intersection.
+    ///
+    /// Returns a new element containing only types present in both `elem1` and `elem2`.
     fn meet(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
         match (elem1, elem2) {
             (TypeSet::Bottom, _) | (_, TypeSet::Bottom) => TypeSet::Bottom,
@@ -116,8 +198,10 @@ impl AbstractDomain for TypeDomain {
         }
     }
 
+    /// Widening operator (`∇`).
+    ///
+    /// Since the type lattice is finite, widening is identical to join.
     fn widen(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
-        // Finite lattice (set of types is small), so join is sufficient.
         self.join(elem1, elem2)
     }
 }
@@ -127,27 +211,115 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_type_domain_lattice() {
-        let domain = TypeDomain;
-        let t_int = domain.from_type(Type::Integer);
-        let t_str = domain.from_type(Type::String);
-        let bottom = TypeSet::Bottom;
-        let top = TypeSet::Top;
+    fn test_lattice_order() {
+        let d = TypeDomain::new();
+        let bot = d.bottom();
+        let top = d.top();
+        let t_int = d.from_type(Type::Integer);
+        let t_str = d.from_type(Type::String);
+        let t_int_str = d.join(&t_int, &t_str);
 
-        // Order
-        assert!(domain.le(&bottom, &t_int));
-        assert!(domain.le(&t_int, &top));
-        assert!(!domain.le(&t_int, &t_str));
+        // Reflexivity
+        assert!(d.le(&bot, &bot));
+        assert!(d.le(&top, &top));
+        assert!(d.le(&t_int, &t_int));
 
-        // Join
-        let joined = domain.join(&t_int, &t_str);
-        assert!(domain.le(&t_int, &joined));
-        assert!(domain.le(&t_str, &joined));
-        assert!(domain.may_be(&joined, Type::Integer));
-        assert!(domain.may_be(&joined, Type::String));
+        // Bottom is least element
+        assert!(d.le(&bot, &t_int));
+        assert!(d.le(&bot, &top));
 
-        // Meet
-        let meet = domain.meet(&t_int, &t_str);
-        assert!(domain.is_bottom(&meet));
+        // Top is greatest element
+        assert!(d.le(&t_int, &top));
+        assert!(d.le(&t_int_str, &top));
+
+        // Subset relationships
+        assert!(d.le(&t_int, &t_int_str));
+        assert!(d.le(&t_str, &t_int_str));
+        assert!(!d.le(&t_int_str, &t_int));
+        assert!(!d.le(&t_int, &t_str));
+    }
+
+    #[test]
+    fn test_join() {
+        let d = TypeDomain::new();
+        let t_int = d.from_type(Type::Integer);
+        let t_float = d.from_type(Type::Float);
+        let t_bool = d.from_type(Type::Boolean);
+
+        let j1 = d.join(&t_int, &t_float);
+        assert!(d.may_be(&j1, Type::Integer));
+        assert!(d.may_be(&j1, Type::Float));
+        assert!(!d.may_be(&j1, Type::Boolean));
+
+        let j2 = d.join(&j1, &t_bool);
+        assert!(d.may_be(&j2, Type::Integer));
+        assert!(d.may_be(&j2, Type::Float));
+        assert!(d.may_be(&j2, Type::Boolean));
+
+        // Join with bottom is identity
+        assert_eq!(d.join(&t_int, &d.bottom()), t_int);
+
+        // Join with top is top
+        assert!(d.is_top(&d.join(&t_int, &d.top())));
+    }
+
+    #[test]
+    fn test_meet() {
+        let d = TypeDomain::new();
+        let t_int = d.from_type(Type::Integer);
+        let t_float = d.from_type(Type::Float);
+        let t_num = d.join(&t_int, &t_float);
+
+        // Intersection of disjoint sets is bottom
+        assert!(d.is_bottom(&d.meet(&t_int, &t_float)));
+
+        // Intersection with subset
+        assert_eq!(d.meet(&t_num, &t_int), t_int);
+
+        // Meet with top is identity
+        assert_eq!(d.meet(&t_int, &d.top()), t_int);
+
+        // Meet with bottom is bottom
+        assert!(d.is_bottom(&d.meet(&t_int, &d.bottom())));
+    }
+
+    #[test]
+    fn test_helper_methods() {
+        let d = TypeDomain::new();
+        let t_int = d.from_type(Type::Integer);
+        let t_float = d.from_type(Type::Float);
+        let t_str = d.from_type(Type::String);
+        let t_num = d.join(&t_int, &t_float);
+
+        assert!(d.is_exactly(&t_int, Type::Integer));
+        assert!(!d.is_exactly(&t_num, Type::Integer));
+        assert!(!d.is_exactly(&d.top(), Type::Integer));
+
+        assert!(d.may_be(&t_int, Type::Integer));
+        assert!(d.may_be(&t_num, Type::Integer));
+        assert!(d.may_be(&d.top(), Type::Integer));
+        assert!(!d.may_be(&t_str, Type::Integer));
+
+        assert!(d.is_numeric(&t_int));
+        assert!(d.is_numeric(&t_float));
+        assert!(d.is_numeric(&t_num));
+        assert!(!d.is_numeric(&t_str));
+        assert!(d.is_numeric(&d.top())); // Top may be numeric
+        assert!(!d.is_numeric(&d.bottom()));
+    }
+
+    #[test]
+    fn test_from_types() {
+        let d = TypeDomain::new();
+        let empty = d.from_types(&[]);
+        assert!(d.is_bottom(&empty));
+
+        let single = d.from_types(&[Type::Integer]);
+        assert!(d.is_exactly(&single, Type::Integer));
+
+        let multi = d.from_types(&[Type::Integer, Type::String]);
+        assert!(d.may_be(&multi, Type::Integer));
+        assert!(d.may_be(&multi, Type::String));
+        assert!(!d.may_be(&multi, Type::Boolean));
     }
 }
