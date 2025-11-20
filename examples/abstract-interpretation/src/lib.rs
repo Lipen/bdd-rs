@@ -10,7 +10,7 @@
 //! **Abstract Interpretation checks all possible execution paths simultaneously.**
 //!
 //! Instead of executing a program with concrete values (e.g., `let x = 5`), we execute it with
-//! **Abstract Values** (e.g., `let x = [Positive]`).
+//! **Abstract Values** (e.g., `let x = Sign::Positive`).
 //!
 //! ### Why BDDs?
 //!
