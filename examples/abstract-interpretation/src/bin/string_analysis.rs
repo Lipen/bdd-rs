@@ -88,7 +88,7 @@ fn main() {
         // s_next = s + temp
         let next_state = len_domain.assign_concat(&temp_state, "s_next", "s", "temp");
 
-        // Join with previous state (s = s U s_next)
+        // Join with previous state (s = s ⊔ s_next)
         let s_next_len = len_domain.get_length(&next_state, "s_next");
         let current_s_len = len_domain.get_length(&loop_state, "s");
 
