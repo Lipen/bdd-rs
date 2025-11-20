@@ -9,7 +9,7 @@
 //!
 //! The domain is a **powerset lattice** over a finite set of concrete types.
 //!
-//! *   **Elements**: Sets of possible `Type`s.
+//! *   **Elements**: [Sets][TypeSet] of possible [Type]s.
 //! *   **Bottom** (`⊥`): The empty set, representing unreachable code or a variable with no possible type.
 //! *   **Top** (`⊤`): The set of all possible types (or "unknown"), representing a variable that could be anything.
 //! *   **Order** (`⊑`): Subset inclusion. `A ⊑ B` iff `A ⊆ B`.
@@ -63,7 +63,7 @@ pub enum TypeSet {
 
 /// The Type Abstract Domain.
 ///
-/// This struct implements the `AbstractDomain` trait for `TypeSet`.
+/// This struct implements the [`AbstractDomain`] trait for [`TypeSet`].
 #[derive(Clone, Debug)]
 pub struct TypeDomain;
 
