@@ -1,10 +1,16 @@
 //! String Constant and Length Analysis Example.
 //!
-//! This example demonstrates:
-//! 1. **String Constant Domain**: Tracking exact string values.
-//!    - Useful for constant propagation and detecting constant strings.
-//! 2. **String Length Domain**: Tracking the length of strings using intervals.
-//!    - Useful for buffer overflow detection and loop analysis.
+//! This example demonstrates two fundamental string abstract domains:
+//!
+//! 1. **String Constant Domain**:
+//!    - Tracks exact string values (e.g., `s = "hello"`).
+//!    - Becomes `Top` (Unknown) if the string can have multiple values (e.g., after a merge).
+//!    - Useful for constant propagation and precise equality checks.
+//!
+//! 2. **String Length Domain**:
+//!    - Tracks the length of strings as an interval (e.g., `len(s) ∈ [5, 10]`).
+//!    - Useful for buffer overflow detection and loop termination analysis.
+//!    - Can prove properties like "string length grows indefinitely" in a loop.
 
 use abstract_interpretation::domain::AbstractDomain;
 use abstract_interpretation::{Interval, StringConst, StringConstantDomain, StringLengthDomain};

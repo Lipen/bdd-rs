@@ -1,8 +1,16 @@
 //! Input Validation Analysis Example.
 //!
-//! This example demonstrates:
-//! 1. **String Length Domain**: Analyzing input validation logic based on string length.
-//!    - Scenario: Validating that a password meets minimum length requirements.
+//! This example demonstrates how to use the **String Length Domain** to verify
+//! input validation logic.
+//!
+//! Scenario:
+//! A password validation routine checks if the input length is at least 8 characters.
+//!
+//! The analysis proves:
+//! 1. In the "valid" branch, the password length is guaranteed to be ≥ 8.
+//! 2. In the "invalid" branch, the password length is guaranteed to be < 8 (specifically [0, 7]).
+//!
+//! This ensures that the validation logic correctly partitions the input space.
 
 use abstract_interpretation::*;
 

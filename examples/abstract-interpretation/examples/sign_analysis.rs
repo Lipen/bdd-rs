@@ -1,10 +1,13 @@
-//! Sign domain analysis example.
+//! Sign Analysis Example.
 //!
-//! This example demonstrates how the sign domain can be used for:
-//! - Division by zero detection
-//! - Overflow detection
-//! - Optimization opportunities (dead code elimination)
-//! - Conditional branch analysis
+//! This example demonstrates **Sign Analysis**, a classic abstract interpretation
+//! domain that tracks the sign of variables: Positive, Negative, Zero, or combinations (Top).
+//!
+//! Applications demonstrated:
+//! - **Division by Zero Detection**: Proving that a divisor is strictly non-zero (e.g., Positive).
+//! - **Dead Code Elimination**: Proving that a condition like `x * x < 0` is impossible.
+//! - **Loop Invariants**: Proving that a loop counter `i` remains non-negative.
+//! - **Overflow Safety**: Reasoning about the sign of results even when exact values are unknown.
 
 use abstract_interpretation::expr::{NumExpr, NumPred};
 use abstract_interpretation::numeric::NumericDomain;

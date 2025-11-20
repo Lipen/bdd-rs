@@ -1,8 +1,14 @@
-//! Realistic program analysis examples using multiple abstract domains
+//! Realistic Program Analysis Examples.
 //!
 //! This file demonstrates how to use abstract interpretation domains to analyze
-//! real-world programming patterns: array bounds checking, constant propagation,
-//! pointer aliasing, and combined multi-domain analysis.
+//! real-world programming patterns found in C/C++ and Rust codebases.
+//!
+//! Analyzed patterns include:
+//! - **Array Bounds Checking**: Using Interval and Sign domains to prove safety of array accesses.
+//! - **Constant Propagation**: Identifying constant values for optimization and dead code elimination.
+//! - **Pointer Aliasing**: Tracking pointer targets to detect aliasing and side effects.
+//! - **Combined Analysis**: Using multiple domains together to achieve higher precision.
+//! - **Reduced Product**: Demonstrating how domains can refine each other (e.g., Sign × Interval).
 
 use std::rc::Rc;
 
@@ -53,7 +59,7 @@ fn array_bounds_checking() {
     let array_size = 10;
     if let Some((low, high)) = interval_domain.get_bounds(&interval_state, &"i".to_string()) {
         if low >= 0 && high < array_size {
-            println!("  ✓ Array access arr[i] is SAFE (i in [{}, {}] < {})", low, high, array_size);
+            println!("  ✓ Array access arr[i] is SAFE (i ∈ [{}, {}] < {})", low, high, array_size);
         } else {
             println!("  ✗ Array access arr[i] might be UNSAFE");
         }
@@ -78,7 +84,7 @@ fn array_bounds_checking() {
             println!("  ✓ Array access arr[i] is SAFE");
         } else {
             println!(
-                "  ✗ Array access arr[i] is UNSAFE! (i in [{}, {}], array size = {})",
+                "  ✗ Array access arr[i] is UNSAFE! (i ∈ [{}, {}], array size = {})",
                 low, high, array_size
             );
         }

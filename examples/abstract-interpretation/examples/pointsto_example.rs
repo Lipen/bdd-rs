@@ -1,7 +1,16 @@
-//! Example demonstrating the Points-to domain for pointer analysis.
+//! Points-to Analysis Example.
 //!
-//! This example shows how to use the BDD-based points-to domain to track
-//! which memory locations pointers may point to during program execution.
+//! This example demonstrates **Points-to Analysis** (or Pointer Analysis), which
+//! determines which memory locations a pointer can point to during program execution.
+//!
+//! The implementation uses **Binary Decision Diagrams (BDDs)** to efficiently represent
+//! sets of possible targets.
+//!
+//! Key concepts demonstrated:
+//! - **Basic Assignment**: `p = &x` (p points to x).
+//! - **Pointer Copy**: `q = p` (q points to whatever p points to).
+//! - **Control Flow Merge**: Handling uncertainty when paths merge (e.g., `p` points to `x` OR `y`).
+//! - **Alias Detection**: Determining if two pointers *may* or *must* refer to the same location.
 
 use std::rc::Rc;
 

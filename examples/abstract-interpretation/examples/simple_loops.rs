@@ -1,6 +1,11 @@
-//! Simple loop analysis example.
+//! Simple Loop Analysis Example.
 //!
-//! Demonstrates basic fixpoint computation with the interval domain.
+//! This example demonstrates the core concepts of abstract interpretation for loops:
+//! 1. **Fixpoint Computation**: Iteratively approximating the loop invariant.
+//! 2. **Widening**: Accelerating convergence to ensure termination (handling infinite loops).
+//! 3. **Narrowing**: Refining the result after widening to improve precision.
+//!
+//! The analysis uses the **Interval Domain** to track the range of values for variables.
 
 use abstract_interpretation::*;
 use simplelog::*;

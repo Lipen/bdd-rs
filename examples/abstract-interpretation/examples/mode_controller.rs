@@ -1,19 +1,22 @@
-//! Mode-Based Controller Example
+//! Mode-Based Controller Analysis Example.
 //!
-//! This example demonstrates BDD control domain advantages for embedded systems
-//! with multiple operating modes. The controller transitions between 4 modes
-//! (INIT, READY, ACTIVE, ERROR) based on sensor readings.
+//! This example demonstrates the advantages of **Control-Sensitive Analysis** (using BDDs)
+//! for embedded systems with multiple operating modes.
 //!
-//! **Safety Properties:**
-//! 1. Mode is always one of {INIT, READY, ACTIVE, ERROR}
-//! 2. Actuator is always 0 or 1
-//! 3. In ERROR mode, actuator must be 0
-//! 4. Actuator can only be 1 in ACTIVE mode
+//! The controller transitions between 4 modes:
+//! - **INIT**: Startup mode (Actuator OFF).
+//! - **READY**: Ready to activate (Actuator OFF).
+//! - **ACTIVE**: System running (Actuator ON).
+//! - **ERROR**: Fault detected (Actuator OFF).
 //!
-//! **Analysis Goal:**
-//! Compare path-sensitive (BDD control) vs. path-insensitive analysis.
-//! The BDD control domain should maintain precise mode tracking and prevent
-//! false alarms about invalid actuator states.
+//! **The Challenge**:
+//! A standard path-insensitive analysis (like Interval Domain alone) would merge all states,
+//! concluding that `Actuator` can be ON or OFF in *any* mode. This leads to false alarms
+//! (e.g., "Actuator might be ON in ERROR mode").
+//!
+//! **The Solution**:
+//! By partitioning the state space with BDDs (Control Domain), we maintain separate
+//! invariants for each mode, proving that `Actuator` is strictly OFF in ERROR mode.
 
 use std::rc::Rc;
 

@@ -1,19 +1,19 @@
-//! Traffic Light Controller Example
+//! Traffic Light Controller Analysis Example.
 //!
-//! This example demonstrates BDD control domain for a simple 3-state traffic light:
-//! RED → GREEN → YELLOW → RED (cycle)
+//! This example demonstrates **Control-Sensitive Analysis** for a state machine:
+//! a simple 3-state traffic light (RED → GREEN → YELLOW).
 //!
-//! **Safety Properties:**
-//! 1. Light is always in exactly one state {RED, GREEN, YELLOW}
-//! 2. Timer constraints:
-//!    - RED: timer ∈ [0, 60]
-//!    - GREEN: timer ∈ [0, 45]
-//!    - YELLOW: timer ∈ [0, 5]
-//! 3. Mutual exclusion: never RED and GREEN simultaneously
+//! **Safety Properties Verified**:
+//! 1. **Mutual Exclusion**: The light is never RED and GREEN simultaneously.
+//! 2. **State-Dependent Invariants**:
+//!    - RED: Timer ∈ [0, 60]
+//!    - GREEN: Timer ∈ [0, 45]
+//!    - YELLOW: Timer ∈ [0, 5]
 //!
-//! **Analysis Goal:**
-//! Show that BDD control domain maintains precise timer bounds per state,
-//! while path-insensitive analysis loses precision by merging all states.
+//! **Key Insight**:
+//! Path-insensitive analysis would merge the timer intervals to [0, 60] for all states,
+//! losing the critical safety property that "YELLOW light duration ≤ 5".
+//! The BDD-based analysis maintains this precision.
 
 use std::rc::Rc;
 

@@ -1,10 +1,17 @@
 //! String Suffix and Inclusion Analysis Example.
 //!
-//! This example demonstrates:
-//! 1. **String Suffix Domain**: Verifying that strings end with a specific sequence (e.g., ".pdf").
-//!    - Useful for file extension validation and checking for safe file types.
-//! 2. **String Inclusion Domain**: Tracking a set of substrings that *must* be present in a string.
-//!    - Useful for ensuring required content (e.g., SQL query structure) or detecting missing components.
+//! This example demonstrates two more specialized string domains:
+//!
+//! 1. **String Suffix Domain**:
+//!    - Tracks the common suffix of all possible string values.
+//!    - **Application**: File extension validation (e.g., ensuring a file ends with ".pdf").
+//!    - **Logic**: `Join("a.doc", "b.doc")` → Suffix(".doc").
+//!
+//! 2. **String Inclusion Domain**:
+//!    - Tracks a set of substrings that *must* be present in the string.
+//!    - **Application**: SQL injection prevention (ensuring structure) or required field checks.
+//!    - **Logic**: `Join("Hello World", "Hello User")` → MustContain({"Hello"}).
+//!    - Useful for verifying that a constructed query always contains "WHERE" or "SELECT".
 
 use abstract_interpretation::domain::AbstractDomain;
 use abstract_interpretation::string_domain::{StringInclusionDomain, StringSuffix, StringSuffixDomain};
@@ -70,8 +77,8 @@ fn test_suffix_analysis() {
     let joined = domain.join(&f1, &f2);
     println!("\nAnalysis Results:");
     println!("  Joined Suffix: {:?}", joined);
-    // LCSuf("document.pdf", "image.png") -> empty string? No.
-    // "pdf" vs "png" -> no common suffix.
+    // LCSuf("document.pdf", "image.png") → empty string? No.
+    // "pdf" vs "png" → no common suffix.
     // Wait, "document.pdf" and "image.png".
     // Reverse: "fdp.tnemucod", "gnp.egami".
     // No common prefix in reverse. So suffix is empty.
@@ -111,10 +118,10 @@ fn test_inclusion_analysis() {
 
     let required = domain.from_string("SELECT");
 
-    // Check if full_query <= required (meaning full_query MUST contain "SELECT")
-    // Lattice order: Included(A) <= Included(B) if B subset A.
+    // Check if full_query ≤ required (meaning full_query MUST contain "SELECT")
+    // Lattice order: Included(A) ≤ Included(B) if B ⊆ A.
     // Here A = {SELECT, WHERE}, B = {SELECT}. {SELECT} is subset of {SELECT, WHERE}.
-    // So Included({SELECT, WHERE}) <= Included({SELECT}).
+    // So Included({SELECT, WHERE}) ≤ Included({SELECT}).
 
     if domain.le(&full_query, &required) {
         println!("  ✓ Verified: Query contains 'SELECT'");

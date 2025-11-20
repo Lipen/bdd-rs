@@ -1,9 +1,14 @@
-//! Combined domain analysis example.
+//! Combined Domain Analysis Example.
 //!
-//! This example demonstrates using multiple domains together:
-//! - Sign, Constant, and Interval domains side-by-side
-//! - How different domains provide complementary information
-//! - Precision trade-offs
+//! This example demonstrates the power of using multiple abstract domains together
+//! to analyze the same program. Different domains capture different properties:
+//!
+//! - **Sign Domain**: Captures the sign of variables (Pos, Neg, Zero). Good for division-by-zero checks.
+//! - **Constant Domain**: Captures exact values. Good for optimization.
+//! - **Interval Domain**: Captures ranges. Good for bounds checking.
+//!
+//! By running these analyses side-by-side (or in a product), we can obtain a more
+//! complete picture of the program's behavior than any single domain could provide.
 
 use abstract_interpretation::constant::{ConstValue, ConstantDomain};
 use abstract_interpretation::expr::{NumExpr, NumPred};

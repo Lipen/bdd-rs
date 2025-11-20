@@ -1,6 +1,16 @@
-//! Transfer function analysis example.
+//! Transfer Function Analysis Example.
 //!
-//! Demonstrates statement-by-statement analysis using transfer functions.
+//! This example demonstrates statement-by-statement abstract interpretation using
+//! **Transfer Functions**.
+//!
+//! A transfer function `f` maps an abstract state `σ` before a statement to a new
+//! abstract state `σ'` after the statement: `σ' = f(σ)`.
+//!
+//! Key concepts demonstrated:
+//! - **Assignments**: Updating the abstract state with new values.
+//! - **Conditionals**: Splitting the state (filtering) and joining paths.
+//! - **Sequencing**: Chaining transfer functions.
+//! - **Refinement**: Using `assume` and `assert` to narrow down possible values.
 
 use abstract_interpretation::*;
 use simplelog::*;

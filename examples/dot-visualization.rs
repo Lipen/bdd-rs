@@ -1,23 +1,3 @@
-//! Example demonstrating BDD to DOT conversion and visualization.
-//!
-//! This example shows how to:
-//! 1. Create BDD formulas
-//! 2. Convert them to DOT format
-//! 3. Customize the visualization
-//! 4. Generate image files using Graphviz
-//!
-//! # Usage
-//!
-//! Generate DOT files only:
-//! ```bash
-//! cargo run --example dot_visualization
-//! ```
-//!
-//! Generate DOT files and render to images (requires Graphviz):
-//! ```bash
-//! cargo run --example dot_visualization -- --render
-//! ```
-
 use std::env;
 use std::fs;
 use std::process::Command;

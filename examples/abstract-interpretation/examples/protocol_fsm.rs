@@ -1,22 +1,20 @@
-//! Protocol State Machine Example
+//! Protocol State Machine Analysis Example.
 //!
-//! This example demonstrates BDD control domain for tracking network protocol states.
-//! The protocol follows a 4-state FSM:
-//!   INIT → READY → DATA → ACK → READY (cycle)
+//! This example demonstrates **Control-Sensitive Analysis** for a network protocol FSM.
 //!
-//! **Safety Properties:**
-//! 1. Protocol is always in exactly one state {INIT, READY, DATA, ACK}
-//! 2. State-dependent invariants:
-//!    - INIT: seq_num = 0, data_size = 0
-//!    - READY: seq_num ∈ [0, 255], data_size = 0
-//!    - DATA: seq_num ∈ [0, 255], data_size ∈ [1, 1500]
-//!    - ACK: seq_num ∈ [0, 255], data_size = 0
-//! 3. Temporal: Cannot send DATA before READY
-//! 4. Temporal: Cannot send ACK before DATA
+//! **Protocol States**:
+//! - **INIT**: Initialization (Data Size = 0).
+//! - **READY**: Ready to transmit (Data Size = 0).
+//! - **DATA**: Transmitting payload (Data Size ∈ [1, 1500]).
+//! - **ACK**: Acknowledgment (Data Size = 0).
 //!
-//! **Analysis Goal:**
-//! Show that BDD control domain prevents invalid state transitions and maintains
-//! precise data_size bounds per state (data_size > 0 only in DATA state).
+//! **Verification Goal**:
+//! Prove that `data_size > 0` is *only* possible in the **DATA** state.
+//!
+//! **Key Insight**:
+//! Path-insensitive analysis merges all states, concluding `data_size ∈ [0, 1500]` globally.
+//! This fails to prove that `ACK` packets are always empty.
+//! BDD-based analysis maintains separate invariants for each state, successfully verifying the property.
 
 use std::rc::Rc;
 

@@ -1,8 +1,17 @@
 //! String Concatenation Analysis Example.
 //!
-//! This example demonstrates:
-//! 1. **String Length Domain**: Analyzing the length of strings formed by concatenation.
-//!    - Scenario: Constructing a URL from parts and verifying its length.
+//! This example demonstrates how the **String Length Domain** tracks string lengths
+//! through concatenation operations.
+//!
+//! Scenario:
+//! Constructing a URL from fixed parts (protocol, domain) and variable parts (query string).
+//!
+//! The analysis computes:
+//! - Exact lengths for constant strings.
+//! - Precise length ranges for concatenated strings (e.g., `len(A + B) = len(A) + len(B)`).
+//!
+//! This allows verifying properties like "URL length never exceeds buffer size" even
+//! when the exact string content is unknown.
 
 use abstract_interpretation::domain::AbstractDomain;
 use abstract_interpretation::{Bound, Interval, NumExpr, NumPred, StringLengthDomain};
@@ -63,7 +72,7 @@ fn main() {
     println!("  ✓ Verified: URL length is exactly 26."); // 3. Variable length part
     println!("\n--- Step 3: Variable Length Analysis ---");
     println!("Program:");
-    println!("  assume(0 <= len(query) <= 100)");
+    println!("  assume(0 ≤ len(query) ≤ 100)");
     println!("  full_url = url + query");
 
     // query = input() (assume length 0 to 100)
@@ -83,5 +92,5 @@ fn main() {
 
     // Expected: [26, 126]
     assert_eq!(full_len, Interval::new(Bound::Finite(26), Bound::Finite(126)));
-    println!("  ✓ Verified: Full URL length is in [26, 126].");
+    println!("  ✓ Verified: Full URL length ∈ [26, 126].");
 }

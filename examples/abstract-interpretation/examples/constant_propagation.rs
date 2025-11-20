@@ -1,10 +1,16 @@
-//! Constant propagation analysis example.
+//! Constant Propagation Analysis Example.
 //!
-//! This example demonstrates how the constant domain can be used for:
-//! - Compile-time constant folding
-//! - Dead code elimination
-//! - Conditional simplification
-//! - Optimization opportunities
+//! This example demonstrates **Constant Propagation**, a classic compiler optimization
+//! technique implemented using abstract interpretation.
+//!
+//! The **Constant Domain** tracks whether a variable has a known constant value
+//! at a specific program point.
+//!
+//! Applications demonstrated:
+//! - **Constant Folding**: Evaluating expressions with constant operands at compile time.
+//! - **Dead Code Elimination**: Identifying unreachable branches (e.g., `if (false) ...`).
+//! - **Conditional Simplification**: Removing checks that are always true or always false.
+//! - **Strength Reduction**: Replacing expensive operations with cheaper ones (e.g., `x * 2` → `x << 1`).
 
 use abstract_interpretation::constant::{ConstValue, ConstantDomain, ConstantElement};
 use abstract_interpretation::domain::AbstractDomain;

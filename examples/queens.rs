@@ -1,3 +1,33 @@
+//! N-Queens Problem Solver.
+//!
+//! This example solves the classic N-Queens problem using Binary Decision Diagrams (BDDs).
+//!
+//! **Problem Statement**:
+//! Place N queens on an N × N chessboard such that no two queens attack each other.
+//!
+//! **BDD Approach**:
+//! 1. **Variables**: Each square (i, j) is a boolean variable x_{i,j}.
+//! 2. **Constraints**:
+//!    - One queen per row: (x_{i,1} ∨ ... ∨ x_{i,N}) ∧ (¬(x_{i,j} ∧ x_{i,k}) for all j ≠ k)
+//!    - One queen per column: Similar to row constraint.
+//!    - Diagonals: No two queens on any diagonal.
+//! 3. **Solution**: The BDD represents the set of all valid solutions.
+//!    - `sat_count` gives the number of solutions.
+//!    - Paths to `True` terminal represent valid board configurations.
+//!
+//! **Note**:
+//! - 20 bits (default) are enough to encode at most n=10 queens (time=0.4s).
+//! - 23 bits are required for n=11 queens (time=15s).
+//! - 25 bits are required for n=12 queens (time=720s).
+//!
+//! **Example**:
+//! For n=5, the BDD represents all valid configurations of 5 queens on a 5x5 board.
+//!
+//! **Usage**:
+//! ```bash
+//! cargo run --example queens -- 5
+//! ```
+
 use bdd_rs::bdd::Bdd;
 use bdd_rs::reference::Ref;
 use clap::Parser;
