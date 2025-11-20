@@ -11,7 +11,7 @@
 //! The analysis proves that `y` (the result) is ALWAYS an Integer, regardless of the input type.
 
 use abstract_interpretation::domain::AbstractDomain;
-use abstract_interpretation::type_domain::{Type, TypeDomain, TypeSet};
+use abstract_interpretation::type_domain::{Type, TypeDomain};
 
 fn main() {
     println!("=== Dynamic Type Checking Analysis ===");
