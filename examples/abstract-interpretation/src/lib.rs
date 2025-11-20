@@ -281,6 +281,7 @@ pub mod numeric;
 pub mod pointsto;
 pub mod product;
 pub mod sign;
+pub mod string_domain;
 pub mod transfer;
 
 // Re-exports for convenience
@@ -294,4 +295,5 @@ pub use numeric::NumericDomain;
 pub use pointsto::{Location, LocationMap, PointsToDomain, PointsToElement};
 pub use product::{ProductDomain, ProductElement};
 pub use sign::{Sign, SignDomain, SignElement};
+pub use string_domain::{StringConst, StringConstantDomain, StringLengthDomain};
 pub use transfer::{NumericTransferFunction, TransferFunction};
