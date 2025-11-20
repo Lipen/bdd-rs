@@ -1349,6 +1349,7 @@ pub struct ControlSensitiveElement<N: NumericDomain> {
     /// Invariant: All control states are satisfiable (not bottom)
     partitions: HashMap<HashableControlState, N::Element>,
     /// Reference to BDD control domain for operations
+    #[allow(dead_code)]
     control_domain: Rc<BddControlDomain>,
     /// Reference to numeric domain for operations
     numeric_domain: Rc<N>,
@@ -1451,7 +1452,7 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
     ///
     /// This is a key optimization: when multiple partitions have control states
     /// that are logically equivalent, we can merge their numeric states.
-    fn merge_equivalent_partitions(&self, elem: &ControlSensitiveElement<N>) -> ControlSensitiveElement<N> {
+    fn _merge_equivalent_partitions(&self, elem: &ControlSensitiveElement<N>) -> ControlSensitiveElement<N> {
         // For now, just return the element unchanged
         // TODO: Implement partition merging optimization
         elem.clone()
