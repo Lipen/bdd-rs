@@ -272,10 +272,12 @@
 //! For detailed documentation, see individual module pages.
 
 pub mod bdd_control;
+pub mod congruence;
 pub mod constant;
 pub mod domain;
 pub mod expr;
 pub mod fixpoint;
+pub mod generic_product;
 pub mod interval;
 pub mod numeric;
 pub mod pointsto;
@@ -283,6 +285,7 @@ pub mod product;
 pub mod sign;
 pub mod string_domain;
 pub mod transfer;
+pub mod type_domain;
 
 // Re-exports for convenience
 pub use bdd_control::{BddControlDomain, ControlSensitiveElement, ControlSensitiveProduct, ControlState};

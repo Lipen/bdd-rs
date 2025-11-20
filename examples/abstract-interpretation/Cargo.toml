@@ -8,6 +8,7 @@ description = "BDD-guided abstract interpretation framework"
 [dependencies]
 bdd-rs = { path = "../.." }
 log = "0.4"
+num-integer = "0.1"
 num-traits = "0.2"
 simplelog = "0.12"
 

@@ -661,6 +661,54 @@ impl IntervalDomain {
     }
 }
 
+/// Single Interval Domain: tracks interval for a single value.
+#[derive(Debug, Clone)]
+pub struct SingleIntervalDomain;
+
+impl AbstractDomain for SingleIntervalDomain {
+    type Element = Interval;
+
+    fn bottom(&self) -> Self::Element {
+        Interval::bottom()
+    }
+
+    fn top(&self) -> Self::Element {
+        Interval::top()
+    }
+
+    fn is_bottom(&self, elem: &Self::Element) -> bool {
+        elem.is_empty()
+    }
+
+    fn is_top(&self, elem: &Self::Element) -> bool {
+        *elem == Interval::top()
+    }
+
+    fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool {
+        if elem1.is_empty() {
+            return true;
+        }
+        if elem2.is_empty() {
+            return false;
+        }
+        // elem1 <= elem2 if elem1 is contained in elem2
+        // i.e. elem2.low <= elem1.low AND elem1.high <= elem2.high
+        elem1.low >= elem2.low && elem1.high <= elem2.high
+    }
+
+    fn join(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        elem1.join(elem2)
+    }
+
+    fn meet(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        elem1.meet(elem2)
+    }
+
+    fn widen(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        elem1.widen(elem2)
+    }
+}
+
 /// Comparison operators for refinement
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ComparisonOp {
