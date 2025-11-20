@@ -117,13 +117,7 @@ fn main() {
     println!();
 
     println!("Test Acceptance:");
-    let test_cases = [
-        ("123", true),
-        ("0", true),
-        ("999", true),
-        ("12a", false),
-        ("", false),
-    ];
+    let test_cases = [("123", true), ("0", true), ("999", true), ("12a", false), ("", false)];
 
     for (input, expected) in &test_cases {
         let result = dfa_int.accepts(input);
@@ -165,8 +159,13 @@ fn main() {
         let result = state_x.accepts(input);
         let mark = if result == *expected { "✓" } else { "✗" };
         println!("  {} '{}' -> {} ({})", mark, input, result, desc);
-        assert_eq!(result, *expected, "Union should {} '{}'",
-                  if *expected { "accept" } else { "reject" }, input);
+        assert_eq!(
+            result,
+            *expected,
+            "Union should {} '{}'",
+            if *expected { "accept" } else { "reject" },
+            input
+        );
     }
 
     // ========================================================================
