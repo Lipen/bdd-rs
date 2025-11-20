@@ -63,7 +63,7 @@ pub enum TypeSet {
 
 /// The Type Abstract Domain.
 ///
-/// This struct implements the [`AbstractDomain`] trait for [`TypeSet`].
+/// This struct implements the [`AbstractDomain`] trait with [`TypeSet`] as elements.
 #[derive(Clone, Debug)]
 pub struct TypeDomain;
 
