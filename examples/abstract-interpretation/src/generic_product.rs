@@ -3,8 +3,9 @@
 //! A generic implementation of the Reduced Product of two abstract domains.
 //! Allows combining any D1 and D2 (e.g., Interval x Congruence).
 
-use crate::domain::AbstractDomain;
 use std::fmt::Debug;
+
+use crate::domain::AbstractDomain;
 
 /// Element of a product domain.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -3,8 +3,9 @@
 //! Tracks modular arithmetic properties: x ≡ c (mod k).
 //! Useful for loop stride analysis, memory alignment, and array access safety.
 
-use crate::domain::AbstractDomain;
-use num_integer::Integer; // For gcd
+use num_integer::Integer;
+
+use crate::domain::AbstractDomain; // For gcd
 
 /// Represents a congruence relation: x ≡ c (mod k).
 /// Canonical form: 0 <= c < k.
@@ -143,13 +144,19 @@ impl AbstractDomain for CongruenceDomain {
                 // For simplicity in this example, we can return a safe over-approximation
                 // or implement full CRT.
                 // Let's implement a simple case: if one divides the other.
-                if k1 % k2 == 0 && (c1 - c2) % k2 == 0 { return *elem1; }
-                if k2 % k1 == 0 && (c2 - c1) % k1 == 0 { return *elem2; }
+                if k1 % k2 == 0 && (c1 - c2) % k2 == 0 {
+                    return *elem1;
+                }
+                if k2 % k1 == 0 && (c2 - c1) % k1 == 0 {
+                    return *elem2;
+                }
 
                 // Fallback: just return one if they are compatible? No, that's unsound.
                 // Correct meet is LCM. Without full extended GCD, we can't easily compute the new 'c'.
                 // But we can check if they are equal.
-                if c1 == c2 && k1 == k2 { return *elem1; }
+                if c1 == c2 && k1 == k2 {
+                    return *elem1;
+                }
 
                 // TODO: Full CRT implementation. For now, return Bottom if not trivial.
                 // Actually, for analysis, meet usually happens at guards.
@@ -177,7 +184,7 @@ mod tests {
         let domain = CongruenceDomain;
         let even = domain.new_congruence(0, 2); // 0 mod 2
         let four = domain.new_congruence(0, 4); // 0 mod 4
-        let odd = domain.new_congruence(1, 2);  // 1 mod 2
+        let odd = domain.new_congruence(1, 2); // 1 mod 2
         let top = Congruence::Val(0, 1);
 
         // Order: 0 mod 4 <= 0 mod 2

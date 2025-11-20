@@ -44,7 +44,7 @@ fn main() {
     let x_branch1 = domain.meet(&x_type, &t_int);
     println!("\nBranch 1 (Integer path):");
     println!("  x type: {:?}", x_branch1);
-    
+
     // y = x + 1 (Integer + Integer -> Integer)
     let y_branch1 = domain.from_type(Type::Integer);
     println!("  y type: {:?}", y_branch1);
