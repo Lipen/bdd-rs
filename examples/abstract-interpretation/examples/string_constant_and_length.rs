@@ -1,4 +1,13 @@
-use abstract_interpretation::*;
+//! String Constant and Length Analysis Example.
+//!
+//! This example demonstrates:
+//! 1. **String Constant Domain**: Tracking exact string values.
+//!    - Useful for constant propagation and detecting constant strings.
+//! 2. **String Length Domain**: Tracking the length of strings using intervals.
+//!    - Useful for buffer overflow detection and loop analysis.
+
+use abstract_interpretation::domain::AbstractDomain;
+use abstract_interpretation::{Interval, StringConst, StringConstantDomain, StringLengthDomain};
 
 fn main() {
     println!("=== String Analysis Example ===");

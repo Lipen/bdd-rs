@@ -1,4 +1,11 @@
-use abstract_interpretation::*;
+//! String Concatenation Analysis Example.
+//!
+//! This example demonstrates:
+//! 1. **String Length Domain**: Analyzing the length of strings formed by concatenation.
+//!    - Scenario: Constructing a URL from parts and verifying its length.
+
+use abstract_interpretation::domain::AbstractDomain;
+use abstract_interpretation::{Bound, Interval, NumExpr, NumPred, StringLengthDomain};
 
 fn main() {
     println!("=== String Concatenation Analysis ===");

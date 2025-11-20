@@ -295,5 +295,8 @@ pub use numeric::NumericDomain;
 pub use pointsto::{Location, LocationMap, PointsToDomain, PointsToElement};
 pub use product::{ProductDomain, ProductElement};
 pub use sign::{Sign, SignDomain, SignElement};
-pub use string_domain::{StringConst, StringConstantDomain, StringLengthDomain};
+pub use string_domain::{
+    CharacterSet, CharacterSetDomain, StringConst, StringConstantDomain, StringInclusionDomain, StringLengthDomain, StringPrefixDomain,
+    StringSuffixDomain,
+};
 pub use transfer::{NumericTransferFunction, TransferFunction};

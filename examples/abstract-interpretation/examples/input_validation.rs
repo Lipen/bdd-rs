@@ -1,3 +1,9 @@
+//! Input Validation Analysis Example.
+//!
+//! This example demonstrates:
+//! 1. **String Length Domain**: Analyzing input validation logic based on string length.
+//!    - Scenario: Validating that a password meets minimum length requirements.
+
 use abstract_interpretation::*;
 
 fn main() {

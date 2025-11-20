@@ -297,6 +297,8 @@ pub enum CharacterSet {
 pub struct CharacterSetDomain;
 
 impl CharacterSetDomain {
+    /// Create a character set from a concrete string.
+    /// The set will contain all unique characters in the string.
     pub fn from_string(&self, s: &str) -> CharacterSet {
         let mut set = BTreeSet::new();
         for c in s.chars() {
@@ -305,6 +307,8 @@ impl CharacterSetDomain {
         CharacterSet::Set(set)
     }
 
+    /// Concatenate two character sets.
+    /// The result contains the union of characters from both sets.
     pub fn concat(&self, elem1: &CharacterSet, elem2: &CharacterSet) -> CharacterSet {
         match (elem1, elem2) {
             (CharacterSet::Bottom, _) | (_, CharacterSet::Bottom) => CharacterSet::Bottom,
@@ -374,6 +378,196 @@ impl AbstractDomain for CharacterSetDomain {
         // However, full unicode is large.
         // For safety, we could widen to Top if size exceeds a threshold.
         // For now, just join.
+        self.join(elem1, elem2)
+    }
+}
+
+/// String Suffix Domain.
+///
+/// Tracks the known suffix of a string.
+/// Useful for checking file extensions or specific endings.
+///
+/// Lattice:
+/// Bottom <= Suffix(s) <= Suffix("") (Top)
+/// Suffix(long) <= Suffix(short) if short is suffix of long.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StringSuffix {
+    Bottom,
+    Suffix(String),
+}
+
+#[derive(Clone, Debug)]
+pub struct StringSuffixDomain;
+
+impl StringSuffixDomain {
+    /// Concatenate two abstract string suffixes.
+    /// concat(Suffix(s1), Suffix(s2)) = Suffix(s2)
+    /// The suffix of the result is determined by the second part.
+    pub fn concat(&self, elem1: &StringSuffix, elem2: &StringSuffix) -> StringSuffix {
+        match (elem1, elem2) {
+            (StringSuffix::Bottom, _) | (_, StringSuffix::Bottom) => StringSuffix::Bottom,
+            (_, StringSuffix::Suffix(s2)) => StringSuffix::Suffix(s2.clone()),
+        }
+    }
+}
+
+impl AbstractDomain for StringSuffixDomain {
+    type Element = StringSuffix;
+
+    fn bottom(&self) -> Self::Element {
+        StringSuffix::Bottom
+    }
+
+    fn top(&self) -> Self::Element {
+        StringSuffix::Suffix(String::new())
+    }
+
+    fn is_bottom(&self, elem: &Self::Element) -> bool {
+        matches!(elem, StringSuffix::Bottom)
+    }
+
+    fn is_top(&self, elem: &Self::Element) -> bool {
+        matches!(elem, StringSuffix::Suffix(s) if s.is_empty())
+    }
+
+    fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool {
+        match (elem1, elem2) {
+            (StringSuffix::Bottom, _) => true,
+            (_, StringSuffix::Bottom) => false,
+            (_, StringSuffix::Suffix(s2)) if s2.is_empty() => true, // s2 is Top
+            (StringSuffix::Suffix(s1), StringSuffix::Suffix(s2)) => s1.ends_with(s2),
+        }
+    }
+
+    fn join(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        match (elem1, elem2) {
+            (StringSuffix::Bottom, e) | (e, StringSuffix::Bottom) => e.clone(),
+            (StringSuffix::Suffix(s1), StringSuffix::Suffix(s2)) => {
+                // Longest common suffix
+                let s1_rev: String = s1.chars().rev().collect();
+                let s2_rev: String = s2.chars().rev().collect();
+                let lcs_rev: String = s1_rev
+                    .chars()
+                    .zip(s2_rev.chars())
+                    .take_while(|(c1, c2)| c1 == c2)
+                    .map(|(c, _)| c)
+                    .collect();
+                let lcs: String = lcs_rev.chars().rev().collect();
+                StringSuffix::Suffix(lcs)
+            }
+        }
+    }
+
+    fn meet(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        match (elem1, elem2) {
+            (StringSuffix::Bottom, _) | (_, StringSuffix::Bottom) => StringSuffix::Bottom,
+            (StringSuffix::Suffix(s1), StringSuffix::Suffix(s2)) => {
+                if s1.ends_with(s2) {
+                    StringSuffix::Suffix(s1.clone())
+                } else if s2.ends_with(s1) {
+                    StringSuffix::Suffix(s2.clone())
+                } else {
+                    StringSuffix::Bottom // Incompatible suffixes
+                }
+            }
+        }
+    }
+
+    fn widen(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        self.join(elem1, elem2)
+    }
+}
+
+/// String Inclusion Domain.
+///
+/// Tracks a set of substrings that MUST be present in the string.
+///
+/// Lattice:
+/// Bottom <= Included(Set) <= Included({}) (Top)
+/// Included(A) <= Included(B) if B ⊆ A.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StringInclusion {
+    Bottom,
+    Included(BTreeSet<String>),
+}
+
+#[derive(Clone, Debug)]
+pub struct StringInclusionDomain;
+
+impl StringInclusionDomain {
+    /// Create an inclusion set from a concrete string.
+    /// The set will contain the string itself as a required substring.
+    pub fn from_string(&self, s: &str) -> StringInclusion {
+        let mut set = BTreeSet::new();
+        set.insert(s.to_string());
+        StringInclusion::Included(set)
+    }
+
+    /// Concatenate two inclusion sets.
+    /// The result requires all substrings from both operands.
+    pub fn concat(&self, elem1: &StringInclusion, elem2: &StringInclusion) -> StringInclusion {
+        match (elem1, elem2) {
+            (StringInclusion::Bottom, _) | (_, StringInclusion::Bottom) => StringInclusion::Bottom,
+            (StringInclusion::Included(s1), StringInclusion::Included(s2)) => {
+                let mut res = s1.clone();
+                res.extend(s2.iter().cloned());
+                StringInclusion::Included(res)
+            }
+        }
+    }
+}
+
+impl AbstractDomain for StringInclusionDomain {
+    type Element = StringInclusion;
+
+    fn bottom(&self) -> Self::Element {
+        StringInclusion::Bottom
+    }
+
+    fn top(&self) -> Self::Element {
+        StringInclusion::Included(BTreeSet::new())
+    }
+
+    fn is_bottom(&self, elem: &Self::Element) -> bool {
+        matches!(elem, StringInclusion::Bottom)
+    }
+
+    fn is_top(&self, elem: &Self::Element) -> bool {
+        matches!(elem, StringInclusion::Included(s) if s.is_empty())
+    }
+
+    fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool {
+        match (elem1, elem2) {
+            (StringInclusion::Bottom, _) => true,
+            (_, StringInclusion::Bottom) => false,
+            (StringInclusion::Included(s1), StringInclusion::Included(s2)) => s2.is_subset(s1),
+        }
+    }
+
+    fn join(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        match (elem1, elem2) {
+            (StringInclusion::Bottom, e) | (e, StringInclusion::Bottom) => e.clone(),
+            (StringInclusion::Included(s1), StringInclusion::Included(s2)) => {
+                // Intersection: only keep substrings present in BOTH paths
+                let res: BTreeSet<String> = s1.intersection(s2).cloned().collect();
+                StringInclusion::Included(res)
+            }
+        }
+    }
+
+    fn meet(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
+        match (elem1, elem2) {
+            (StringInclusion::Bottom, _) | (_, StringInclusion::Bottom) => StringInclusion::Bottom,
+            (StringInclusion::Included(s1), StringInclusion::Included(s2)) => {
+                // Union: result must contain everything from both
+                let mut res = s1.clone();
+                res.extend(s2.iter().cloned());
+                StringInclusion::Included(res)
+            }
+        }
+    }
+
+    fn widen(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
         self.join(elem1, elem2)
     }
 }
@@ -476,6 +670,53 @@ mod tests {
             assert!(!set.contains(&'a'));
         } else {
             panic!("Expected Set");
+        }
+    }
+
+    #[test]
+    fn test_string_suffix_domain() {
+        let domain = StringSuffixDomain;
+        let s1 = StringSuffix::Suffix("file.txt".to_string());
+        let s2 = StringSuffix::Suffix("image.txt".to_string());
+        let s3 = StringSuffix::Suffix(".txt".to_string());
+
+        // Order: "file.txt" <= ".txt"
+        assert!(domain.le(&s1, &s3));
+        assert!(!domain.le(&s3, &s1));
+
+        // Join: LCSuf("file.txt", "image.txt") = "e.txt"
+        let joined = domain.join(&s1, &s2);
+        assert_eq!(joined, StringSuffix::Suffix("e.txt".to_string()));
+
+        // Concat: "path/" + "file.txt" -> ends with "file.txt"
+        let prefix = StringSuffix::Suffix("path/".to_string());
+        let concat = domain.concat(&prefix, &s1);
+        assert_eq!(concat, s1);
+    }
+
+    #[test]
+    fn test_string_inclusion_domain() {
+        let domain = StringInclusionDomain;
+        let i1 = domain.from_string("foo");
+        let i2 = domain.from_string("bar");
+
+        // Concat: must contain "foo" AND "bar"
+        let concat = domain.concat(&i1, &i2);
+        if let StringInclusion::Included(set) = &concat {
+            assert!(set.contains("foo"));
+            assert!(set.contains("bar"));
+        } else {
+            panic!("Expected Included");
+        }
+
+        // Join: path1 has {foo, bar}, path2 has {foo} -> result {foo}
+        let i3 = domain.from_string("foo");
+        let joined = domain.join(&concat, &i3);
+        if let StringInclusion::Included(set) = &joined {
+            assert!(set.contains("foo"));
+            assert!(!set.contains("bar"));
+        } else {
+            panic!("Expected Included");
         }
     }
 }

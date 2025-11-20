@@ -1,3 +1,11 @@
+//! String Prefix and Character Set Analysis Example.
+//!
+//! This example demonstrates:
+//! 1. **String Prefix Domain**: Verifying that strings start with a specific sequence (e.g., "https://").
+//!    - Useful for protocol validation and path traversal checks.
+//! 2. **Character Set Domain**: Tracking the set of characters present in a string.
+//!    - Useful for input sanitization (e.g., ensuring a string contains only digits).
+
 use abstract_interpretation::domain::AbstractDomain;
 use abstract_interpretation::string_domain::{CharacterSet, CharacterSetDomain, StringPrefix, StringPrefixDomain};
 
