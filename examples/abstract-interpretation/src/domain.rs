@@ -16,7 +16,7 @@ use std::fmt::Debug;
 /// - Join/Meet properties: See lattice theory
 pub trait AbstractDomain: Clone + Debug + Sized {
     /// The type representing abstract elements.
-    type Element: Clone + Debug + PartialEq;
+    type Element: Clone + Debug;
 
     /// Create the bottom element (`⊥`): represents the empty set.
     fn bottom(&self) -> Self::Element;
