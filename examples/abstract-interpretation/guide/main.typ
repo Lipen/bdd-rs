@@ -225,8 +225,37 @@ We develop complete lattice theory, fixpoint theorems, Galois connections, and a
 
 #include "chapters/part2_deep_dive/10_domain_combinations.typ"
 
+#include "chapters/part2_deep_dive/11_bdd_path_sensitivity.typ"
+
+#include "chapters/part2_deep_dive/12_string_and_automata_domains.typ"
+
+#include "chapters/part2_deep_dive/13_points_to_and_types.typ"
+
+#include "chapters/part2_deep_dive/14_precision_techniques.typ"
+
 // ============================================================================
-// Part III: Appendices
+// Part III: Applications & Future Directions
+// ============================================================================
+
+#pagebreak()
+
+= Part III: Applications & Future Directions <part-iii>
+
+#reading-path(path: "essential") #h(0.7em) #reading-path(path: "implementation")
+
+Part III bridges the gap between theory and the real world.
+We explore how to apply BDD-guided analysis to security problems, handle complex interprocedural control flow, and look ahead to the integration of Artificial Intelligence with Formal Methods.
+
+#include "chapters/part3_applications/15_security_analysis.typ"
+
+#include "chapters/part3_applications/16_interprocedural_analysis.typ"
+
+#include "chapters/part3_applications/17_ai_guided.typ"
+
+#include "chapters/part3_applications/18_case_studies.typ"
+
+// ============================================================================
+// Part IV: Appendices
 // ============================================================================
 
 // #include "chapters/part3_appendices/a_math_preliminaries.typ"

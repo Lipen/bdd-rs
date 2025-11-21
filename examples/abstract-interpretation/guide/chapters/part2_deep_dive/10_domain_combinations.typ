@@ -12,7 +12,7 @@ We explore trace partitioning, relational domains, and BDD-based symbolic domain
 *Trace partitioning* refines analysis by maintaining separate abstract states for different execution paths.
 
 #definition(title: "Trace Partitioning")[
-  Given abstract domain $A$ and control predicates $P$, a *trace-partitioned domain* maintains a mapping:
+  Given abstract domain $A$ and control predicates~$P$, a *trace-partitioned domain* maintains a mapping:
 
   $ A_P = P -> A $
 

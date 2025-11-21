@@ -212,7 +212,7 @@ The direct product is sound but may contain *unrealizable* elements: pairs $(a_1
 
   + The reduced product forms a Galois connection with:
     $ alpha(c) = rho(alpha_1(c), alpha_2(c)) $
-    $ gamma((a_1, a_2)) = gamma_1(a_1) inter gamma_2(a_2) $
+    $ gamma((a_1, a_2)) = gamma_1 (a_1) inter gamma_2 (a_2) $
 
   + Reduced product is *at least as precise* as the direct product:
     $ rho(a_1, a_2) lle (a_1, a_2) $
@@ -287,7 +287,7 @@ For more than two domains, reduced products generalize.
 #definition(title: "Multi-Domain Reduced Product")[
   Given domains $A_1, ..., A_n$ with abstractions $alpha_i$ and concretizations $gamma_i$, the reduced product is:
 
-  $ A = {(a_1, ..., a_n) mid(|) a_i in A_i, gamma_1(a_1) inter ... inter gamma_n(a_n) != emptyset} $
+  $ A = {(a_1, ..., a_n) mid(|) a_i in A_i, gamma_1 (a_1) inter ... inter gamma_n (a_n) != emptyset} $
 
   with reduction operator:
   $ rho(a_1, ..., a_n) = "fix"(lambda (b_1, ..., b_n) . (rho_1(b_1, ..., b_n), ..., rho_n(b_1, ..., b_n))) $
