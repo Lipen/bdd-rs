@@ -201,14 +201,11 @@ Let's dive in!
 
 #include "chapters/part1_introduction/06_symbolic_executor.typ"
 
-// Additional chapters will be included as we create them
-// Future: Part I could be expanded with more application examples
+#pagebreak()
 
 // ============================================================================
 // Part II: Deep Dive
 // ============================================================================
-
-#pagebreak()
 
 = Part II: Deep Dive <part-ii>
 
@@ -235,11 +232,11 @@ We develop complete lattice theory, fixpoint theorems, Galois connections, and a
 
 #include "chapters/part2_deep_dive/15_precision_techniques.typ"
 
+#pagebreak()
+
 // ============================================================================
 // Part III: Applications & Future Directions
 // ============================================================================
-
-#pagebreak()
 
 = Part III: Applications & Future Directions <part-iii>
 
@@ -262,7 +259,7 @@ We explore how to apply BDD-guided analysis to security problems, handle complex
 // Part IV: Appendices
 // ============================================================================
 
-// #include "chapters/part3_appendices/a_math_preliminaries.typ"
+// #include "chapters/part4_appendices/a_math_preliminaries.typ"
 // ... etc
 
 // ============================================================================
