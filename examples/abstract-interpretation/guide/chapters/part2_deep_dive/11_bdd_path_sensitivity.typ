@@ -69,7 +69,7 @@ Strategies:
   When using dynamic allocation, you must ensure *canonicity*.
   If the program encounters `if x > 0` twice, you must map it to the *same* BDD variable (provided `x` hasn't changed).
   Allocating a fresh variable for every dynamic instance destroys the correlation power of BDDs.
-  Use a `ConditionCache` (as seen in @ch-symbolic-executor) to map symbolic conditions to BDD variables.
+  Use a `ConditionManager` (as seen in @ch-symbolic-executor) to map symbolic conditions to BDD variables.
 ]
 
 #example-box(title: "Mode Controller Predicates")[

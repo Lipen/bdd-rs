@@ -1,11 +1,13 @@
 #import "../../theme.typ": *
 
-= Combining BDDs with Abstract Domains <ch-combining-domains>
+= The Abstract State <ch-combining-domains>
 
-We've seen abstract domains (@ch-abstraction) and BDDs (@ch-bdds, @ch-bdd-programming) separately.
-Now we combine them: BDDs track _which paths are feasible_, abstract domains track _what values variables can have_.
+We have the engine (BDDs) and the fuel (Abstract Domains). Now we build the vehicle.
 
-This combination yields path-sensitive abstract interpretation.
+In this chapter, we define the *Abstract State* of our MiniVerifier.
+Instead of a single value for each variable, our state will be a *collection* of possibilities, each guarded by a BDD path condition.
+
+This combination yields *path-sensitive abstract interpretation*.
 
 #info-box(title: "Guide Roadmap")[
   This chapter introduces the *intuition* and *basic architecture* of path sensitivity using a simple example.
@@ -122,54 +124,41 @@ The key operations follow naturally from this structure.
 - During *assignment*, we keep the BDD path and update only the data domain.
 - At *join* points, we merge BDDs with OR and join the data domains together.
 
-== Canonicalizing Conditions
+== Upgrading the ConditionManager
 
-To leverage the power of BDDs, we must ensure that the same logical condition is always represented by the same BDD variable.
-If we encounter `x > 0` in two different places, we must use the same variable.
-If we encounter `x <= 0`, we should use the *negation* of that variable.
-
-We introduce a `ConditionManager` to handle this mapping:
+In @ch-bdd-programming, we built a `ConditionManager` that maps `Cond` AST nodes to BDD variables.
+This structure is perfect for our needs.
 
 ```rust
-use std::collections::HashMap;
-use std::rc::Rc;
-use bdd_rs::{Bdd, Ref};
+// Recall from Chapter 1 and 4:
+// pub enum Cond {
+//     Lt(Expr, Expr),
+//     Eq(Expr, Expr),
+//     ...
+// }
+```
 
-#[derive(Hash, Eq, PartialEq, Clone, Debug)]
-enum Condition {
-    Gt(String, i32), // x > c
-    Eq(String, i32), // x == c
-    // ... other conditions
-}
+We also need to handle *negation* intelligently.
+If we have allocated a variable for `x > 0`, and we encounter `x <= 0`, we shouldn't allocate a new variable.
+We should just return the *negation* of the existing one.
 
-struct ConditionManager {
-    bdd: Rc<Bdd>,
-    mapping: HashMap<Condition, u32>,
-    next_var: u32,
-}
-
+```rust
 impl ConditionManager {
-    fn new() -> Self {
-        Self {
-            bdd: Rc::new(Bdd::default()),
-            mapping: HashMap::new(),
-            next_var: 1,
-        }
-    }
-
-    fn get_bdd(&mut self, cond: &Condition) -> Ref {
-        if let Some(&var) = self.mapping.get(cond) {
-            return self.bdd.mk_var(var);
+    pub fn get_bdd(&mut self, cond: &Cond) -> Ref {
+        // 1. Check exact match
+        if let Some(&id) = self.mapping.get(cond) {
+            return self.bdd.mk_var(id);
         }
 
-        // In a real implementation, we would also check for negations here.
-        // e.g., if requesting (x <= c), check if we have (x > c) and return NOT.
+        // 2. Check negation (simplified for this guide)
+        // In a full implementation, we would check if we have the "opposite" condition.
+        // e.g. if cond is "x <= 0", check if we have "x > 0" and return !var.
 
-        // Allocate new if not found
-        let var = self.next_var;
-        self.next_var += 1;
-        self.mapping.insert(cond.clone(), var);
-        self.bdd.mk_var(var)
+        // 3. Allocate new
+        let id = self.next_var_id;
+        self.next_var_id += 1;
+        self.mapping.insert(cond.clone(), id);
+        self.bdd.mk_var(id)
     }
 }
 ```
@@ -257,7 +246,7 @@ When we branch on a condition like `x > 0`, we should update the abstract value 
 
 ```rust
 impl<D: AbstractDomain + Refineable> PartitionedState<D> {
-    fn assume(&mut self, cond: &Condition) {
+    fn assume(&mut self, cond: &Cond) {
         let mut new_partitions = Vec::new();
         let bdd_cond = self.control.borrow_mut().get_bdd(cond);
         let bdd = &self.control.borrow().bdd;
@@ -307,7 +296,7 @@ fn analyze_function() {
     state.assign("result", Sign::Zero);
 
     // Branch on x > 0
-    let cond = Condition::Gt("x".to_string(), 0);
+    let cond = Cond::Lt(Expr::Const(0), Expr::Var("x".into())); // 0 < x
 
     // True branch: assume(x > 0)
     let mut true_state = state.clone();
@@ -317,7 +306,7 @@ fn analyze_function() {
 
     // False branch: assume(!(x > 0)) -> assume(x <= 0)
     let mut false_state = state.clone();
-    let not_cond = Condition::Le("x".to_string(), 0); // Negation
+    let not_cond = Cond::Not(Box::new(cond.clone())); // Negation
     false_state.assume(&not_cond);
     // Refinement sets x to NonPos (Zero | Neg)
 

@@ -107,75 +107,37 @@ Components:
 
 == Expression Language
 
-Model simple expressions:
+We use the IMP language AST defined in @ch-abstraction.
 
 ```rust
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Expr {
-    Const(i32),
-    Var(String),
-    Add(Box<Expr>, Box<Expr>),
-    Sub(Box<Expr>, Box<Expr>),
-    Neg(Box<Expr>),
-}
-
-impl Expr {
-    fn var(name: &str) -> Self {
-        Expr::Var(name.to_string())
-    }
-
-    fn add(lhs: Expr, rhs: Expr) -> Self {
-        Expr::Add(Box::new(lhs), Box::new(rhs))
-    }
-
-    fn sub(lhs: Expr, rhs: Expr) -> Self {
-        Expr::Sub(Box::new(lhs), Box::new(rhs))
-    }
-
-    fn neg(e: Expr) -> Self {
-        Expr::Neg(Box::new(e))
-    }
-}
+// Recall from Chapter 1:
+// pub enum Expr {
+//     Var(String),
+//     Const(i32),
+//     Add(Box<Expr>, Box<Expr>),
+//     ...
+// }
+//
+// pub enum Cond {
+//     Lt(Expr, Expr),
+//     ...
+// }
 ```
 
 Example:
 
 ```rust
 // x + (-y)
-let expr = Expr::add(
-    Expr::var("x"),
-    Expr::neg(Expr::var("y")),
-);
-```
-
-Conditions:
-
-```rust
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Cond {
-    Lt(Expr, Expr),      // <
-    Le(Expr, Expr),      // ≤
-    Eq(Expr, Expr),      // =
-    And(Box<Cond>, Box<Cond>),
-    Or(Box<Cond>, Box<Cond>),
-    Not(Box<Cond>),
-}
-```
-
-Example:
-
-```rust
-// x < 0 ∧ y > 5
-let cond = Cond::And(
-    Box::new(Cond::Lt(Expr::var("x"), Expr::Const(0))),
-    Box::new(Cond::Lt(Expr::Const(5), Expr::var("y"))),
+let expr = Expr::Add(
+    Box::new(Expr::Var("x".into())),
+    Box::new(Expr::Sub(Box::new(Expr::Const(0)), Box::new(Expr::Var("y".into())))), // -y as 0-y
 );
 ```
 
 == Symbolic State
 
-We need a way to manage BDD variables for conditions.
-To ensure consistency (e.g., `x > 0` always maps to the same BDD variable), we use a cache.
+We reuse the `ConditionManager` we built in @ch-combining-domains to manage our BDD variables.
+This ensures that if we encounter `x > 0` in different parts of the execution, they map to the same BDD variable.
 
 ```rust
 use bdd_rs::{Bdd, Ref};
@@ -183,37 +145,15 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-struct ConditionCache {
-    bdd: Rc<Bdd>,
-    cache: HashMap<Cond, u32>, // Map condition -> BDD variable
-    next_var: u32,
-}
-
-impl ConditionCache {
-    fn new(bdd: Rc<Bdd>) -> Self {
-        Self { bdd, cache: HashMap::new(), next_var: 1 }
-    }
-
-    fn get_var(&mut self, cond: &Cond) -> u32 {
-        if let Some(&var) = self.cache.get(cond) {
-            return var;
-        }
-        let var = self.next_var;
-        self.next_var += 1;
-        self.cache.insert(cond.clone(), var);
-        var
-    }
-}
-
-#[derive(Clone)]
+// Recall ConditionManager from Chapter 5
 struct SymbolicState {
-    ctx: Rc<RefCell<ConditionCache>>,
+    ctx: Rc<RefCell<ConditionManager>>,
     path: Ref,                           // Path condition (BDD)
     env: HashMap<String, Expr>,          // Variable → symbolic expression
 }
 
 impl SymbolicState {
-    fn new(ctx: Rc<RefCell<ConditionCache>>) -> Self {
+    fn new(ctx: Rc<RefCell<ConditionManager>>) -> Self {
         let true_path = ctx.borrow().bdd.mk_true();
         Self {
             ctx,
@@ -286,15 +226,12 @@ Crucially, we first *evaluate* the condition to its symbolic form, then check if
 impl SymbolicState {
     fn branch(&mut self, condition: &Cond) -> SymbolicState {
         // 1. Evaluate condition to symbolic form (e.g., "x < 0" becomes "α < 0")
-        // (Assuming eval_cond recursively evaluates expressions in the condition)
         let sym_cond = self.eval_cond(condition);
 
-        // 2. Get canonical BDD variable from cache
-        // If we've seen "α < 0" before, we get the SAME variable!
-        let cond_var = self.ctx.borrow_mut().get_var(&sym_cond);
-
-        let bdd = self.ctx.borrow().bdd.clone();
-        let cond_bdd = bdd.mk_var(cond_var);
+        // 2. Get canonical BDD from manager
+        // The manager ensures that identical symbolic conditions map to the same BDD node
+        let cond_bdd = self.ctx.borrow_mut().get_bdd(&sym_cond);
+        let bdd = &self.ctx.borrow().bdd;
 
         // True path: path ∧ condition
         let true_path = bdd.apply_and(self.path, cond_bdd);
@@ -313,7 +250,7 @@ impl SymbolicState {
 }
 ```
 
-By using the `ConditionCache`, we ensure that if the program checks `if x > 0` twice (and `x` hasn't changed), we use the same BDD variable. This allows the BDD to automatically deduce that the second check is redundant!
+By using the `ConditionManager`, we ensure that if the program checks `if x > 0` twice (and `x` hasn't changed), we use the same BDD variable. This allows the BDD to automatically deduce that the second check is redundant!
 
 #figure(
   caption: [Path forking at conditional branches. Starting from an initial state, each `if` condition allocates a fresh BDD variable and splits into two states. The true branch updates the path with $(p and c)$, the false branch with $(p and not c)$ where $p$ is the current path condition. Both branches inherit the symbolic environment, which may be refined based on the learned condition.],
@@ -392,17 +329,17 @@ By using the `ConditionCache`, we ensure that if the program checks `if x > 0` t
 
 == Program Representation
 
-Model simple imperative programs:
+We use the `Stmt` enum from @ch-abstraction.
 
 ```rust
-#[derive(Debug, Clone)]
-enum Stmt {
-    Assign(String, Expr),
-    If(Cond, Vec<Stmt>, Vec<Stmt>),  // if-then-else
-    Assert(Cond),
-}
-
-type Program = Vec<Stmt>;
+// Recall from Chapter 1:
+// pub enum Stmt {
+//     Assign(String, Expr),
+//     Seq(Box<Stmt>, Box<Stmt>),
+//     If(Cond, Box<Stmt>, Box<Stmt>),
+//     Assert(Cond),
+//     ...
+// }
 ```
 
 Example:
@@ -419,21 +356,19 @@ Example:
 //     result
 // }
 
-let program = vec![
-    Stmt::Assign("result".into(), Expr::Const(0)),
-    Stmt::If(
-        Cond::Lt(Expr::var("x"), Expr::Const(0)),
-        vec![
-            Stmt::Assign("result".into(), Expr::neg(Expr::var("x"))),
-        ],
-        vec![
-            Stmt::Assign("result".into(), Expr::var("x")),
-        ],
-    ),
-    Stmt::Assert(
-        Cond::Le(Expr::Const(0), Expr::var("result")),
-    ),
-];
+let program = Stmt::Seq(
+    Box::new(Stmt::Assign("result".into(), Expr::Const(0))),
+    Box::new(Stmt::Seq(
+        Box::new(Stmt::If(
+            Cond::Lt(Expr::Var("x".into()), Expr::Const(0)),
+            Box::new(Stmt::Assign("result".into(), Expr::Sub(Box::new(Expr::Const(0)), Box::new(Expr::Var("x".into()))))),
+            Box::new(Stmt::Assign("result".into(), Expr::Var("x".into()))),
+        )),
+        Box::new(Stmt::Assert(
+            Cond::Le(Expr::Const(0), Expr::Var("result".into())),
+        )),
+    )),
+);
 ```
 
 == Interpreter
@@ -442,51 +377,45 @@ Execute statements, tracking symbolic state:
 
 ```rust
 struct Interpreter {
-    ctx: Rc<RefCell<ConditionCache>>,
+    ctx: Rc<RefCell<ConditionManager>>,
 }
 
 impl Interpreter {
     fn new() -> Self {
-        let bdd = Rc::new(Bdd::default());
         Self {
-            ctx: Rc::new(RefCell::new(ConditionCache::new(bdd))),
+            ctx: Rc::new(RefCell::new(ConditionManager::new())),
         }
     }
 
-    fn execute(&self, program: &[Stmt]) -> Vec<SymbolicState> {
+    fn execute(&self, stmt: &Stmt) -> Vec<SymbolicState> {
         let initial = SymbolicState::new(self.ctx.clone());
-        self.execute_on_state(program, initial)
+        self.execute_stmt(stmt, initial)
     }
 
-    fn execute_on_state(&self, program: &[Stmt], mut state: SymbolicState) -> Vec<SymbolicState> {
+    fn execute_stmt(&self, stmt: &Stmt, mut state: SymbolicState) -> Vec<SymbolicState> {
         if !state.is_feasible() {
             return vec![];  // Dead path
         }
 
-        let mut current_states = vec![state];
-
-        for stmt in program {
-            current_states = current_states.into_iter()
-                .flat_map(|s| self.execute_stmt(stmt, s))
-                .collect();
-        }
-
-        current_states
-    }
-
-    fn execute_stmt(&self, stmt: &Stmt, mut state: SymbolicState) -> Vec<SymbolicState> {
         match stmt {
             Stmt::Assign(var, expr) => {
                 state.assign(var, expr.clone());
                 vec![state]
             }
 
+            Stmt::Seq(s1, s2) => {
+                let states = self.execute_stmt(s1, state);
+                states.into_iter()
+                    .flat_map(|s| self.execute_stmt(s2, s))
+                    .collect()
+            }
+
             Stmt::If(cond, then_branch, else_branch) => {
                 let false_state = state.branch(cond);
 
                 // Execute both branches
-                let mut then_states = self.execute_on_state(then_branch, state);
-                let mut else_states = self.execute_on_state(else_branch, false_state);
+                let mut then_states = self.execute_stmt(then_branch, state);
+                let mut else_states = self.execute_stmt(else_branch, false_state);
 
                 then_states.append(&mut else_states);
                 then_states
@@ -497,6 +426,14 @@ impl Interpreter {
                 // For now, just continue (bug detection below)
                 vec![state]
             }
+
+            Stmt::Skip => vec![state],
+
+            Stmt::While(_, _) => {
+                // Loop handling is complex (requires fixpoint or unrolling).
+                // For this simple executor, we treat it as a no-op or error.
+                vec![state]
+            }
         }
     }
 }
@@ -504,31 +441,23 @@ impl Interpreter {
 
 == Bug Detection
 
-Check assertions:
+To detect bugs, we check assertions during execution.
+When the interpreter encounters `Stmt::Assert(cond)`, it should verify that `cond` holds for all current paths.
 
 ```rust
 impl Interpreter {
-    fn check_assertions(&self, program: &[Stmt]) -> Vec<(String, SymbolicState)> {
-        let states = self.execute(program);
-        let mut bugs = Vec::new();
+    // In a real implementation, this would be part of execute_stmt
+    fn check_assertion(&self, state: &SymbolicState, cond: &Cond) -> Option<String> {
+        // 1. Evaluate condition in current state
+        // 2. Check if !cond is feasible (satisfiable)
+        // If feasible, we have a bug!
 
-        for (idx, stmt) in program.iter().enumerate() {
-            if let Stmt::Assert(cond) = stmt {
-                for state in &states {
-                    // Check if assertion could fail on this path
-                    // (Simplified: real version would check if ¬cond is satisfiable)
-                    if state.is_feasible() {
-                        // Potentially buggy path
-                        bugs.push((
-                            format!("Assertion at statement {} might fail", idx),
-                            state.clone(),
-                        ));
-                    }
-                }
-            }
+        if state.is_feasible() {
+             // Simplified check
+             Some("Assertion might fail".to_string())
+        } else {
+            None
         }
-
-        bugs
     }
 }
 ```
@@ -538,19 +467,16 @@ For a complete implementation, evaluate condition and check satisfiability.
 #example-box(number: "6.1", title: "Simple Bug Detection")[
   ```rust
   // Buggy function: forgets to handle x=0
-  let buggy_program = vec![
-      Stmt::If(
-          Cond::Lt(Expr::var("x"), Expr::Const(0)),
-          vec![Stmt::Assign("result".into(), Expr::Const(-1))],
-          vec![Stmt::Assign("result".into(), Expr::Const(1))],
-      ),
-      Stmt::Assert(Cond::Eq(Expr::var("result"), Expr::Const(0))),
-  ];
+  let buggy_program = Stmt::Seq(
+      Box::new(Stmt::If(
+          Cond::Lt(Expr::Var("x".into()), Expr::Const(0)),
+          Box::new(Stmt::Assign("result".into(), Expr::Const(-1))),
+          Box::new(Stmt::Assign("result".into(), Expr::Const(1))),
+      )),
+      Box::new(Stmt::Assert(Cond::Eq(Expr::Var("result".into()), Expr::Const(0)))),
+  );
 
-  let interp = Interpreter::new();
-  let bugs = interp.check_assertions(&buggy_program);
-
-  println!("Found {} potential bugs", bugs.len());
+  // Running the interpreter would flag the assertion failure on the x=0 path.
   ```
 ]
 
@@ -568,20 +494,16 @@ fn abs_example() {
     // }
     // assert!(result >= 0);
 
-    let program = vec![
-        Stmt::If(
-            Cond::Lt(Expr::var("x"), Expr::Const(0)),
-            vec![
-                Stmt::Assign("result".into(), Expr::neg(Expr::var("x"))),
-            ],
-            vec![
-                Stmt::Assign("result".into(), Expr::var("x")),
-            ],
-        ),
-        Stmt::Assert(
-            Cond::Le(Expr::Const(0), Expr::var("result")),
-        ),
-    ];
+    let program = Stmt::Seq(
+        Box::new(Stmt::If(
+            Cond::Lt(Expr::Var("x".into()), Expr::Const(0)),
+            Box::new(Stmt::Assign("result".into(), Expr::Neg(Box::new(Expr::Var("x".into()))))),
+            Box::new(Stmt::Assign("result".into(), Expr::Var("x".into()))),
+        )),
+        Box::new(Stmt::Assert(
+            Cond::Le(Expr::Const(0), Expr::Var("result".into())),
+        )),
+    );
 
     let interp = Interpreter::new();
     let final_states = interp.execute(&program);
