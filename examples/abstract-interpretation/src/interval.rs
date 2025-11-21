@@ -748,15 +748,19 @@ mod tests {
 
     #[test]
     fn test_interval_operations() {
+        // Intervals: [0, 10] and [5, 15]
         let i1 = Interval::new(Bound::Finite(0), Bound::Finite(10));
         let i2 = Interval::new(Bound::Finite(5), Bound::Finite(15));
 
+        // Join: [0, 10] ⊔ [5, 15] = [0, 15]
         let joined = i1.join(&i2);
         assert_eq!(joined, Interval::new(Bound::Finite(0), Bound::Finite(15)));
 
+        // Meet: [0, 10] ⊓ [5, 15] = [5, 10]
         let met = i1.meet(&i2);
         assert_eq!(met, Interval::new(Bound::Finite(5), Bound::Finite(10)));
 
+        // Widening: [0, 10] ▽ [5, 15] = [0, +∞]
         let widened = i1.widen(&i2);
         assert_eq!(widened, Interval::new(Bound::Finite(0), Bound::PosInf));
     }
@@ -765,10 +769,15 @@ mod tests {
     fn test_interval_domain() {
         let domain = IntervalDomain;
 
+        // Element: x ∈ [5, 5]
         let e1 = domain.constant(&"x".to_string(), 5);
         assert_eq!(e1.get("x"), Interval::constant(5));
 
+        // Element: x ∈ [0, 10]
         let e2 = domain.interval(&"x".to_string(), 0, 10);
+        assert_eq!(e2.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(10)));
+
+        // Join: x ∈ [0, 10]
         let joined = domain.join(&e1, &e2);
         assert_eq!(joined.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(10)));
     }
