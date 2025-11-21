@@ -730,7 +730,7 @@ enum ComparisonOp {
 }
 
 impl ComparisonOp {
-    /// Flip the comparison when swapping operands: (a < b) ↔ (b > a)
+    /// Flip the comparison when swapping operands: `(a < b) ↔ (b > a)``
     fn flip(self) -> Self {
         match self {
             ComparisonOp::Lt => ComparisonOp::Gt,
