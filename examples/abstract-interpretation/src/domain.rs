@@ -18,10 +18,10 @@ pub trait AbstractDomain: Clone + Debug + Sized {
     /// The type representing abstract elements.
     type Element: Clone + Debug + PartialEq;
 
-    /// Create the bottom element (⊥): represents the empty set.
+    /// Create the bottom element (`⊥`): represents the empty set.
     fn bottom(&self) -> Self::Element;
 
-    /// Create the top element (⊤): represents all possible states.
+    /// Create the top element (`⊤`): represents all possible states.
     fn top(&self) -> Self::Element;
 
     /// Check if an element is bottom.
@@ -30,9 +30,9 @@ pub trait AbstractDomain: Clone + Debug + Sized {
     /// Check if an element is top.
     fn is_top(&self, elem: &Self::Element) -> bool;
 
-    /// Partial order: `elem1 ⊑ elem2` (elem1 is more precise than elem2).
+    /// Partial order: `elem1 ⊑ elem2` (`elem1` is more precise than `elem2`).
     ///
-    /// Returns true if elem1 represents a subset of states represented by elem2.
+    /// Returns true if `elem1` represents a subset of states represented by `elem2`.
     fn le(&self, elem1: &Self::Element, elem2: &Self::Element) -> bool;
 
     /// Join (`⊔`): least upper bound, over-approximation.
