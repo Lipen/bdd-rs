@@ -93,8 +93,8 @@ The architecture has three components working together.
     // Data domain component
     draw-component-box((3.7, 2.5), 3, 1.5, "Data Domain", colors.accent)
     draw-content-line((3.9, 3.3), [Variable map:])
-    draw-content-line((3.9, 2.95), [$x arrow.r.bar plus.minus$])
-    draw-content-line((3.9, 2.65), [$y arrow.r.bar top$])
+    draw-content-line((3.9, 2.95), [$x |-> plus.minus$])
+    draw-content-line((3.9, 2.65), [$y |-> top$])
 
     // Operation arrows below
     content((3.5, 1.5), text(fill: colors.primary, weight: "bold", size: 0.85em)[Key Operations:], anchor: "north")

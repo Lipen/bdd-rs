@@ -223,15 +223,17 @@ We develop complete lattice theory, fixpoint theorems, Galois connections, and a
 
 #include "chapters/part2_deep_dive/09_advanced_galois.typ"
 
-#include "chapters/part2_deep_dive/10_domain_combinations.typ"
+#include "chapters/part2_deep_dive/10_approximation_theory.typ"
 
-#include "chapters/part2_deep_dive/11_bdd_path_sensitivity.typ"
+#include "chapters/part2_deep_dive/11_domain_combinations.typ"
 
-#include "chapters/part2_deep_dive/12_string_and_automata_domains.typ"
+#include "chapters/part2_deep_dive/12_bdd_path_sensitivity.typ"
 
-#include "chapters/part2_deep_dive/13_points_to_and_types.typ"
+#include "chapters/part2_deep_dive/13_string_and_automata_domains.typ"
 
-#include "chapters/part2_deep_dive/14_precision_techniques.typ"
+#include "chapters/part2_deep_dive/14_points_to_and_types.typ"
+
+#include "chapters/part2_deep_dive/15_precision_techniques.typ"
 
 // ============================================================================
 // Part III: Applications & Future Directions
@@ -246,13 +248,15 @@ We develop complete lattice theory, fixpoint theorems, Galois connections, and a
 Part III bridges the gap between theory and the real world.
 We explore how to apply BDD-guided analysis to security problems, handle complex interprocedural control flow, and look ahead to the integration of Artificial Intelligence with Formal Methods.
 
-#include "chapters/part3_applications/15_security_analysis.typ"
+#include "chapters/part3_applications/16_security_analysis.typ"
 
-#include "chapters/part3_applications/16_interprocedural_analysis.typ"
+#include "chapters/part3_applications/17_interprocedural_analysis.typ"
 
-#include "chapters/part3_applications/17_ai_guided.typ"
+#include "chapters/part3_applications/18_performance.typ"
 
-#include "chapters/part3_applications/18_case_studies.typ"
+#include "chapters/part3_applications/19_ai_guided.typ"
+
+#include "chapters/part3_applications/20_case_studies.typ"
 
 // ============================================================================
 // Part IV: Appendices

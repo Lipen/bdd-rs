@@ -107,7 +107,6 @@ This creates a cycle.
 
     line(back-start, back-mid, back-end, stroke: colors.text-light + 1pt, mark: (end: ">"))
     content((1.5, 2.8), text(size: 0.7em)[$x = x + 1$])
-
   }),
 ) <fig:cfg-loop>
 

@@ -72,52 +72,94 @@ A BDD consists of:
 To evaluate the function for a given assignment of variables, we start at the root and follow the edges.
 
 #figure(
-  caption: [A BDD representing the function $f = A and B$. To get to terminal 1, both A and B must be true.],
+  caption: [Comparison: Full Decision Tree vs. Reduced BDD for $(A and B) or C$],
   cetz.canvas({
     import cetz.draw: *
 
-    let draw-bdd-node(pos, label) = {
-      circle(pos, radius: 0.4, fill: white, stroke: colors.primary + 2pt)
-      content(pos, text(fill: colors.primary, size: 0.9em, weight: "bold")[#label])
+    let style-node = (fill: white, stroke: colors.primary + 1.5pt)
+    let style-term-0 = (fill: colors.error.lighten(80%), stroke: colors.error + 1.5pt)
+    let style-term-1 = (fill: colors.success.lighten(80%), stroke: colors.success + 1.5pt)
+
+    let draw-node(pos, label, name) = {
+      circle(pos, radius: 0.35, name: name, ..style-node)
+      content(pos, text(weight: "bold")[#label])
     }
 
-    let draw-bdd-terminal(pos, value) = {
-      let term-color = if value == "0" { colors.error } else { colors.success }
-      rect(
-        (pos.at(0) - 0.35, pos.at(1) - 0.35),
-        (pos.at(0) + 0.35, pos.at(1) + 0.35),
-        fill: term-color.lighten(70%),
-        stroke: term-color + 2pt,
-        radius: 0.1,
-      )
-      content(pos, text(fill: term-color, size: 0.9em, weight: "bold")[#value])
+    let draw-term(pos, label, name) = {
+      let s = if label == "0" { style-term-0 } else { style-term-1 }
+      rect((pos.at(0) - 0.3, pos.at(1) - 0.3), (pos.at(0) + 0.3, pos.at(1) + 0.3), name: name, ..s, radius: 0.1)
+      content(pos, text(weight: "bold")[#label])
     }
 
-    let draw-bdd-edge(from, to, is-high) = {
-      let edge-style = if is-high {
-        (paint: colors.primary, thickness: 1.5pt)
-      } else {
-        (paint: colors.secondary, thickness: 1.5pt, dash: "dashed")
-      }
-      line(from, to, stroke: edge-style)
+    let draw-edge(from, to, type) = {
+      let s = if type == "high" { (paint: colors.primary) } else { (paint: colors.secondary, dash: "dashed") }
+      line(from, to, stroke: s, mark: (end: ">", size: 0.15))
     }
 
-    let root = (0, 3)
-    let node-b = (2, 1.5)
-    let term-0 = (-1, 0)
-    let term-1 = (3, 0)
+    // --- LEFT: Full Tree (Simplified for space) ---
+    // We'll just show the top part and indicate explosion
+    let x-left = -4
+    content((x-left, 4), text(weight: "bold")[Full Decision Tree])
 
-    draw-bdd-edge(root, term-0, false)
-    draw-bdd-edge(root, node-b, true)
-    draw-bdd-edge(node-b, term-0, false)
-    draw-bdd-edge(node-b, term-1, true)
+    draw-node((x-left, 3), "A", "t_a")
+    draw-node((x-left - 1.5, 1.5), "B", "t_b1")
+    draw-node((x-left + 1.5, 1.5), "B", "t_b2")
 
-    draw-bdd-node(root, "A")
-    draw-bdd-node(node-b, "B")
-    draw-bdd-terminal(term-0, "0")
-    draw-bdd-terminal(term-1, "1")
-  })
-) <fig:bdd-and>
+    draw-edge("t_a", "t_b1", "low")
+    draw-edge("t_a", "t_b2", "high")
+
+    draw-node((x-left - 2.2, 0), "C", "t_c1")
+    draw-node((x-left - 0.8, 0), "C", "t_c2")
+    draw-node((x-left + 0.8, 0), "C", "t_c3")
+    draw-node((x-left + 2.2, 0), "C", "t_c4")
+
+    draw-edge("t_b1", "t_c1", "low")
+    draw-edge("t_b1", "t_c2", "high")
+    draw-edge("t_b2", "t_c3", "low")
+    draw-edge("t_b2", "t_c4", "high")
+
+    // Terminals for tree
+    draw-term((x-left - 2.5, -1.5), "0", "tt1")
+    draw-term((x-left - 1.9, -1.5), "1", "tt2")
+    // ... skipping some for clarity, just showing duplication
+    draw-term((x-left + 2.5, -1.5), "1", "tt8")
+
+    draw-edge("t_c1", "tt1", "low")
+    draw-edge("t_c1", "tt2", "high")
+    draw-edge("t_c4", "tt8", "high")
+
+    content((x-left, -2.5), text(size: 0.8em, style: "italic")[Redundant nodes & subtrees])
+
+    // --- RIGHT: Reduced BDD ---
+    let x-right = 4
+    content((x-right, 4), text(weight: "bold")[Reduced BDD])
+
+    draw-node((x-right, 3), "A", "r_a")
+    draw-node((x-right + 1.5, 1.5), "B", "r_b")
+    draw-node((x-right, 0), "C", "r_c")
+
+    draw-term((x-right - 1.5, -1.5), "0", "r_0")
+    draw-term((x-right + 1.5, -1.5), "1", "r_1")
+
+    // Edges for Reduced
+    // A low -> C
+    draw-edge("r_a", "r_c", "low")
+    // A high -> B
+    draw-edge("r_a", "r_b", "high")
+
+    // B low -> C (Sharing!)
+    draw-edge("r_b", "r_c", "low")
+    // B high -> 1
+    draw-edge("r_b", "r_1", "high")
+
+    // C low -> 0
+    draw-edge("r_c", "r_0", "low")
+    // C high -> 1
+    draw-edge("r_c", "r_1", "high")
+
+    content((x-right, -2.5), text(size: 0.8em, style: "italic")[Shared nodes C and 1])
+  }),
+) <fig:bdd-comparison>
 
 === Reduction and Sharing
 

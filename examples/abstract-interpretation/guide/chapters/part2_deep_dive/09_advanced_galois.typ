@@ -12,7 +12,7 @@ This chapter explores advanced topics: abstract transformers, best transformers,
 #definition(title: "Concrete Transformer")[
   Given a program statement $s$ and concrete domain $C$, the *concrete transformer* $llb s rrb_C: C -> C$ computes the effect of executing $s$:
 
-  $ llb s rrb_C (c) = {sigma' mid(|) exists sigma in c: sigma arrow.r^s sigma'} $
+  $ llb s rrb_C (c) = {sigma' mid(|) exists sigma in c: sigma ->^s sigma'} $
 
   For a concrete state set $c$, this is the set of all states reachable by executing $s$ from any state in $c$.
 ]
@@ -132,7 +132,7 @@ While best transformers are most precise, computing them may be expensive or imp
 
   However, for `x := x * x`:
   - Input: $a = [-2, 2]$
-  - Concrete: $gamma([-2,2]) arrow.r {0,1,4}$ after squaring
+  - Concrete: $gamma([-2,2]) -> {0,1,4}$ after squaring
   - Best: $alpha({0,1,4}) = [0,4]$
   - Practical: $[-2,2] times [-2,2] = [-4, 4]$ --- incomplete (loses precision at $-4$)
 ]
