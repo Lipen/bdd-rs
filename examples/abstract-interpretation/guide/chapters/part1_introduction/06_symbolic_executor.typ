@@ -282,7 +282,7 @@ By using the `ConditionManager`, we ensure that if the program checks `if x > 0`
     }
 
     // Initial state
-    draw-exec-state((0, 3), "Path: $top$", "x: $alpha$")
+    draw-exec-state((0, 3), [Path: $top$], [`x`: $alpha$])
     content((-1.5, 3), text(size: 0.7em, fill: colors.text-light)[Initial], anchor: "east")
 
     // First condition
@@ -290,8 +290,8 @@ By using the `ConditionManager`, we ensure that if the program checks `if x > 0`
     line((0, 2.5), (0, 2.1), stroke: colors.primary + 1pt, mark: (end: ">"))
 
     // First fork
-    draw-exec-state((-2.5, 0.5), "Path: $c_1$", "x: $alpha$")
-    draw-exec-state((2.5, 0.5), "Path: $not c_1$", "x: $alpha$")
+    draw-exec-state((-2.5, 0.5), [Path: $c_1$], [`x`: $alpha$])
+    draw-exec-state((2.5, 0.5), [Path: $not c_1$], [`x`: $alpha$])
 
     draw-fork-edge((0, 1.5), (-2.5, 1.0), is-true: true)
     draw-fork-edge((0, 1.5), (2.5, 1.0), is-true: false)
@@ -307,10 +307,10 @@ By using the `ConditionManager`, we ensure that if the program checks `if x > 0`
     line((2.5, 0), (2.5, -0.4), stroke: colors.primary + 1pt, mark: (end: ">"))
 
     // Final states
-    draw-exec-state((-4, -2), "Path: $c_1 and c_2$", "x: $alpha$")
-    draw-exec-state((-1, -2), "Path: $c_1 and not c_2$", "x: $alpha$")
-    draw-exec-state((1.5, -2), "Path: $not c_1 and c_3$", "x: $alpha$")
-    draw-exec-state((4, -2), "Path: $not c_1 and not c_3$", "x: $alpha$")
+    draw-exec-state((-4, -2), [Path: $c_1 and c_2$], [`x`: $alpha$])
+    draw-exec-state((-1, -2), [Path: $c_1 and not c_2$], [`x`: $alpha$])
+    draw-exec-state((1.5, -2), [Path: $not c_1 and c_3$], [`x`: $alpha$])
+    draw-exec-state((4, -2), [Path: $not c_1 and not c_3$], [`x`: $alpha$])
 
     // Fork edges to final states
     draw-fork-edge((-2.5, -1.0), (-4, -1.5), is-true: true)
