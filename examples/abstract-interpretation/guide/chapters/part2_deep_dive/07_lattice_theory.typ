@@ -605,6 +605,26 @@ Narrowing refines an over-approximation obtained by widening, recovering some pr
   }),
 )
 
+== The Lattice of Boolean Functions
+
+Since we use BDDs to represent sets of paths, it is crucial to understand that Boolean functions form a lattice.
+
+Let $B_n$ be the set of all Boolean functions $f: {0,1}^n -> {0,1}$.
+We define the ordering $f <= g$ as logical implication:
+$ f <= g <==> forall x: f(x) => g(x) $
+
+This forms a complete lattice $(B_n, <=, or, and, "false", "true")$.
+- Join ($ljoin$) is logical OR ($or$)
+- Meet ($lmeet$) is logical AND ($and$)
+- Bottom ($bot$) is the constant function `false` (empty set of paths)
+- Top ($top$) is the constant function `true` (all paths)
+
+#insight-box[
+  *BDDs implement this lattice.*
+  The BDD operations `apply_or` and `apply_and` correspond exactly to the lattice join and meet operations.
+  This is why we can use BDDs directly in our abstract interpretation framework.
+]
+
 == Chapter Summary
 
 This chapter established the mathematical foundations:

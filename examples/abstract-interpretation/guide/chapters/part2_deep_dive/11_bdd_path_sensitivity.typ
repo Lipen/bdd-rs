@@ -65,6 +65,13 @@ Strategies:
 2. *Semantic:* Normalize predicates (`x > 0` becomes `0 < x`) and deduplicate.
 3. *Dynamic:* Allocate new variables on the fly as new conditions are encountered.
 
+#warning-box(title: "Dynamic Allocation Pitfall")[
+  When using dynamic allocation, you must ensure *canonicity*.
+  If the program encounters `if x > 0` twice, you must map it to the *same* BDD variable (provided `x` hasn't changed).
+  Allocating a fresh variable for every dynamic instance destroys the correlation power of BDDs.
+  Use a `ConditionCache` (as seen in @ch-symbolic-executor) to map symbolic conditions to BDD variables.
+]
+
 #example-box(title: "Mode Controller Predicates")[
   For a controller with modes `Off`, `Heat`, `Cool`:
   - Allocate three mutually exclusive predicate variables: $v_1 = ("mode"="Off")$, $v_2 = ("mode"="Heat")$, $v_3 = ("mode"="Cool")$.
@@ -96,7 +103,7 @@ We analyze pairs $(b, a) in B times A$.
 Control affects data via conditioning; data can also discharge control facts.
 
 - *Assume/Filter:* $(b, a)$ with guard $g$ becomes $(b and g, a|g)$.
-- *Join:* $(b_1, a_1) ljoin (b_2, a_2) = (b_1 or b_2, a_1 ljoin a_2)$.
+- *Join (Product):* $(b_1, a_1) ljoin (b_2, a_2) = (b_1 or b_2, a_1 ljoin a_2)$.
 - *Forget:* Existentially abstract $v$ by $(exists v . b, a)$ when predicate $v$ is no longer relevant.
 
 #definition(title: "Existential Abstraction")[
@@ -104,6 +111,28 @@ Control affects data via conditioning; data can also discharge control facts.
   $ exists v . f := f[v := 0] or f[v := 1] $
   This corresponds to control-flow joins where the precise branching condition no longer matters to downstream facts, preventing the BDD from growing indefinitely with irrelevant history.
 ]
+
+== Product vs. Disjunctive Domains
+
+The join operation defined above is for a *Product Domain* $(B times A)$.
+It merges data states immediately:
+$(b_1, x=1) ljoin (b_2, x=-1) => (b_1 or b_2, x in [-1, 1])$
+This is efficient but loses the correlation "if $b_1$ then $x=1$".
+
+To maintain full path sensitivity, we use a *Disjunctive Domain* (Power Set Domain), as implemented in @ch-combining-domains:
+$ S = { (b_1, a_1), (b_2, a_2), dots } $
+Here, the join is just set union (or list concatenation).
+We only merge elements if their data states are similar or to prevent explosion.
+
+#table(
+  columns: (auto, auto, auto),
+  inset: 10pt,
+  align: horizon,
+  table.header([*Feature*], [*Product Domain* $(B times A)$], [*Disjunctive Domain* $P(B times A)$]),
+  [State Size], [Constant (1 pair)], [Linear/Exponential (N pairs)],
+  [Precision], [Lower (merges data)], [Higher (keeps paths separate)],
+  [Use Case], [Large programs, filtering], [Deep analysis, verification],
+)
 
 == Path Enumeration and Explanations
 

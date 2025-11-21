@@ -174,32 +174,57 @@ let cond = Cond::And(
 
 == Symbolic State
 
-State = path condition + symbolic bindings.
+We need a way to manage BDD variables for conditions.
+To ensure consistency (e.g., `x > 0` always maps to the same BDD variable), we use a cache.
 
 ```rust
 use bdd_rs::{Bdd, Ref};
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::collections::HashMap;
 
-struct SymbolicState {
+struct ConditionCache {
     bdd: Rc<Bdd>,
+    cache: HashMap<Cond, u32>, // Map condition -> BDD variable
+    next_var: u32,
+}
+
+impl ConditionCache {
+    fn new(bdd: Rc<Bdd>) -> Self {
+        Self { bdd, cache: HashMap::new(), next_var: 1 }
+    }
+
+    fn get_var(&mut self, cond: &Cond) -> u32 {
+        if let Some(&var) = self.cache.get(cond) {
+            return var;
+        }
+        let var = self.next_var;
+        self.next_var += 1;
+        self.cache.insert(cond.clone(), var);
+        var
+    }
+}
+
+#[derive(Clone)]
+struct SymbolicState {
+    ctx: Rc<RefCell<ConditionCache>>,
     path: Ref,                           // Path condition (BDD)
     env: HashMap<String, Expr>,          // Variable → symbolic expression
-    next_cond_var: u32,                  // Next BDD variable ID
 }
 
 impl SymbolicState {
-    fn new(bdd: Rc<Bdd>) -> Self {
+    fn new(ctx: Rc<RefCell<ConditionCache>>) -> Self {
+        let true_path = ctx.borrow().bdd.mk_true();
         Self {
-            bdd: bdd.clone(),
-            path: bdd.mk_true(),
+            ctx,
+            path: true_path,
             env: HashMap::new(),
-            next_cond_var: 1,
         }
     }
 
     fn is_feasible(&self) -> bool {
-        self.path != self.bdd.mk_false()
+        let bdd = &self.ctx.borrow().bdd;
+        self.path != bdd.mk_false()
     }
 }
 ```
@@ -254,38 +279,32 @@ For a real system, simplify expressions (constant folding, etc.).
 
 == Branching
 
-When encountering an `if`, allocate a BDD variable and split paths:
+When encountering an `if`, we must split execution.
+Crucially, we first *evaluate* the condition to its symbolic form, then check if we've seen it before.
 
 ```rust
 impl SymbolicState {
     fn branch(&mut self, condition: &Cond) -> SymbolicState {
-        // Allocate fresh BDD variable for this condition
-        let cond_var = self.next_cond_var;
-        self.next_cond_var += 1;
+        // 1. Evaluate condition to symbolic form (e.g., "x < 0" becomes "α < 0")
+        // (Assuming eval_cond recursively evaluates expressions in the condition)
+        let sym_cond = self.eval_cond(condition);
 
-        let cond_bdd = self.bdd.mk_var(cond_var);
+        // 2. Get canonical BDD variable from cache
+        // If we've seen "α < 0" before, we get the SAME variable!
+        let cond_var = self.ctx.borrow_mut().get_var(&sym_cond);
+
+        let bdd = self.ctx.borrow().bdd.clone();
+        let cond_bdd = bdd.mk_var(cond_var);
 
         // True path: path ∧ condition
-        let true_path = self.bdd.apply_and(self.path, cond_bdd);
-        let mut true_state = SymbolicState {
-            bdd: self.bdd.clone(),
-            path: true_path,
-            env: self.env.clone(),
-            next_cond_var: self.next_cond_var,
-        };
+        let true_path = bdd.apply_and(self.path, cond_bdd);
+        let mut true_state = self.clone();
+        true_state.path = true_path;
 
         // False path: path ∧ ¬condition
-        let false_path = self.bdd.apply_and(self.path, self.bdd.apply_not(cond_bdd));
-        let mut false_state = SymbolicState {
-            bdd: self.bdd.clone(),
-            path: false_path,
-            env: self.env.clone(),
-            next_cond_var: self.next_cond_var,
-        };
-
-        // Refine states based on condition
-        // (In real system: update env based on learned facts)
-        // For now, just symbolic tracking
+        let false_path = bdd.apply_and(self.path, bdd.apply_not(cond_bdd));
+        let mut false_state = self.clone();
+        false_state.path = false_path;
 
         // Update self to true branch, return false branch
         *self = true_state;
@@ -294,10 +313,7 @@ impl SymbolicState {
 }
 ```
 
-This is simplified; real symbolic execution would:
-- Simplify expressions based on learned conditions
-- Update abstract domains (e.g., if `x < 0`, mark x as negative)
-- Prune infeasible paths
+By using the `ConditionCache`, we ensure that if the program checks `if x > 0` twice (and `x` hasn't changed), we use the same BDD variable. This allows the BDD to automatically deduce that the second check is redundant!
 
 #figure(
   caption: [Path forking at conditional branches. Starting from an initial state, each `if` condition allocates a fresh BDD variable and splits into two states. The true branch updates the path with $(p and c)$, the false branch with $(p and not c)$ where $p$ is the current path condition. Both branches inherit the symbolic environment, which may be refined based on the learned condition.],
@@ -426,18 +442,19 @@ Execute statements, tracking symbolic state:
 
 ```rust
 struct Interpreter {
-    bdd: Rc<Bdd>,
+    ctx: Rc<RefCell<ConditionCache>>,
 }
 
 impl Interpreter {
     fn new() -> Self {
+        let bdd = Rc::new(Bdd::default());
         Self {
-            bdd: Rc::new(Bdd::default()),
+            ctx: Rc::new(RefCell::new(ConditionCache::new(bdd))),
         }
     }
 
     fn execute(&self, program: &[Stmt]) -> Vec<SymbolicState> {
-        let initial = SymbolicState::new(self.bdd.clone());
+        let initial = SymbolicState::new(self.ctx.clone());
         self.execute_on_state(program, initial)
     }
 

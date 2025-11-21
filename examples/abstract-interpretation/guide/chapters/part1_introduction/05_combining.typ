@@ -122,276 +122,163 @@ The key operations follow naturally from this structure.
 - During *assignment*, we keep the BDD path and update only the data domain.
 - At *join* points, we merge BDDs with OR and join the data domains together.
 
-== The BDD Control Domain
+== Canonicalizing Conditions
 
-Allocates BDD variables to represent Boolean conditions in the program.
+To leverage the power of BDDs, we must ensure that the same logical condition is always represented by the same BDD variable.
+If we encounter `x > 0` in two different places, we must use the same variable.
+If we encounter `x <= 0`, we should use the *negation* of that variable.
+
+We introduce a `ConditionManager` to handle this mapping:
 
 ```rust
-use bdd_rs::Bdd;
+use std::collections::HashMap;
 use std::rc::Rc;
+use bdd_rs::{Bdd, Ref};
 
-struct BddControlDomain {
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+enum Condition {
+    Gt(String, i32), // x > c
+    Eq(String, i32), // x == c
+    // ... other conditions
+}
+
+struct ConditionManager {
     bdd: Rc<Bdd>,
+    mapping: HashMap<Condition, u32>,
     next_var: u32,
 }
 
-impl BddControlDomain {
+impl ConditionManager {
     fn new() -> Self {
         Self {
             bdd: Rc::new(Bdd::default()),
-            next_var: 1,  // Start from 1 (0 is reserved)
+            mapping: HashMap::new(),
+            next_var: 1,
         }
     }
 
-    // Allocate a fresh BDD variable for a condition
-    fn alloc_var(&mut self) -> u32 {
+    fn get_bdd(&mut self, cond: &Condition) -> Ref {
+        if let Some(&var) = self.mapping.get(cond) {
+            return self.bdd.mk_var(var);
+        }
+
+        // In a real implementation, we would also check for negations here.
+        // e.g., if requesting (x <= c), check if we have (x > c) and return NOT.
+
+        // Allocate new if not found
         let var = self.next_var;
         self.next_var += 1;
-        var
-    }
-
-    // Create BDD for a variable
-    fn mk_var(&self, var: u32) -> Ref {
+        self.mapping.insert(cond.clone(), var);
         self.bdd.mk_var(var)
     }
 }
 ```
 
-Each program condition (e.g., `x > 0`) gets a unique BDD variable.
+Now, the analysis automatically correlates related branches across the program.
+If the program branches on `x > 0` twice, the BDD will recognize it's the same condition.
 
-== Example: Sign Domain with BDDs
+== The Power of Partitioning
 
-Let's implement path-sensitive sign analysis.
+Merging all paths into a single abstract environment loses precision.
+Instead, we maintain a *partitioned state*: a collection of abstract environments, each guarded by a BDD path condition.
 
-=== Data Domain: Sign Lattice
+This is often called *Trace Partitioning*.
 
-From @ch-abstraction:
-
-```rust
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Sign {
-    Bot,    // Unreachable
-    Neg,    // Negative
-    Zero,   // Zero
-    Pos,    // Positive
-    Top,    // Unknown
-}
-
-impl Sign {
-    fn join(&self, other: &Self) -> Self {
-        use Sign::*;
-        match (self, other) {
-            (Bot, x) | (x, Bot) => *x,
-            (x, y) if x == y => *x,
-            _ => Top,
-        }
-    }
-
-    fn abs_add(&self, other: &Self) -> Self {
-        use Sign::*;
-        match (self, other) {
-            (Bot, _) | (_, Bot) => Bot,
-            (Top, _) | (_, Top) => Top,
-            (Zero, x) | (x, Zero) => *x,
-            (Pos, Pos) => Pos,
-            (Neg, Neg) => Neg,
-            _ => Top,  // Mixed signs
-        }
-    }
-}
-```
-
-=== Combined State
+=== Partitioned State
 
 ```rust
-struct PathSensitiveState {
-    control: Rc<BddControlDomain>,
-    path: Ref,                      // BDD representing path condition
-    env: HashMap<String, Sign>,     // Variable → Sign
+#[derive(Clone)]
+struct PartitionedState<D: AbstractDomain> {
+    // Invariant: Path conditions are disjoint
+    partitions: Vec<(Ref, D)>,
+    control: Rc<RefCell<ConditionManager>>,
 }
 
-impl PathSensitiveState {
-    fn new(control: Rc<BddControlDomain>) -> Self {
+impl<D: AbstractDomain> PartitionedState<D> {
+    fn new(control: Rc<RefCell<ConditionManager>>) -> Self {
+        let bdd = control.borrow().bdd.clone();
         Self {
-            control: control.clone(),
-            path: control.bdd.mk_true(),  // Initially: all paths enabled
-            env: HashMap::new(),
+            partitions: vec![(bdd.mk_true(), D::bottom())], // Start with true path
+            control,
         }
     }
 }
 ```
 
-=== Branching
+The state is a disjunction: "Either we are on path $b_1$ with data $rho_1$, OR on path $b_2$ with data $rho_2$, ...".
 
-When encountering a branch, split into two states:
+=== Smart Joining
 
-```rust
-impl PathSensitiveState {
-    fn branch(&self, condition_var: u32) -> (Self, Self) {
-        let cond_bdd = self.control.mk_var(condition_var);
+When we join two states, we don't blindly merge everything.
+We use BDDs to compress the representation.
+If two paths lead to the *same* data state, we can merge their path conditions!
 
-        // True branch: path ∧ condition
-        let true_path = self.control.bdd.apply_and(self.path, cond_bdd);
-        let true_state = Self {
-            control: self.control.clone(),
-            path: true_path,
-            env: self.env.clone(),
-        };
-
-        // False branch: path ∧ ¬condition
-        let not_cond = self.control.bdd.apply_not(cond_bdd);
-        let false_path = self.control.bdd.apply_and(self.path, not_cond);
-        let false_state = Self {
-            control: self.control.clone(),
-            path: false_path,
-            env: self.env.clone(),
-        };
-
-        (true_state, false_state)
-    }
-}
-```
-
-Each branch gets a separate state with updated path condition.
-Data environment is cloned (remains unchanged by branching).
-
-#figure(
-  caption: [State branching on a condition. The input state splits into two: true branch gets path $(b and c)$, false branch gets $(b and not c)$. The data environment is copied to both branches unchanged. Later, at the join point, paths merge with OR and data values join in the lattice.],
-
-  cetz.canvas({
-    import cetz.draw: *
-
-    // Helper functions
-    let draw-state-box(pos, width, height, path-label, data-label) = {
-      rect(
-        pos,
-        (pos.at(0) + width, pos.at(1) + height),
-        fill: colors.bg-code,
-        stroke: colors.primary + 1.5pt,
-        radius: 0.1,
-      )
-
-      // Path section
-      rect(
-        (pos.at(0), pos.at(1) + height / 2),
-        (pos.at(0) + width, pos.at(1) + height),
-        fill: rgb("#e0e7ff"),
-        stroke: none,
-      )
-      content(
-        (pos.at(0) + width / 2, pos.at(1) + height - 0.25),
-        text(size: 0.7em, fill: colors.secondary)[#path-label],
-        anchor: "north",
-      )
-
-      // Data section
-      content((pos.at(0) + width / 2, pos.at(1) + 0.25), text(size: 0.7em)[#data-label], anchor: "south")
-    }
-
-    let draw-arrow(from-pos, to-pos, label: none) = {
-      line(from-pos, to-pos, stroke: colors.primary + 1.5pt, mark: (end: ">"))
-      if label != none {
-        let mid-x = (from-pos.at(0) + to-pos.at(0)) / 2
-        let mid-y = (from-pos.at(1) + to-pos.at(1)) / 2
-        content((mid-x + 0.5, mid-y), text(size: 0.65em, fill: colors.text-light)[#label], anchor: "west")
-      }
-    }
-
-    // Initial state
-    draw-state-box((0, 2.5), 2.2, 1, "Path: $b$", "Env: $x arrow.r.bar plus.minus$")
-    content((-0.3, 3), text(size: 0.75em, fill: colors.text-light)[Input state], anchor: "east")
-
-    // Branch point
-    content((1.1, 1.8), text(size: 0.8em, fill: colors.primary, weight: "bold")[Branch on $c$])
-
-    // True branch state
-    draw-state-box((-1.5, 0.2), 2.2, 1, "Path: $b and c$", "Env: $x arrow.r.bar plus.minus$")
-    content((-2.8, 0.7), text(size: 0.7em, fill: colors.success)[True branch], anchor: "east")
-
-    // False branch state
-    draw-state-box((2, 0.2), 2.2, 1, "Path: $b and not c$", "Env: $x arrow.r.bar plus.minus$")
-    content((4.5, 0.7), text(size: 0.7em, fill: colors.error)[False branch], anchor: "west")
-
-    // Branching arrows
-    draw-arrow((1.1, 2.5), (-0.4, 1.2), label: "true")
-    draw-arrow((1.1, 2.5), (3.1, 1.2), label: "false")
-
-    // Join point
-    content((1.1, -0.5), text(size: 0.8em, fill: colors.primary, weight: "bold")[Join])
-
-    // Joined state
-    draw-state-box((0, -2), 2.2, 1, "Path: $b$", "Env: $x arrow.r.bar plus.minus$")
-
-    // Join arrows
-    draw-arrow((-0.4, 0.2), (1.1, -1))
-    draw-arrow((3.1, 0.2), (1.1, -1))
-
-    // Annotations
-    content((-2.5, -1.5), text(size: 0.65em, fill: colors.text-light)[$(b and c) or$], anchor: "east")
-    content((-2.5, -1.75), text(size: 0.65em, fill: colors.text-light)[$(b and not c) = b$], anchor: "east")
-  }),
-) <fig:state-branching>
-
-=== Assignment
+$(b_1, rho) join (b_2, rho) = (b_1 or b_2, rho)$
 
 ```rust
-impl PathSensitiveState {
-    fn assign(&mut self, var: &str, value: Sign) {
-        self.env.insert(var.to_string(), value);
-        // Path condition unchanged
-    }
-
-    fn get(&self, var: &str) -> Sign {
-        self.env.get(var).copied().unwrap_or(Sign::Top)
-    }
-}
-```
-
-Assignments update data domain only.
-
-=== Joining States
-
-When control flow merges (e.g., after if-else), join states:
-
-```rust
-impl PathSensitiveState {
+impl<D: AbstractDomain + PartialEq + Clone> PartitionedState<D> {
     fn join(&self, other: &Self) -> Self {
-        // Merge path conditions: path₁ ∨ path₂
-        let merged_path = self.control.bdd.apply_or(self.path, other.path);
+        let mut new_partitions = self.partitions.clone();
+        let bdd = &self.control.borrow().bdd;
 
-        // Join data environments
-        let mut merged_env = HashMap::new();
-        let all_vars: HashSet<_> = self.env.keys()
-            .chain(other.env.keys())
-            .collect();
-
-        for var in all_vars {
-            let val1 = self.get(var);
-            let val2 = other.get(var);
-            merged_env.insert(var.to_string(), val1.join(&val2));
+        for (path2, env2) in &other.partitions {
+            // Try to merge with existing partition
+            let mut merged = false;
+            for (path1, env1) in &mut new_partitions {
+                if env1 == env2 {
+                    // MAGIC: Same data state? Merge the paths!
+                    *path1 = bdd.apply_or(*path1, *path2);
+                    merged = true;
+                    break;
+                }
+            }
+            if !merged {
+                new_partitions.push((*path2, env2.clone()));
+            }
         }
+
+        // Optional: If too many partitions, force a merge of similar states
+        // to prevent exponential blowup.
 
         Self {
-            control: self.control.clone(),
-            path: merged_path,
-            env: merged_env,
+            partitions: new_partitions,
+            control: self.control.clone()
         }
     }
 }
 ```
 
-BDD paths are merged with OR.
-Data values are joined in the abstract domain.
+This approach allows the analysis to distinguish `x=5` from `x=-3` indefinitely, only merging them if they converge to the same value later.
 
-#warning-box[
-  *Joining loses path-sensitivity.*
+== Refining Abstract Values
 
-  After joining states from different paths, we can no longer distinguish them.
-  This is necessary at merge points but sacrifices some precision.
+The BDD tells us *which* paths we are on. We can use this to refine our data knowledge.
+When we branch on a condition like `x > 0`, we should update the abstract value of `x` in the true branch!
 
-  To maintain full path-sensitivity, keep states separate and analyze them independently.
-  Trade-off: precision vs. state explosion.
-]
+```rust
+impl<D: AbstractDomain + Refineable> PartitionedState<D> {
+    fn assume(&mut self, cond: &Condition) {
+        let mut new_partitions = Vec::new();
+        let bdd_cond = self.control.borrow_mut().get_bdd(cond);
+        let bdd = &self.control.borrow().bdd;
+
+        for (path, mut env) in self.partitions.drain(..) {
+            // 1. Update Control: Add condition to path
+            let new_path = bdd.apply_and(path, bdd_cond);
+
+            if !bdd.is_false(new_path) {
+                // 2. Update Data: Refine environment
+                // e.g., if cond is "x > 0", refine x to Positive
+                env.refine(cond);
+                new_partitions.push((new_path, env));
+            }
+        }
+        self.partitions = new_partitions;
+    }
+}
+```
+
+Now, when the analysis sees `if x > 0`, it automatically learns that `x` is positive in the true branch, even if the interval domain didn't know it before.
 
 == Complete Example: Path-Sensitive Analysis
 
@@ -409,180 +296,54 @@ fn analyze(x: i32) -> i32 {
 }
 ```
 
-Path-insensitive: `result = ⊤` after merge.
-Path-sensitive: `result = +` on _both_ paths (if we're smart).
-
-Implementation:
+With our new architecture:
 
 ```rust
 fn analyze_function() {
-    let control = Rc::new(BddControlDomain::new());
-    let mut state = PathSensitiveState::new(control.clone());
+    let control = Rc::new(RefCell::new(ConditionManager::new()));
+    let mut state = PartitionedState::<Sign>::new(control.clone());
 
     // Initial: result = 0
     state.assign("result", Sign::Zero);
 
-    // Allocate BDD variable for condition "x > 0"
-    let cond_var = control.borrow_mut().alloc_var();
-
     // Branch on x > 0
-    let (mut true_state, mut false_state) = state.branch(cond_var);
+    let cond = Condition::Gt("x".to_string(), 0);
 
-    // True branch: x > 0, so x is positive
-    // result = x → result = +
-    true_state.assign("x", Sign::Pos);
-    true_state.assign("result", Sign::Pos);
+    // True branch: assume(x > 0)
+    let mut true_state = state.clone();
+    true_state.assume(&cond);
+    // Refinement automatically sets x to Pos!
+    true_state.assign_var("result", "x"); // result = Pos
 
-    // False branch: x ≤ 0, so x is non-positive
-    // result = -x → result = ?
-    // (Could be 0 if x=0, or positive if x<0)
-    false_state.assign("x", Sign::Neg.join(&Sign::Zero));
-    // Abstract interpretation of -x:
-    // -(Neg ⊔ Zero) = Pos ⊔ Zero
-    false_state.assign("result", Sign::Pos.join(&Sign::Zero));
+    // False branch: assume(!(x > 0)) -> assume(x <= 0)
+    let mut false_state = state.clone();
+    let not_cond = Condition::Le("x".to_string(), 0); // Negation
+    false_state.assume(&not_cond);
+    // Refinement sets x to NonPos (Zero | Neg)
+
+    // result = -x
+    // -(Zero | Neg) = Zero | Pos
+    false_state.assign_neg("result", "x");
 
     // Merge at end of function
     let final_state = true_state.join(&false_state);
 
-    // Result: + ⊔ (+ ⊔ 0) = + ⊔ 0 = ⊤ (due to join with Zero)
-    let result_sign = final_state.get("result");
-    println!("Result sign: {:?}", result_sign);
+    // Result:
+    // Partition 1 (x>0): result = Pos
+    // Partition 2 (x<=0): result = Zero | Pos
+    //
+    // If we query "result", we get the join of all partitions:
+    // Pos ⊔ (Zero ⊔ Pos) = NonNeg
+    println!("Result: {:?}", final_state.get("result"));
 }
 ```
 
-#example-box(number: "5.1", title: "Analysis Precision")[
-  Even with path-sensitivity, we get `⊤` here because:
-  - True branch: `result = +`
-  - False branch: `result = + ⊔ 0` (since x could be 0 or negative)
-  - Join: `+ ⊔ (+ ⊔ 0) = ⊤`
-
-  To prove `result = +`, we'd need a richer domain (e.g., intervals) that tracks `x ≤ 0 ⇒ -x ≥ 0`.
-
-  This illustrates: _Path-sensitivity helps but doesn't solve everything._
-  Domain precision matters too.
-]
-
-== Multiple Paths: Real Path Sensitivity
-
-Consider:
-
-```rust
-fn multi_path(a: bool, b: bool) -> i32 {
-    let mut x = 0;
-    if a {
-        x = 5;
-    }
-    if b {
-        x = x + 1;
-    }
-    x
-}
-```
-
-Four paths:
-1. `¬a ∧ ¬b`: x = 0
-2. `¬a ∧ b`: x = 0 + 1 = 1
-3. `a ∧ ¬b`: x = 5
-4. `a ∧ b`: x = 5 + 1 = 6
-
-Path-insensitive analysis: `x = ⊤` (0, 1, 5, 6 → unknown)
-
-Path-sensitive with BDDs:
-
-```rust
-fn analyze_multi_path() {
-    let control = Rc::new(BddControlDomain::new());
-    let mut state = PathSensitiveState::new(control.clone());
-
-    state.assign("x", Sign::Zero);
-
-    // First branch: if a
-    let var_a = control.borrow_mut().alloc_var();
-    let (mut state_a_true, mut state_a_false) = state.branch(var_a);
-
-    state_a_true.assign("x", Sign::Pos);  // x = 5
-    // state_a_false: x = 0
-
-    // Second branch: if b (on both paths)
-    let var_b = control.borrow_mut().alloc_var();
-
-    let (mut state_ab_true, state_ab_false) = state_a_true.branch(var_b);
-    state_ab_true.assign("x", Sign::Pos);  // x = 5 + 1 = 6 (pos)
-    // state_ab_false: x = 5 (pos)
-
-    let (mut state_not_a_b_true, state_not_a_b_false) = state_a_false.branch(var_b);
-    state_not_a_b_true.assign("x", Sign::Pos);  // x = 0 + 1 = 1 (pos)
-    // state_not_a_b_false: x = 0 (zero)
-
-    // Merge all four paths
-    let final_state = state_ab_true
-        .join(&state_ab_false)
-        .join(&state_not_a_b_true)
-        .join(&state_not_a_b_false);
-
-    // Result: Pos ⊔ Pos ⊔ Pos ⊔ Zero = Pos ⊔ Zero = ⊤
-    let x_sign = final_state.get("x");
-    println!("x sign: {:?}", x_sign);
-}
-```
-
-Still loses precision due to joining Zero with Pos.
+We achieved better precision!
+And crucially, if we had a later check `if x > 0`, the BDD would know that Partition 2 is impossible, automatically pruning the path.
 
 #insight-box[
-  *Key Insight:* Path-sensitivity alone doesn't guarantee precision.
-  We also need:
-  1. Fine-grained abstract domains (intervals, not just signs)
-  2. Relational domains (tracking x=y+1, not just individual values)
-  3. Smart join strategies (delaying joins when possible)
-]
-
-== Avoiding Premature Joins
-
-One strategy: maintain _multiple states_ without joining.
-
-```rust
-struct MultiState {
-    control: Rc<BddControlDomain>,
-    states: Vec<PathSensitiveState>,
-}
-
-impl MultiState {
-    fn new(control: Rc<BddControlDomain>) -> Self {
-        Self {
-            control: control.clone(),
-            states: vec![PathSensitiveState::new(control)],
-        }
-    }
-
-    fn branch_all(&mut self, condition_var: u32) {
-        let mut new_states = Vec::new();
-        for state in &self.states {
-            let (t, f) = state.branch(condition_var);
-            new_states.push(t);
-            new_states.push(f);
-        }
-        self.states = new_states;
-    }
-
-    // Only join when necessary (e.g., at function exit)
-    fn join_all(&self) -> PathSensitiveState {
-        self.states.iter()
-            .fold(PathSensitiveState::new(self.control.clone()), |acc, s| acc.join(s))
-    }
-}
-```
-
-This maintains full path-sensitivity but risks state explosion.
-
-#warning-box[
-  *State explosion trade-off:*
-  - Joining early: loses precision, bounded states
-  - Joining late: maintains precision, exponential states
-
-  Real analyses use heuristics:
-  - Join at loop headers (required for termination)
-  - Join after long sequences of branches
-  - Use BDD size as indicator (merge when BDD grows too large)
+  *Key Insight:*
+  The combination of *Partitioning* (keeping states separate) and *Refinement* (learning from path conditions) is what makes BDD-based analysis powerful.
 ]
 
 == Integration with Abstract Domains
@@ -590,7 +351,7 @@ This maintains full path-sensitivity but risks state explosion.
 Recall the `AbstractDomain` trait (from @ch-abstraction):
 
 ```rust
-trait AbstractDomain {
+trait AbstractDomain: Clone + PartialEq + Debug {
     fn bottom() -> Self;
     fn top() -> Self;
     fn join(&self, other: &Self) -> Self;
@@ -600,43 +361,23 @@ trait AbstractDomain {
 }
 ```
 
-We can make our path-sensitive state generic:
+Our `PartitionedState<D>` is already generic!
+We can plug in *any* abstract domain `D` that implements this trait.
 
 ```rust
-struct GenericPathSensitiveState<D: AbstractDomain> {
-    control: Rc<BddControlDomain>,
-    path: Ref,
-    env: HashMap<String, D>,
-}
-
-impl<D: AbstractDomain> GenericPathSensitiveState<D> {
-    fn join(&self, other: &Self) -> Self {
-        let merged_path = self.control.bdd.apply_or(self.path, other.path);
-
-        let mut merged_env = HashMap::new();
-        let all_vars: HashSet<_> = self.env.keys()
-            .chain(other.env.keys())
-            .collect();
-
-        for var in all_vars {
-            let val1 = self.env.get(var.as_str()).unwrap_or(&D::bottom());
-            let val2 = other.env.get(var.as_str()).unwrap_or(&D::bottom());
-            merged_env.insert(var.to_string(), val1.join(val2));
-        }
-
-        Self {
-            control: self.control.clone(),
-            path: merged_path,
-            env: merged_env,
-        }
-    }
+// The structure we defined earlier is already generic:
+struct PartitionedState<D: AbstractDomain> {
+    partitions: Vec<(Ref, D)>, // List of (Path Condition, Data State)
+    control: Rc<RefCell<ConditionManager>>,
 }
 ```
 
-Now we can use _any_ abstract domain: signs, intervals, octagons, etc.
+This allows us to easily swap the underlying data analysis.
+If we want to track ranges of values instead of just signs, we simply use `PartitionedState<Interval>`.
+The BDD logic for path partitioning remains exactly the same.
 
 #info-box(title: "Going Deeper")[
-  This generic structure is formally known as a *Direct Product Domain*.
+  This generic structure is formally known as a *Disjunctive Completion* or *Trace Partitioning Domain*.
 
   In @ch-domain-combinations, we will enhance this with:
   - *Reduction*: Allowing the BDD and Data domain to exchange information (refining data based on path conditions).
@@ -648,7 +389,7 @@ Now we can use _any_ abstract domain: signs, intervals, octagons, etc.
   Replace signs with intervals:
 
   ```rust
-  #[derive(Debug, Clone)]
+  #[derive(Debug, Clone, PartialEq)]
   struct Interval {
       low: i64,
       high: i64,
