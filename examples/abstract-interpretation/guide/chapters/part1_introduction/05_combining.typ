@@ -7,6 +7,12 @@ Now we combine them: BDDs track _which paths are feasible_, abstract domains tra
 
 This combination yields path-sensitive abstract interpretation.
 
+#info-box(title: "Guide Roadmap")[
+  This chapter introduces the *intuition* and *basic architecture* of path sensitivity using a simple example.
+
+  For the rigorous mathematical formalization (Trace Partitioning, Reduced Products) and advanced techniques (Relational Domains), see *Part II: Deep Dive*, specifically @ch-domain-combinations.
+]
+
 == The Core Idea
 
 Path-insensitive analysis loses precision by merging all paths:
@@ -628,6 +634,15 @@ impl<D: AbstractDomain> GenericPathSensitiveState<D> {
 ```
 
 Now we can use _any_ abstract domain: signs, intervals, octagons, etc.
+
+#info-box(title: "Going Deeper")[
+  This generic structure is formally known as a *Direct Product Domain*.
+
+  In @ch-domain-combinations, we will enhance this with:
+  - *Reduction*: Allowing the BDD and Data domain to exchange information (refining data based on path conditions).
+  - *Widening*: Handling loops correctly to ensure termination.
+  - *Relational Domains*: Tracking correlations between variables.
+]
 
 #example-box(number: "5.2", title: "Interval Domain")[
   Replace signs with intervals:

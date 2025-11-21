@@ -4,8 +4,13 @@
 
 #reading-path(path: "advanced")
 
-This chapter synthesizes the techniques from previous chapters, focusing on practical domain combinations for path-sensitive analysis.
-We explore trace partitioning, relational domains, and BDD-based symbolic domains --- the core of our approach to combining control flow precision with numeric data analysis.
+In @ch-combining-domains, we built a practical, intuitive path-sensitive analyzer using BDDs and the Sign domain.
+This chapter formalizes that architecture into the theory of *Trace Partitioning* and *Product Domains*.
+
+We will go beyond the simple combination to explore:
+- *Reduced Products*: How control and data domains can refine each other.
+- *Relational Domains*: Tracking variables that depend on each other.
+- *Widening*: Ensuring termination in loops with complex state.
 
 == Trace Partitioning
 
@@ -59,7 +64,7 @@ Trace partitioning is the foundation of path-sensitive analysis: different paths
 
 == BDD Control Domain as Trace Partitioning
 
-BDD control domains (@ch-combining-domains) implement trace partitioning efficiently.
+We implemented a concrete `BddControlDomain` in @ch-combining-domains. Here, we analyze its formal role as a lattice for trace partitioning.
 
 #definition(title: "BDD Control Domain")[
   The *BDD control domain* represents sets of control predicates as BDDs:
@@ -108,6 +113,7 @@ BDD control domains (@ch-combining-domains) implement trace partitioning efficie
 == Product Domain: BDD × Data
 
 Combining BDD control with numeric data domains creates a powerful path-sensitive analyzer.
+This formalizes the `PathSensitiveState` struct we designed in @ch-combining-domains.
 
 #definition(title: "BDD Product Domain")[
   Given BDD control domain $C_"BDD"$ and data domain $D$, the *BDD product domain* is:
@@ -122,7 +128,9 @@ Combining BDD control with numeric data domains creates a powerful path-sensitiv
   $ gamma((f, d)) = {sigma mid(|) sigma "satisfies" f "and" sigma in gamma_D (d)} $
 ]
 
-This is a *direct product* (@ch-advanced-galois). We can enhance it with reduction to exploit relationships between control and data.
+This is a *direct product* (@ch-advanced-galois).
+In @ch-combining-domains, our `join` operation simply merged paths and joined data independently.
+Here, we enhance it with *reduction* to exploit relationships between control and data.
 
 #example-box[
   *Interval domain product:*
@@ -192,7 +200,8 @@ The `assume` operation refines the data domain based on branch conditions.
 
 == Reduced Product with BDD Control
 
-Reduction tightens data bounds based on control predicates.
+The simple product in @ch-combining-domains missed an opportunity: the BDD path condition contains information that can refine the data domain.
+*Reduction* is the mechanism for this information exchange.
 
 #definition(title: "BDD-Data Reduction")[
   Given $(f, d)$, reduction operator $rho$ refines $d$ based on constraints implied by $f$:
@@ -380,6 +389,7 @@ Loops require widening on both control and data components.
 == Implementation in bdd-rs
 
 Our framework implements these concepts with Rust traits.
+While @ch-combining-domains showed a specific struct, the library uses a generic implementation that supports widening and reduction.
 
 #example-box[
   *BDD product domain structure:*
