@@ -568,6 +568,7 @@ fn check_sat(bdd: Ref, cond: &Cond) -> bool {
 ```
 
 #info-box(title: "Symbolic Execution vs Abstract Interpretation")[
+
   *Symbolic Execution:*
   - Explores paths explicitly (or with BDDs)
   - Maintains precise symbolic expressions
