@@ -52,7 +52,7 @@ Only experienced operators, who worked quickly and knew common data entry patter
 
 _April 2014._
 
-Heartbleed was discovered in OpenSSL—software protecting approximately two-thirds of all web servers.
+Heartbleed was discovered in OpenSSL --- software protecting approximately two-thirds of all web servers.
 The vulnerability allowed attackers to read arbitrary server memory.
 This exposed passwords, cryptographic keys, and personal data.
 The bug: a missing bounds check in the heartbeat extension.
@@ -151,7 +151,7 @@ Formal verification replaces testing's "probably works" with mathematics' "prova
   - *Termination*: Loop exits when $i >= "arr.len()"$
 
   By mathematical induction, all accesses are safe.
-  No testing required—we have a proof.
+  No testing required --- we have a proof.
 ]
 
 == The Challenge
@@ -252,7 +252,7 @@ We do not know exact values.
 We know properties that hold for all possible executions.
 
 The analysis guarantees: if it reports "x is positive," then x is positive in all executions.
-The analysis may be imprecise: if it reports "x is unknown," x might still be positive—we simply cannot determine this from our abstraction.
+The analysis may be imprecise: if it reports "x is unknown," x might still be positive --- we simply cannot determine this from our abstraction.
 
 This approach trades precision for decidability and efficiency:
 - Analysis always terminates
@@ -313,7 +313,7 @@ match mode {
 
 A path-insensitive analysis merges information from all branches:
 - After conditionals: `power ∈ {0, 20, 100}`
-- The analysis cannot verify the assertions—correlation between `mode` and `power` is lost
+- The analysis cannot verify the assertions --- correlation between `mode` and `power` is lost
 
 A path-sensitive analysis maintains separate invariants:
 - When `mode = ACTIVE`: `power = 100`

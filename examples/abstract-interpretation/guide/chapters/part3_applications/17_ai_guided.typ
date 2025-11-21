@@ -4,9 +4,14 @@
 
 #reading-path(path: "advanced")
 
-The intersection of Artificial Intelligence (specifically Large Language Models) and Formal Methods is a rapidly evolving frontier.
-While Abstract Interpretation provides mathematical guarantees, it often struggles with computational complexity and the "widening" problem (losing precision to ensure termination).
-AI models, on the other hand, are excellent at pattern recognition and guessing, but lack guarantees.
+#warning-box(title: "Experimental Frontier")[
+  This chapter discusses emerging techniques at the intersection of AI and Formal Methods.
+  Unlike the previous chapters, these methods are active research topics and not yet standard practice.
+]
+
+The intersection of Artificial Intelligence --- specifically Large Language Models (LLMs) --- and Formal Methods represents a rapidly evolving frontier.
+While Abstract Interpretation provides rigorous mathematical guarantees, it often grapples with computational complexity and the precision loss inherent in the "widening" operators required for termination.
+Conversely, AI models excel at pattern recognition and heuristic guessing but lack formal guarantees.
 
 == The Wizard and the Clerk
 
@@ -23,17 +28,22 @@ Instead of iteratively computing a fixpoint (which can be slow), we can ask an L
   + *Prompt:* "Given this loop `while x < 100 { x += 2 }`, what is the invariant?"
   + *AI Response:* "Invariant: `x % 2 == 0 && x <= 100`"
   + *Verifier:* The BDD analyzer checks if this formula is inductive.
-     - Base case: `init => inv`? Yes.
-     - Inductive step: `inv && cond => inv'`? Yes.
+    - Base case: `init => inv`? Yes.
+    - Inductive step: `inv && cond => inv'`? Yes.
   + *Result:* Verified instantly without iteration.
 ]
 
+This approach leverages the *Checkable Proof* property: it is often harder to find a proof (invariant) than to check it.
+The AI acts as an oracle for the fixpoint operator `lfp(f)`.
+
 == Widening Oracles
 
-Widening operators ($nabla$) are necessary for termination but often lose too much information.
+Widening operators ($widen$) are necessary for termination but often lose too much information.
 A "Widening Oracle" (trained ML model) can look at the iteration history and the code structure to suggest:
 - *When* to widen (maybe wait 3 more iterations).
 - *How* to widen (e.g., "widen to the next constant appearing in the code").
+
+The soundness is preserved because the Abstract Interpreter still performs the widening and subsequent verification; the AI only guides the *strategy*.
 
 == Future Directions
 

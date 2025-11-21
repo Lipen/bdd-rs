@@ -19,6 +19,27 @@ We assume a call graph $G_c$ and per-function transfer summaries.
 - Context-insensitive: one summary per function (fast, imprecise).
 - Context-sensitive: summarize per context key (e.g., call-string up to length $k$).
 
+== The Challenge of Summaries with BDDs
+
+When using BDDs, a unique challenge arises: *Variable Remapping*.
+A function `foo(a, b)` might be called as `foo(x, y)` in one place and `foo(z, w)` in another.
+The BDD for `foo` is built using formal parameters `a` and `b`.
+To apply the summary, we must:
++ *Rename:* Substitute formal parameters (`a`, `b`) with actual arguments (`x`, `y`) in the BDD.
++ *Project:* Existentially quantify out local variables of `foo` to keep the summary clean.
+
+#example-box(title: "Applying a Summary")[
+  Summary for `max(a, b)`:
+  $ R = (a > b and "ret" = a) or (a <= b and "ret" = b) $
+
+  Call site: `y = max(x, 10)`
+
+  + *Rename:* Replace `a -> x`, `b -> 10`, `"ret" -> y`.
+  + *Instantiate:*
+    $ R' = (x > 10 and y = x) or (x <= 10 and y = 10) $
+  + *Join:* Combine $R'$ with the current state at the call site.
+]
+
 == Call-Strings (k-limited)
 
 #definition(title: "k-Call-String Sensitivity")[
