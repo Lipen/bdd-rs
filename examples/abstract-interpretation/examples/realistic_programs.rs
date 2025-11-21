@@ -12,6 +12,7 @@
 
 use std::rc::Rc;
 
+use abstract_interpretation::constant::ConstValue;
 use abstract_interpretation::*;
 
 /// Example 1: Array bounds checking using Sign and Interval domains
@@ -58,11 +59,8 @@ fn array_bounds_checking() {
     // Array access: arr[i] where array size is 10
     let array_size = 10;
     if let Some((low, high)) = interval_domain.get_bounds(&interval_state, &"i".to_string()) {
-        if low >= 0 && high < array_size {
-            println!("  ✓ Array access arr[i] is SAFE (i ∈ [{}, {}] < {})", low, high, array_size);
-        } else {
-            println!("  ✗ Array access arr[i] might be UNSAFE");
-        }
+        assert!(low >= 0 && high < array_size, "Array access arr[i] should be SAFE");
+        println!("  ✓ Array access arr[i] is SAFE (i ∈ [{}, {}] < {})", low, high, array_size);
     }
 
     // After loop: i = i + 1
@@ -80,14 +78,12 @@ fn array_bounds_checking() {
 
     // Array access: arr[i] = 42
     if let Some((low, high)) = interval_domain.get_bounds(&interval_state, &"i".to_string()) {
-        if low >= 0 && high < array_size {
-            println!("  ✓ Array access arr[i] is SAFE");
-        } else {
-            println!(
-                "  ✗ Array access arr[i] is UNSAFE! (i ∈ [{}, {}], array size = {})",
-                low, high, array_size
-            );
-        }
+        assert!(!(low >= 0 && high < array_size), "Array access arr[i] should be UNSAFE");
+        assert_eq!(low, 10);
+        println!(
+            "  ✓ Verified: Array access arr[i] is UNSAFE as expected (i ∈ [{}, {}], array size = {})",
+            low, high, array_size
+        );
     }
 
     println!();
@@ -141,6 +137,10 @@ fn constant_propagation() {
     println!("  Constant: z = {:?}", const_state.get("z"));
     println!("  Sign: z = {:?}", sign_state.get("z"));
 
+    // Assertions for constant propagation
+    assert_eq!(const_state.get("z"), ConstValue::Const(20));
+    println!("  ✓ Verified: z is constantly 20");
+
     // if (z == 20)
     println!("\nCondition: if (z == 20)");
     use NumPred::*;
@@ -149,18 +149,16 @@ fn constant_propagation() {
     let const_then = const_domain.assume(&const_state, &pred);
     let sign_then = sign_domain.assume(&sign_state, &pred);
 
-    if !const_domain.is_bottom(&const_then) {
-        println!("  Then branch is reachable");
-        println!("    Constant: z = {:?}", const_then.get("z"));
-        println!("    Sign: z = {:?}", sign_then.get("z"));
-    }
+    assert!(!const_domain.is_bottom(&const_then));
+    println!("  ✓ Verified: Branch 'z == 20' is reachable");
+    println!("    Constant: z = {:?}", const_then.get("z"));
+    println!("    Sign: z = {:?}", sign_then.get("z"));
 
     let pred_else = Not(Box::new(Eq(Var("z".to_string()), Const(20))));
     let const_else = const_domain.assume(&const_state, &pred_else);
 
-    if const_domain.is_bottom(&const_else) {
-        println!("  ✓ Else branch is DEAD CODE (can be eliminated!)");
-    }
+    assert!(const_domain.is_bottom(&const_else));
+    println!("  ✓ Verified: Branch 'z != 20' is unreachable (Dead Code)");
 
     println!("\nOptimization: Replace entire if-else with 'return 20'");
     println!();
@@ -197,13 +195,8 @@ fn pointer_alias_analysis() {
     println!("  q points-to: {:?}", q_targets);
 
     // Check aliasing
-    if state.must_alias(&domain, "p", "q") {
-        println!("  p and q MUST alias");
-    } else if state.may_alias(&domain, "p", "q") {
-        println!("  p and q MAY alias");
-    } else {
-        println!("  ✓ p and q DO NOT alias");
-    }
+    assert!(!state.may_alias(&domain, "p", "q"), "p and q should NOT alias");
+    println!("  ✓ Verified: p and q DO NOT alias");
 
     // *p = 5 (affects x only)
     println!("\nStatement: *p = 5");
@@ -223,9 +216,8 @@ fn pointer_alias_analysis() {
     println!("  q points-to: {:?}", q_targets);
 
     // Check aliasing after assignment
-    if state.must_alias(&domain, "p", "q") {
-        println!("  ✓ p and q now MUST alias!");
-    }
+    assert!(state.must_alias(&domain, "p", "q"), "p and q MUST alias");
+    println!("  ✓ Verified: p and q now MUST alias!");
 
     // *p = 42
     println!("\nStatement: *p = 42");
@@ -306,6 +298,7 @@ fn combined_analysis() {
 
     // Array bounds check: arr[i] where i in [0, 9]
     if let Some((low, high)) = interval_domain.get_bounds(&interval_state, &"i".to_string()) {
+        assert!(low >= 0 && high <= 9, "Array access arr[i] should be SAFE");
         println!("    ✓ Array access arr[i] is SAFE (i in [{}, {}])", low, high);
     }
 
@@ -402,29 +395,36 @@ fn reduced_product_example() {
     println!("  Interval captures: precise bounds");
     println!("  → Reduced product would maintain all three refinements");
 
+    // Assertions
+    assert_eq!(const_state.get("x"), ConstValue::Const(5));
+    if let Some((low, high)) = interval_domain.get_bounds(&interval_state, &"x".to_string()) {
+        assert_eq!(low, 5);
+        assert_eq!(high, 5);
+    }
+
     println!();
 }
 
 fn main() {
-    println!("\n╔═══════════════════════════════════════════════════════╗");
-    println!("║  Realistic Program Analysis with Abstract Domains     ║");
-    println!("╚═══════════════════════════════════════════════════════╝\n");
+    println!("\n=======================================================");
+    println!("   Realistic Program Analysis with Abstract Domains");
+    println!("=======================================================\n");
 
     array_bounds_checking();
-    println!("{}", "─".repeat(60));
+    println!("=======================================================");
 
     constant_propagation();
-    println!("{}", "─".repeat(60));
+    println!("=======================================================");
 
     pointer_alias_analysis();
-    println!("{}", "─".repeat(60));
+    println!("=======================================================");
 
     combined_analysis();
-    println!("{}", "─".repeat(60));
+    println!("=======================================================");
 
     reduced_product_example();
 
-    println!("╔═══════════════════════════════════════════════════════╗");
-    println!("║  All examples completed successfully!                 ║");
-    println!("╚═══════════════════════════════════════════════════════╝\n");
+    println!("=======================================================");
+    println!("   All examples completed successfully!");
+    println!("=======================================================\n");
 }

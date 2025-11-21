@@ -17,7 +17,10 @@ use abstract_interpretation::domain::AbstractDomain;
 use abstract_interpretation::{Bound, Interval, NumExpr, NumPred, StringLengthDomain};
 
 fn main() {
-    println!("=== String Concatenation Analysis ===");
+    println!("\n=======================================================");
+    println!("   String Concatenation Analysis");
+    println!("=======================================================\n");
+
     println!("This example demonstrates analyzing string lengths during concatenation.");
     println!("Scenario: Constructing a URL from parts and verifying its length.");
 
@@ -93,4 +96,15 @@ fn main() {
     // Expected: [26, 126]
     assert_eq!(full_len, Interval::new(Bound::Finite(26), Bound::Finite(126)));
     println!("  ✓ Verified: Full URL length ∈ [26, 126].");
+
+    if let (Bound::Finite(l), Bound::Finite(h)) = (full_len.low, full_len.high) {
+        assert!(l >= 26);
+        assert!(h <= 126);
+    } else {
+        panic!("Expected finite bounds for full URL length");
+    }
+
+    println!("\n=======================================================");
+    println!("   Analysis Complete");
+    println!("=======================================================\n");
 }

@@ -14,7 +14,10 @@ use abstract_interpretation::domain::AbstractDomain;
 use abstract_interpretation::type_domain::{Type, TypeDomain};
 
 fn main() {
-    println!("=== Dynamic Type Checking Analysis ===");
+    println!("\n=======================================================");
+    println!("   Dynamic Type Checking Analysis");
+    println!("=======================================================\n");
+
     println!("Demonstrating type inference for dynamic code.\n");
 
     let domain = TypeDomain;
@@ -70,5 +73,9 @@ fn main() {
     } else {
         println!("  ✗ Failed: Result 'y' might not be an Integer.");
     }
-    assert!(domain.is_exactly(&y_final, Type::Integer));
+    assert!(domain.is_exactly(&y_final, Type::Integer), "Result 'y' should be exactly Integer");
+
+    println!("\n=======================================================");
+    println!("   Analysis Complete");
+    println!("=======================================================\n");
 }

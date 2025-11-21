@@ -1351,23 +1351,14 @@ mod tests {
     #[test]
     fn test_taint_lattice_axioms() {
         let domain = TaintDomain;
-        let samples = vec![
-            Taint::Bottom,
-            Taint::Tainted,
-            Taint::Safe,
-        ];
+        let samples = vec![Taint::Bottom, Taint::Tainted, Taint::Safe];
         test_lattice_axioms(&domain, &samples);
     }
 
     #[test]
     fn test_string_case_lattice_axioms() {
         let domain = StringCaseDomain;
-        let samples = vec![
-            StringCase::Bottom,
-            StringCase::Mixed,
-            StringCase::Lowercase,
-            StringCase::Uppercase,
-        ];
+        let samples = vec![StringCase::Bottom, StringCase::Mixed, StringCase::Lowercase, StringCase::Uppercase];
         test_lattice_axioms(&domain, &samples);
     }
 

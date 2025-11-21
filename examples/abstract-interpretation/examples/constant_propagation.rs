@@ -65,6 +65,11 @@ fn example_constant_folding() {
     println!("\n✓ Constant propagation eliminated all intermediate variables!");
     println!("  Optimized: result = 12");
 
+    // Assertions
+    assert_eq!(elem.get("z"), ConstValue::Const(8));
+    assert_eq!(elem.get("w"), ConstValue::Const(16));
+    assert_eq!(elem.get("result"), ConstValue::Const(12));
+
     println!("\n");
 }
 
@@ -97,6 +102,7 @@ fn example_dead_code_elimination() {
     if domain.is_bottom(&branch1) {
         println!("✓ Branch 'x > 10' is DEAD CODE (always false)");
     }
+    assert!(domain.is_bottom(&branch1));
 
     // Check: x == 5
     let pred = NumPred::Eq(NumExpr::Var("x".to_string()), NumExpr::Const(5));
@@ -105,6 +111,7 @@ fn example_dead_code_elimination() {
     if !domain.is_bottom(&branch2) && branch2.get("x") == ConstValue::Const(5) {
         println!("✓ Branch 'x == 5' is ALWAYS TAKEN");
     }
+    assert!(!domain.is_bottom(&branch2));
 
     println!("\n");
 }
@@ -136,6 +143,7 @@ fn example_conditional_simplification() {
         println!("✓ DEBUG is always truthy, condition can be removed");
         println!("  Optimized: {{ log('Debug info'); }}");
     }
+    assert!(!domain.is_bottom(&branch));
 
     println!();
 
@@ -154,6 +162,7 @@ fn example_conditional_simplification() {
         println!("✓ DEBUG is always false, entire block is dead code");
         println!("  Optimized: (removed)");
     }
+    assert!(domain.is_bottom(&branch));
 
     println!("\n");
 }
@@ -224,6 +233,9 @@ fn example_optimization_opportunities() {
 
     println!("  y = x * FACTOR = {}", elem2.get("y"));
     println!("\n✓ Complete constant propagation: y = 84");
+
+    // Assertions
+    assert_eq!(elem2.get("y"), ConstValue::Const(84));
 
     println!("\n");
 }

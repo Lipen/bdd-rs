@@ -15,7 +15,10 @@
 use abstract_interpretation::*;
 
 fn main() {
-    println!("=== Input Validation Analysis ===");
+    println!("\n=======================================================");
+    println!("   Input Validation Analysis");
+    println!("=======================================================\n");
+
     println!("This example demonstrates analyzing input validation logic using string length abstraction.");
     println!("Scenario: Validating that a password meets minimum length requirements.");
 
@@ -75,4 +78,11 @@ fn main() {
     assert_eq!(false_len.low, Bound::Finite(0), "Lower bound should be 0");
     assert_eq!(false_len.high, Bound::Finite(7), "Upper bound should be 7");
     println!("  ✓ Verified: Password length is strictly less than 8 in invalid branch.");
+
+    // Additional check: ensure false branch does not contain 8
+    assert!(!false_len.contains(8));
+
+    println!("\n=======================================================");
+    println!("   Analysis Complete");
+    println!("=======================================================");
 }

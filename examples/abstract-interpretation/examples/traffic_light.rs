@@ -20,8 +20,9 @@ use std::rc::Rc;
 use abstract_interpretation::*;
 
 fn main() {
-    println!("=== Traffic Light Controller Analysis ===");
-    println!();
+    println!("\n=======================================================");
+    println!("   Traffic Light Controller Analysis");
+    println!("=======================================================\n");
 
     // System description
     println!("SYSTEM DESCRIPTION:");
@@ -41,12 +42,16 @@ fn main() {
     println!("      - YELLOW state: timer ∈ [0, 5]");
     println!("  P3: Mutual exclusion: never RED and GREEN simultaneously");
     println!();
-    println!("{}", "=".repeat(60));
+    println!("=======================================================");
     println!();
 
     analyze_path_insensitive();
-    println!("\n{}\n", "=".repeat(60));
+    println!("\n=======================================================\n");
     analyze_path_sensitive();
+
+    println!("\n=======================================================");
+    println!("   Analysis Complete");
+    println!("=======================================================\n");
 }
 
 /// Path-insensitive analysis: merges all light states
@@ -163,6 +168,8 @@ fn analyze_path_sensitive() {
             assert_eq!((low, high), (0, 60), "RED state: timer should be [0,60]");
             println!("  RED partition:    timer ∈ [{}, {}]", low, high);
         }
+    } else {
+        panic!("RED partition missing!");
     }
 
     // GREEN: timer ∈ [0, 45]
@@ -171,6 +178,8 @@ fn analyze_path_sensitive() {
             assert_eq!((low, high), (0, 45), "GREEN state: timer should be [0,45]");
             println!("  GREEN partition:  timer ∈ [{}, {}]", low, high);
         }
+    } else {
+        panic!("GREEN partition missing!");
     }
 
     // YELLOW: timer ∈ [0, 5]
@@ -179,6 +188,8 @@ fn analyze_path_sensitive() {
             assert_eq!((low, high), (0, 5), "YELLOW state: timer should be [0,5]");
             println!("  YELLOW partition: timer ∈ [{}, {}]", low, high);
         }
+    } else {
+        panic!("YELLOW partition missing!");
     }
 
     // Verify safety properties

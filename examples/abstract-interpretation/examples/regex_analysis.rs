@@ -13,11 +13,17 @@ use abstract_interpretation::string_domain::{RegexDomain, StringRegex};
 use regex::Regex;
 
 fn main() {
-    println!("=== Regex Domain Analysis ===");
-    println!("Demonstrating structural string analysis using Regular Expressions.\n");
+    println!("\n=======================================================");
+    println!("   Regex Domain Analysis");
+    println!("=======================================================\n");
 
     test_id_generation();
+    println!("{}", "─".repeat(60));
     test_structured_logging();
+
+    println!("\n=======================================================");
+    println!("   Analysis Complete");
+    println!("=======================================================\n");
 }
 
 fn test_id_generation() {
@@ -64,6 +70,7 @@ fn test_id_generation() {
         println!("  ✓ Verified: Does NOT match '{}'", invalid_id);
     } else {
         println!("  Result is Top or Bottom");
+        panic!("Expected a specific Regex pattern, got Top or Bottom");
     }
 }
 
@@ -117,5 +124,7 @@ fn test_structured_logging() {
 
         assert!(!re.is_match(log3));
         println!("  ✓ Verified: Does NOT match '{}'", log3);
+    } else {
+        panic!("Expected a specific Regex pattern for log message");
     }
 }

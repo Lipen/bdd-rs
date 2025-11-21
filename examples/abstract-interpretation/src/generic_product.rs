@@ -97,10 +97,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::interval::IntervalDomain;
-    use crate::sign::SignDomain;
     use crate::domain::tests::test_lattice_axioms;
+    use crate::interval::IntervalDomain;
     use crate::numeric::NumericDomain;
+    use crate::sign::SignDomain;
 
     #[test]
     fn test_generic_product_lattice_axioms() {

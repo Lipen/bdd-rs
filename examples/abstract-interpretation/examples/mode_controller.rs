@@ -23,8 +23,9 @@ use std::rc::Rc;
 use abstract_interpretation::*;
 
 fn main() {
-    println!("=== Mode-Based Controller Analysis (B4) ===");
-    println!();
+    println!("\n=======================================================");
+    println!("   Mode-Based Controller Analysis");
+    println!("=======================================================\n");
 
     // System description
     println!("SYSTEM DESCRIPTION:");
@@ -46,13 +47,17 @@ fn main() {
     println!("  P3: In ERROR mode, actuator must be 0");
     println!("  P4: Actuator can only be 1 in ACTIVE mode");
     println!();
-    println!("{}", "=".repeat(60));
+    println!("=======================================================");
     println!();
 
     // Run both path-insensitive and path-sensitive analysis
     analyze_path_insensitive();
-    println!("\n{}\n", "=".repeat(60));
+    println!("\n=======================================================\n");
     analyze_path_sensitive();
+
+    println!("\n=======================================================");
+    println!("   Analysis Complete");
+    println!("=======================================================\n");
 }
 
 /// Path-insensitive analysis: merges all control states
@@ -193,6 +198,8 @@ fn analyze_path_sensitive() {
             assert_eq!((low, high), (0, 0), "INIT mode: actuator should be [0,0]");
             println!("✅ P2: In INIT mode: actuator = 0");
         }
+    } else {
+        panic!("INIT mode partition missing!");
     }
 
     // READY: actuator = 0
@@ -201,6 +208,8 @@ fn analyze_path_sensitive() {
             assert_eq!((low, high), (0, 0), "READY mode: actuator should be [0,0]");
             println!("✅ P2: In READY mode: actuator = 0");
         }
+    } else {
+        panic!("READY mode partition missing!");
     }
 
     // ACTIVE: actuator = 1
@@ -209,6 +218,8 @@ fn analyze_path_sensitive() {
             assert_eq!((low, high), (1, 1), "ACTIVE mode: actuator should be [1,1]");
             println!("✅ P4: In ACTIVE mode: actuator = 1 (only mode where actuator can be 1)");
         }
+    } else {
+        panic!("ACTIVE mode partition missing!");
     }
 
     // ERROR: actuator = 0
@@ -217,6 +228,8 @@ fn analyze_path_sensitive() {
             assert_eq!((low, high), (0, 0), "ERROR mode: actuator should be [0,0]");
             println!("✅ P3: In ERROR mode: actuator = 0");
         }
+    } else {
+        panic!("ERROR mode partition missing!");
     }
 
     // Verify mutual exclusion by checking control states are disjoint

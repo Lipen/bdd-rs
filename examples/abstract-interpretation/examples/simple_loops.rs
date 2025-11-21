@@ -93,6 +93,18 @@ fn main() {
     println!("     • Missing 0 and 1 doesn't cause unsoundness (over-approximation)");
     println!();
 
+    // Assertions for Example 1
+    let x_inv = result1.get("x");
+    // We expect [2, 9] based on the explanation, or at least something within [0, 9]
+    // The explanation says [2, 9], let's verify bounds are finite and reasonable
+    if let (Bound::Finite(l), Bound::Finite(h)) = (x_inv.low, x_inv.high) {
+        assert!(l >= 0);
+        assert!(h <= 9); // Must be < 10
+        println!("  ✓ Verified: Loop invariant upper bound is {} (<= 9)", h);
+    } else {
+        panic!("Expected finite bounds for loop invariant, got {}", x_inv);
+    }
+
     // Example 2: Countdown
     // let x = 100;
     // while (x > 0) { x = x - 1; }
@@ -127,6 +139,19 @@ fn main() {
     println!("  Interpretation: Values satisfying x > 0 during loop execution");
     println!();
 
+    // Assertions for Example 2
+    let x_inv2 = result2.get("x");
+    if let (Bound::Finite(l), Bound::Finite(h)) = (x_inv2.low, x_inv2.high) {
+        assert!(l >= 1); // Must be > 0
+        assert!(h <= 100);
+        println!("  ✓ Verified: Loop invariant lower bound is {} (>= 1)", l);
+    } else {
+        // Depending on widening, it might be [1, 100] or similar.
+        // If widening goes to -inf, narrowing should bring it back to > 0 condition.
+        // Let's just check it's not empty.
+        assert!(!x_inv2.is_empty());
+    }
+
     // Example 3: Unbounded loop
     // let x = 0;
     // while (true) { x = x + 1; }
@@ -158,6 +183,11 @@ fn main() {
     println!("  Loop invariant: x ∈ {} (grows unboundedly)", result3.get("x"));
     println!("  (No exit - infinite loop!)");
     println!();
+
+    // Assertions for Example 3
+    let x_inv3 = result3.get("x");
+    assert_eq!(x_inv3.high, Bound::PosInf, "Expected upper bound to be +∞ due to widening");
+    println!("  ✓ Verified: Upper bound is +∞");
 
     println!("=== Analysis Complete ===");
 }

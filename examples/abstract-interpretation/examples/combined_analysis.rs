@@ -17,18 +17,27 @@ use abstract_interpretation::numeric::NumericDomain;
 use abstract_interpretation::sign::{Sign, SignDomain, SignElement};
 
 fn main() {
-    println!("=== Combined Domain Analysis Examples ===\n");
+    println!("\n=======================================================");
+    println!("   Combined Domain Analysis Examples");
+    println!("=======================================================\n");
 
     example_sign_constant_cooperation();
+    println!("=======================================================");
     example_sign_interval_cooperation();
+    println!("=======================================================");
     example_constant_interval_cooperation();
+    println!("=======================================================");
     example_triple_domain_analysis();
+
+    println!("=======================================================");
+    println!("   Analysis Complete");
+    println!("=======================================================\n");
 }
 
 /// Example 1: Sign and Constant cooperation
 fn example_sign_constant_cooperation() {
     println!("Example 1: Sign × Constant Domain");
-    println!("----------------------------------");
+    println!();
 
     let sign_domain = SignDomain;
     let const_domain = ConstantDomain;
@@ -45,6 +54,7 @@ fn example_sign_constant_cooperation() {
     let expr = NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(5)));
     let sign_result = sign_domain.assign(&sign_elem, &"y".to_string(), &expr);
     println!("Sign domain: y = {} (0 + positive = positive)", sign_result.get("y"));
+    assert_eq!(sign_result.get("y"), Sign::Pos);
 
     // Constant analysis
     let const_elem = const_domain.constant(&"x".to_string(), 0);
@@ -52,6 +62,7 @@ fn example_sign_constant_cooperation() {
 
     let const_result = const_domain.assign(&const_elem, &"y".to_string(), &expr);
     println!("Constant domain: y = {} (exact value!)", const_result.get("y"));
+    assert_eq!(const_result.get("y"), ConstValue::Const(5));
 
     println!("\n✓ Constant domain is more precise for this case");
     println!("  Sign: y is positive");
@@ -63,7 +74,7 @@ fn example_sign_constant_cooperation() {
 /// Example 2: Sign and Interval cooperation
 fn example_sign_interval_cooperation() {
     println!("Example 2: Sign × Interval Domain");
-    println!("----------------------------------");
+    println!();
 
     let sign_domain = SignDomain;
     let interval_domain = IntervalDomain;
@@ -93,6 +104,8 @@ fn example_sign_interval_cooperation() {
     println!("\nAfter 'x > 0':");
     println!("  Interval: x ∈ {}", interval_elem.get("x"));
     println!("  Sign: x = {}", sign_elem.get("x"));
+    assert_eq!(interval_elem.get("x"), Interval::new(Bound::Finite(1), Bound::Finite(10)));
+    assert_eq!(sign_elem.get("x"), Sign::Pos);
 
     // y = x * x
     let expr = NumExpr::Mul(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Var("x".to_string())));
@@ -103,6 +116,8 @@ fn example_sign_interval_cooperation() {
     println!("\nAfter 'y = x * x':");
     println!("  Interval: y ∈ {} (precise bounds)", interval_elem.get("y"));
     println!("  Sign: y = {} (positive, but no bounds)", sign_elem.get("y"));
+    assert_eq!(interval_elem.get("y"), Interval::new(Bound::Finite(1), Bound::Finite(100)));
+    assert_eq!(sign_elem.get("y"), Sign::Pos);
 
     println!("\n✓ Domains provide complementary information:");
     println!("  Interval: precise range [1, 100]");
@@ -114,7 +129,7 @@ fn example_sign_interval_cooperation() {
 /// Example 3: Constant and Interval cooperation
 fn example_constant_interval_cooperation() {
     println!("Example 3: Constant × Interval Domain");
-    println!("--------------------------------------");
+    println!();
 
     let const_domain = ConstantDomain;
     let interval_domain = IntervalDomain;
@@ -147,6 +162,8 @@ fn example_constant_interval_cooperation() {
 
     interval_elem = interval_domain.assign(&interval_elem, &"z".to_string(), &expr);
     println!("  z = x + y ∈ {} (maintains bounds)", interval_elem.get("z"));
+    assert_eq!(const_elem.get("z"), ConstValue::Top);
+    assert_eq!(interval_elem.get("z"), Interval::new(Bound::Finite(6), Bound::Finite(15)));
 
     println!("\n✓ Interval domain maintains useful bounds when constant is lost");
     println!("  z ∈ [6, 15]");
@@ -157,7 +174,7 @@ fn example_constant_interval_cooperation() {
 /// Example 4: Triple domain analysis (Sign + Constant + Interval)
 fn example_triple_domain_analysis() {
     println!("Example 4: Sign + Constant + Interval Analysis");
-    println!("-----------------------------------------------");
+    println!();
 
     let sign_domain = SignDomain;
     let const_domain = ConstantDomain;
@@ -216,6 +233,9 @@ fn example_triple_domain_analysis() {
     println!("  Sign: {} (positive)", sign_elem.get("z"));
     println!("  Constant: {} (exact!)", const_elem.get("z"));
     println!("  Interval: {} (precise bound)", interval_elem.get("z"));
+    assert_eq!(sign_elem.get("z"), Sign::Pos);
+    assert_eq!(const_elem.get("z"), ConstValue::Const(7));
+    assert_eq!(interval_elem.get("z"), Interval::new(Bound::Finite(7), Bound::Finite(7)));
 
     println!("\n✓ Combined analysis provides maximum precision:");
     println!("  - Sign: z is positive");

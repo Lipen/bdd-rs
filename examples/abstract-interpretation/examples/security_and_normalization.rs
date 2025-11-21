@@ -18,11 +18,19 @@ use abstract_interpretation::domain::AbstractDomain;
 use abstract_interpretation::string_domain::{StringCase, StringCaseDomain, StringNumeric, StringNumericDomain, TaintDomain};
 
 fn main() {
-    println!("=== Security and Normalization Analysis ===\n");
+    println!("\n=======================================================");
+    println!("   Security and Normalization Analysis");
+    println!("=======================================================\n");
 
     analyze_sql_injection();
+    println!("=======================================================");
     analyze_normalization();
+    println!("=======================================================");
     analyze_numeric_input();
+
+    println!("\n=======================================================");
+    println!("   Analysis Complete");
+    println!("=======================================================\n");
 }
 
 fn analyze_sql_injection() {
@@ -120,15 +128,18 @@ fn analyze_numeric_input() {
             StringNumeric::IntegerStr => {
                 println!("→ Valid Integer. Safe to parse as int.");
                 assert!(input.parse::<i64>().is_ok());
+                assert!(input == "123" || input == "-50", "Unexpected IntegerStr for {}", input);
             }
             StringNumeric::FloatStr => {
                 println!("→ Valid Float. Safe to parse as float.");
                 assert!(input.parse::<f64>().is_ok());
+                assert!(input == "3.14", "Unexpected FloatStr for {}", input);
             }
             StringNumeric::Top => {
                 println!("→ Invalid or Unknown. Do NOT parse blindly.");
                 // "abc" and "12ab" should fall here
                 assert!(input.parse::<f64>().is_err());
+                assert!(input == "abc" || input == "12ab", "Unexpected Top for {}", input);
             }
             _ => {}
         }

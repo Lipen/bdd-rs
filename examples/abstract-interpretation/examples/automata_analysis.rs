@@ -23,13 +23,14 @@
 use abstract_interpretation::*;
 
 fn main() {
-    println!("\n╔══════════════════════════════════════════════════════════╗");
-    println!("║  Symbolic Automata Domain Analysis                       ║");
-    println!("╚══════════════════════════════════════════════════════════╝\n");
+    println!("\n=======================================================");
+    println!("   Symbolic Automata Domain Analysis");
+    println!("=======================================================\n");
 
     let domain = AutomataDomain;
 
     // 1. Define basic character classes
+    // These are the building blocks for our automata transitions.
     let digit = CharClass::range('0', '9');
     let alpha_lower = CharClass::range('a', 'z');
     let alpha_upper = CharClass::range('A', 'Z');
@@ -46,12 +47,14 @@ fn main() {
     //   Examples:
     //     ✓ "my_var", "_private", "var123", "CamelCase"
     //     ✗ "123var" (starts with digit), "$invalid" (special char)
-    println!("\n{}", "═".repeat(60));
+    println!("\n=======================================================");
     println!("Scenario 1: Identifier Language");
-    println!("{}\n", "═".repeat(60));
+    println!("=======================================================\n");
 
-    println!("Language: [a-zA-Z_][a-zA-Z0-9_]*");
-    println!("Description: Valid programming language identifiers\n");
+    println!("Program Context:");
+    println!("  // Variable 'id' must be a valid identifier");
+    println!("  // Regex: [a-zA-Z_][a-zA-Z0-9_]*");
+    println!();
 
     // 2. Construct an automaton for valid identifiers: [a-zA-Z_][a-zA-Z0-9_]*
     println!("Constructing Symbolic Automaton...");
@@ -60,8 +63,11 @@ fn main() {
     let body = nfa_ident.add_state(true); // state 1 (accepting)
 
     // Transition: start --[a-zA-Z_]--> body
+    // The first character must be a letter or underscore.
     nfa_ident.add_transition(start, alpha.or(&underscore), body);
+
     // Transition: body --[a-zA-Z0-9_]--> body
+    // Subsequent characters can be alphanumeric or underscore.
     nfa_ident.add_transition(body, identifier_char.clone(), body);
 
     let dfa_ident = nfa_ident.determinize();
@@ -95,12 +101,14 @@ fn main() {
     //   Examples:
     //     ✓ "123", "0", "999"
     //     ✗ "12a" (contains letter), "" (empty)
-    println!("\n{}", "═".repeat(60));
+    println!("\n=======================================================");
     println!("Scenario 2: Integer Language");
-    println!("{}\n", "═".repeat(60));
+    println!("=======================================================\n");
 
-    println!("Language: [0-9]+");
-    println!("Description: Integer literals (one or more digits)\n");
+    println!("Program Context:");
+    println!("  // Variable 'num' must be an integer literal");
+    println!("  // Regex: [0-9]+");
+    println!();
 
     // 3. Construct an automaton for integer literals: [0-9]+
     println!("Constructing Symbolic Automaton...");
@@ -108,7 +116,12 @@ fn main() {
     let start = nfa_int.start;
     let body = nfa_int.add_state(true);
 
+    // Transition: start --[0-9]--> body
+    // Must start with a digit.
     nfa_int.add_transition(start, digit.clone(), body);
+
+    // Transition: body --[0-9]--> body
+    // Can continue with digits.
     nfa_int.add_transition(body, digit.clone(), body);
 
     let dfa_int = nfa_int.determinize();
@@ -129,10 +142,10 @@ fn main() {
     // ========================================================================
     // Scenario 3: Union (Join) - Identifier OR Integer
     // ========================================================================
-    // Analysis question: What if a variable can be either an identifier or integer?
-    println!("\n{}", "═".repeat(60));
+    // Analysis question: What if a variable can be either an identifier or an integer?
+    println!("\n=======================================================");
     println!("Scenario 3: Union (Join) - Identifier OR Integer");
-    println!("{}\n", "═".repeat(60));
+    println!("=======================================================\n");
 
     // 4. Analyze a scenario:
     // Let's say we have a variable `x` that can be either an identifier OR an integer.
@@ -172,9 +185,9 @@ fn main() {
     // Scenario 4: Intersection (Meet) - Identifier AND Integer
     // ========================================================================
     // Analysis question: What strings are BOTH identifiers AND integers?
-    println!("\n{}", "═".repeat(60));
+    println!("\n=======================================================");
     println!("Scenario 4: Intersection (Meet) - Identifier AND Integer");
-    println!("{}\n", "═".repeat(60));
+    println!("=======================================================\n");
 
     // 5. Intersection (Meet)
     // What strings are BOTH identifiers AND integers?
@@ -203,9 +216,9 @@ fn main() {
     // Scenario 5: Subset (Le) - Singleton Language
     // ========================================================================
     // Analysis question: Is a specific string in a language?
-    println!("\n{}", "═".repeat(60));
+    println!("\n=======================================================");
     println!("Scenario 5: Subset Checking - Singleton Languages");
-    println!("{}\n", "═".repeat(60));
+    println!("=======================================================\n");
 
     // 6. Subset Check (Le)
     println!("Language: {{\"var1\"}} (singleton)");
@@ -241,7 +254,7 @@ fn main() {
     assert!(!is_subset_int, "\"var1\" should not be an integer");
     println!("    ✓ Verified: \"var1\" is not an integer");
 
-    println!("\n{}", "═".repeat(60));
+    println!("\n=======================================================");
     println!("Analysis Complete - All Assertions Passed!");
-    println!("{}\n", "═".repeat(60));
+    println!("=======================================================");
 }

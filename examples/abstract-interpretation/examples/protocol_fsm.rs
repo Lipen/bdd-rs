@@ -21,8 +21,9 @@ use std::rc::Rc;
 use abstract_interpretation::*;
 
 fn main() {
-    println!("=== Protocol State Machine Analysis ===");
-    println!();
+    println!("\n=======================================================");
+    println!("   Protocol State Machine Analysis");
+    println!("=======================================================\n");
 
     // System description
     println!("SYSTEM DESCRIPTION:");
@@ -45,12 +46,16 @@ fn main() {
     println!("  P3: data_size > 0 only in DATA state");
     println!("  P4: Temporal ordering: INIT → READY → DATA → ACK");
     println!();
-    println!("{}", "=".repeat(60));
+    println!("=======================================================");
     println!();
 
     analyze_path_insensitive();
-    println!("\n{}\n", "=".repeat(60));
+    println!("\n=======================================================\n");
     analyze_path_sensitive();
+
+    println!("\n=======================================================");
+    println!("   Analysis Complete");
+    println!("=======================================================\n");
 }
 
 /// Path-insensitive analysis: loses state information
@@ -182,6 +187,8 @@ fn analyze_path_sensitive() {
             assert_eq!((low, high), (0, 0), "INIT state: data_size should be 0");
             println!("  INIT partition:  data_size ∈ [{}, {}]", low, high);
         }
+    } else {
+        panic!("INIT partition missing!");
     }
 
     // READY: data_size = 0
@@ -190,6 +197,8 @@ fn analyze_path_sensitive() {
             assert_eq!((low, high), (0, 0), "READY state: data_size should be 0");
             println!("  READY partition: data_size ∈ [{}, {}]", low, high);
         }
+    } else {
+        panic!("READY partition missing!");
     }
 
     // DATA: data_size ∈ [1, 1500]
@@ -198,6 +207,8 @@ fn analyze_path_sensitive() {
             assert_eq!((low, high), (1, 1500), "DATA state: data_size should be [1,1500]");
             println!("  DATA partition:  data_size ∈ [{}, {}]", low, high);
         }
+    } else {
+        panic!("DATA partition missing!");
     }
 
     // ACK: data_size = 0
@@ -206,6 +217,8 @@ fn analyze_path_sensitive() {
             assert_eq!((low, high), (0, 0), "ACK state: data_size should be 0");
             println!("  ACK partition:   data_size ∈ [{}, {}]", low, high);
         }
+    } else {
+        panic!("ACK partition missing!");
     }
 
     // Verify safety properties

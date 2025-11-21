@@ -58,6 +58,15 @@ fn example_1_basic_assignment() {
     println!("  p points-to: {}", format_points_to(&domain, &elem, "p"));
     println!("  q points-to: {}", format_points_to(&domain, &elem, "q"));
     println!();
+
+    // Assertions
+    let p_targets = domain.decode_bdd(elem.get("p"));
+    assert!(p_targets.contains(&x_loc));
+    assert_eq!(p_targets.len(), 1);
+
+    let q_targets = domain.decode_bdd(elem.get("q"));
+    assert!(q_targets.contains(&y_loc));
+    assert_eq!(q_targets.len(), 1);
 }
 
 /// Example 2: Pointer copy
@@ -94,6 +103,13 @@ fn example_2_pointer_copy() {
     println!("  May-alias(p, q): {}", elem.may_alias(&domain, "p", "q"));
     println!("  Must-alias(p, q): {}", elem.must_alias(&domain, "p", "q"));
     println!();
+
+    // Assertions
+    assert!(elem.must_alias(&domain, "p", "q"));
+
+    let q_targets = domain.decode_bdd(elem.get("q"));
+    assert!(q_targets.contains(&x_loc));
+    assert_eq!(q_targets.len(), 1);
 }
 
 /// Example 3: Join analysis (control flow merge)
@@ -141,6 +157,12 @@ fn example_3_join_analysis() {
     println!("  Else branch - p points-to: {}", format_points_to(&domain, &else_elem, "p"));
     println!("  After merge - p points-to: {}", format_points_to(&domain, &joined, "p"));
     println!();
+
+    // Assertions
+    let joined_targets = domain.decode_bdd(joined.get("p"));
+    assert!(joined_targets.contains(&x_loc));
+    assert!(joined_targets.contains(&y_loc));
+    assert_eq!(joined_targets.len(), 2);
 }
 
 /// Example 4: Alias detection
@@ -197,6 +219,10 @@ fn example_4_alias_detection() {
         elem.must_alias(&domain, "p", "r")
     );
     println!();
+
+    // Assertions
+    assert!(elem.must_alias(&domain, "p", "q"));
+    assert!(!elem.may_alias(&domain, "p", "r"));
 }
 
 /// Format the points-to set for a variable

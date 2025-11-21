@@ -53,6 +53,7 @@ fn example_division_by_zero() {
     } else if elem.get("x").has_zero() {
         println!("⚠ Division by x might be UNSAFE (x could be zero)");
     }
+    assert_eq!(elem.get("x"), Sign::Pos);
 
     println!();
 
@@ -74,6 +75,7 @@ fn example_division_by_zero() {
     if elem.get("x").has_zero() {
         println!("✗ Division by x is UNSAFE (x could be zero)");
     }
+    assert!(elem.get("x").has_zero());
 
     println!("\n");
 }
@@ -109,6 +111,7 @@ fn example_conditional_analysis() {
     if sign_of_square == Sign::NonNeg {
         println!("✓ Dead code detected: x*x is always ≥ 0, condition 'x*x < 0' is always false");
     }
+    assert_eq!(sign_of_square, Sign::NonNeg);
 
     println!("\n");
 }
@@ -144,6 +147,8 @@ fn example_loop_analysis() {
     // Fixpoint reached
     println!("\n✓ Fixpoint: i remains {} (non-negative)", elem.get("i"));
     println!("  This guarantees i is always non-negative in the loop");
+
+    assert_eq!(elem.get("i"), Sign::NonNeg);
 
     println!("\n");
 }
@@ -187,6 +192,7 @@ fn example_overflow_detection() {
         println!("\n✓ Sign analysis: z is non-negative (even if overflow occurs)");
         println!("  (Note: Sign domain abstracts away actual overflow)");
     }
+    assert_eq!(result.get("z"), Sign::Pos); // Actually, Pos + Pos = Pos
 
     println!("\n");
 }
