@@ -202,7 +202,7 @@ When we join two states, we don't blindly merge everything.
 We use BDDs to compress the representation.
 If two paths lead to the *same* data state, we can merge their path conditions!
 
-$(b_1, rho) join (b_2, rho) = (b_1 or b_2, rho)$
+$(b_1, rho) ljoin (b_2, rho) = (b_1 or b_2, rho)$
 
 ```rust
 impl<D: AbstractDomain + PartialEq + Clone> PartitionedState<D> {
@@ -331,7 +331,6 @@ We achieved better precision!
 And crucially, if we had a later check `if x > 0`, the BDD would know that Partition 2 is impossible, automatically pruning the path.
 
 #insight-box[
-  *Key Insight:*
   The combination of *Partitioning* (keeping states separate) and *Refinement* (learning from path conditions) is what makes BDD-based analysis powerful.
 ]
 

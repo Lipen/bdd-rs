@@ -124,31 +124,55 @@ To evaluate the function for a given assignment of variables, we start at the ro
 The "Diagram" part is easy. The "Decision" part is standard. The magic is in the *Reduction*.
 A BDD is *reduced* by applying two rules until no more changes can be made:
 
-1.  *Merge Isomorphic Nodes*: If two nodes have the same variable, same high child, and same low child, they are the same node.
-2.  *Eliminate Redundant Tests*: If a node's high and low edges point to the same child, the node is useless (the result is the same regardless of the variable's value). Remove it.
++ *Merge Isomorphic Nodes*: If two nodes have the same variable, same high child, and same low child, they are the same node.
++ *Eliminate Redundant Tests*: If a node's high and low edges point to the same child, the node is useless (the result is the same regardless of the variable's value). Remove it.
 
 This reduction means that common sub-expressions are shared.
 If multiple paths share the same tail (suffix), they share the same BDD nodes.
 
 == The `ConditionManager`
 
-In our MiniVerifier, we need to bridge the gap between the "semantic" world of our program (strings like "x > 0") and the "numeric" world of the BDD library (variables like 1, 2, 3).
+In our MiniVerifier, we need to bridge the gap between the "semantic" world of our program (strings like "`x > 0`") and the "numeric" world of the BDD library (variables like 1, 2, 3).
 
 We will implement a `ConditionManager` to handle this.
 
 #info-box(title: "Design Pattern")[
   The `ConditionManager` is a wrapper around the raw BDD manager.
-  It maintains a mapping: `HashMap<String, BddVariable>`.
+  It maintains a mapping: `HashMap<Cond, Ref>`.
 ]
 
+Here is a draft of the structure we will build:
+
+```rust
+pub struct ConditionManager {
+    bdd: Bdd,
+    mapping: HashMap<Cond, usize>, // Maps AST conditions to BDD variable IDs
+    next_var_id: usize,
+}
+
+impl ConditionManager {
+    /// Get or create the BDD variable for a condition
+    pub fn get_condition(&mut self, cond: &Cond) -> Ref {
+        if let Some(&id) = self.mapping.get(cond) {
+            return self.bdd.mk_var(id);
+        }
+
+        let id = self.next_var_id;
+        self.next_var_id += 1;
+        self.mapping.insert(cond.clone(), id);
+        self.bdd.mk_var(id)
+    }
+}
+```
+
 When the analyzer encounters a condition `x > 0` for the first time:
-1.  It asks the `ConditionManager`: "Do you have a variable for 'x > 0'?"
-2.  The manager says "No", allocates a new BDD variable (e.g., index 1), and stores the mapping.
-3.  It returns a BDD representing that variable.
++ It asks the `ConditionManager`: "Do you have a variable for `x > 0`?"
++ The manager says "No", allocates a new BDD variable (e.g., index 1), and stores the mapping.
++ It returns a BDD representing that variable.
 
 When it encounters `x > 0` again later:
-1.  The manager finds the existing mapping.
-2.  It returns the existing BDD variable.
++ The manager finds the existing mapping.
++ It returns the existing BDD variable.
 
 This ensures that the *same* logical condition is always represented by the *same* BDD variable, which is crucial for the logic to work correctly.
 
@@ -160,10 +184,11 @@ With BDDs, we don't store $2^N$ separate objects.
 If the paths don't interact (e.g., independent branches), the BDD size grows *linearly* with the number of variables, not exponentially.
 
 For example, if we have 100 independent `if` statements:
-- Explicit paths: $2^{100}$ (impossible to store).
+- Explicit paths: $2^100$ (impossible to store).
 - BDD nodes: $2 times 100 = 200$ nodes (trivial).
 
-The BDD automatically "factors out" the independence. It only grows large when variables are heavily correlated in complex ways (which does happen, but often not in typical control flow).
+The BDD automatically "factors out" the independence.
+It only grows large when variables are heavily correlated in complex ways (which does happen, but often not in typical control flow).
 
 == Summary
 

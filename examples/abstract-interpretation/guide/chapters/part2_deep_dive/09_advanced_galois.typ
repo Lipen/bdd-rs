@@ -207,6 +207,30 @@ The direct product is sound but may contain *unrealizable* elements: pairs $(a_1
   After reduction, $("Zero", "Odd")$ becomes $(bot, bot)$, making the inconsistency explicit.
 ]
 
+#info-box(title: "Implementing the Reduction Loop")[
+  In a multi-domain product, reduction can be iterative.
+  Domain A refines B, which refines C, which might refine A again!
+
+  ```rust
+  fn reduce_loop(mut state: ProductState) -> ProductState {
+      loop {
+          let old_state = state.clone();
+
+          // 1. Apply all reduction rules
+          state = apply_rules(state);
+
+          // 2. Check for fixpoint
+          if state == old_state { break; }
+
+          // 3. Check for bottom (contradiction)
+          if state.is_bottom() { return ProductState::bottom(); }
+      }
+      state
+  }
+  ```
+  For finite height domains, this loop always terminates.
+]
+
 #theorem(title: "Reduced Product Precision")[
   Let $(C, alpha_i, gamma_i, A_i)$ for $i=1,2$ be Galois connections, and $rho$ be a reduction operator.
 

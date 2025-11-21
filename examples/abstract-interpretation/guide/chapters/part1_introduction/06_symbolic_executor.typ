@@ -47,10 +47,10 @@ This combines the precision of symbolic execution with the efficiency of BDD-bas
 
 Components:
 
-1. *Expression language:* Represent program expressions
-2. *Symbolic state:* Path condition (BDD) + symbolic environment
-3. *Interpreter:* Execute statements, update state
-4. *Path explorer:* Manage multiple paths, detect bugs
++ *Expression language:* Represent program expressions
++ *Symbolic state:* Path condition (BDD) + symbolic environment
++ *Interpreter:* Execute statements, update state
++ *Path explorer:* Manage multiple paths, detect bugs
 
 #figure(
   caption: [Symbolic executor architecture. The path explorer manages a worklist of symbolic states, each containing a BDD path condition and symbolic environment. The interpreter processes statements, forking states at branches. Bug detectors check for violations by querying path feasibility.],

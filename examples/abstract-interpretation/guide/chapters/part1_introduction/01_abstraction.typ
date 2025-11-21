@@ -114,6 +114,7 @@ pub trait AbstractDomain: Sized + Clone + PartialEq + std::fmt::Debug {
     // Intersect two possibilities
     fn meet(&self, other: &Self) -> Self;
 }
+```
 
 === Bridging Theory and Code: Galois Connections
 
@@ -140,7 +141,6 @@ For our Sign domain:
 
 This mathematical framework ensures our approximation is *sound*.
 If we say `x` is Positive, then the actual concrete value of `x` *must* be in the set `gamma(Positive)`.
-```
 
 == Abstract Semantics
 
@@ -184,7 +184,7 @@ if x > 0 {
 ```
 
 At the merge point, `y` could be 1 (Positive) OR -1 (Negative).
-In the Sign domain, `(+) join (-) = top`.
+In the Sign domain, $(+) ljoin (-) = top$.
 We lost the information that `y` is non-zero!
 
 This is where *BDDs* will come in.

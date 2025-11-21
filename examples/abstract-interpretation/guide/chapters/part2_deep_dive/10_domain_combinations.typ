@@ -6,6 +6,7 @@
 
 In @ch-combining-domains, we built a practical, intuitive path-sensitive analyzer using BDDs and the Sign domain.
 This chapter formalizes that architecture into the theory of *Trace Partitioning* and *Product Domains*.
+While Chapter 5 focused on the "how" of implementation, this chapter focuses on the "why" and the mathematical properties that guarantee soundness.
 
 We will go beyond the simple combination to explore:
 - *Reduced Products*: How control and data domains can refine each other.

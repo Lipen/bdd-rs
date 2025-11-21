@@ -54,9 +54,9 @@ fn main() {
 == Designing the `ConditionManager`
 
 We need a struct that holds:
-1.  The `Bdd` manager itself.
-2.  A mapping from `Cond` (our AST node) to BDD variable IDs.
-3.  A counter to assign new IDs.
++  The `Bdd` manager itself.
++  A mapping from `Cond` (our AST node) to BDD variable IDs.
++  A counter to assign new IDs.
 
 ```rust
 use std::collections::HashMap;

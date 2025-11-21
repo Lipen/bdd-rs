@@ -61,9 +61,9 @@ The bridge between your program and the BDD world is the *Predicate Mapping*.
 You need a deterministic way to map `x > 0` to a BDD variable (e.g., $v_1$).
 
 Strategies:
-1. *Structural:* Assign IDs based on the AST node ID. Good for static graphs.
-2. *Semantic:* Normalize predicates (`x > 0` becomes `0 < x`) and deduplicate.
-3. *Dynamic:* Allocate new variables on the fly as new conditions are encountered.
++ *Structural:* Assign IDs based on the AST node ID. Good for static graphs.
++ *Semantic:* Normalize predicates (`x > 0` becomes `0 < x`) and deduplicate.
++ *Dynamic:* Allocate new variables on the fly as new conditions are encountered.
 
 #warning-box(title: "Dynamic Allocation Pitfall")[
   When using dynamic allocation, you must ensure *canonicity*.
@@ -110,6 +110,12 @@ Control affects data via conditioning; data can also discharge control facts.
   Given a variable $v$, existential abstraction removes $v$ while preserving satisfiability:
   $ exists v . f := f[v := 0] or f[v := 1] $
   This corresponds to control-flow joins where the precise branching condition no longer matters to downstream facts, preventing the BDD from growing indefinitely with irrelevant history.
+
+  In `bdd-rs`, this is a lattice operation (projection):
+  ```rust
+  // Project out variable `var`
+  let exists_var = bdd.exists(formula, var);
+  ```
 ]
 
 == Product vs. Disjunctive Domains
@@ -148,8 +154,8 @@ With signed literals $l_i in bb(Z)$, positive literal $+k$ means $v_k = "true"$,
   A division-by-zero warning is reported under cubes $[+3, -5, +9]$ and $[+3, -7]$.
   Translation:
   "Error occurs when:
-  1. `x > 0` AND `mode != Safe` AND `input_valid`
-  2. `x > 0` AND `!system_ready`"
+  + `x > 0` AND `mode != Safe` AND `input_valid`
+  + `x > 0` AND `!system_ready`"
 ]
 
 == Soundness Sketch

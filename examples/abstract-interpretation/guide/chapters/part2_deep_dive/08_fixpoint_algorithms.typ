@@ -92,6 +92,49 @@ Chaotic iteration can be wasteful: updating a variable when its inputs haven't c
   + *return* $sigma$
 ]
 
+Here is how a generic worklist solver looks in Rust:
+
+```rust
+use std::collections::{VecDeque, HashSet};
+use std::hash::Hash;
+
+pub fn solve_worklist<K, D, F>(
+    initial_worklist: Vec<K>,
+    mut get_deps: F,
+    mut transfer: impl FnMut(&K, &D) -> D,
+    bottom: D
+) -> HashMap<K, D>
+where
+    K: Eq + Hash + Clone,
+    D: AbstractDomain,
+    F: FnMut(&K) -> Vec<K>, // Returns dependents of a node
+{
+    let mut state: HashMap<K, D> = HashMap::new();
+    let mut worklist: VecDeque<K> = initial_worklist.into();
+    let mut in_worklist: HashSet<K> = worklist.iter().cloned().collect();
+
+    while let Some(node) = worklist.pop_front() {
+        in_worklist.remove(&node);
+
+        let old_val = state.get(&node).unwrap_or(&bottom).clone();
+        let new_val = transfer(&node, &old_val);
+
+        if new_val != old_val {
+            // State changed! Update and notify dependents
+            state.insert(node.clone(), new_val);
+
+            for dep in get_deps(&node) {
+                if !in_worklist.contains(&dep) {
+                    worklist.push_back(dep.clone());
+                    in_worklist.insert(dep);
+                }
+            }
+        }
+    }
+    state
+}
+```
+
 #figure(
   caption: [Worklist algorithm tracking dependencies],
 
@@ -268,6 +311,29 @@ For infinite-height lattices, combine worklist with widening:
   + *end while*
   + *return* $sigma$
 ]
+
+To support this in Rust, we extend our `AbstractDomain` trait with a `widen` method:
+
+```rust
+pub trait AbstractDomain: Clone + PartialEq + Debug {
+    // ... existing methods ...
+
+    // Default implementation: just join (for finite height lattices)
+    fn widen(&self, other: &Self) -> Self {
+        self.join(other)
+    }
+}
+
+// Example: Interval widening
+impl AbstractDomain for Interval {
+    fn widen(&self, other: &Self) -> Self {
+        // If bound is unstable, jump to infinity
+        let new_min = if other.min < self.min { NegInf } else { self.min };
+        let new_max = if other.max > self.max { PosInf } else { self.max };
+        Interval::new(new_min, new_max)
+    }
+}
+```
 
 Typical threshold: 2-3 iterations before widening kicks in.
 

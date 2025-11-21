@@ -99,6 +99,24 @@ The join computes the least precise abstraction containing both inputs (over-app
   - A greatest lower bound: $x lmeet y$
 
   We write $(L, <=, ljoin, lmeet)$ or simply $L$ when the operations are clear.
+
+  In Rust, we capture this structure with the `AbstractDomain` trait:
+
+  ```rust
+  pub trait AbstractDomain: Clone + PartialEq + Debug {
+      // The lattice operations
+      fn bottom() -> Self;
+      fn top() -> Self;
+      fn join(&self, other: &Self) -> Self;
+      fn meet(&self, other: &Self) -> Self;
+
+      // The partial order
+      fn is_less_or_equal(&self, other: &Self) -> bool {
+          // x <= y iff x join y == y
+          self.join(other) == *other
+      }
+  }
+  ```
 ]
 
 #example-box[
@@ -412,6 +430,50 @@ Galois connections formalize the relationship between concrete and abstract doma
   - $alpha$ is the *abstraction function* (concrete $->$ abstract)
   - $gamma$ is the *concretization function* (abstract $->$ concrete)
 ]
+
+#figure(
+  caption: [Concrete vs. Abstract Execution: The Commuting Diagram],
+
+  cetz.canvas({
+    import cetz: draw
+
+    // Nodes
+    let c1 = (0, 4)
+    let c2 = (4, 4)
+    let a1 = (0, 0)
+    let a2 = (4, 0)
+
+    // Draw nodes
+    draw.circle(c1, radius: 0.4, fill: colors.bg-code, stroke: colors.primary + 1pt, name: "c1")
+    draw.content(c1, $C_1$)
+    draw.circle(c2, radius: 0.4, fill: colors.bg-code, stroke: colors.primary + 1pt, name: "c2")
+    draw.content(c2, $C_2$)
+
+    draw.circle(a1, radius: 0.4, fill: colors.accent.lighten(80%), stroke: colors.accent + 1pt, name: "a1")
+    draw.content(a1, $A_1$)
+    draw.circle(a2, radius: 0.4, fill: colors.accent.lighten(80%), stroke: colors.accent + 1pt, name: "a2")
+    draw.content(a2, $A_2$)
+
+    // Edges
+    // Concrete execution
+    draw.line("c1", "c2", stroke: colors.primary + 1pt, mark: (end: ">"))
+    draw.content((2, 4.3), text(fill: colors.primary)[$f$ (Concrete)])
+
+    // Abstract execution
+    draw.line("a1", "a2", stroke: colors.accent + 1pt, mark: (end: ">"))
+    draw.content((2, -0.3), text(fill: colors.accent)[$f^sharp$ (Abstract)])
+
+    // Abstraction (alpha)
+    draw.line("c1", "a1", stroke: (paint: colors.text-light, dash: "dashed"), mark: (end: ">"))
+    draw.content((-0.5, 2), $alpha$)
+
+    draw.line("c2", "a2", stroke: (paint: colors.text-light, dash: "dashed"), mark: (end: ">"))
+    draw.content((4.5, 2), $alpha$)
+
+    // Soundness condition
+    draw.content((2, 2), text(size: 9pt)[$alpha compose f <= f^sharp compose alpha$])
+  }),
+) <fig:commuting-diagram>
 
 #figure(
   caption: [Galois connection between concrete and abstract domains],

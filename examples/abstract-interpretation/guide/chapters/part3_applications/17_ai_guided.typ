@@ -20,12 +20,12 @@ We can conceptualize a hybrid system using the analogy of a Wizard and a Clerk.
 Instead of iteratively computing a fixpoint (which can be slow), we can ask an LLM to predict the loop invariant.
 
 #example-box(title: "Neuro-Symbolic Loop Analysis")[
-  1. *Prompt:* "Given this loop `while x < 100 { x += 2 }`, what is the invariant?"
-  2. *AI Response:* "Invariant: `x % 2 == 0 && x <= 100`"
-  3. *Verifier:* The BDD analyzer checks if this formula is inductive.
+  + *Prompt:* "Given this loop `while x < 100 { x += 2 }`, what is the invariant?"
+  + *AI Response:* "Invariant: `x % 2 == 0 && x <= 100`"
+  + *Verifier:* The BDD analyzer checks if this formula is inductive.
      - Base case: `init => inv`? Yes.
      - Inductive step: `inv && cond => inv'`? Yes.
-  4. *Result:* Verified instantly without iteration.
+  + *Result:* Verified instantly without iteration.
 ]
 
 == Widening Oracles
