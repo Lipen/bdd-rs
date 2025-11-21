@@ -44,8 +44,6 @@ impl<D1, D2> AbstractDomain for ProductDomain<D1, D2>
 where
     D1: AbstractDomain,
     D2: AbstractDomain,
-    D1::Element: Clone + Debug + PartialEq,
-    D2::Element: Clone + Debug + PartialEq,
 {
     type Element = ProductElement<D1::Element, D2::Element>;
 
