@@ -614,7 +614,7 @@ Symbolic execution is inherently expensive.
 Optimization tips:
 - Cache BDD operations (built-in)
 - Prune infeasible paths early
-- Use abstract domains to eliminate paths (e.g., if sign analysis proves x > 0, don't explore x < 0 branch)
+- Use abstract domains to eliminate paths (e.g., if sign analysis proves $x > 0$, don't explore $x < 0$ branch)
 
 == Real-World Applications
 
