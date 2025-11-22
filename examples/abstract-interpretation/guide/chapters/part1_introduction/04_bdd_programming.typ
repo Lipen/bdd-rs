@@ -155,7 +155,7 @@ pub enum Cond {
 == Designing the `ConditionManager`
 
 Now, let's build our bridge.
-The BDD engine doesn't understand arithmetic or variables like `x`. It only understands boolean variables $1, 2, 3, dots$.
+The BDD engine doesn't understand arithmetic or variables like~`x`. It only understands boolean variables $1, 2, 3, dots$.
 We need a component that maps our rich AST conditions (like `x < 5`) to these simple BDD variables.
 
 We need a struct that holds:
