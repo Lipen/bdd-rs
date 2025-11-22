@@ -149,7 +149,7 @@ We need a "Header" block to evaluate the condition every time the loop repeats.
     rect((0, -4), (3, -2.5), ..style-block, name: "body")
     content("body", [*Body Block* \ `body`])
 
-    rect((4.5, -1), (6.5, 0.5), ..style-block, name: "exit")
+    rect((4.5, -1), (7, 0.5), ..style-block, name: "exit")
     content("exit", [*Exit Block*])
 
     // Edges
