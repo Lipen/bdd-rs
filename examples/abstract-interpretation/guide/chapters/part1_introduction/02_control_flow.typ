@@ -78,7 +78,7 @@ Let's visualize how each control structure is transformed.
 
 Sequences are simply concatenated.
 If `s1` is just a list of assignments, `s2` is appended to it.
-If `s1` contains control flow (like an `if`), it will end the current block, and `s2` will start in a new block that the previous blocks jump to.
+If~`s1` contains control flow (like an `if`), it will end the current block, and `s2` will start in a new block that the previous blocks jump to.
 
 === Conditional (`if c { t } else { e }`)
 
