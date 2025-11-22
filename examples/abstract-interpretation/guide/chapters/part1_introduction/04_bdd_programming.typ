@@ -186,7 +186,7 @@ In the next chapter, we will use it to "execute" our Control Flow Graph.
 
   - *Quantification* (∃, ∀): Projecting out variables
     - See #inline-example("bdd_advanced", "quantification.rs", "bdd_quantification")
-  - *Variable Ordering*: The #1 factor affecting BDD size
+  - *Variable Ordering*: The \#1 factor affecting BDD size
     - See #inline-example("bdd_advanced", "variable_ordering.rs", "bdd_variable_ordering")
 
   Variable ordering can make the difference between tractable (linear nodes) and intractable (exponential nodes) for the same formula!
