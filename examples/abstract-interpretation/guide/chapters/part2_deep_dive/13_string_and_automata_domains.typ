@@ -104,5 +104,3 @@ We model pipelines `validate; normalize; use`:
   String analysis benefits from layered abstractions: scalar (length/charset) and language-level (automata).
   Reduced products and prudent widenings yield practical, sound analyses for validation and normalization pipelines.
 ]
-
-#pagebreak()

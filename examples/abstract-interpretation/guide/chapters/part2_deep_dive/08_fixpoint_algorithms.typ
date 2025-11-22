@@ -471,5 +471,3 @@ This chapter developed practical fixpoint algorithms:
 - *Delayed widening* improves precision by waiting for natural convergence
 
 These techniques are essential for implementing efficient program analyzers.
-
-#pagebreak()

@@ -121,5 +121,3 @@ If later the analysis learns `r == p` on some path, BDD control enables a strong
   Flow- and context-sensitivity improve precision when bounded carefully.
   Reduced products with numeric, string, and BDD control domains provide path-sensitive, field-aware reasoning while maintaining soundness and termination.
 ]
-
-#pagebreak()

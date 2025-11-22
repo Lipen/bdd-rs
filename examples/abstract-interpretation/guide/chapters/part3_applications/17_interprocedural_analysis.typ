@@ -74,5 +74,3 @@ Widening on heap parameters maintains termination; reduction with caller facts i
   Interprocedural analysis hinges on summaries, context selection (e.g., k-call-strings), SCC fixpoints with widening, and heap-aware parameterization.
   It balances modularity, precision, and scalability.
 ]
-
-#pagebreak()

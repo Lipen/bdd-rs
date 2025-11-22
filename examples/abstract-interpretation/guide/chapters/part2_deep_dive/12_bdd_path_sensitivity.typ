@@ -154,7 +154,10 @@ fn process(buf: &mut [i32], size: usize) {
 
 #chapter-summary[
   - The `BddProductDomain` combines a BDD manager with a data domain.
+
   - `join` and `meet` operate component-wise.
+
   - `assume` updates both the path condition (BDD) and the data facts.
+
   - This architecture enables precise, path-sensitive analysis that can verify properties dependent on control flow, like buffer bounds in guarded loops.
 ]

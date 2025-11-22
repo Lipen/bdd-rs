@@ -594,5 +594,3 @@ This chapter established the mathematical foundations:
 - *Galois connections* relate concrete and abstract semantics
 
 These tools enable rigorous program analysis with guaranteed termination and soundness.
-
-#pagebreak()

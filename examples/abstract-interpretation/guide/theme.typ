@@ -896,7 +896,7 @@
 // Chapter Summaries
 // ============================================================================
 
-#let chapter-summary(title: "Chapter Summary", ..items) = {
+#let chapter-summary(title: "Chapter Summary", body) = {
   block(
     fill: colors.bg-subtle,
     stroke: 1pt + colors.line,
@@ -911,12 +911,9 @@
       fill: colors.primary,
       title,
     )
-    #v(spacing.small)
 
-    #for item in items.pos() {
-      [• #item]
-      v(spacing.tiny)
-    }
+    #set list(spacing: spacing.medium, indent: 0pt)
+    #body
   ]
 }
 

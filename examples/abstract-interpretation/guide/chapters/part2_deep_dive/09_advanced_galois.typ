@@ -421,5 +421,3 @@ This chapter explored advanced Galois connection theory:
 - *Precision/cost tradeoffs* guide domain selection
 
 These techniques form the foundation for designing powerful, practical abstract interpretations.
-
-#pagebreak()

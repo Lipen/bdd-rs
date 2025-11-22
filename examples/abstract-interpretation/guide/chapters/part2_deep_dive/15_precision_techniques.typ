@@ -57,5 +57,3 @@ Patterns:
   Precision arises from principled products, partitioning, refinement, and carefully designed widenings.
   Engineering choices (orders, budgets, telemetry) determine practical success.
 ]
-
-#pagebreak()

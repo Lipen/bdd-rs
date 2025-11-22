@@ -440,41 +440,32 @@ Let's see how these concepts come together in a working path-sensitive analyzer:
 
 In the next chapter, we build a complete symbolic executor using these techniques.
 
-#chapter-summary(
-  [
-    *Combined state: $(b, rho)$ where $b$ is BDD path condition, $rho$ is abstract environment.*
+#chapter-summary[
+  - *Combined state: $(b, rho)$ where $b$ is BDD path condition, $rho$ is abstract environment.*
     BDD tracks which paths are feasible, domain tracks variable values.
-  ],
-  [
-    *BDD control domain allocates variables for program conditions.*
+
+  - *BDD control domain allocates variables for program conditions.*
     Each boolean condition (e.g., `x > 0`) gets a unique BDD variable.
-  ],
-  [
-    *Branching creates two states with updated path conditions.*
-    True branch: $"path" and "condition"$. False branch: $"path" and not "condition"$.
-  ],
-  [
-    *Assignment updates data domain, keeps path unchanged.*
+
+  - *Branching creates two states with updated path conditions.*
+    True branch: $"path" and "condition"$.
+    False branch: $"path" and not "condition"$.
+
+  - *Assignment updates data domain, keeps path unchanged.*
     Only data properties change on assignment, not control flow.
-  ],
-  [
-    *Joining merges paths with OR, joins data with domain operations.*
+
+  - *Joining merges paths with OR, joins data with domain operations.*
     Necessary at merge points but loses path-sensitivity.
-  ],
-  [
-    *Trade-off between precision and state explosion.*
+
+  - *Trade-off between precision and state explosion.*
     Joining early: fast but imprecise. Joining late: precise but exponential states.
-  ],
-  [
-    *Generic design works with any abstract domain.*
-    Swap signs for intervals, octagons, polyhedra. BDD control layer is orthogonal.
-  ],
-  [
-    *Path-sensitivity alone doesn't guarantee precision.*
+
+  - *Generic design works with any abstract domain.*
+    Swap signs for intervals, octagons, polyhedra.
+    BDD control layer is orthogonal.
+
+  - *Path-sensitivity alone doesn't guarantee precision.*
     Need sufficiently precise data domains (intervals better than signs).
-  ],
-  [
-    *Main insight:*
-    BDDs provide compact representation of path conditions, enabling path-sensitive abstract interpretation without explicit path enumeration.
-  ],
-)
+
+  - *Main insight:* BDDs provide compact representation of path conditions, enabling path-sensitive abstract interpretation without explicit path enumeration.
+]

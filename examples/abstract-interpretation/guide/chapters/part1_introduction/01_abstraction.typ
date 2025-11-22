@@ -212,25 +212,20 @@ Instead of merging everything into a single abstract value (and getting $top$), 
 
 This is called *Path Sensitivity*, and it is the main focus of this guide.
 
-#chapter-summary(
-  [
-    *IMP is our toy language.*
+#chapter-summary[
+  - *IMP is our toy language.*
     It has assignments, loops, and conditionals, represented by a Rust AST.
-  ],
-  [
-    *Abstraction simplifies values.*
+
+  - *Abstraction simplifies values.*
     We replace concrete integers with abstract properties like Signs or Intervals.
-  ],
-  [
-    *The `AbstractDomain` trait defines the interface.*
+
+  - *The `AbstractDomain` trait defines the interface.*
     It requires `join` (union), `meet` (intersection), `top` (unknown), and `bottom` (impossible).
-  ],
-  [
-    *Abstract execution loses precision.*
+
+  - *Abstract execution loses precision.*
     Operations like `(+) + (-)` result in `Top` because the answer is ambiguous.
-  ],
-  [
-    *Control flow merges paths.*
-    Joining branches often leads to precision loss. BDDs will help us solve this by keeping paths separate.
-  ],
-)
+
+  - *Control flow merges paths.*
+    Joining branches often leads to precision loss.
+    BDDs will help us solve this by keeping paths separate.
+]

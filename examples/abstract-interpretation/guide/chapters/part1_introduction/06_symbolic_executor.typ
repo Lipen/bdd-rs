@@ -662,45 +662,35 @@ Key takeaways:
 
 @part-ii dives deeper into mathematical foundations and advanced techniques.
 
-#chapter-summary(
-  [
-    *Symbolic execution runs programs with symbolic inputs.*
+#chapter-summary[
+  - *Symbolic execution runs programs with symbolic inputs.*
     Maintains path conditions and symbolic expressions for variables.
-  ],
-  [
-    *Expression language models program syntax.*
+
+  - *Expression language models program syntax.*
     Variables, constants, arithmetic operations, conditions.
-  ],
-  [
-    *Symbolic state: path condition (BDD) + symbolic environment.*
+
+  - *Symbolic state: path condition (BDD) + symbolic environment.*
     BDD tracks which paths are feasible, environment maps variables to expressions.
-  ],
-  [
-    *Branching allocates BDD variable and splits state.*
+
+  - *Branching allocates BDD variable and splits state.*
     True branch: path ∧ condition. False branch: path ∧ ¬condition.
-  ],
-  [
-    *Interpreter executes statements, exploring all paths.*
+
+  - *Interpreter executes statements, exploring all paths.*
     Assignments update environment, branches split states, assertions checked.
-  ],
-  [
-    *Bug detection checks assertion violations.*
+
+  - *Bug detection checks assertion violations.*
     Find paths where assertions could fail.
-  ],
-  [
-    *Enhancements for real systems:*
+
+  - *Enhancements for real systems:*
     Expression simplification, abstract domain integration, SMT solvers, loops, functions.
-  ],
-  [
-    *Practical challenges: path explosion, variable ordering, performance.*
+
+  - *Practical challenges: path explosion, variable ordering, performance.*
     Mitigate with bounded exploration, heuristics, pruning.
-  ],
-  [
-    *Hybrid approach combines symbolic execution and abstract interpretation.*
-    BDDs for control, abstract domains for data. Best of both worlds.
-  ],
-  [
-    *Main insight:*
+
+  - *Hybrid approach combines symbolic execution and abstract interpretation.*
+    BDDs for control, abstract domains for data.
+    Best of both worlds.
+
+  - *Main insight:*
     BDD-based symbolic execution provides practical path-sensitive analysis by compactly representing path conditions while exploring feasible program paths.
-  ],
-)
+]

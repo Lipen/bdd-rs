@@ -337,21 +337,17 @@ BDDs will allow us to:
 
 In the next chapter, we will dive into BDDs and see how they work their magic.
 
-#chapter-summary(
-  [
-    *CFGs capture behavior.*
+#chapter-summary[
+  - *CFGs capture behavior.*
     We transform the hierarchical AST into a flat graph of Basic Blocks to model execution flow.
-  ],
-  [
-    *Basic Blocks are atomic.*
-    They are sequences of instructions that always execute together. Control flow only happens at the boundaries.
-  ],
-  [
-    *Path Explosion is the bottleneck.*
+
+  - *Basic Blocks are atomic.*
+    They are sequences of instructions that always execute together.
+    Control flow only happens at the boundaries.
+
+  - *Path Explosion is the bottleneck.*
     The number of execution paths grows exponentially with program size, making naive enumeration impossible.
-  ],
-  [
-    *Symbolic Execution is the key.*
+
+  - *Symbolic Execution is the key.*
     We will use BDDs to represent and manipulate sets of paths implicitly, avoiding the explosion problem.
-  ],
-)
+]
