@@ -1,8 +1,6 @@
-// Prologue: The Software Verification Challenge
-
 #import "../../theme.typ": *
 
-= Prologue: The Software Verification Challenge <prologue>
+#heading(numbering: none)[Prologue: The Software Verification Challenge]
 
 #reading-path(path: "essential") #h(0.5em) #reading-path(path: "beginner")
 
