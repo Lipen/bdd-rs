@@ -286,12 +286,14 @@
   show raw.where(block: false): it => {
     box(
       fill: colors.bg-code,
-      outset: (x: 3pt, y: 2pt),
+      baseline: 3pt,
+      inset: (x: 3pt, y: 3pt),
+      outset: (x: -1pt),
       radius: 3pt,
     )[
       #text(
         font: fonts.mono,
-        size: 0.92em,
+        size: 0.95em,
         fill: colors.primary,
         it,
       )
@@ -1003,19 +1005,19 @@
 // Reference to run a specific example
 #let run-example(example-name) = {
   box(
-    baseline: 0.3em,
-    inset: (x: 0.5em, y: 0.3em),
-    outset: (x: -0.2em),
+    baseline: 3pt,
+    inset: (x: 3pt, y: 3pt),
+    outset: (x: -1pt),
     fill: colors.box-info,
     radius: 3pt,
     stroke: 0.5pt + colors.info,
   )[
     #text(
-      size: 0.85em,
+      size: 0.8em,
       fill: colors.info,
       font: fonts.mono,
     )[
-      `cargo run --example` #raw(example-name)
+      cargo run \-\-example #example-name
     ]
   ]
 }
