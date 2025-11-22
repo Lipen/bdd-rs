@@ -198,7 +198,7 @@
         )[
           Chapter #counter(heading).display()
         ]
-        v(spacing.small)
+        v(spacing.xlarge, weak: true)
       }
       // Chapter title
       #text(
