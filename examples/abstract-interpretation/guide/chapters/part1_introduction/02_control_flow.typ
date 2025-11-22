@@ -313,7 +313,7 @@ We want our analysis to be *Path Sensitive*.
 This means distinguishing between different execution histories.
 
 - *Path Insensitive*: "At this point, `x` could be anything." (Fast, but imprecise)
-- *Path Sensitive*: "If we came from the true branch, `x` is 5. If we came from false, `x` is 0." (Precise, but expensive)
+- *Path Sensitive*: "If we came from the true branch, `x` is 5. If we came from false, `x`~is~0." (Precise, but expensive)
 
 #warning-box(title: "The Dilemma")[
   We cannot simply enumerate all paths --- there are too many.
