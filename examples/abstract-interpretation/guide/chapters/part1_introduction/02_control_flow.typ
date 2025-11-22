@@ -107,7 +107,7 @@ A conditional statement splits the control flow into two paths that eventually m
     // Edges
     line(
       "cond.west",
-      (horizontal: "then.north", vertical: "cond.west"),
+      ((), "-|", "then.north"),
       "then.north",
       mark: (end: ">"),
       name: "true-edge",
@@ -119,7 +119,7 @@ A conditional statement splits the control flow into two paths that eventually m
 
     line(
       "then.south",
-      (horizontal: "then.south", vertical: "join.west"),
+      ((), "|-", "join.west"),
       "join.west",
       mark: (end: ">"),
     )
@@ -164,8 +164,8 @@ We need a "Header" block to evaluate the condition every time the loop repeats.
     // Back edge
     line(
       "body.west",
-      (rel: (-1, 0), to: "body.west"),
-      (horizontal: (), vertical: "header.west"),
+      (rel: (-1, 0)),
+      ((), "|-", "header.west"),
       "header.west",
       stroke: (dash: "dashed"),
       mark: (end: ">", stroke: (dash: "solid")),
