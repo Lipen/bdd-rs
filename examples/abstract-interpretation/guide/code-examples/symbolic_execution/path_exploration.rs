@@ -210,11 +210,11 @@ fn main() {
 
     let mut dfs_explorer = PathExplorer::new(Strategy::DFS);
     let paths_dfs = dfs_explorer.explore(5);
-    println!("  DFS explored: {} paths", paths_dfs);
+    println!("  DFS explored: {} states (32 complete paths)", paths_dfs);
 
     let mut bfs_explorer = PathExplorer::new(Strategy::BFS);
     let paths_bfs = bfs_explorer.explore(5);
-    println!("  BFS explored: {} paths", paths_bfs);
+    println!("  BFS explored: {} states (32 complete paths)", paths_bfs);
 
     println!("  Both explore all 2^5 = 32 complete paths\n");
 
@@ -224,7 +224,7 @@ fn main() {
 
     let mut bounded_explorer = PathExplorer::new(Strategy::Bounded(3));
     let paths_bounded = bounded_explorer.explore(10);
-    println!("  Bounded(3) on 10 conditionals: {} paths explored", paths_bounded);
+    println!("  Bounded(3) on 10 conditionals: {} states explored", paths_bounded);
     println!("  Avoids full exponential blow-up\n");
 
     // Example 3: Path explosion
