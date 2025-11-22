@@ -263,6 +263,12 @@ fn main() {
     let x_interval = Range(5, 10);
     println!("  Sign domain: x is {}", x_sign);
     println!("  Interval domain: x ∈ {}", x_interval);
-    println!("  Can prove x < 100: {}", x_interval.contains(99));
+
+    // Check if upper bound is less than 100
+    let proved = match x_interval {
+        Range(_, high) => high < 100,
+        _ => false,
+    };
+    println!("  Can prove x < 100: {}", proved);
     println!("  Much more precise information!");
 }
