@@ -393,10 +393,11 @@
     set par(justify: false)
     set align(left)
     pagebreak(weak: true)
-    let s = [#it.supplement #it.counter.display(it.numbering)]
     // Hidden heading for TOC/bookmark
     hide[
-      #heading(s, bookmarked: true, numbering: none)
+      #heading(bookmarked: true, numbering: none)[
+        #it.supplement #it.counter.display(it.numbering): #it.body
+      ]
     ]
     block(
       width: 100%,
@@ -411,8 +412,9 @@
         fill: colors.primary.lighten(30%),
         font: fonts.heading,
         tracking: 0.1em,
-        s,
-      )
+      )[
+        #it.supplement #it.counter.display(it.numbering)
+      ]
       #v(spacing.xlarge, weak: true)
       // Part title
       #text(
