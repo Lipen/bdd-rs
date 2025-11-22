@@ -975,8 +975,9 @@
   }
 
   box(
-    baseline: 0.3em,
-    inset: (x: 0.3em, y: 0.3em),
+    baseline: 0.2em,
+    inset: (x: 0.3em, y: 0.2em),
+    outset: (x: -0.1em),
     fill: colors.bg-code,
     radius: 3pt,
     stroke: 0.5pt + colors.line,
@@ -1004,6 +1005,7 @@
   box(
     baseline: 0.3em,
     inset: (x: 0.5em, y: 0.3em),
+    outset: (x: -0.2em),
     fill: colors.box-info,
     radius: 3pt,
     stroke: 0.5pt + colors.info,
