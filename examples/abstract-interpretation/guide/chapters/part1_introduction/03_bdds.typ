@@ -63,10 +63,10 @@ Its construction relies on the *Shannon Expansion*.
 
 #definition(title: "Shannon Expansion")[
   Any Boolean function $f(x_1, ..., x_n)$ can be decomposed with respect to a variable $x_i$:
-  $ f = (x_i and f_{x_i=1}) or (not x_i and f_{x_i=0}) $
+  $ f = (x_i and f_(x_i=1)) or (not x_i and f_(x_i=0)) $
   where:
-  - $f_{x_i=1}$ is the *positive cofactor* of $f$ (the function when $x_i$ is true).
-  - $f_{x_i=0}$ is the *negative cofactor* of $f$ (the function when $x_i$ is false).
+  - $f_(x_i=1)$ is the *positive cofactor* of $f$ (the function when $x_i$ is true).
+  - $f_(x_i=0)$ is the *negative cofactor* of $f$ (the function when $x_i$ is false).
 ]
 
 Recursively applying this expansion yields a *Decision Tree*.
@@ -218,10 +218,14 @@ To illustrate these concepts, let us visualize the reduction of the decision tre
 
 @fig:bdd-comparison demonstrates the dramatic difference between the tree and graph representations:
 
-- *Left (Decision Tree)*: The tree explicitly enumerates all 8 paths. Note the redundancy: the subtrees for $C$ are repeated multiple times.
+- *Left (Decision Tree)*: The tree explicitly enumerates all 8 paths.
+  Note the redundancy: the subtrees for $C$ are repeated multiple times.
 - *Right (Reduced BDD)*: The graph is significantly more compact due to reduction:
   - *Isomorphism*: The node $C$ is shared by both branches of $B$.
-  - *Redundant Test Elimination*: Notice the edge from $A$ (low) directly to $C$. If $A$ is false, the expression $(A and B) or C$ simplifies to $(0 and B) or C$, which equals $C$. This means the value of $B$ is irrelevant. The redundant $B$ node is removed, and $A$ connects directly to $C$.
+  - *Redundant Test Elimination*: Notice the edge from $A$ (low) directly to $C$.
+    If $A$ is false, the expression $(A and B) or C$ simplifies to $(0 and B) or C$, which equals $C$.
+    This means the value of $B$ is irrelevant.
+    The redundant $B$ node is removed, and $A$ connects directly to $C$.
 
 == The `ConditionManager`
 

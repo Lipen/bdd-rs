@@ -2,18 +2,84 @@
 
 #import "../../theme.typ": *
 
-= The World of Abstract Interpretation <ch-abstraction>
+= The Art of Approximation <ch-abstraction>
 
 #reading-path(path: "essential") #h(0.5em) #reading-path(path: "beginner")
 
-The Prologue established the need: testing is insufficient, perfect verification is impossible.
-We require approximation that is both sound and tractable.
-Abstract interpretation provides the mathematical foundation for this compromise.
+In the Prologue, we established that exact verification is impossible for general programs.
+We must approximate.
+But how do we approximate in a way that is useful?
+How do we ensure we don't "approximate away" the bugs we are trying to find?
+
+This chapter introduces the core concept of Abstract Interpretation:
+*Sound Approximation*.
+
+== The Geometric Analogy
+
+Imagine a complex 3D object, such as a cylinder, floating in space.
+Describing its exact position and shape requires precise coordinates for every point on its surface.
+This is like the *concrete state* of a program: complex, detailed, and hard to manipulate.
+
+Now, imagine shining a light on the object to cast a shadow on the wall.
+- From the top, the shadow is a *circle*.
+- From the side, the shadow is a *rectangle*.
+
+#intuition-box[
+  Neither shadow captures the full object.
+  However, both shadows provide *sound constraints*.
+  - If the circular shadow has a diameter of 10cm, we know for a fact that the object fits within a 10cm width.
+  - If the rectangular shadow has a height of 20cm, we know the object is no taller than 20cm.
+]
+
+Abstract Interpretation is the art of choosing the right "projection" (abstraction) for the property we want to prove.
+- If we want to prove the object fits through a round hole, we project it to a circle.
+- If we want to prove a variable never exceeds 100, we project it to an *Interval*.
+- If we want to prove a pointer is never null, we project it to a *Nullability* state.
+
+== Interactive Reasoning
+
+Before we write code, let's build intuition by playing a game.
+I have two hidden integers, $x$ and $y$.
+I won't tell you their values, but I will tell you their *properties*.
+
+*Round 1:*
+- Fact: $x$ is a positive integer ($x > 0$).
+- Fact: $y$ is a positive integer ($y > 0$).
+- Question: What is the sign of $x + y$?
+
+*Answer:* Positive.
+Reasoning: The sum of two positive numbers is always positive.
+We didn't need to know the values to know the result.
+
+*Round 2:*
+- Fact: $x$ is positive.
+- Fact: $y$ is positive.
+- Question: What is the sign of $x - y$?
+
+*Answer:* Unknown.
+Reasoning:
+- If $x = 5, y = 2$, then $x - y = 3$ (Positive).
+- If $x = 2, y = 5$, then $x - y = -3$ (Negative).
+- If $x = 5, y = 5$, then $x - y = 0$ (Zero).
+
+Because the result depends on the *concrete values* which we have abstracted away, we cannot give a precise answer.
+In Abstract Interpretation, we call this state *Top* ($top$) --- representing "Any value is possible."
+
+*Round 3:*
+- Fact: $x$ is positive.
+- Fact: $y$ is negative.
+- Question: What is the sign of $x * y$?
+
+*Answer:* Negative.
+Reasoning: A positive times a negative is always negative.
+
+This game demonstrates the core mechanism:
+We replace *concrete operations* (arithmetic on numbers) with *abstract operations* (arithmetic on properties).
+
+== The IMP Language
 
 To make this concrete, we will build a *MiniVerifier* throughout this guide.
 We will analyze a simple toy language called *IMP* (Imperative Language).
-
-== The IMP Language
 
 IMP is a minimal language with variables, loops, and conditionals.
 It is simple enough to understand fully, yet complex enough to exhibit the challenges of verification.
@@ -69,37 +135,19 @@ pub enum Stmt {
 }
 ```
 
-Our goal is to write a function `analyze(program: &Stmt) -> AnalysisResult` that proves properties about variables in the program.
+== The Sign Domain
 
-== The Essence of Abstraction
+Let's formalize our "Positive/Negative" game.
+We define a set of abstract values $D$:
+$ D = {bot, -, 0, +, top} $
 
-Abstraction is the art of forgetting details while preserving essential structure.
-Consider the integer 5.
-- Concrete value: 5
-- Sign: Positive (+)
-- Parity: Odd
-- Interval: [0, 10]
+- $bot$ (Bottom): Impossible / Unreachable.
+- $-$: Strictly negative integers.
+- $0$: The integer zero.
+- $+$: Strictly positive integers.
+- $top$ (Top): Unknown / Any integer.
 
-Each of these is an *abstraction* of the value 5.
-Abstract Interpretation runs the program using these abstract values instead of concrete numbers.
-
-#info-box(title: "More Precise Domains")[
-  Signs are simple but imprecise.
-  For more precision, we can use *intervals* like `[0, 10]` to track numeric bounds.
-  See #inline-example("domains", "interval.rs", "interval_domain") for interval arithmetic, widening operators, and loop analysis.
-]
-
-=== The Sign Domain
-
-Let's start with the simplest useful domain: Signs.
-We care only if a number is Negative (-), Zero (0), or Positive (+).
-
-But what if we add `(+) + (-)`? The result could be anything!
-We need a value for "I don't know". We call this *Top* ($top$).
-And for "Impossible" (e.g., division by zero), we use *Bottom* ($bot$).
-
-The set of values is $D = {bot, -, 0, +, top}$.
-To see how this abstraction works in practice, let's look at a complete implementation that demonstrates both the lattice structure and abstract arithmetic:
+We can implement this in Rust:
 
 #example-reference(
   "domains",
@@ -111,64 +159,10 @@ To see how this abstraction works in practice, let's look at a complete implemen
   ],
 )
 
-=== The Abstract Domain Trait
+=== Abstract Semantics
 
-In Rust, we define this behavior using a trait.
-This is the core interface for all analyses in our `MiniVerifier`.
-
-```rust
-pub trait AbstractDomain: Sized + Clone + PartialEq + std::fmt::Debug {
-    // The "Impossible" value (empty set)
-    fn bottom() -> Self;
-
-    // The "Unknown" value (all possible values)
-    fn top() -> Self;
-
-    // Combine two possibilities (Union)
-    // e.g., if x could be 0 OR x could be +, then x is NonNegative
-    fn join(&self, other: &Self) -> Self;
-
-    // Intersect two possibilities
-    fn meet(&self, other: &Self) -> Self;
-}
-```
-
-=== Bridging Theory and Code: Galois Connections
-
-In the theory of Abstract Interpretation, the relationship between concrete values and abstract values is formalized as a *Galois Connection*.
-This involves two functions:
-- $alpha$ (alpha): *Abstraction*. Converts a set of concrete values to an abstract value.
-- $gamma$ (gamma): *Concretization*. Converts an abstract value back to the set of concrete values it represents.
-
-We can express this in our trait (or as helper functions):
-
-```rust
-trait GaloisConnection<C> {
-    // Concrete -> Abstract
-    fn alpha(concrete: &C) -> Self;
-
-    // Abstract -> Concrete (Set of values)
-    fn gamma(&self) -> Vec<C>;
-}
-```
-
-For our Sign domain:
-- `alpha(-5) = Sign::Neg`
-- `gamma(Sign::Pos) = {1, 2, 3, ...}`
-
-This mathematical framework ensures our approximation is *sound*.
-If we say `x` is Positive, then the actual concrete value of `x` *must* be in the set `gamma(Positive)`.
-
-== Abstract Semantics
-
-How do we execute code with these abstract values?
-We define *abstract transfer functions*.
-
-For `x = y + z`:
-- If `y` is (+) and `z` is (+), then `x` is (+).
-- If `y` is (+) and `z` is (-), then `x` is ($top$) (unknown).
-
-We can implement this in Rust for our Sign domain:
+We define *abstract transfer functions* to execute code in this domain.
+For addition (`+`):
 
 ```rust
 impl std::ops::Add for Sign {
@@ -176,16 +170,33 @@ impl std::ops::Add for Sign {
 
     fn add(self, rhs: Sign) -> Sign {
         match (self, rhs) {
+            // Precise cases
             (Sign::Pos, Sign::Pos) => Sign::Pos,
             (Sign::Neg, Sign::Neg) => Sign::Neg,
-            (Sign::Pos, Sign::Neg) => Sign::Top, // Lost precision!
             (Sign::Zero, x) => x,
             (x, Sign::Zero) => x,
-            _ => Sign::Top,
+            
+            // Imprecise cases (Loss of information)
+            (Sign::Pos, Sign::Neg) => Sign::Top, 
+            (Sign::Neg, Sign::Pos) => Sign::Top,
+            
+            // Propagation of uncertainty
+            (Sign::Top, _) => Sign::Top,
+            (_, Sign::Top) => Sign::Top,
+            
+            // Propagation of impossibility
+            (Sign::Bot, _) => Sign::Bot,
+            (_, Sign::Bot) => Sign::Bot,
         }
     }
 }
 ```
+
+#info-box(title: "More Precise Domains")[
+  Signs are simple but imprecise.
+  For more precision, we can use *intervals* like `[0, 10]` to track numeric bounds.
+  See #inline-example("domains", "interval.rs", "interval_domain") for interval arithmetic, widening operators, and loop analysis.
+]
 
 == The Challenge of Control Flow
 
@@ -201,8 +212,11 @@ if x > 0 {
 ```
 
 At the merge point, `y` could be 1 (Positive) OR -1 (Negative).
-In the Sign domain, $(+) ljoin (-) = top$.
+In the Sign domain, we must find a single value that covers *both* possibilities.
+The smallest value covering both $+$ and $-$ is $top$.
+
 We lost the information that `y` is non-zero!
+We know `y` is either 1 or -1, but our abstraction forces us to say "It could be anything."
 
 This is where *BDDs* will come in.
 Instead of merging everything into a single abstract value (and getting $top$), we can use BDDs to track *which path* leads to which value.
@@ -213,19 +227,16 @@ Instead of merging everything into a single abstract value (and getting $top$), 
 This is called *Path Sensitivity*, and it is the main focus of this guide.
 
 #chapter-summary[
-  - *IMP is our toy language.*
-    It has assignments, loops, and conditionals, represented by a Rust AST.
+  - *Abstraction is Projection.*
+    Like a shadow of a 3D object, an abstract domain captures some properties while ignoring others.
 
-  - *Abstraction simplifies values.*
-    We replace concrete integers with abstract properties like Signs or Intervals.
+  - *Soundness is Key.*
+    If the abstraction says "Safe", the concrete program must be safe.
+    If the abstraction says "Unknown", the program might be safe or unsafe.
 
-  - *The `AbstractDomain` trait defines the interface.*
-    It requires `join` (union), `meet` (intersection), `top` (unknown), and `bottom` (impossible).
+  - *Precision vs. Speed.*
+    More complex domains (Intervals vs. Signs) give better answers but cost more to compute.
 
-  - *Abstract execution loses precision.*
-    Operations like `(+) + (-)` result in `Top` because the answer is ambiguous.
-
-  - *Control flow merges paths.*
-    Joining branches often leads to precision loss.
-    BDDs will help us solve this by keeping paths separate.
+  - *The Merge Problem.*
+    Control flow merges force us to combine conflicting information, often leading to precision loss ($top$).
 ]

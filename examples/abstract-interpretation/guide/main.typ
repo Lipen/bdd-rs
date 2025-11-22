@@ -112,6 +112,8 @@ We explore how to apply BDD-guided analysis to security problems, handle complex
 
 #include "chapters/part3_applications/20_case_studies.typ"
 
+#include "chapters/part3_applications/21_debugging.typ"
+
 // ============================================================================
 // Part IV: Appendices
 // ============================================================================

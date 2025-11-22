@@ -570,6 +570,90 @@
   ]
 }
 
+// Intuition box
+#let intuition-box(body) = {
+  block(
+    fill: colors.box-info,
+    stroke: (left: 3pt + colors.primary),
+    inset: (left: 1em, rest: 0.8em),
+    width: 100%,
+    breakable: true,
+  )[
+    #grid(
+      columns: (auto, 1fr),
+      column-gutter: 0.8em,
+      text(size: 1.2em)[💡],
+      {
+        text(
+          font: fonts.heading,
+          weight: "bold",
+          fill: colors.primary,
+          size: 0.9em,
+          [Intuition],
+        )
+        v(spacing.tiny)
+        body
+      }
+    )
+  ]
+}
+
+// Implementation box
+#let implementation-box(body) = {
+  block(
+    fill: colors.bg-code,
+    stroke: (left: 3pt + colors.text-light),
+    inset: (left: 1em, rest: 0.8em),
+    width: 100%,
+    breakable: true,
+  )[
+    #grid(
+      columns: (auto, 1fr),
+      column-gutter: 0.8em,
+      text(size: 1.2em)[⚙️],
+      {
+        text(
+          font: fonts.heading,
+          weight: "bold",
+          fill: colors.text,
+          size: 0.9em,
+          [Implementation Note],
+        )
+        v(spacing.tiny)
+        body
+      }
+    )
+  ]
+}
+
+// Pitfall box
+#let pitfall-box(body) = {
+  block(
+    fill: colors.box-warning,
+    stroke: (left: 3pt + colors.error),
+    inset: (left: 1em, rest: 0.8em),
+    width: 100%,
+    breakable: true,
+  )[
+    #grid(
+      columns: (auto, 1fr),
+      column-gutter: 0.8em,
+      text(size: 1.2em)[⚠️],
+      {
+        text(
+          font: fonts.heading,
+          weight: "bold",
+          fill: colors.error,
+          size: 0.9em,
+          [Common Pitfall],
+        )
+        v(spacing.tiny)
+        body
+      }
+    )
+  ]
+}
+
 // Key insight box
 #let insight-box(body) = {
   block(

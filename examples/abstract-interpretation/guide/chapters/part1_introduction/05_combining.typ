@@ -2,7 +2,8 @@
 
 = The Abstract State <ch-combining-domains>
 
-We have the engine (BDDs) and the fuel (Abstract Domains). Now we build the vehicle.
+We have the engine (BDDs) and the fuel (Abstract Domains).
+Now we build the vehicle.
 
 In this chapter, we define the *Abstract State* of our MiniVerifier.
 Instead of a single value for each variable, our state will be a *collection* of possibilities, each guarded by a BDD path condition.
@@ -15,7 +16,7 @@ This combination yields *path-sensitive abstract interpretation*.
   For the rigorous mathematical formalization (Trace Partitioning, Reduced Products) and advanced techniques (Relational Domains), see @part-ii, specifically @ch-domain-combinations.
 ]
 
-== The Core Idea
+== The Core Idea: Trace Partitioning
 
 Path-insensitive analysis loses precision by merging all paths:
 
@@ -39,14 +40,82 @@ Path-sensitive analysis maintains separate states:
 But with $n$ conditions, we get $2^n$ explicit states.
 
 *Solution:* Represent path conditions _symbolically_ with BDDs.
+We maintain a set of pairs $(b_i, rho_i)$, where $b_i$ is a BDD representing a set of paths, and $rho_i$ is the abstract state on those paths.
 
-#definition(title: "BDD-based Path-Sensitive Abstract State")[
-  A state is a pair $(b, rho)$ where:
-  - $b$ is a BDD representing the path condition (which paths reach here)
-  - $rho$ is an abstract environment mapping variables to abstract values
+This technique is called *Trace Partitioning*.
 
-  The state represents: "On paths where $b$ is true, variables have values given by $rho$."
-]
+#figure(
+  caption: [Trace Partitioning: Split and Merge. At a branch, the abstract state splits into two partitions, each guarded by a BDD path condition. These partitions evolve independently (e.g., different assignments). At the merge point, we can either keep them separate (maintaining precision) or merge them (joining data domains and unioning BDDs) to save space.],
+  cetz.canvas({
+    import cetz.draw: *
+
+    let style-state = (fill: colors.bg-code, stroke: colors.primary + 1pt, radius: 0.2)
+    let style-bdd = (fill: colors.secondary.lighten(80%), stroke: colors.secondary + 1pt)
+    let style-data = (fill: colors.accent.lighten(80%), stroke: colors.accent + 1pt)
+
+    let draw-state(pos, bdd-text, data-text, label) = {
+      let (x, y) = pos
+      rect((x - 1.5, y - 1), (x + 1.5, y + 1), ..style-state)
+      content((x, y + 1.3), text(size: 0.8em, weight: "bold")[#label])
+      
+      // BDD part
+      rect((x - 1.3, y + 0.1), (x + 1.3, y + 0.8), ..style-bdd)
+      content((x, y + 0.45), text(size: 0.7em, font: fonts.mono)[#bdd-text])
+      
+      // Data part
+      rect((x - 1.3, y - 0.8), (x + 1.3, y - 0.1), ..style-data)
+      content((x, y - 0.45), text(size: 0.7em, font: fonts.mono)[#data-text])
+    }
+
+    // Initial State
+    draw-state((0, 6), "True", "x: Top", "Initial State")
+
+    // Branch
+    line((0, 5), (-3, 4), mark: (end: ">"))
+    content((-1.5, 4.8), text(size: 0.8em)[if x > 0])
+    
+    line((0, 5), (3, 4), mark: (end: ">"))
+    content((1.5, 4.8), text(size: 0.8em)[else])
+
+    // Split States
+    draw-state((-3, 3), "x > 0", "x: Pos", "True Branch")
+    draw-state((3, 3), "!(x > 0)", "x: Neg|0", "False Branch")
+
+    // Evolution (Assignments)
+    line((-3, 2), (-3, 1), mark: (end: ">"))
+    content((-3.5, 1.5), text(size: 0.8em, font: fonts.mono)[y = 1])
+
+    line((3, 2), (3, 1), mark: (end: ">"))
+    content((3.5, 1.5), text(size: 0.8em, font: fonts.mono)[y = -1])
+
+    draw-state((-3, 0), "x > 0", "y: 1", "State A")
+    draw-state((3, 0), "!(x > 0)", "y: -1", "State B")
+
+    // Merge
+    line((-3, -1), (0, -2), mark: (end: ">"))
+    line((3, -1), (0, -2), mark: (end: ">"))
+    content((0, -1.5), text(size: 0.8em, weight: "bold")[Join])
+
+    // Merged State
+    draw-state((0, -3), "True", "y: Top", "Merged State")
+    
+    // Annotation for loss of precision
+    content((2.5, -3), text(size: 0.7em, fill: colors.error)[Precision Loss!], anchor: "west")
+    
+    // Alternative: Partitioned State
+    line((-3, -1), (-3, -4), mark: (end: ">"), stroke: (dash: "dashed"))
+    line((3, -1), (3, -4), mark: (end: ">"), stroke: (dash: "dashed"))
+    
+    content((0, -4.5), text(size: 0.8em, weight: "bold")[Trace Partitioning])
+    
+    rect((-4.5, -6), (4.5, -3.5), fill: none, stroke: (paint: colors.success, dash: "dashed"), radius: 0.2)
+    content((0, -3.8), text(size: 0.8em, fill: colors.success)[Keeps states separate!])
+    
+    content((-3, -5), text(size: 0.7em, font: fonts.mono)[(x>0, y:1)])
+    content((3, -5), text(size: 0.7em, font: fonts.mono)[(!(x>0), y:-1)])
+
+  }),
+) <fig:split-merge>
 
 == Architecture
 
@@ -55,74 +124,13 @@ The architecture has three components working together.
 + The *abstract data domain* tracks variable properties like signs or intervals.
 + The *combined domain* pairs the BDD control state with the abstract data state to give us the full picture.
 
-#figure(
-  caption: [Three-component architecture for path-sensitive analysis. The combined state pairs a BDD representing the path condition with an abstract environment. When paths branch, the BDD splits while the data domain is copied. At join points, BDDs merge with OR and data domains join in the abstract lattice.],
+#definition(title: "BDD-based Path-Sensitive Abstract State")[
+  A state is a pair $(b, rho)$ where:
+  - $b$ is a BDD representing the path condition (which paths reach here)
+  - $rho$ is an abstract environment mapping variables to abstract values
 
-  cetz.canvas({
-    import cetz.draw: *
-
-    // Helper functions
-    let draw-component-box(pos, width, height, label, color) = {
-      rect(pos, (pos.at(0) + width, pos.at(1) + height), fill: colors.bg-code, stroke: color + 2pt, radius: 0.15)
-      content(
-        (pos.at(0) + width / 2, pos.at(1) + height - 0.3),
-        text(fill: color, weight: "bold", size: 0.85em)[#label],
-        anchor: "north",
-      )
-    }
-
-    let draw-content-line(pos, body, size: 0.75) = {
-      content(pos, text(size: size * 1em)[#body], anchor: "west")
-    }
-
-    let draw-bracket(x1, x2, y, label) = {
-      line((x1, y), (x2, y), stroke: colors.text-light + 1pt)
-      line((x1, y), (x1, y - 0.1), stroke: colors.text-light + 1pt)
-      line((x2, y), (x2, y - 0.1), stroke: colors.text-light + 1pt)
-      content(((x1 + x2) / 2, y + 0.15), text(size: 0.7em, fill: colors.text-light)[#label], anchor: "south")
-    }
-
-    // Main combined state box
-    draw-component-box((0, 2), 7, 2.5, "Combined Analysis State", colors.primary)
-
-    // BDD control component
-    draw-component-box((0.3, 2.5), 3, 1.5, "BDD Control", colors.secondary)
-    draw-content-line((0.5, 3.3), [Path condition:])
-    draw-content-line((0.5, 2.95), [$b = x_1 and not x_2$])
-
-    // Data domain component
-    draw-component-box((3.7, 2.5), 3, 1.5, "Data Domain", colors.accent)
-    draw-content-line((3.9, 3.3), [Variable map:])
-    draw-content-line((3.9, 2.95), [$x |-> plus.minus$])
-    draw-content-line((3.9, 2.65), [$y |-> top$])
-
-    // Operation arrows below
-    content((3.5, 1.5), text(fill: colors.primary, weight: "bold", size: 0.85em)[Key Operations:], anchor: "north")
-
-    // Branch operation
-    content((1.5, 0.8), text(size: 0.75em)[*Branch:*], anchor: "north")
-    content((1.5, 0.5), text(size: 0.7em)[Update BDD $->$], anchor: "north")
-    content((1.5, 0.25), text(size: 0.7em)[Keep data], anchor: "north")
-
-    // Assign operation
-    content((3.5, 0.8), text(size: 0.75em)[*Assign:*], anchor: "north")
-    content((3.5, 0.5), text(size: 0.7em)[Keep BDD $->$], anchor: "north")
-    content((3.5, 0.25), text(size: 0.7em)[Update data], anchor: "north")
-
-    // Join operation
-    content((5.5, 0.8), text(size: 0.75em)[*Join:*], anchor: "north")
-    content((5.5, 0.5), text(size: 0.7em)[BDD: OR $->$], anchor: "north")
-    content((5.5, 0.25), text(size: 0.7em)[Data: $union.sq$], anchor: "north")
-
-    draw-bracket(0.3, 3.3, 2.2, "Control state")
-    draw-bracket(3.7, 6.7, 2.2, "Data state")
-  }),
-) <fig:three-component-architecture>
-
-The key operations follow naturally from this structure.
-- When we *branch*, we update the BDD with the condition while keeping the data domain unchanged.
-- During *assignment*, we keep the BDD path and update only the data domain.
-- At *join* points, we merge BDDs with OR and join the data domains together.
+  The state represents: "On paths where $b$ is true, variables have values given by $rho$."
+]
 
 == Upgrading the ConditionManager
 
@@ -241,7 +249,8 @@ This approach allows the analysis to distinguish `x = 5` from `x = -3` indefinit
 
 == Refining Abstract Values
 
-The BDD tells us *which* paths we are on. We can use this to refine our data knowledge.
+The BDD tells us *which* paths we are on.
+We can use this to refine our data knowledge.
 When we branch on a condition like `x > 0`, we should update the abstract value of `x` in the true branch!
 
 ```rust
