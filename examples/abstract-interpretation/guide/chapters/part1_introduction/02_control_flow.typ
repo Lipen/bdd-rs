@@ -33,8 +33,8 @@ The fundamental unit of a CFG is the *Basic Block*.
 
 #definition(title: "Basic Block")[
   A *Basic Block* is a maximal sequence of instructions with:
-  1. *Single Entry*: Control can only enter at the first instruction.
-  2. *Single Exit*: Control can only leave from the last instruction.
+  + *Single Entry*: Control can only enter at the first instruction.
+  + *Single Exit*: Control can only leave from the last instruction.
 ]
 
 Inside a basic block, execution is simple: if the first instruction executes, the second one *must* execute next, and so on, until the end.
