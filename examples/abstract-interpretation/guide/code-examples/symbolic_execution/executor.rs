@@ -92,7 +92,6 @@ pub struct SymState {
     env: HashMap<String, SymValue>,
     path_condition: Ref,
     bdd: Rc<Bdd>,
-    next_bool_var: u32,
 }
 
 impl SymState {
@@ -102,15 +101,7 @@ impl SymState {
             env: HashMap::new(),
             path_condition,
             bdd,
-            next_bool_var: 1,
         }
-    }
-
-    /// Allocate a fresh boolean variable for path condition
-    fn fresh_bool_var(&mut self) -> Ref {
-        let var = self.bdd.mk_var(self.next_bool_var);
-        self.next_bool_var += 1;
-        var
     }
 
     /// Evaluate expression symbolically
@@ -126,7 +117,18 @@ impl SymState {
                 (SymValue::Concrete(a), SymValue::Concrete(b)) => SymValue::Concrete(a - b),
                 _ => SymValue::Symbolic(format!("({:?} - {:?})", l, r)),
             },
-            _ => SymValue::Symbolic(format!("{:?}", expr)),
+            Expr::Gt(l, r) => match (self.eval(l), self.eval(r)) {
+                (SymValue::Concrete(a), SymValue::Concrete(b)) => SymValue::Concrete(if a > b { 1 } else { 0 }),
+                _ => SymValue::Symbolic(format!("({:?} > {:?})", l, r)),
+            },
+            Expr::Lt(l, r) => match (self.eval(l), self.eval(r)) {
+                (SymValue::Concrete(a), SymValue::Concrete(b)) => SymValue::Concrete(if a < b { 1 } else { 0 }),
+                _ => SymValue::Symbolic(format!("({:?} < {:?})", l, r)),
+            },
+            Expr::Eq(l, r) => match (self.eval(l), self.eval(r)) {
+                (SymValue::Concrete(a), SymValue::Concrete(b)) => SymValue::Concrete(if a == b { 1 } else { 0 }),
+                _ => SymValue::Symbolic(format!("({:?} == {:?})", l, r)),
+            },
         }
     }
 
@@ -153,6 +155,7 @@ pub struct Bug {
 pub struct SymbolicExecutor {
     bdd: Rc<Bdd>,
     bugs: Vec<Bug>,
+    next_bool_var: u32,
 }
 
 impl SymbolicExecutor {
@@ -160,7 +163,15 @@ impl SymbolicExecutor {
         Self {
             bdd: Rc::new(Bdd::default()),
             bugs: Vec::new(),
+            next_bool_var: 1,
         }
+    }
+
+    /// Allocate a fresh boolean variable for path condition
+    fn fresh_bool_var(&mut self) -> Ref {
+        let var = self.bdd.mk_var(self.next_bool_var);
+        self.next_bool_var += 1;
+        var
     }
 
     /// Execute a program symbolically
@@ -169,64 +180,96 @@ impl SymbolicExecutor {
         self.execute_stmts(stmts, initial_state)
     }
 
-    fn execute_stmts(&mut self, stmts: &[Stmt], mut state: SymState) -> Vec<SymState> {
-        let mut final_states = vec![];
+    fn execute_stmts(&mut self, stmts: &[Stmt], state: SymState) -> Vec<SymState> {
+        if stmts.is_empty() {
+            return vec![state];
+        }
 
-        for stmt in stmts {
-            match stmt {
-                Stmt::Assign(var, expr) => {
-                    let value = state.eval(expr);
-                    state.env.insert(var.clone(), value);
-                }
+        let stmt = &stmts[0];
+        let rest = &stmts[1..];
 
-                Stmt::If(_cond, then_branch, else_branch) => {
-                    // Allocate boolean variable for condition
-                    let cond_var = state.fresh_bool_var();
+        match stmt {
+            Stmt::Assign(var, expr) => {
+                let mut new_state = state.clone();
+                let value = new_state.eval(expr);
+                new_state.env.insert(var.clone(), value);
+                self.execute_stmts(rest, new_state)
+            }
 
-                    // Then branch: add cond to path condition
-                    let mut then_state = state.clone();
-                    then_state.add_constraint(cond_var);
-
-                    if then_state.is_feasible() {
-                        let then_results = self.execute_stmts(then_branch, then_state);
-                        final_states.extend(then_results);
-                    }
-
-                    // Else branch: add !cond to path condition
-                    let mut else_state = state.clone();
-                    else_state.add_constraint(self.bdd.apply_not(cond_var));
-
-                    if else_state.is_feasible() {
-                        let else_results = self.execute_stmts(else_branch, else_state);
-                        final_states.extend(else_results);
-                    }
-
-                    return final_states; // Branching ends this path
-                }
-
-                Stmt::Assert(expr, message) => {
-                    // Check if assertion can fail
-                    let value = state.eval(expr);
-
-                    // For concrete values, check directly
-                    if let SymValue::Concrete(v) = value {
-                        if v == 0 {
-                            self.bugs.push(Bug {
-                                kind: "Assertion Failure".to_string(),
-                                message: message.clone(),
-                                path_condition: "concrete failure".to_string(),
-                            });
+            Stmt::If(cond, then_branch, else_branch) => {
+                let cond_val = state.eval(cond);
+                match cond_val {
+                    SymValue::Concrete(v) => {
+                        if v != 0 {
+                            // True branch
+                            let then_results = self.execute_stmts(then_branch, state);
+                            let mut results = vec![];
+                            for s in then_results {
+                                results.extend(self.execute_stmts(rest, s));
+                            }
+                            results
+                        } else {
+                            // False branch
+                            let else_results = self.execute_stmts(else_branch, state);
+                            let mut results = vec![];
+                            for s in else_results {
+                                results.extend(self.execute_stmts(rest, s));
+                            }
+                            results
                         }
-                    } else {
-                        // Symbolic: both outcomes possible
-                        println!("  ⚠ Warning: Assertion may fail on some inputs: {}", message);
+                    }
+                    SymValue::Symbolic(_) => {
+                        // Allocate boolean variable for condition
+                        let cond_var = self.fresh_bool_var();
+                        let mut results = vec![];
+
+                        // Then branch: add cond to path condition
+                        let mut then_state = state.clone();
+                        then_state.add_constraint(cond_var);
+
+                        if then_state.is_feasible() {
+                            let then_results = self.execute_stmts(then_branch, then_state);
+                            for s in then_results {
+                                results.extend(self.execute_stmts(rest, s));
+                            }
+                        }
+
+                        // Else branch: add !cond to path condition
+                        let mut else_state = state.clone();
+                        else_state.add_constraint(self.bdd.apply_not(cond_var));
+
+                        if else_state.is_feasible() {
+                            let else_results = self.execute_stmts(else_branch, else_state);
+                            for s in else_results {
+                                results.extend(self.execute_stmts(rest, s));
+                            }
+                        }
+
+                        results
                     }
                 }
             }
-        }
 
-        final_states.push(state);
-        final_states
+            Stmt::Assert(expr, message) => {
+                // Check if assertion can fail
+                let value = state.eval(expr);
+
+                // For concrete values, check directly
+                if let SymValue::Concrete(v) = value {
+                    if v == 0 {
+                        self.bugs.push(Bug {
+                            kind: "Assertion Failure".to_string(),
+                            message: message.clone(),
+                            path_condition: "concrete failure".to_string(),
+                        });
+                    }
+                } else {
+                    // Symbolic: both outcomes possible
+                    println!("  ⚠ Warning: Assertion may fail on some inputs: {}", message);
+                }
+                self.execute_stmts(rest, state)
+            }
+        }
     }
 
     pub fn report_bugs(&self) {
