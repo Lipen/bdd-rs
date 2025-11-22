@@ -31,6 +31,7 @@
   box-example: rgb("#f0fdf4"), // Light green
   box-warning: rgb("#fffbeb"), // Light amber
   box-theorem: rgb("#faf5ff"), // Light purple
+  box-code: rgb("#fef3c7"), // Warm yellow for code examples
   // Diagram colors
   node-bg: rgb("#dbeafe"), // Light blue
   node-border: rgb("#3b82f6"), // Blue
@@ -39,6 +40,8 @@
   // UI elements
   line: rgb("#e5e7eb"), // Border gray
   shadow: rgb("#00000020"), // Subtle shadow
+  // Code example accent
+  code-accent: rgb("#f59e0b"), // Vibrant amber/orange for code examples
 )
 
 // ============================================================================
@@ -952,3 +955,157 @@
     ],
   )
 }
+
+// ============================================================================
+// Code Example References
+// ============================================================================
+
+// Base path for code examples in the repository
+#let code-examples-base = "https://github.com/Lipen/bdd-rs/tree/master/examples/abstract-interpretation/guide/code-examples"
+
+// Link to a complete runnable code example
+#let code-example(
+  topic,
+  file,
+  description: none,
+  icon: true,
+) = {
+  let url = code-examples-base + "/" + topic + "/" + file
+  let display = if description != none {
+    description
+  } else {
+    file
+  }
+
+  box(
+    baseline: 0.15em,
+    inset: (x: 0.3em),
+    outset: (y: 0.2em),
+    fill: colors.bg-code,
+    radius: 3pt,
+    stroke: 0.5pt + colors.line,
+  )[
+    #link(url)[
+      #if icon {
+        box(
+          baseline: 0.1em,
+          text(size: 0.9em, fill: colors.primary)[📄]
+        )
+        h(0.2em)
+      }
+      #text(
+        size: 0.9em,
+        fill: colors.accent,
+        font: fonts.mono,
+        display,
+      )
+    ]
+  ]
+}
+
+// Reference to run a specific example
+#let run-example(example-name) = {
+  box(
+    baseline: 0.15em,
+    inset: (x: 0.5em, y: 0.3em),
+    fill: colors.box-info,
+    radius: 3pt,
+    stroke: 0.5pt + colors.info,
+  )[
+    #text(
+      size: 0.85em,
+      fill: colors.info,
+      font: fonts.mono,
+    )[
+      `cargo run --example` #raw(example-name)
+    ]
+  ]
+}
+
+// Inline mention of code location for quick reference
+#let code-ref(topic, file) = {
+  text(
+    size: 0.9em,
+    font: fonts.mono,
+    fill: colors.text-light,
+  )[
+    code-examples/#topic/#file
+  ]
+}
+
+// Full example reference block with description and run instructions
+#let example-reference(
+  topic,
+  file,
+  example-name,
+  description,
+) = {
+  block(
+    fill: colors.box-code,
+    stroke: (left: 4pt + colors.code-accent, rest: 1pt + colors.code-accent.lighten(60%)),
+    inset: spacing.inset-medium,
+    radius: 6pt,
+    width: 100%,
+    breakable: false,
+  )[
+    #grid(
+      columns: (auto, 1fr),
+      column-gutter: 0.8em,
+      row-gutter: 0.5em,
+      // Icon with circular background
+      box(
+        fill: colors.code-accent.lighten(80%),
+        stroke: 1.5pt + colors.code-accent,
+        radius: 50%,
+        inset: 0.3em,
+      )[
+        #text(size: 1.2em)[💻]
+      ],
+      // Title
+      text(
+        font: fonts.heading,
+        weight: "bold",
+        size: 1em,
+        fill: colors.code-accent.darken(20%),
+      )[Hands-On Example],
+      // Empty cell
+      [],
+      // Content
+      {
+        text(size: 0.92em, style: "normal")[#description]
+        v(spacing.small)
+
+        // Compact layout for source and run command
+        box(
+          fill: white.darken(3%),
+          stroke: 0.5pt + colors.line,
+          radius: 4pt,
+          inset: 0.6em,
+          width: 100%,
+        )[
+          #grid(
+            columns: (auto, 1fr),
+            column-gutter: 1.2em,
+            row-gutter: 0.5em,
+            // Source label and path
+            text(weight: "semibold", size: 0.83em, fill: colors.code-accent.darken(15%))[📄 Source:],
+            code-example(topic, file, icon: false),
+            // Run label and command
+            text(weight: "semibold", size: 0.83em, fill: colors.code-accent.darken(15%))[▶ Run:],
+            run-example(example-name),
+          )
+        ]
+      },
+    )
+  ]
+}
+
+// Quick inline reference combining code location and example name
+#let inline-example(topic, file, example-name) = {
+  [see ]
+  code-example(topic, file, icon: false)
+  [ (]
+  run-example(example-name)
+  [)]
+}
+

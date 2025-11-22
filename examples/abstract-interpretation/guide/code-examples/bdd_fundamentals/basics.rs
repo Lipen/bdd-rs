@@ -1,7 +1,43 @@
-//! Chapter 3: BDD Basics
+//! BDD Basics: Introduction to Binary Decision Diagrams
 //!
-//! This example demonstrates fundamental BDD operations from Chapter 3.
-//! Shows variable creation, boolean operations, and canonicity.
+//! **Guide Reference:** Part I, Chapter 3 - "Binary Decision Diagrams"
+//!
+//! This example introduces the fundamental concepts of Binary Decision Diagrams (BDDs),
+//! the data structure that enables path-sensitive abstract interpretation.
+//!
+//! ## What are BDDs?
+//!
+//! BDDs are canonical representations of boolean functions. Given a fixed variable
+//! ordering, each boolean function has a **unique** reduced BDD representation.
+//! This enables constant-time equality checking and efficient boolean operations.
+//!
+//! ## Key Concepts Demonstrated
+//!
+//! 1. **Variable Creation**: Variables are 1-indexed (0 is reserved for internal use)
+//! 2. **Boolean Operations**: AND, OR, NOT, XOR through the BDD manager
+//! 3. **Canonicity**: Same formula always yields same BDD (pointer equality!)
+//! 4. **Constants**: Special BDDs for true and false
+//! 5. **Formula Construction**: Building complex expressions compositionally
+//!
+//! ## Critical API Invariant
+//!
+//! **ALL operations MUST go through the `Bdd` manager!**
+//!
+//! ```rust
+//! let bdd = Bdd::default();
+//! let x = bdd.mk_var(1);     // ✓ Correct
+//! let f = bdd.apply_and(x, y); // ✓ Through manager
+//! let f = x.and(y);          // ✗ Wrong: Ref has no such methods
+//! ```
+//!
+//! The manager maintains hash consing to ensure canonical forms.
+//!
+//! ## Expected Output
+//!
+//! Run with: `cargo run --example bdd_basics`
+//!
+//! Demonstrates variable creation, operations, canonicity property,
+//! tautology/satisfiability checking, and formula construction.
 
 use bdd_rs::bdd::Bdd;
 
@@ -19,10 +55,10 @@ fn main() {
 
     // Boolean operations
     println!("Boolean operations:");
-    let and_xy = bdd.apply_and(x, y);
+    let _and_xy = bdd.apply_and(x, y);
     println!("  x ∧ y created");
 
-    let or_xy = bdd.apply_or(x, y);
+    let _or_xy = bdd.apply_or(x, y);
     println!("  x ∨ y created");
 
     let not_x = bdd.apply_not(x);
@@ -69,7 +105,7 @@ fn main() {
 
     // XOR operation
     println!("XOR: x ⊕ y = (x ∧ ¬y) ∨ (¬x ∧ y)");
-    let xor = bdd.apply_xor(x, y);
+    let _xor = bdd.apply_xor(x, y);
     println!("  Created XOR");
     println!("  x ⊕ x = false: {}", bdd.apply_xor(x, x) == fals);
     println!("  x ⊕ false = x: {}", bdd.apply_xor(x, fals) == x);

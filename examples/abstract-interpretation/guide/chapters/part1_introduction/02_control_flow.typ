@@ -66,7 +66,7 @@ We compile `s1`, then `s2` into the current flow.
 If `s1` ends a block (e.g., with a branch), `s2` starts a new block.
 
 *3. Conditional (`if c { t } else { e }`)*
-Terminates the current block with a `Branch` terminator.
+    Terminates the current block with a `Branch` terminator.
 - Creates a "then" block and an "else" block.
 - Both branches eventually merge at a new "join" block.
 
@@ -76,6 +76,19 @@ Terminates the current block with a `Branch` terminator.
 - If true, jump to "body" block.
 - If false, jump to "exit" block.
 - Body block jumps back to header.
+
+These rules might seem abstract at first.
+To solidify your understanding, here's a complete implementation that transforms AST nodes into basic blocks:
+
+#example-reference(
+  "control_flow",
+  "cfg_builder.rs",
+  "cfg_builder",
+  [
+    Implementation of CFG construction from IMP AST.
+    Shows how to translate assignments, conditionals, and loops into basic blocks with proper control flow edges.
+  ],
+)
 
 #figure(
   caption: [CFG for a simple loop `while x < 10 { x = x + 1 }`. Nodes are basic blocks containing instructions. Edges represent control flow.],

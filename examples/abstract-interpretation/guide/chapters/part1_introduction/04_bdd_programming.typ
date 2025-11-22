@@ -51,6 +51,19 @@ fn main() {
   The manager owns the nodes and ensures uniqueness.
 ]
 
+Understanding why this manager-centric design is essential requires looking at the internal mechanisms of hash consing and computed caches.
+The following example provides a deep dive into the manager's architecture:
+
+#example-reference(
+  "bdd_fundamentals",
+  "manager_demo.rs",
+  "bdd_manager",
+  [
+    Deep dive into BDD manager architecture: hash consing, computed cache, and why all operations must go through the manager.
+    Essential for understanding the performance characteristics of BDDs.
+  ],
+)
+
 == Designing the `ConditionManager`
 
 We need a struct that holds:
@@ -167,6 +180,15 @@ fn main() {
 
 This `ConditionManager` is the foundation of our symbolic execution engine.
 In the next chapter, we will use it to "execute" our Control Flow Graph.
+
+#info-box(title: "Advanced BDD Topics")[
+  For production BDD engines, two advanced topics are critical:
+
+  - *Quantification* (∃, ∀): Projecting out variables #inline-example("bdd_advanced", "quantification.rs", "bdd_quantification")
+  - *Variable Ordering*: The #1 factor affecting BDD size #inline-example("bdd_advanced", "variable_ordering.rs", "bdd_variable_ordering")
+
+  Variable ordering can make the difference between tractable (linear nodes) and intractable (exponential nodes) for the same formula!
+]
 
 == Summary
 

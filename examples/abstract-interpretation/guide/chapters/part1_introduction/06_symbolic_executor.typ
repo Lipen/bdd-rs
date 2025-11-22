@@ -52,6 +52,19 @@ Components:
 + *Interpreter:* Execute statements, update state
 + *Path explorer:* Manage multiple paths, detect bugs
 
+This chapter brings together everything we've learned --- abstract domains, BDDs, control flow, and path-sensitive analysis --- into a complete symbolic execution engine.
+Study this implementation to see all the pieces working in harmony:
+
+#example-reference(
+  "symbolic_execution",
+  "executor.rs",
+  "symbolic_executor",
+  [
+    Complete symbolic execution engine implementation with expression evaluation, path branching, assertion checking, and bug detection.
+    This is the culmination of all concepts from previous chapters working together in a production-ready system.
+  ],
+)
+
 #figure(
   caption: [Symbolic executor architecture. The path explorer manages a worklist of symbolic states, each containing a BDD path condition and symbolic environment. The interpreter processes statements, forking states at branches. Bug detectors check for violations by querying path feasibility.],
 
@@ -640,6 +653,12 @@ Key takeaways:
 - Real systems integrate abstract domains and SMT solvers
 
 @part-i covered abstract interpretation, BDDs, and their combination.
+
+#info-box(title: "Path Exploration Strategies")[
+  The path explosion problem is fundamental to symbolic execution.
+  Different exploration strategies offer different trade-offs between coverage and performance.
+  See #inline-example("symbolic_execution", "path_exploration.rs", "path_exploration") for comparisons of DFS, BFS, and bounded depth strategies.
+]
 
 @part-ii dives deeper into mathematical foundations and advanced techniques.
 

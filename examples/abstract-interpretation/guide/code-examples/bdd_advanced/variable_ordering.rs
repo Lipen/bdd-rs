@@ -1,30 +1,56 @@
-//! Chapter 4: Variable Ordering Impact
+//! Variable Ordering: The Critical Factor in BDD Size
 //!
-//! This example demonstrates how variable ordering affects BDD size.
-//! Bad ordering can cause exponential blow-up!
+//! **Guide Reference:** Part I, Chapter 4 - "BDD Programming" & Part III, Chapter 18 - "Performance"
+//!
+//! This example demonstrates the **most critical factor** affecting BDD efficiency:
+//! variable ordering. The same boolean function can have vastly different BDD sizes
+//! depending on the order in which variables are encountered.
+//!
+//! ## Why Ordering Matters
+//!
+//! BDD size depends on how much "information mixing" occurs between variables.
+//! Variables that interact frequently should be **adjacent** in the ordering.
+//!
+//! ### Example: Multiplier Circuit
+//!
+//! Consider: `result[0] = a[0] ∧ b[0], result[1] = a[1] ∧ b[1], ...`
+//!
+//! **Bad ordering:** `a[0] < a[1] < ... < b[0] < b[1] < ...`
+//! - BDD must "remember" all a values before seeing any b values
+//! - Exponential size: O(2^n) nodes
+//!
+//! **Good ordering:** `a[0] < b[0] < a[1] < b[1] < ...`
+//! - Process each pair together, immediately simplify
+//! - Linear size: O(n) nodes
+//!
+//! ## General Principles
+//!
+//! 1. **Group related variables**: Variables that appear together in formulas
+//! 2. **Follow problem structure**: Circuit layers, state machine stages
+//! 3. **Heuristics exist**: But finding optimal ordering is NP-complete
+//! 4. **Dynamic reordering**: Not implemented in bdd-rs (yet)
+//!
+//! ## Performance Impact
+//!
+//! With good ordering:
+//! - Compact representation (millions of states in KB of memory)
+//! - Fast operations (polynomial time)
+//!
+//! With bad ordering:
+//! - Memory exhaustion (BDD too large to build)
+//! - Intractable computation
+//!
+//! **Real-world impact:** 10-100x size difference is common,
+//! 1000x+ is possible for pathological cases.
+//!
+//! ## Expected Output
+//!
+//! Run with: `cargo run --example bdd_variable_ordering`
+//!
+//! Demonstrates ordering effects on chains, multipliers, and formulas
+//! with variable dependencies.
 
 use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
-
-/// Count nodes in a BDD (approximation via paths)
-fn approximate_size(bdd: &Bdd, f: Ref) -> usize {
-    // Note: This is a rough approximation for demonstration
-    // Actual node count would require internal access
-    if f == bdd.mk_true() || f == bdd.mk_false() {
-        return 1;
-    }
-    // For non-trivial formulas, use path count as proxy
-    todo!()
-    // let paths = bdd.count_sat_paths(f);
-    // if paths == 0 {
-    //     1 // Just false terminal
-    // } else if paths == (1u64 << 10) {
-    //     1 // Just true terminal
-    // } else {
-    //     // Rough estimate based on satisfying assignments
-    //     (paths as f64).log2().ceil() as usize
-    // }
-}
 
 fn main() {
     println!("=== Variable Ordering Impact ===\n");
@@ -72,7 +98,7 @@ fn main() {
     let z = bdd3.mk_var(3);
 
     println!("Example 3: Simple formula f = (x ∧ y) ∨ (x ∧ z)");
-    let f = bdd3.apply_or(bdd3.apply_and(x, y), bdd3.apply_and(x, z));
+    let _f = bdd3.apply_or(bdd3.apply_and(x, y), bdd3.apply_and(x, z));
     println!("  Ordering: x < y < z");
     println!("  BDD structure:");
     println!("       x");

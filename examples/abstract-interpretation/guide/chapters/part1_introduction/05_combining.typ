@@ -12,7 +12,7 @@ This combination yields *path-sensitive abstract interpretation*.
 #info-box(title: "Guide Roadmap")[
   This chapter introduces the *intuition* and *basic architecture* of path sensitivity using a simple example.
 
-  For the rigorous mathematical formalization (Trace Partitioning, Reduced Products) and advanced techniques (Relational Domains), see *Part II: Deep Dive*, specifically @ch-domain-combinations.
+  For the rigorous mathematical formalization (Trace Partitioning, Reduced Products) and advanced techniques (Relational Domains), see @part-ii, specifically @ch-domain-combinations.
 ]
 
 == The Core Idea
@@ -420,6 +420,23 @@ Trade-offs:
 - Heuristics balance precision and performance
 
 Generic design allows any abstract domain with BDD control.
+Let's see how these concepts come together in a working path-sensitive analyzer:
+
+#example-reference(
+  "integration",
+  "sign_with_bdd.rs",
+  "sign_with_bdd",
+  [
+    Complete implementation of path-sensitive analysis combining sign domain with BDD control.
+    Shows branching, path feasibility checking, and precision gains over path-insensitive analysis.
+  ],
+)
+
+#info-box(title: "Combining Multiple Domains")[
+  You can also combine multiple *data* domains (not just control+data).
+  The reduced product construction maintains relationships between domains.
+  See #inline-example("domains", "combined.rs", "combined_domain") for an example combining sign and interval domains.
+]
 
 In the next chapter, we build a complete symbolic executor using these techniques.
 

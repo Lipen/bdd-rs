@@ -1,7 +1,35 @@
-//! Chapter 1: Sign Domain Implementation
+//! Sign Domain Implementation
 //!
-//! This example implements the sign abstract domain introduced in Chapter 1.
-//! It demonstrates basic abstract domain operations: join, meet, and abstract arithmetic.
+//! **Guide Reference:** Part I, Chapter 1 - "Abstract Domains and Lattice Theory"
+//!
+//! This example demonstrates the fundamental concepts of abstract interpretation:
+//!
+//! - **Abstract Domain**: Representing sets of concrete values with abstract elements
+//! - **Lattice Operations**: Join (⊔) for merging paths, Meet (⊓) for refining
+//! - **Abstract Transformers**: Operations that soundly overapproximate concrete semantics
+//! - **Precision Trade-offs**: How abstraction loses information but enables analysis
+//!
+//! The sign domain abstracts integers into five values: {⊥, -, 0, +, ⊤}.
+//! This is one of the simplest non-trivial abstract domains, making it perfect
+//! for understanding core abstract interpretation concepts.
+//!
+//! ## Key Concepts Demonstrated
+//!
+//! 1. **Lattice Structure**: The sign values form a complete lattice with ⊥ at bottom
+//!    and ⊤ at top, allowing systematic reasoning about information flow.
+//!
+//! 2. **Soundness**: Every abstract operation overapproximates concrete behavior.
+//!    For example, `+ + - = ⊤` because the concrete result could be any sign.
+//!
+//! 3. **Path Merging**: When control flow joins (if-then-else), we use join (⊔)
+//!    to combine information from both branches.
+//!
+//! ## Expected Output
+//!
+//! Run with: `cargo run --example sign_domain`
+//!
+//! The output demonstrates lattice operations, abstract arithmetic, and how
+//! abstraction affects precision when analyzing simple programs.
 
 use std::fmt;
 

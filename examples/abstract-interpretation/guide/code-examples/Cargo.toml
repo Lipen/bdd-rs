@@ -9,52 +9,76 @@ edition = "2021"
 bdd-rs = { path = "../../../../" }
 num-bigint = "0.4"
 
-[[example]]
-name = "ch01_sign_domain"
-path = "chapter01/sign_domain.rs"
+# ============================================================================
+# Abstract Domain Implementations
+# ============================================================================
 
 [[example]]
-name = "ch01_interval_domain"
-path = "chapter01/interval_domain.rs"
+name = "sign_domain"
+path = "domains/sign.rs"
 
 [[example]]
-name = "ch02_cfg_builder"
-path = "chapter02/cfg_builder.rs"
+name = "interval_domain"
+path = "domains/interval.rs"
 
 [[example]]
-name = "ch03_bdd_basics"
-path = "chapter03/bdd_basics.rs"
+name = "combined_domain"
+path = "domains/combined.rs"
+
+# ============================================================================
+# Control Flow Analysis
+# ============================================================================
 
 [[example]]
-name = "ch03_boolean_ops"
-path = "chapter03/boolean_operations.rs"
+name = "cfg_builder"
+path = "control_flow/cfg_builder.rs"
+
+# ============================================================================
+# BDD Fundamentals
+# ============================================================================
 
 [[example]]
-name = "ch04_bdd_manager"
-path = "chapter04/bdd_manager_demo.rs"
+name = "bdd_basics"
+path = "bdd_fundamentals/basics.rs"
 
 [[example]]
-name = "ch04_quantification"
-path = "chapter04/quantification.rs"
+name = "bdd_boolean_ops"
+path = "bdd_fundamentals/boolean_ops.rs"
 
 [[example]]
-name = "ch04_variable_ordering"
-path = "chapter04/variable_ordering.rs"
+name = "bdd_manager"
+path = "bdd_fundamentals/manager_demo.rs"
+
+# ============================================================================
+# Advanced BDD Techniques
+# ============================================================================
 
 [[example]]
-name = "ch05_combined_domain"
-path = "chapter05/combined_domain.rs"
+name = "bdd_quantification"
+path = "bdd_advanced/quantification.rs"
 
 [[example]]
-name = "ch05_sign_with_bdd"
-path = "chapter05/sign_with_bdd.rs"
+name = "bdd_variable_ordering"
+path = "bdd_advanced/variable_ordering.rs"
+
+# ============================================================================
+# Integration: BDDs with Abstract Domains
+# ============================================================================
 
 [[example]]
-name = "ch06_symbolic_executor"
-path = "chapter06/symbolic_executor.rs"
+name = "sign_with_bdd"
+path = "integration/sign_with_bdd.rs"
+
+# ============================================================================
+# Symbolic Execution
+# ============================================================================
 
 [[example]]
-name = "ch06_path_exploration"
-path = "chapter06/path_exploration.rs"
+name = "symbolic_executor"
+path = "symbolic_execution/executor.rs"
+
+[[example]]
+name = "path_exploration"
+path = "symbolic_execution/path_exploration.rs"
 
 [dev-dependencies]

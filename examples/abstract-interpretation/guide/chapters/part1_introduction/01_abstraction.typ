@@ -83,6 +83,12 @@ Consider the integer 5.
 Each of these is an *abstraction* of the value 5.
 Abstract Interpretation runs the program using these abstract values instead of concrete numbers.
 
+#info-box(title: "More Precise Domains")[
+  Signs are simple but imprecise.
+  For more precision, we can use *intervals* like `[0, 10]` to track numeric bounds.
+  See #inline-example("domains", "interval.rs", "interval_domain") for interval arithmetic, widening operators, and loop analysis.
+]
+
 === The Sign Domain
 
 Let's start with the simplest useful domain: Signs.
@@ -93,6 +99,17 @@ We need a value for "I don't know". We call this *Top* ($top$).
 And for "Impossible" (e.g., division by zero), we use *Bottom* ($bot$).
 
 The set of values is $D = {bot, -, 0, +, top}$.
+To see how this abstraction works in practice, let's look at a complete implementation that demonstrates both the lattice structure and abstract arithmetic:
+
+#example-reference(
+  "domains",
+  "sign.rs",
+  "sign_domain",
+  [
+    Complete implementation of the sign domain with lattice operations, abstract arithmetic, and path merging demonstrations.
+    Shows how abstraction trades precision for tractability.
+  ],
+)
 
 === The Abstract Domain Trait
 

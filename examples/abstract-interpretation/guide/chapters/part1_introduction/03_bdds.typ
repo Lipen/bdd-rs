@@ -95,6 +95,19 @@ We achieve this by repeatedly applying two reduction rules until the graph is mi
   This property is crucial for verification: checking the equivalence of two functions $f equiv g$ reduces to checking if their BDD root nodes are identical (pointer equality), which is an $O(1)$ operation.
 ]
 
+Before diving deeper into BDD theory, it's worth getting hands-on experience with basic BDD operations.
+The following example demonstrates variable creation, boolean operations, and the canonicity property in action:
+
+#example-reference(
+  "bdd_fundamentals",
+  "basics.rs",
+  "bdd_basics",
+  [
+    Hands-on introduction to BDD operations: creating variables, applying boolean operations (AND, OR, NOT, XOR), and observing canonicity.
+    Perfect starting point for understanding BDDs practically.
+  ],
+)
+
 == Visualizing Reduction
 
 To illustrate these concepts, let us visualize the reduction of the decision tree for the function $(A and B) or C$, using the variable ordering $A < B < C$.
@@ -271,5 +284,9 @@ Explosion typically occurs only when variables are heavily correlated in complex
 - *BDDs* provide a compact, canonical graph representation of these functions.
 - *Reduction rules* (Isomorphism and Redundant Tests) compress the representation by sharing common sub-structures.
 - The *`ConditionManager`* maps program conditions to BDD variables, ensuring consistency.
+
+#info-box(title: "Explore BDD Operations")[
+  To see boolean operations in action, run #run-example("bdd_boolean_ops") which demonstrates AND, OR, XOR, and their algebraic properties like De Morgan's laws and absorption.
+]
 
 In the next chapter, we will implement the `ConditionManager` and the core BDD interface in Rust.

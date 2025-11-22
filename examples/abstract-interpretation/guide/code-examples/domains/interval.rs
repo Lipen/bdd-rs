@@ -1,31 +1,73 @@
-//! Chapter 1: Interval Domain Implementation
+//! Interval Domain Implementation
 //!
-//! This example implements the interval abstract domain.
-//! Intervals track ranges of values [low, high] more precisely than signs.
+//! **Guide Reference:** Part I, Chapter 1 - "Abstract Domains" & Part II, Chapter 10 - "Numeric Domains"
+//!
+//! This example demonstrates a more precise numeric abstract domain than signs.
+//! Intervals track the range `[low, high]` of possible values, providing better
+//! precision for reasoning about numeric constraints.
+//!
+//! ## Key Advantages Over Sign Domain
+//!
+//! 1. **More Precision**: Can distinguish [5, 10] from [100, 200]
+//! 2. **Useful Constraints**: Can prove properties like "x < 100"
+//! 3. **Better for Loops**: Tracks iteration bounds more accurately
+//!
+//! ## Concepts Demonstrated
+//!
+//! - **Interval Arithmetic**: Sound overapproximation of operations
+//! - **Widening Operator**: Ensures termination when analyzing loops
+//! - **Meet Operation**: Useful for refining information from conditionals
+//! - **Overflow Handling**: Falls back to ⊤ when arithmetic overflows
+//!
+//! ## Widening for Loop Convergence
+//!
+//! Without widening, interval analysis might not terminate on loops:
+//! ```text
+//! x = 0
+//! Iter 1: x = [0,0] ⊔ [1,1] = [0,1]
+//! Iter 2: x = [0,1] ⊔ [2,2] = [0,2]
+//! Iter 3: x = [0,2] ⊔ [3,3] = [0,3]
+//! ... continues indefinitely
+//! ```
+//!
+//! Widening extrapolates to infinity, ensuring convergence:
+//! ```text
+//! x = 0
+//! Iter 1: x = [0,0] ⊔ [1,1] = [0,1]
+//! Iter 2: x = [0,1] ∇ [2,2] = [0,+∞]  (widened!)
+//! Iter 3: x = [0,+∞] (fixed point reached)
+//! ```
+//!
+//! ## Expected Output
+//!
+//! Run with: `cargo run --example interval_domain`
+//!
+//! Shows interval arithmetic, join/meet operations, loop analysis with widening,
+//! and precision comparison with the sign domain.
 
 use std::fmt;
 
 /// Interval domain representing ranges of integer values
 ///
 /// The lattice structure is based on interval containment.
-/// [a,b] ≤ [c,d] if c ≤ a and b ≤ d (containment)
+/// `[a,b] ≤ [c,d]` if `c ≤ a` and `b ≤ d` (containment)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Interval {
     /// Bottom: unreachable/empty set
     Bot,
-    /// Interval [low, high] where low ≤ high
+    /// Interval `[low, high]` where `low ≤ high`
     Range(i32, i32),
     /// Top: all integer values
     Top,
 }
 
 impl Interval {
-    /// Create a constant interval [c, c]
+    /// Create a constant interval `[c, c]`
     pub fn constant(c: i32) -> Self {
         Interval::Range(c, c)
     }
 
-    /// Create an interval [low, high]
+    /// Create an interval `[low, high]`
     pub fn new(low: i32, high: i32) -> Self {
         if low > high {
             Interval::Bot
@@ -62,7 +104,7 @@ impl Interval {
         }
     }
 
-    /// Abstract addition: [a,b] + [c,d] = [a+c, b+d]
+    /// Abstract addition: `[a,b] + [c,d] = [a+c, b+d]`
     pub fn add(&self, other: &Self) -> Self {
         use Interval::*;
         match (self, other) {
@@ -78,7 +120,7 @@ impl Interval {
         }
     }
 
-    /// Abstract subtraction: [a,b] - [c,d] = [a-d, b-c]
+    /// Abstract subtraction: `[a,b] - [c,d] = [a-d, b-c]`
     pub fn sub(&self, other: &Self) -> Self {
         use Interval::*;
         match (self, other) {

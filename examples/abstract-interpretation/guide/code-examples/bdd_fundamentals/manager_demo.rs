@@ -1,7 +1,46 @@
-//! Chapter 4: BDD Manager Architecture Demo
+//! BDD Manager Architecture
 //!
-//! This example demonstrates the manager-centric design of BDD libraries.
-//! All operations go through the manager to maintain canonicity.
+//! **Guide Reference:** Part I, Chapter 4 - "BDD Programming Essentials"
+//!
+//! This example explains why BDD libraries use a manager-centric design
+//! and demonstrates the key techniques that make BDDs efficient.
+//!
+//! ## Why a Manager?
+//!
+//! BDDs achieve efficiency through three key techniques, all managed centrally:
+//!
+//! 1. **Hash Consing (Unique Table)**: Ensures structural sharing
+//!    - Identical subformulas point to same node in memory
+//!    - Enables constant-time equality checking (pointer comparison)
+//!
+//! 2. **Computed Cache (Memoization)**: Avoids recomputation
+//!    - Caches results of apply(op, f1, f2)
+//!    - Dramatically speeds up repeated operations
+//!
+//! 3. **Canonical Forms**: Unique representation per function
+//!    - Reduction rules eliminate redundant nodes
+//!    - Given fixed variable order, each function has ONE BDD
+//!
+//! ## Manager Responsibilities
+//!
+//! - **Variable Allocation**: Assigns unique IDs (1-indexed, 0 reserved)
+//! - **Node Creation**: Maintains unique table for hash consing
+//! - **Operation Application**: Applies boolean operations with caching
+//! - **Memory Management**: Reference counting and garbage collection
+//!
+//! ## Critical Invariant
+//!
+//! **All BDD operations MUST go through the manager!**
+//!
+//! The `Ref` type is just a lightweight handle. The manager owns all nodes
+//! and maintains their canonicity.
+//!
+//! ## Expected Output
+//!
+//! Run with: `cargo run --example bdd_manager`
+//!
+//! Demonstrates hash consing, computed cache, variable ordering effects,
+//! and the performance benefits of the manager architecture.
 
 use bdd_rs::bdd::Bdd;
 
@@ -27,8 +66,8 @@ fn main() {
 
     // Terminal nodes
     println!("Terminal nodes:");
-    let tru = bdd.mk_true();
-    let fals = bdd.mk_false();
+    let _tru = bdd.mk_true();
+    let _fals = bdd.mk_false();
     println!("  Created ⊤ (true) and ⊥ (false)");
     println!("  These are shared across all formulas\n");
 
@@ -46,10 +85,10 @@ fn main() {
     let a = bdd.apply_and(x1, x2);
     let b = bdd.apply_and(x2, x3);
     println!("  First time: compute a ∧ b");
-    let r1 = bdd.apply_and(a, b);
+    let _r1 = bdd.apply_and(a, b);
     println!("  Second time: lookup cached result");
-    let r2 = bdd.apply_and(a, b);
-    println!("  Results identical? {}", r1 == r2);
+    let _r2 = bdd.apply_and(a, b);
+    println!("  Results identical? {}", _r1 == _r2);
     println!("  => Cache avoids recomputation\n");
 
     // Manager-centric API
@@ -76,7 +115,7 @@ fn main() {
     println!("\nStructure Sharing Example:");
     let f1 = bdd.apply_and(x1, x2);
     let f2 = bdd.apply_or(x1, x2);
-    let f3 = bdd.apply_and(f1, f2);
+    let _f3 = bdd.apply_and(f1, f2);
     println!("  f1 = x1 ∧ x2");
     println!("  f2 = x1 ∨ x2");
     println!("  f3 = f1 ∧ f2");

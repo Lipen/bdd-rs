@@ -1,7 +1,59 @@
-//! Chapter 6: Path Exploration Strategies
+//! Path Exploration Strategies for Symbolic Execution
 //!
-//! This example demonstrates different strategies for exploring program paths.
-//! Shows trade-offs between coverage and scalability.
+//! **Guide Reference:** Part I, Chapter 6 - "Symbolic Execution" & Part III, Chapter 18 - "Performance"
+//!
+//! This example demonstrates different strategies for exploring program paths
+//! in symbolic execution, addressing the **path explosion problem**.
+//!
+//! ## The Path Explosion Problem
+//!
+//! Programs with `n` conditionals can have up to `2^n` paths.
+//! Exploring all paths quickly becomes intractable:
+//! - 10 branches: 1,024 paths
+//! - 20 branches: 1,048,576 paths
+//! - 30 branches: 1,073,741,824 paths (1 billion!)
+//!
+//! ## Exploration Strategies
+//!
+//! ### 1. Depth-First Search (DFS)
+//! - Explores deeply before backtracking
+//! - Memory efficient (stack-based)
+//! - May get stuck in deep paths
+//! - Good for finding deep bugs quickly
+//!
+//! ### 2. Breadth-First Search (BFS)
+//! - Explores all paths at depth `d` before `d+1`
+//! - Fair coverage across paths
+//! - High memory usage (exponential worklist)
+//! - Good for finding shallow bugs
+//!
+//! ### 3. Bounded Depth
+//! - Limits exploration to depth `k`
+//! - Ensures termination with completeness guarantee
+//! - May miss deep bugs beyond bound
+//! - Practical trade-off for large programs
+//!
+//! ## Advanced Strategies (Not Implemented Here)
+//!
+//! - **Random Path Selection**: Heuristic for coverage
+//! - **Concolic Testing**: Mix concrete and symbolic execution
+//! - **Prioritized Worklist**: Target specific code/bugs
+//! - **State Merging**: Combine similar paths with BDDs
+//!
+//! ## Practical Considerations
+//!
+//! Real-world symbolic execution tools use:
+//! - **Timeouts**: Bound execution time per path
+//! - **State Pruning**: Discard unlikely or redundant states
+//! - **Incremental Solving**: Reuse constraint solving work
+//! - **Parallel Exploration**: Distribute across cores/machines
+//!
+//! ## Expected Output
+//!
+//! Run with: `cargo run --example path_exploration`
+//!
+//! Compares DFS, BFS, and bounded strategies on programs with
+//! varying numbers of conditionals, showing coverage and performance trade-offs.
 
 use std::collections::{HashSet, VecDeque};
 use std::rc::Rc;
@@ -44,7 +96,6 @@ pub enum Strategy {
 
 /// Path explorer with different strategies
 pub struct PathExplorer {
-    bdd: Rc<Bdd>,
     explored: HashSet<Path>,
     worklist: VecDeque<Path>,
     strategy: Strategy,
@@ -53,7 +104,6 @@ pub struct PathExplorer {
 impl PathExplorer {
     pub fn new(strategy: Strategy) -> Self {
         Self {
-            bdd: Rc::new(Bdd::default()),
             explored: HashSet::new(),
             worklist: VecDeque::new(),
             strategy,

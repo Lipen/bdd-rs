@@ -1,7 +1,29 @@
-//! Chapter 5: Sign Domain with BDD Control
+//! Integrating BDDs with Abstract Domains: Path-Sensitive Analysis
 //!
-//! This example combines the sign abstract domain with BDD-based path tracking.
-//! Demonstrates path-sensitive analysis from Chapter 5.
+//! **Guide Reference:** Part I, Chapter 5 - "Combining BDDs with Abstract Domains"
+//!
+//! This example demonstrates the **core integration pattern** for path-sensitive
+//! abstract interpretation: pairing abstract domains (Sign) with BDD-based
+//! path conditions.
+//!
+//! ## The Integration Pattern
+//!
+//! Traditional abstract interpretation loses precision at control flow joins.
+//! Path-sensitive solution: Track each path separately with BDDs.
+//!
+//! ## Key Components
+//!
+//! 1. **Path Condition (BDD)**: Formula characterizing which paths reach this state
+//! 2. **Abstract Environment (Map)**: Variable → Abstract value for this path
+//! 3. **Path Splitting**: Branch creates multiple states with refined conditions
+//! 4. **Feasibility Checking**: Discard paths with contradictory conditions
+//!
+//! ## Expected Output
+//!
+//! Run with: `cargo run --example sign_with_bdd`
+//!
+//! Demonstrates path splitting, path merging, infeasible path detection,
+//! and the precision gains from path-sensitive analysis.
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -12,8 +34,10 @@ use bdd_rs::reference::Ref;
 /// Sign domain from Chapter 1
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Sign {
+    #[allow(dead_code)]
     Bot,
     Neg,
+    #[allow(dead_code)]
     Zero,
     Pos,
     Top,
@@ -129,7 +153,7 @@ fn main() {
     println!("      x = -3;");
     println!("  }}\n");
 
-    let mut initial = PathSensitiveState::new(bdd.clone());
+    let initial = PathSensitiveState::new(bdd.clone());
 
     // Branch on condition
     let (mut true_branch, mut false_branch) = initial.branch();
