@@ -199,7 +199,7 @@ This program produces the following CFG:
     let style-end = (fill: colors.box-warning, stroke: colors.warning + 1.5pt)
 
     // Entry Block
-    rect((0, 4), (3, 6), ..style-start, name: "b0")
+    rect((0.5, 4), (2.5, 6), ..style-start, name: "b0")
     content("b0", [*Block 0* \ `x = 0` \ `goto B1`])
 
     // Header Block
