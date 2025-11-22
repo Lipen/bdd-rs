@@ -107,20 +107,20 @@ To evaluate the function for a given assignment of variables, we start at the ro
     content((x-left, 4), text(weight: "bold")[Full Decision Tree])
 
     // Level 0: A
-    draw-node((x-left, 3), "A", "t_root")
+    draw-node((x-left, 3), [A], "t_root")
 
     // Level 1: B
-    draw-node((x-left - 2, 1.5), "B", "t_b0")
-    draw-node((x-left + 2, 1.5), "B", "t_b1")
+    draw-node((x-left - 2, 1.5), [B], "t_b0")
+    draw-node((x-left + 2, 1.5), [B], "t_b1")
 
     draw-edge("t_root", "t_b0", "low")
     draw-edge("t_root", "t_b1", "high")
 
     // Level 2: C
-    draw-node((x-left - 3, 0), "C", "t_c00")
-    draw-node((x-left - 1, 0), "C", "t_c01")
-    draw-node((x-left + 1, 0), "C", "t_c10")
-    draw-node((x-left + 3, 0), "C", "t_c11")
+    draw-node((x-left - 3, 0), [C], "t_c00")
+    draw-node((x-left - 1, 0), [C], "t_c01")
+    draw-node((x-left + 1, 0), [C], "t_c10")
+    draw-node((x-left + 3, 0), [C], "t_c11")
 
     draw-edge("t_b0", "t_c00", "low")
     draw-edge("t_b0", "t_c01", "high")
@@ -139,8 +139,7 @@ To evaluate the function for a given assignment of variables, we start at the ro
     // 111 -> 1
     let terminals = (0, 1, 0, 1, 0, 1, 1, 1)
     let x-start = x-left - 3.5
-    for i in range(8) {
-      let val = terminals.at(i)
+    for (i, val) in terminals.enumerate() {
       let name = "tt" + str(i)
       let x-pos = x-start + i * 1.0
       draw-term((x-pos, -1.5), str(val), name)
@@ -158,9 +157,9 @@ To evaluate the function for a given assignment of variables, we start at the ro
     let x-right = 4
     content((x-right, 4), text(weight: "bold")[Reduced BDD])
 
-    draw-node((x-right, 3), "A", "r_a")
-    draw-node((x-right + 1.5, 1.5), "B", "r_b")
-    draw-node((x-right, 0), "C", "r_c")
+    draw-node((x-right, 3), [A], "r_a")
+    draw-node((x-right + 1.5, 1.5), [B], "r_b")
+    draw-node((x-right, 0), [C], "r_c")
 
     draw-term((x-right - 1.5, -1.5), "0", "r_0")
     draw-term((x-right + 1.5, -1.5), "1", "r_1")
