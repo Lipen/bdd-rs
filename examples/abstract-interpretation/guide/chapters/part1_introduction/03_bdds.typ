@@ -87,48 +87,72 @@ To evaluate the function for a given assignment of variables, we start at the ro
 
     let draw-term(pos, label, name) = {
       let s = if label == "0" { style-term-0 } else { style-term-1 }
-      rect((pos.at(0) - 0.3, pos.at(1) - 0.3), (pos.at(0) + 0.3, pos.at(1) + 0.3), name: name, ..s, radius: 0.1)
+      let (x, y) = pos
+      let r = 0.3
+      rect((x - r, y - r), (x + r, y + r), name: name, ..s, radius: 0.1)
       content(pos, text(weight: "bold")[#label])
     }
 
     let draw-edge(from, to, type) = {
-      let s = if type == "high" { (paint: colors.primary) } else { (paint: colors.secondary, dash: "dashed") }
-      line(from, to, stroke: s, mark: (end: ">", size: 0.15))
+      let s = if type == "high" {
+        (paint: colors.primary)
+      } else {
+        (paint: colors.secondary, dash: "dashed")
+      }
+      line(from, to, stroke: s, mark: (end: ">", size: 0.15, stroke: (dash: "solid"), fill: s.paint))
     }
 
-    // --- LEFT: Full Tree (Simplified for space) ---
-    // We'll just show the top part and indicate explosion
-    let x-left = -4
+    // --- LEFT: Full Decision Tree ---
+    let x-left = -5
     content((x-left, 4), text(weight: "bold")[Full Decision Tree])
 
-    draw-node((x-left, 3), "A", "t_a")
-    draw-node((x-left - 1.5, 1.5), "B", "t_b1")
-    draw-node((x-left + 1.5, 1.5), "B", "t_b2")
+    // Level 0: A
+    draw-node((x-left, 3), "A", "t_root")
 
-    draw-edge("t_a", "t_b1", "low")
-    draw-edge("t_a", "t_b2", "high")
+    // Level 1: B
+    draw-node((x-left - 2, 1.5), "B", "t_b0")
+    draw-node((x-left + 2, 1.5), "B", "t_b1")
 
-    draw-node((x-left - 2.2, 0), "C", "t_c1")
-    draw-node((x-left - 0.8, 0), "C", "t_c2")
-    draw-node((x-left + 0.8, 0), "C", "t_c3")
-    draw-node((x-left + 2.2, 0), "C", "t_c4")
+    draw-edge("t_root", "t_b0", "low")
+    draw-edge("t_root", "t_b1", "high")
 
-    draw-edge("t_b1", "t_c1", "low")
-    draw-edge("t_b1", "t_c2", "high")
-    draw-edge("t_b2", "t_c3", "low")
-    draw-edge("t_b2", "t_c4", "high")
+    // Level 2: C
+    draw-node((x-left - 3, 0), "C", "t_c00")
+    draw-node((x-left - 1, 0), "C", "t_c01")
+    draw-node((x-left + 1, 0), "C", "t_c10")
+    draw-node((x-left + 3, 0), "C", "t_c11")
 
-    // Terminals for tree
-    draw-term((x-left - 2.5, -1.5), "0", "tt1")
-    draw-term((x-left - 1.9, -1.5), "1", "tt2")
-    // ... skipping some for clarity, just showing duplication
-    draw-term((x-left + 2.5, -1.5), "1", "tt8")
+    draw-edge("t_b0", "t_c00", "low")
+    draw-edge("t_b0", "t_c01", "high")
+    draw-edge("t_b1", "t_c10", "low")
+    draw-edge("t_b1", "t_c11", "high")
 
-    draw-edge("t_c1", "tt1", "low")
-    draw-edge("t_c1", "tt2", "high")
-    draw-edge("t_c4", "tt8", "high")
+    // Level 3: Terminals
+    // Values for (A and B) or C:
+    // 000 -> 0
+    // 001 -> 1
+    // 010 -> 0
+    // 011 -> 1
+    // 100 -> 0
+    // 101 -> 1
+    // 110 -> 1
+    // 111 -> 1
+    let terminals = (0, 1, 0, 1, 0, 1, 1, 1)
+    let x-start = x-left - 3.5
+    for i in range(8) {
+      let val = terminals.at(i)
+      let name = "tt" + str(i)
+      let x-pos = x-start + i * 1.0
+      draw-term((x-pos, -1.5), str(val), name)
 
-    content((x-left, -2.5), text(size: 0.8em, style: "italic")[Redundant nodes & subtrees])
+      // Connect to parent
+      let parent-idx = int(i / 2)
+      let parent-name = "t_c" + str(int(parent-idx / 2)) + str(int(calc.rem(parent-idx, 2)))
+      let type = if calc.rem(i, 2) == 0 { "low" } else { "high" }
+      draw-edge(parent-name, name, type)
+    }
+
+    content((x-left, -2.5), text(size: 0.8em, style: "italic")[Exponential growth: $2^n$ paths])
 
     // --- RIGHT: Reduced BDD ---
     let x-right = 4
