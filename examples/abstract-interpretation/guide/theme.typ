@@ -196,7 +196,7 @@
           fill: colors.primary.lighten(30%),
           font: fonts.heading,
         )[
-          Chapter #counter(heading).display()
+          Chapter #counter(heading).display(it.numbering)
         ]
         v(spacing.xlarge, weak: true)
       }
