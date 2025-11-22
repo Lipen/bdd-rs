@@ -975,9 +975,8 @@
   }
 
   box(
-    baseline: 0.15em,
-    inset: (x: 0.3em),
-    outset: (y: 0.2em),
+    baseline: 0.3em,
+    inset: (x: 0.3em, y: 0.3em),
     fill: colors.bg-code,
     radius: 3pt,
     stroke: 0.5pt + colors.line,
@@ -1003,7 +1002,7 @@
 // Reference to run a specific example
 #let run-example(example-name) = {
   box(
-    baseline: 0.15em,
+    baseline: 0.3em,
     inset: (x: 0.5em, y: 0.3em),
     fill: colors.box-info,
     radius: 3pt,
@@ -1099,7 +1098,6 @@
 
 // Quick inline reference combining code location and example name
 #let inline-example(topic, file, example-name) = {
-  [see ]
   code-example(topic, file, icon: false)
   [ (]
   run-example(example-name)
