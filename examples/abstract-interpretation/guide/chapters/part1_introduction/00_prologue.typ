@@ -1,5 +1,7 @@
 #import "../../theme.typ": *
 
+#counter(heading).update(0)
+
 #heading(numbering: none)[Prologue: The Software Verification Challenge]
 
 #reading-path(path: "essential") #h(0.5em) #reading-path(path: "beginner")
