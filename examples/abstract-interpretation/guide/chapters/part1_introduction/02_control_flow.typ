@@ -5,21 +5,44 @@
 = Control Flow and the CFG <ch-control-flow>
 
 In the previous chapter, we defined the syntax of IMP using an Abstract Syntax Tree (AST).
-While ASTs are great for parsing, they are awkward for analysis.
-To analyze how a program executes, we need a *Control Flow Graph* (CFG).
+While ASTs are excellent for representing the *structure* of code (how it is written), they are often awkward for analyzing its *behavior* (how it executes).
+
+To analyze a program, we need to view it not as a hierarchy of statements, but as a network of possible execution paths.
+This representation is called the *Control Flow Graph* (CFG).
+
+#insight-box[
+  *Analogy:* Think of an AST as a *Table of Contents* for a book --- it shows the hierarchy of chapters and sections.
+  A CFG is like a *Flowchart* or a *Road Map* --- it shows how you can navigate from one point to another.
+]
 
 == From AST to CFG
 
-An AST is hierarchical (a tree). Execution is sequential and sometimes cyclic (loops).
-A CFG flattens the hierarchy into a graph where:
-- *Nodes* are Basic Blocks (sequences of instructions).
-- *Edges* represent control flow (jumps and branches).
+An AST is recursive and hierarchical.
+Execution, however, is sequential (step-by-step) and sometimes cyclic (loops).
+A CFG "flattens" the recursive structure into a graph.
 
-=== The MiniVerifier CFG
+#definition(title: "Control Flow Graph")[
+  A *Control Flow Graph* $G = (V, E)$ consists of:
+  - *Nodes* $V$: Basic Blocks (sequences of straight-line code).
+  - *Edges* $E$: Control flow transitions (jumps, branches) between blocks.
+]
 
-Standard CFGs group instructions into *Basic Blocks*.
-A basic block is a sequence of instructions with a single entry and single exit.
-Control flow only happens at the end of a block (the *terminator*).
+=== The Basic Block
+
+The fundamental unit of a CFG is the *Basic Block*.
+
+#definition(title: "Basic Block")[
+  A *Basic Block* is a maximal sequence of instructions with:
+  1. *Single Entry*: Control can only enter at the first instruction.
+  2. *Single Exit*: Control can only leave from the last instruction.
+]
+
+Inside a basic block, execution is simple: if the first instruction executes, the second one *must* execute next, and so on, until the end.
+There are no jumps *into* the middle or *out* of the middle of a block.
+
+=== The MiniVerifier CFG Structure
+
+In our Rust implementation, we represent the CFG as a collection of blocks, identified by unique integers (`BlockId`).
 
 ```rust
 type BlockId = usize;
@@ -27,172 +50,308 @@ type BlockId = usize;
 #[derive(Clone, Debug)]
 pub struct BasicBlock {
     pub id: BlockId,
-    pub instructions: Vec<Instruction>,
-    pub terminator: Terminator,
-}
-
-#[derive(Clone, Debug)]
-pub enum Instruction {
-    Assign(String, Expr),  // x = e
-    Assert(Expr),          // assert(e)
+    pub instructions: Vec<Instruction>, // The straight-line code
+    pub terminator: Terminator,         // How we leave the block
 }
 
 #[derive(Clone, Debug)]
 pub enum Terminator {
+    // Unconditional jump to another block
     Goto(BlockId),
+    // Conditional jump based on an expression
     Branch {
         condition: Expr,
         true_target: BlockId,
         false_target: BlockId,
     },
+    // End of program execution
     Return,
-}
-
-pub struct ControlFlowGraph {
-    pub blocks: HashMap<BlockId, BasicBlock>,
-    pub entry: BlockId,
 }
 ```
 
-=== Translating IMP to CFG
+== Translating IMP to CFG
 
-Let's see how we translate IMP statements into basic blocks.
+The translation process involves breaking down complex AST nodes (like `if` and `while`) into simple blocks and edges.
+Let's visualize how each control structure is transformed.
 
-*1. Assignment (`x = e`)*
-Appended to the current basic block's instruction list.
+=== Sequence (`s1; s2`)
 
-*2. Sequence (`s1; s2`)*
-We compile `s1`, then `s2` into the current flow.
-If `s1` ends a block (e.g., with a branch), `s2` starts a new block.
+Sequences are simply concatenated.
+If `s1` is just a list of assignments, `s2` is appended to it.
+If `s1` contains control flow (like an `if`), it will end the current block, and `s2` will start in a new block that the previous blocks jump to.
 
-*3. Conditional (`if c { t } else { e }`)*
-    Terminates the current block with a `Branch` terminator.
-- Creates a "then" block and an "else" block.
-- Both branches eventually merge at a new "join" block.
+=== Conditional (`if c { t } else { e }`)
 
-*4. Loop (`while c { body }`)*
-- Current block jumps to a new "header" block.
-- Header block contains the condition `c`.
-- If true, jump to "body" block.
-- If false, jump to "exit" block.
-- Body block jumps back to header.
+A conditional statement splits the control flow into two paths that eventually merge.
 
-These rules might seem abstract at first.
-To solidify your understanding, here's a complete implementation that transforms AST nodes into basic blocks:
+#figure(
+  caption: [Translation of `if c { t } else { e }` into CFG blocks.],
+  cetz.canvas({
+    import cetz.draw: *
+
+    let style-block = (fill: colors.bg-subtle, stroke: colors.primary + 1pt)
+
+    // Nodes
+    rect((0, 0), (3, 1.5), ..style-block, name: "cond")
+    content("cond", [*Header* \ `Branch(c)`])
+
+    rect((-3.5, -3), (-0.5, -1.5), ..style-block, name: "then")
+    content("then", [*Then Block* \ `t`])
+
+    rect((0, -3), (3, -1.5), ..style-block, name: "else")
+    content("else", [*Else Block* \ `e`])
+
+    rect((0, -5.5), (3, -4), ..style-block, name: "join")
+    content("join", [*Join Block* \ (next stmt)])
+
+    // Edges
+    line(
+      "cond.west",
+      (horizontal: "then.north", vertical: "cond.west"),
+      "then.north",
+      mark: (end: ">"),
+      name: "true-edge",
+    )
+    content("true-edge.25%", text(size: 0.8em, fill: colors.success)[True], anchor: "south", padding: 0.2)
+
+    line("cond.south", "else.north", mark: (end: ">"), name: "false-edge")
+    content("false-edge.mid", text(size: 0.8em, fill: colors.error)[False], anchor: "west", padding: 0.2)
+
+    line(
+      "then.south",
+      (horizontal: "then.south", vertical: "join.west"),
+      "join.west",
+      mark: (end: ">"),
+    )
+    line("else.south", "join.north", mark: (end: ">"))
+  }),
+)
+
+=== Loop (`while c { body }`)
+
+Loops introduce cycles in the graph.
+We need a "Header" block to evaluate the condition every time the loop repeats.
+
+#figure(
+  caption: [Translation of `while c { body }` into CFG blocks.],
+  cetz.canvas({
+    import cetz.draw: *
+
+    let style-block = (fill: colors.bg-subtle, stroke: colors.primary + 1pt)
+
+    // Nodes
+    rect((0, 2), (3, 3.5), ..style-block, name: "pre")
+    content("pre", [*Predecessor*])
+
+    rect((0, -1), (3, 0.5), ..style-block, name: "header")
+    content("header", [*Header* \ `Branch(c)`])
+
+    rect((0, -4), (3, -2.5), ..style-block, name: "body")
+    content("body", [*Body Block* \ `body`])
+
+    rect((4.5, -1), (6.5, 0.5), ..style-block, name: "exit")
+    content("exit", [*Exit Block*])
+
+    // Edges
+    line("pre.south", "header.north", mark: (end: ">"))
+
+    line("header.south", "body.north", mark: (end: ">"), name: "loop-edge")
+    content("loop-edge.mid", text(size: 0.8em, fill: colors.success)[True], anchor: "west", padding: 0.2)
+
+    line("header.east", "exit.west", mark: (end: ">"), name: "exit-edge")
+    content("exit-edge.mid", text(size: 0.8em, fill: colors.error)[False], anchor: "south", padding: 0.2)
+
+    // Back edge
+    line(
+      "body.west",
+      (rel: (-1, 0), to: "body.west"),
+      (horizontal: (), vertical: "header.west"),
+      "header.west",
+      stroke: (dash: "dashed"),
+      mark: (end: ">", stroke: (dash: "solid")),
+      name: "back-edge",
+    )
+    content("back-edge.mid", text(size: 0.8em, fill: colors.text-light)[Back Edge], anchor: "east", padding: 0.2)
+  }),
+)
+
+=== Concrete Example
+
+Let's trace the translation of a simple program:
+
+```rust
+x = 0;
+while x < 10 {
+    x = x + 1;
+}
+return;
+```
+
+This program produces the following CFG:
+
+#figure(
+  caption: [CFG for the simple counting loop.],
+  cetz.canvas({
+    import cetz.draw: *
+
+    let style-start = (fill: colors.box-example, stroke: colors.success + 1.5pt)
+    let style-norm = (fill: white, stroke: colors.primary + 1.5pt)
+    let style-end = (fill: colors.box-warning, stroke: colors.warning + 1.5pt)
+
+    // Entry Block
+    rect((0, 4), (3, 6), ..style-start, name: "b0")
+    content("b0", [*Block 0* \ `x = 0` \ `goto B1`])
+
+    // Header Block
+    rect((-0.5, 0), (3.5, 2.5), ..style-norm, name: "b1")
+    content("b1", [*Block 1 (Header)* \ `Branch(x < 10)` \ `True -> B2` \ `False -> B3`])
+
+    // Body Block
+    rect((-5.5, 0.25), (-2, 2.25), ..style-norm, name: "b2")
+    content("b2", [*Block 2 (Body)* \ `x = x + 1` \ `goto B1`])
+
+    // Exit Block
+    rect((0, -3), (3, -1.5), ..style-end, name: "b3")
+    content("b3", [*Block 3 (Exit)* \ `return`])
+
+    // Edges
+    line("b0.south", "b1.north", mark: (end: ">"))
+
+    // Loop edges
+    line("b1.west", "b2.east", mark: (end: ">"), name: "true-edge")
+    content("true-edge.mid", text(size: 0.8em, fill: colors.success)[True], anchor: "south", padding: 0.2)
+
+    line(
+      "b2.north",
+      (rel: (0, 1)),
+      (
+        horizontal: (rel: (-1, 0), to: "b1.north"),
+        vertical: (rel: (0, 1), to: "b2.north"),
+      ),
+      (rel: (-1, 0), to: "b1.north"),
+      mark: (end: ">"),
+    )
+
+    // Exit edge
+    line("b1.south", "b3.north", mark: (end: ">"), name: "false-edge")
+    content("false-edge.mid", text(size: 0.8em, fill: colors.error)[False], anchor: "east", padding: 0.2)
+  }),
+)
 
 #example-reference(
   "control_flow",
   "cfg_builder.rs",
   "cfg_builder",
   [
-    Implementation of CFG construction from IMP AST.
-    Shows how to translate assignments, conditionals, and loops into basic blocks with proper control flow edges.
+    *Hands-on Implementation:*
+    Explore the `CfgBuilder` struct to see exactly how AST nodes are recursively visited and wired into a graph.
+    The code handles the "current block" state and generates fresh block IDs.
   ],
 )
 
-#figure(
-  caption: [CFG for a simple loop `while x < 10 { x = x + 1 }`. Nodes are basic blocks containing instructions. Edges represent control flow.],
+== The Path Explosion Problem
 
+Why do we go through all this trouble?
+Why is software verification so hard?
+
+The answer lies in the structure of the CFG.
+Every time we encounter a branch (like an `if` or a loop iteration), the number of possible execution paths multiplies.
+
+Consider a sequence of just 3 independent conditions:
+
+```rust
+if c1 { ... }
+if c2 { ... }
+if c3 { ... }
+```
+
+This creates $2 times 2 times 2 = 8$ paths.
+For $N$ conditions, we have $2^N$ paths.
+This is *exponential growth*.
+
+#figure(
+  caption: [Visualizing Path Explosion. Just a few levels of branching create many paths.],
   cetz.canvas({
     import cetz.draw: *
 
-    // Helper functions
-    let draw-block(pos, label, content-text, is-start: false, is-end: false) = {
-      let color = if is-start { colors.accent } else if is-end { colors.success } else { colors.primary }
-      rect(
-        (pos.at(0) - 1.5, pos.at(1) - 0.8),
-        (pos.at(0) + 1.5, pos.at(1) + 0.8),
-        fill: white,
-        stroke: color + 1.5pt,
-        name: label
-      )
-      content(label, text(size: 0.8em)[#content-text])
-    }
+    let style-node = (fill: colors.primary, radius: 0.15)
 
-    // Layout
-    let l0 = (0, 4) // Header
-    let l1 = (0, 0) // Body
-    let l2 = (4, 4) // Exit
+    // Level 0
+    circle((0, 0), ..style-node, name: "n0")
 
-    // Header Block
-    draw-block(l0, "header", [*Header* \ `if x < 10`], is-start: true)
+    // Level 1
+    circle((-2, -1.5), ..style-node, name: "n1l")
+    circle((2, -1.5), ..style-node, name: "n1r")
 
-    // Body Block
-    draw-block(l1, "body", [*Body* \ `x = x + 1` \ `goto Header`])
-
-    // Exit Block
-    draw-block(l2, "exit", [*Exit* \ `return`], is-end: true)
+    // Level 2
+    circle((-3, -3), ..style-node, name: "n2ll")
+    circle((-1, -3), ..style-node, name: "n2lr")
+    circle((1, -3), ..style-node, name: "n2rl")
+    circle((3, -3), ..style-node, name: "n2rr")
 
     // Edges
-    // Header -> Body (True)
-    line("header.south", "body.north", stroke: colors.text-light + 1pt, mark: (end: ">"))
-    content((0.5, 2), text(size: 0.7em)[True])
+    line("n0", "n1l", stroke: 0.5pt + colors.text-light)
+    line("n0", "n1r", stroke: 0.5pt + colors.text-light)
 
-    // Header -> Exit (False)
-    line("header.east", "exit.west", stroke: colors.text-light + 1pt, mark: (end: ">"))
-    content((2, 4.2), text(size: 0.7em)[False])
+    line("n1l", "n2ll", stroke: 0.5pt + colors.text-light)
+    line("n1l", "n2lr", stroke: 0.5pt + colors.text-light)
+    line("n1r", "n2rl", stroke: 0.5pt + colors.text-light)
+    line("n1r", "n2rr", stroke: 0.5pt + colors.text-light)
 
-    // Body -> Header (Back edge)
-    // Use anchors to make it look like a loop
-    line("body.west", (rel: (-1, 0)), (rel: (0, 4)), "header.west", stroke: colors.text-light + 1pt, mark: (end: ">"))
-
+    // Ellipsis for further explosion
+    content((0, -3.8), text(size: 1.5em)[$dots$])
   }),
-) <fig:cfg-loop>
+)
 
-== The Path Explosion Problem
+If we have a loop that iterates 100 times, it is conceptually similar to 100 nested `if` statements.
+The number of paths becomes astronomical.
+If the loop bound is unknown (e.g., `while input > 0`), the number of paths is *infinite*.
 
-Why is verification hard?
-Because the number of paths through a CFG can be enormous.
-
-Consider this sequence of conditions:
-
-```rust
-if x > 0 { x = x + 1 }
-if y > 0 { y = y + 1 }
-if z > 0 { z = z + 1 }
-```
-
-- 3 conditions
-- $2^3 = 8$ possible paths.
-
-For a program with $N$ conditions, we have $2^N$ paths.
-If a loop runs $K$ times, it unfolds into a path of length $K$.
-If the loop bound is unknown, the number of paths is infinite!
-
-=== Path Sensitivity
+=== Path Sensitivity vs. Scalability
 
 We want our analysis to be *Path Sensitive*.
-This means we want to know:
-- "If we took the `x > 0` branch, then `x` is positive."
-- "If we took the `else` branch, then `x` is non-positive."
+This means distinguishing between different execution histories.
 
-If we simply merge all paths together (Path Insensitive), we lose this information.
-But if we try to track every path individually, we explode exponentially.
+- *Path Insensitive*: "At this point, `x` could be anything." (Fast, but imprecise)
+- *Path Sensitive*: "If we came from the true branch, `x` is 5. If we came from false, `x` is 0." (Precise, but expensive)
+
+#warning-box(title: "The Dilemma")[
+  We cannot simply enumerate all paths --- there are too many.
+  But we cannot simply merge all paths --- we lose too much precision.
+]
 
 == The Solution: Symbolic Representation
 
-We need a way to track sets of paths without listing them one by one.
-We need a data structure that can represent:
-"The set of all paths where `x > 0` AND `y < 5`".
+We need a "Third Way."
+We need a data structure that can represent *sets of paths* compactly, without listing them one by one.
 
-This is where *Binary Decision Diagrams (BDDs)* come in.
-In the next chapter, we will see how BDDs allow us to handle this exponential complexity efficiently.
+Imagine representing the set of all even numbers.
+You don't list them: ${2, 4, 6, dots}$.
+You use a symbolic rule: ${x | x mod 2 = 0}$.
+
+In this guide, we will use *Binary Decision Diagrams (BDDs)* as our symbolic representation.
+BDDs will allow us to:
++ Encode the control flow logic of the program.
++ Represent huge sets of program states efficiently.
++ Perform operations on these sets (like "join" or "intersection") mathematically.
+
+In the next chapter, we will dive into BDDs and see how they work their magic.
 
 #chapter-summary(
   [
-    *CFGs represent execution flow.*
-    We translate the hierarchical AST into a graph of Basic Blocks.
+    *CFGs capture behavior.*
+    We transform the hierarchical AST into a flat graph of Basic Blocks to model execution flow.
   ],
   [
-    *Basic Blocks contain instructions.*
-    Assignments update the state; Terminators (branches) control the flow.
+    *Basic Blocks are atomic.*
+    They are sequences of instructions that always execute together. Control flow only happens at the boundaries.
   ],
   [
-    *Path explosion is the enemy.*
-    The number of paths grows exponentially with branches and loops.
+    *Path Explosion is the bottleneck.*
+    The number of execution paths grows exponentially with program size, making naive enumeration impossible.
   ],
   [
-    *We need a smart representation.*
-    To achieve path sensitivity without explosion, we will use BDDs to represent path conditions symbolically.
+    *Symbolic Execution is the key.*
+    We will use BDDs to represent and manipulate sets of paths implicitly, avoiding the explosion problem.
   ],
 )
