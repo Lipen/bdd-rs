@@ -663,9 +663,9 @@
 #let proposition-counter = counter("proposition")
 #let algorithm-counter = counter("algorithm")
 
-#let definition(title: none, body) = context {
+#let definition(title: none, body) = {
   definition-counter.step()
-  let number = definition-counter.display()
+  let number = context definition-counter.display()
   let display-title = if title != none {
     [Definition #number (#title)]
   } else {
@@ -692,9 +692,9 @@
   ]
 }
 
-#let theorem(title: none, body) = context {
+#let theorem(title: none, body) = {
   theorem-counter.step()
-  let number = theorem-counter.display()
+  let number = context theorem-counter.display()
   let display-title = if title != none {
     [Theorem #number (#title)]
   } else {
@@ -757,9 +757,9 @@
   booktabs: false,
   numbered-title: [],
   body,
-) = context {
+) = {
   algorithm-counter.step()
-  let number = algorithm-counter.display()
+  let number = context algorithm-counter.display()
   let display-title = if title != none {
     [Algorithm #number: #title]
   } else {
