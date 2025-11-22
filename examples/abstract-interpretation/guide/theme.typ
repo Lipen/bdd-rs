@@ -776,13 +776,16 @@
       size: 0.95em,
       display-title,
     )
-    #v(spacing.small)
+    // #v(spacing.small, weak: true)
+    #v(0pt, weak: true)
+    #v(-1em)
     #lovelace.pseudocode-list(
       hooks: hooks,
       booktabs: booktabs,
       numbered-title: numbered-title,
       body,
     )
+    #v(-1em)
   ]
 }
 
