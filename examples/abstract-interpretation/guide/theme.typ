@@ -989,7 +989,7 @@
       #if icon {
         box(
           baseline: 0.1em,
-          text(size: 0.9em, fill: colors.primary)[📄]
+          text(size: 0.9em, fill: colors.primary)[📄],
         )
         h(0.2em)
       }
