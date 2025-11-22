@@ -420,7 +420,7 @@ This combination provides:
 
 This guide develops understanding from intuition to implementation.
 
-*Part I: Foundations (Chapters 1-6)*
+*@part-i: Foundations*
 
 @ch-abstraction introduces abstract interpretation through concrete examples.
 @ch-control-flow examines why control flow complicates analysis.
@@ -429,16 +429,20 @@ This guide develops understanding from intuition to implementation.
 @ch-combining-domains combines BDDs with abstract domains.
 @ch-symbolic-executor provides a complete symbolic execution example.
 
-*Part II: Formal Development (Chapters 7-10)*
+*@part-ii: Formal Development*
 
 @ch-lattice-theory establishes lattice theory, fixpoint theorems, and Galois connections.
 @ch-fixpoint-algorithms presents chaotic iteration and worklist algorithms.
 @ch-advanced-galois develops advanced transformer theory and reduced products.
 @ch-domain-combinations synthesizes BDD-based path-sensitive analysis techniques.
 
-*Part III: Appendices*
+*@part-iii: Applications*
 
-Mathematical prerequisites, BDD algorithms, proof details, and comprehensive bibliography.
+@ch-security applies techniques to information flow security.
+@ch-interprocedural extends analysis to interprocedural contexts.
+@ch-performance discusses implementation optimizations and benchmarks.
+@ch-ai-guided explores AI-guided verification techniques.
+@ch-case-studies presents real-world case studies.
 
 == Prerequisites
 
@@ -475,9 +479,3 @@ BDDs enable efficient symbolic reasoning about control flow.
 Together, they make path-sensitive verification practical.
 
 The following chapters develop this synthesis rigorously.
-
-#v(2em)
-
-#align(right)[
-  _@ch-abstraction $->$_
-]

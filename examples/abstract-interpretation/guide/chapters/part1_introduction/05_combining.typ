@@ -478,5 +478,3 @@ In the next chapter, we build a complete symbolic executor using these technique
     BDDs provide compact representation of path conditions, enabling path-sensitive abstract interpretation without explicit path enumeration.
   ],
 )
-
-#v(2em)

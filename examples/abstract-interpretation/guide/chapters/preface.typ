@@ -21,17 +21,17 @@ This guide serves multiple audiences, each with different backgrounds and goals:
 
 #reading-path(path: "beginner")
 *Complete Beginners:*
-If you're new to program verification and formal methods, start with Part I.
+If you're new to program verification and formal methods, start with @part-i.
 The guide builds intuition through concrete examples before introducing mathematical formalism.
 No prior knowledge of abstract interpretation or BDDs is assumed—just basic programming experience and curiosity.
 
 #reading-path(path: "implementation")
 *Practitioners:*
-If you're a software engineer interested in applying verification techniques to real systems, focus on Part I (Chapters 1-5) for conceptual understanding, then jump to Part II (Chapter 12) for implementation details and benchmarks.
+If you're a software engineer interested in applying verification techniques to real systems, focus on @part-i (Chapters 1-5) for conceptual understanding, then jump to @part-iii (@ch-security) for implementation details and benchmarks.
 
 #reading-path(path: "advanced")
 *Researchers and Students:*
-If you're already familiar with program analysis basics, you might skim Part I and dive into Part II, which provides complete mathematical foundations, proofs, and connections to research literature.
+If you're already familiar with program analysis basics, you might skim @part-i and dive into @part-ii, which provides complete mathematical foundations, proofs, and connections to research literature.
 
 *Educators*:
 This guide is structured to support a one-semester course on program analysis, with progressive exercises, worked examples, and discussion prompts throughout.
@@ -69,8 +69,8 @@ This part enables readers to understand the mathematics deeply and implement the
 === For Learning (First Time Through)
 
 + Start with the *Prologue* to understand the motivation
-+ Work through *Part I* sequentially, trying the examples
-+ When you encounter formalism in Part II, don't panic—we build intuition first
++ Work through *@part-i* sequentially, trying the examples
++ When you encounter formalism in @part-ii, don't panic—we build intuition first
 + Use the *exercises* to test your understanding
 + Refer to *appendices* when you need background material
 
