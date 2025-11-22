@@ -130,10 +130,33 @@ The following example provides a deep dive into the manager's architecture:
   ],
 )
 
+== Defining the Input Language
+
+To build a verifier, we first need a language to verify.
+Let's define a minimal Abstract Syntax Tree (AST) for expressions and conditions.
+This allows us to represent statements like `x < 5` or `y == 10` as data structures.
+
+```rust
+// src/ast.rs
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Expr {
+    Var(String),
+    Const(i32),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Cond {
+    Lt(Expr, Expr), // e.g., x < 5
+    Eq(Expr, Expr), // e.g., x == 5
+}
+```
+
 == Designing the `ConditionManager`
 
 Now, let's build our bridge.
-We need a struct that maps our AST conditions (like `x < 5`) to BDD variables (like `1`).
+The BDD engine doesn't understand arithmetic or variables like `x`. It only understands boolean variables $1, 2, 3, dots$.
+We need a component that maps our rich AST conditions (like `x < 5`) to these simple BDD variables.
 
 We need a struct that holds:
 + The `Bdd` manager itself.
@@ -190,6 +213,17 @@ impl ConditionManager {
     }
 }
 ```
+
+#warning-box(title: "The Boolean Abstraction Gap")[
+  Our simple manager treats every distinct `Cond` as a completely independent boolean variable.
+
+  For example, if we encounter `x > 0` and `x <= 0`, they will be assigned two different variables, say $1$ and $2$.
+  The BDD will allow both to be true simultaneously ($1 and 2$), even though logically they are contradictory.
+
+  This is known as *Boolean Abstraction*.
+  We lose the semantic relationships between arithmetic predicates.
+  Fixing this requires a more sophisticated mapping strategy (e.g., canonicalizing negations) or an SMT solver, but for now, we accept this precision loss.
+]
 
 This simple logic guarantees that `x > 0` always maps to the same BDD variable, ensuring consistency across the entire analysis. This is crucial: if we mapped `x > 0` to variable `1` in one place and variable `2` in another, the BDD would treat them as independent facts!
 
@@ -250,13 +284,18 @@ dot -Tpng output.dot -o output.png
 == Putting It Together
 
 Let's test our manager with a simple scenario.
+We will use the `Expr` and `Cond` types we defined earlier.
 
 ```rust
+// Make sure to include the AST definition from above!
+// mod ast; use ast::{Expr, Cond};
+
 fn main() {
     let mut mgr = ConditionManager::new();
 
     // Encounter "x > 0"
-    let x_gt_0 = Cond::Lt(Expr::Const(0), Expr::Var("x".into())); // 0 < x
+    // In our AST: 0 < x
+    let x_gt_0 = Cond::Lt(Expr::Const(0), Expr::Var("x".into()));
     let c1 = mgr.get_condition(&x_gt_0);
 
     // Encounter "y < 5"
@@ -267,6 +306,7 @@ fn main() {
     let path = mgr.and(c1, c2);
 
     // Encounter "x > 0" again!
+    // The manager should return the SAME variable ID.
     let c3 = mgr.get_condition(&x_gt_0);
 
     // Should be the same variable
@@ -290,16 +330,17 @@ In the next chapter, we will use it to "execute" our Control Flow Graph.
   Variable ordering can make the difference between tractable (linear nodes) and intractable (exponential nodes) for the same formula!
 ]
 
-#exercise-box(number: 1, difficulty: "Easy")[
-  *Implement `or_not`*:
-  Add a method `or_not(&self, a: Ref, b: Ref) -> Ref` to `ConditionManager` that computes $a or not b$.
-
-  _Hint_: Use `bdd.apply_or` and `bdd.apply_not`.
+#exercise-box(number: 1, difficulty: "Medium")[
+  *Derived Operations*:
+  + Implement `implies(&self, a: Ref, b: Ref) -> Ref` *without* using `bdd.apply_imply`.
+    Use the logical equivalence $A => B equiv not A or B$.
+  + Implement `are_mutually_exclusive(&self, a: Ref, b: Ref) -> bool`.
+    This should return `true` if $a$ and $b$ cannot both be true simultaneously (i.e., their conjunction is `false`).
 ]
 
 == Summary
 
-- We set up a Rust project with `bdd-rs`.
+- We set up a Rust project with `bdd-rs` dependency.
 - We implemented `ConditionManager` to map `Cond` AST nodes to BDD variables.
 - We ensured that identical conditions map to identical variables (canonicalization).
 - We exposed basic Boolean operations.
