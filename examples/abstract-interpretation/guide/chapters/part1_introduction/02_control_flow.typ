@@ -12,101 +12,117 @@ To analyze how a program executes, we need a *Control Flow Graph* (CFG).
 
 An AST is hierarchical (a tree). Execution is sequential and sometimes cyclic (loops).
 A CFG flattens the hierarchy into a graph where:
-- *Nodes* represent program locations (program counters).
-- *Edges* represent steps of execution (assignments or checks).
+- *Nodes* are Basic Blocks (sequences of instructions).
+- *Edges* represent control flow (jumps and branches).
 
 === The MiniVerifier CFG
 
-In our Rust implementation, we don't put statements *inside* nodes.
-Instead, nodes are just indices (`usize`), and edges contain the actions.
-This is often called an *edge-labeled* CFG.
+Standard CFGs group instructions into *Basic Blocks*.
+A basic block is a sequence of instructions with a single entry and single exit.
+Control flow only happens at the end of a block (the *terminator*).
 
 ```rust
-type Location = usize;
+type BlockId = usize;
 
 #[derive(Clone, Debug)]
-pub enum Action {
-    Assign(String, Expr),  // x = e
-    Condition(Cond),       // assume(c)
-    Skip,                  // no-op
+pub struct BasicBlock {
+    pub id: BlockId,
+    pub instructions: Vec<Instruction>,
+    pub terminator: Terminator,
 }
 
 #[derive(Clone, Debug)]
-pub struct Edge {
-    pub src: Location,
-    pub dst: Location,
-    pub action: Action,
+pub enum Instruction {
+    Assign(String, Expr),  // x = e
+    Assert(Expr),          // assert(e)
+}
+
+#[derive(Clone, Debug)]
+pub enum Terminator {
+    Goto(BlockId),
+    Branch {
+        condition: Expr,
+        true_target: BlockId,
+        false_target: BlockId,
+    },
+    Return,
 }
 
 pub struct ControlFlowGraph {
-    pub edges: Vec<Edge>,
-    pub start: Location,
-    pub end: Location,
+    pub blocks: HashMap<BlockId, BasicBlock>,
+    pub entry: BlockId,
 }
 ```
 
 === Translating IMP to CFG
 
-Let's see how we translate IMP statements into this graph.
+Let's see how we translate IMP statements into basic blocks.
 
 *1. Assignment (`x = e`)*
-Creates a single edge from start to end with the `Assign` action.
+Appended to the current basic block's instruction list.
 
 *2. Sequence (`s1; s2`)*
-We compile `s1`, then `s2`.
-The *end* of `s1` becomes the *start* of `s2`.
+We compile `s1`, then `s2` into the current flow.
+If `s1` ends a block (e.g., with a branch), `s2` starts a new block.
 
 *3. Conditional (`if c { t } else { e }`)*
-This creates a fork.
-- One edge assumes `c` is true and goes to `t`.
-- One edge assumes `c` is false (or `!c`) and goes to `e`.
-Both branches eventually merge at a common exit point.
+Terminates the current block with a `Branch` terminator.
+- Creates a "then" block and an "else" block.
+- Both branches eventually merge at a new "join" block.
 
 *4. Loop (`while c { body }`)*
-This creates a cycle.
-- Entry edge checks `c` and goes to `body`.
-- Exit edge checks `!c` and skips the loop.
-- The end of `body` loops back to the start.
+- Current block jumps to a new "header" block.
+- Header block contains the condition `c`.
+- If true, jump to "body" block.
+- If false, jump to "exit" block.
+- Body block jumps back to header.
 
 #figure(
-  caption: [CFG for a simple loop `while x < 10 { x = x + 1 }`. Nodes are locations, edges carry actions. The condition `x < 10` guards the loop entry, while `!(x < 10)` guards the exit.],
+  caption: [CFG for a simple loop `while x < 10 { x = x + 1 }`. Nodes are basic blocks containing instructions. Edges represent control flow.],
 
   cetz.canvas({
     import cetz.draw: *
 
     // Helper functions
-    let draw-loc(pos, label, is-start: false, is-end: false) = {
+    let draw-block(pos, label, content-text, is-start: false, is-end: false) = {
       let color = if is-start { colors.accent } else if is-end { colors.success } else { colors.primary }
-      circle(pos, radius: 0.3, fill: white, stroke: color + 1.5pt)
-      content(pos, text(size: 0.8em, weight: "bold")[#label])
+      rect(
+        (pos.at(0) - 1.5, pos.at(1) - 0.8),
+        (pos.at(0) + 1.5, pos.at(1) + 0.8),
+        fill: white,
+        stroke: color + 1.5pt,
+        name: label
+      )
+      content(label, text(size: 0.8em)[#content-text])
     }
 
     // Layout
-    let l0 = (0, 4) // Start
-    let l1 = (3, 4) // Inside loop
-    let l2 = (0, 1) // Exit
+    let l0 = (0, 4) // Header
+    let l1 = (0, 0) // Body
+    let l2 = (4, 4) // Exit
 
-    draw-loc(l0, "0", is-start: true)
-    draw-loc(l1, "1")
-    draw-loc(l2, "2", is-end: true)
+    // Header Block
+    draw-block(l0, "header", [*Header* \ `if x < 10`], is-start: true)
+
+    // Body Block
+    draw-block(l1, "body", [*Body* \ `x = x + 1` \ `goto Header`])
+
+    // Exit Block
+    draw-block(l2, "exit", [*Exit* \ `return`], is-end: true)
 
     // Edges
-    // 0 -> 1: assume(x < 10)
-    line(l0, l1, stroke: colors.text-light + 1pt, mark: (end: ">"))
-    content((1.5, 4.2), text(size: 0.7em)[$x < 10$])
+    // Header -> Body (True)
+    line("header.south", "body.north", stroke: colors.text-light + 1pt, mark: (end: ">"))
+    content((0.5, 2), text(size: 0.7em)[True])
 
-    // 0 -> 2: assume(!(x < 10))
-    line(l0, l2, stroke: colors.text-light + 1pt, mark: (end: ">"))
-    content((-0.8, 2.5), text(size: 0.7em)[$not (x < 10)$])
+    // Header -> Exit (False)
+    line("header.east", "exit.west", stroke: colors.text-light + 1pt, mark: (end: ">"))
+    content((2, 4.2), text(size: 0.7em)[False])
 
-    // 1 -> 0: x = x + 1 (Back edge)
-    // Drawing a curved back edge
-    let back-start = (3, 3.7)
-    let back-mid = (1.5, 2.5)
-    let back-end = (0.3, 3.8)
+    // Body -> Header (Back edge)
+    // Use anchors to make it look like a loop
+    line("body.west", (rel: (-1, 0)), (rel: (0, 4)), "header.west", stroke: colors.text-light + 1pt, mark: (end: ">"))
 
-    line(back-start, back-mid, back-end, stroke: colors.text-light + 1pt, mark: (end: ">"))
-    content((1.5, 2.8), text(size: 0.7em)[$x = x + 1$])
   }),
 ) <fig:cfg-loop>
 
@@ -152,11 +168,11 @@ In the next chapter, we will see how BDDs allow us to handle this exponential co
 #chapter-summary(
   [
     *CFGs represent execution flow.*
-    We translate the hierarchical AST into a flat graph of locations and edges.
+    We translate the hierarchical AST into a graph of Basic Blocks.
   ],
   [
-    *Edges carry actions.*
-    Assignments update the state; Conditions filter the state (assumptions).
+    *Basic Blocks contain instructions.*
+    Assignments update the state; Terminators (branches) control the flow.
   ],
   [
     *Path explosion is the enemy.*
