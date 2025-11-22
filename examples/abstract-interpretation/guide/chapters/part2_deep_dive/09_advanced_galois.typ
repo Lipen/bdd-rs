@@ -10,7 +10,7 @@ This chapter explores advanced topics: abstract transformers, best transformers,
 == From Concrete to Abstract Transformers
 
 #definition(title: "Concrete Transformer")[
-  Given a program statement $s$ and concrete domain $C$, the *concrete transformer* $llb s rrb_C: C -> C$ computes the effect of executing $s$:
+  Given a program statement $s$ and concrete domain $C$, the *concrete transformer* $llb s rrb_C: C -> C$ computes the effect of executing~$s$:
 
   $ llb s rrb_C (c) = {sigma' mid(|) exists sigma in c: sigma ->^s sigma'} $
 
