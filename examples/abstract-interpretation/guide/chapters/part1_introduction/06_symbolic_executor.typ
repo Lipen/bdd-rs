@@ -639,7 +639,6 @@ Key takeaways:
 - Branching creates multiple states
 - Real systems integrate abstract domains and SMT solvers
 
-This completes @part-i: Foundations.
 @part-i covered abstract interpretation, BDDs, and their combination.
 
 @part-ii dives deeper into mathematical foundations and advanced techniques.

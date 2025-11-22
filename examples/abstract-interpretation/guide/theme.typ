@@ -387,6 +387,45 @@
   // Inline fraction
   show math.equation.where(block: false): set math.frac(style: "horizontal")
 
+  // Part heading
+  // Note: setup after 'show figure'
+  show figure.where(kind: "part"): it => {
+    set par(justify: false)
+    set align(left)
+    pagebreak(weak: true)
+    let s = [#it.supplement #it.counter.display(it.numbering)]
+    // Hidden heading for TOC/bookmark
+    hide[
+      #heading(s, bookmarked: true, numbering: none)
+    ]
+    block(
+      width: 100%,
+      above: spacing.xxlarge,
+      below: spacing.large,
+      sticky: true,
+    )[
+      // Part number
+      #text(
+        size: 3em,
+        weight: "bold",
+        fill: colors.primary.lighten(30%),
+        font: fonts.heading,
+        tracking: 0.1em,
+        s,
+      )
+      #v(spacing.xlarge, weak: true)
+      // Part title
+      #text(
+        size: 2.2em,
+        weight: "bold",
+        fill: colors.primary,
+        font: fonts.heading,
+        tracking: 0.05em,
+        it.body,
+      )
+    ]
+  }
+
   // Bibliography
   set bibliography(
     title: "References and Further Reading",
@@ -830,6 +869,19 @@
   v(1fr)
 
   pagebreak()
+}
+
+// ============================================================================
+// Part Title Page
+// ============================================================================
+
+#let part(title) = {
+  figure(
+    kind: "part",
+    supplement: "Part",
+    numbering: "I",
+    title,
+  )
 }
 
 // ============================================================================

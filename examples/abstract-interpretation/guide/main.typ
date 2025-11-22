@@ -16,6 +16,8 @@
 // Title Page
 // ============================================================================
 
+#set page(numbering: none)
+
 #make-title()
 
 // ============================================================================
@@ -172,20 +174,21 @@ Let's dive in!
     fill: colors.primary,
     [Contents],
   ),
-  indent: auto,
   depth: 2,
 )
 
-#pagebreak()
+#set page(numbering: "1")
+#counter(page).update(1)
 
 // ============================================================================
 // Part I: Gentle Introduction
 // ============================================================================
 
-= Part I: Gentle Introduction <part-i>
+#part[Gentle Introduction] <part-i>
 
-#set page(numbering: "1")
-#counter(page).update(1)
+This part starts from first principles, building intuition about program abstraction, control flow, and symbolic representations.
+Through running examples like heater controllers and traffic lights, we motivate why BDD-based path-sensitive analysis matters.
+This part is accessible to anyone with programming background.
 
 #include "chapters/part1_introduction/00_prologue.typ"
 
@@ -201,17 +204,15 @@ Let's dive in!
 
 #include "chapters/part1_introduction/06_symbolic_executor.typ"
 
-#pagebreak()
-
 // ============================================================================
 // Part II: Deep Dive
 // ============================================================================
 
-= Part II: Deep Dive <part-ii>
+#part[Deep Dive] <part-ii>
 
 #reading-path(path: "advanced")
 
-Part II provides rigorous mathematical foundations for abstract interpretation.
+@part-ii provides rigorous mathematical foundations for abstract interpretation.
 We develop complete lattice theory, fixpoint theorems, Galois connections, and advanced analysis techniques with formal proofs and implementation guidance.
 
 #include "chapters/part2_deep_dive/07_lattice_theory.typ"
@@ -232,17 +233,15 @@ We develop complete lattice theory, fixpoint theorems, Galois connections, and a
 
 #include "chapters/part2_deep_dive/15_precision_techniques.typ"
 
-#pagebreak()
-
 // ============================================================================
 // Part III: Applications & Future Directions
 // ============================================================================
 
-= Part III: Applications & Future Directions <part-iii>
+#part[Applications & Future Directions] <part-iii>
 
 #reading-path(path: "essential") #h(0.7em) #reading-path(path: "implementation")
 
-Part III bridges the gap between theory and the real world.
+@part-iii bridges the gap between theory and the real world.
 We explore how to apply BDD-guided analysis to security problems, handle complex interprocedural control flow, and look ahead to the integration of Artificial Intelligence with Formal Methods.
 
 #include "chapters/part3_applications/16_security_analysis.typ"
