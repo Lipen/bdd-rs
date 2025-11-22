@@ -191,7 +191,7 @@ This is where *BDDs* will come in.
 Instead of merging everything into a single abstract value (and getting $top$), we can use BDDs to track *which path* leads to which value.
 
 - Path 1 ($x > 0$): $y = +$
-- Path 2 ($x \le 0$): $y = -$
+- Path 2 ($x <= 0$): $y = -$
 
 This is called *Path Sensitivity*, and it is the main focus of this guide.
 
