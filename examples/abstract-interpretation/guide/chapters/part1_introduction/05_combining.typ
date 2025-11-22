@@ -396,7 +396,7 @@ The BDD logic for path partitioning remains exactly the same.
 
   With intervals, our earlier example gives better precision:
   - True branch: `result ∈ [1, ∞)`
-  - False branch: `result ∈ [0, ∞)` (since -x ≥ 0 when x ≤ 0)
+  - False branch: `result ∈ [0, ∞)` (since $-x >= 0$ when $x <= 0$)
   - Join: `result ∈ [0, ∞)` (non-negative)
 
   Much more precise than sign analysis!
