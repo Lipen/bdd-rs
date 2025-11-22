@@ -237,7 +237,7 @@ impl<D: AbstractDomain + PartialEq + Clone> PartitionedState<D> {
 }
 ```
 
-This approach allows the analysis to distinguish `x=5` from `x=-3` indefinitely, only merging them if they converge to the same value later.
+This approach allows the analysis to distinguish `x = 5` from `x = -3` indefinitely, only merging them if they converge to the same value later.
 
 == Refining Abstract Values
 
