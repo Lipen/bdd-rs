@@ -5,9 +5,11 @@
 #reading-path(path: "implementation")
 
 In @ch-domain-combinations, we established the theory of *Trace Partitioning* and *Reduced Products*.
-Now, we will implement the "Killer Feature" of our analyzer: using Binary Decision Diagrams (BDDs) as the trace partitioning domain.
+Now, we will implement the "Killer Feature" of our analyzer.
+We will use Binary Decision Diagrams (BDDs) as the trace partitioning domain.
 
-This architecture solves the "Diamond Problem" (loss of precision at join points) by maintaining separate abstract states for different execution paths, efficiently compressed by the BDD.
+This architecture solves the "Diamond Problem" (loss of precision at join points).
+It maintains separate abstract states for different execution paths, efficiently compressed by the BDD.
 
 == The BDD Product Domain
 
@@ -30,7 +32,8 @@ pub struct BddProductDomain<D: AbstractDomain> {
 ```
 
 #info-box(title: "Manager-Centric Design")[
-  Note the `Rc<Bdd>`. In `bdd-rs`, the `Bdd` struct is the manager that owns all nodes.
+  Note the `Rc<Bdd>`.
+  In `bdd-rs`, the `Bdd` struct is the manager that owns all nodes.
   The `control` field is just a `Ref` (a lightweight integer handle).
   All operations must go through the manager: `self.bdd.and(self.control, other.control)`.
 ]
@@ -150,7 +153,8 @@ fn process(buf: &mut [i32], size: usize) {
 == Performance Considerations
 
 - *BDD Size*: For typical control flow (structured programming), BDDs remain small.
-- *Widening*: We must widen the BDD to prevent infinite growth in loops. A simple strategy is to stop tracking path conditions after $N$ iterations (force `control = true`).
+- *Widening*: We must widen the BDD to prevent infinite growth in loops.
+  A simple strategy is to stop tracking path conditions after $N$ iterations (force `control = true`).
 
 #chapter-summary[
   - The `BddProductDomain` combines a BDD manager with a data domain.

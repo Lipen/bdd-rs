@@ -78,8 +78,11 @@ We are searching for a needle in a haystack the size of the galaxy, and we are d
 If testing is "checking some inputs," then *verification* is "proving properties about *all* inputs."
 
 Imagine you are designing a bridge.
-- *Testing approach:* Drive a 10-ton truck over it. If it doesn't collapse, drive a 20-ton truck. Then a 30-ton truck.
-- *Verification approach:* Use physics and mathematics to calculate the load-bearing capacity of the materials and the geometry of the structure. Prove that *for any load* up to 100 tons, the bridge will hold.
+- *Testing approach:* Drive a 10-ton truck over it.
+  If it doesn't collapse, drive a 20-ton truck.
+  Then a 30-ton truck.
+- *Verification approach:* Use physics and mathematics to calculate the load-bearing capacity of the materials and the geometry of the structure.
+  Prove that *for any load* up to 100 tons, the bridge will hold.
 
 In software, we replace physics with logic.
 We want to prove statements like:
@@ -91,10 +94,15 @@ We want to prove statements like:
 
 We can view software quality assurance as a spectrum:
 
-+ *Unit Testing:* Checks specific, manually chosen inputs. (Low assurance, low cost)
-+ *Fuzzing:* Checks millions of random inputs. Finds crashes, but cannot prove absence of bugs. (Medium assurance, medium cost)
-+ *Static Analysis:* Checks for patterns of bugs (e.g., "use after free") without running the code. (High assurance, low cost, but often noisy)
-+ *Formal Verification:* Mathematically proves that the code satisfies a specification for *all* possible inputs. (Highest assurance, high cost)
++ *Unit Testing:* Checks specific, manually chosen inputs.
+  (Low assurance, low cost)
++ *Fuzzing:* Checks millions of random inputs.
+  Finds crashes, but cannot prove absence of bugs.
+  (Medium assurance, medium cost)
++ *Static Analysis:* Checks for patterns of bugs (e.g., "use after free") without running the code.
+  (High assurance, low cost, but often noisy)
++ *Formal Verification:* Mathematically proves that the code satisfies a specification for *all* possible inputs.
+  (Highest assurance, high cost)
 
 This guide focuses on a sweet spot in this spectrum: *Abstract Interpretation*.
 

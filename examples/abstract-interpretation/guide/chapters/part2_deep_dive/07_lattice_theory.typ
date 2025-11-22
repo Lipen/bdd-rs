@@ -5,9 +5,26 @@
 #reading-path(path: "advanced")
 
 This chapter provides the mathematical foundations for abstract interpretation.
-We develop the theory of complete lattices, fixpoint theorems, and Galois connections --- the essential tools for understanding program analysis rigorously.
+We develop the theory of complete lattices, fixpoint theorems, and Galois connections.
+These are the essential tools for understanding program analysis rigorously.
 
 == Partial Orders and Lattices
+
+#intuition-box[
+  *Ordering as Information*
+
+  In daily life, "order" usually means size (bigger vs. smaller).
+  In abstract interpretation, order means *precision* or *information*.
+  - $x <= y$ means "$x$ is more precise than $y$".
+  - $x$ contains *more specific information* than $y$.
+  - $y$ represents a *larger set of possibilities* (more uncertainty) than $x$.
+
+  Think of it as:
+  - $bot$ (Bottom): "Impossible" (Perfect information, but contradictory).
+  - $x$: "x is 5" (Very precise).
+  - $y$: "x is positive" (Less precise).
+  - $top$ (Top): "x is anything" (No information).
+]
 
 #definition(title: "Partial Order")[
   A *partial order* is a relation $<=$ on a set $L$ that is:
@@ -16,22 +33,26 @@ We develop the theory of complete lattices, fixpoint theorems, and Galois connec
   - *Transitive*: $forall x, y, z in L: x <= y and y <= z => x <= z$
   - *Antisymmetric*: $forall x, y in L: x <= y and y <= x => x = y$
 
-  We write $(L, <=)$ for a set $L$ equipped with a partial order $<=$, called a *partially ordered set* or *poset*.
+  We write $(L, <=)$ for a set $L$ equipped with a partial order $<=$.
+  This is called a *partially ordered set* or *poset*.
 ]
 
-The partial order represents the *precision ordering* in abstract interpretation: $x <= y$ means "$x$ is more precise than $y$" or "$x$ approximates fewer concrete behaviors than $y$."
+The partial order represents the *precision ordering* in abstract interpretation.
+$x <= y$ means "$x$ is more precise than $y$".
+Alternatively, "$x$ approximates fewer concrete behaviors than $y$".
 
 #example-box[
   *Sign domain as a poset:*
 
-  Consider the sign lattice with elements ${bot, "Neg", "Zero", "Pos", top}$ and ordering:
+  Consider the sign lattice with elements ${bot, "Neg", "Zero", "Pos", top}$.
+  The ordering is:
 
   $ bot <= "Neg" <= top, quad bot <= "Zero" <= top, quad bot <= "Pos" <= top $
 
   This forms a partial order:
-  - $bot$ (unreachable) is the most precise element
-  - $top$ (unknown sign) is the least precise element
-  - $"Neg", "Zero", "Pos"$ are incomparable to each other (no ordering between them)
+  - $bot$ (unreachable) is the most precise element.
+  - $top$ (unknown sign) is the least precise element.
+  - $"Neg", "Zero", "Pos"$ are incomparable to each other (no ordering between them).
 ]
 
 #figure(
@@ -83,14 +104,15 @@ The partial order represents the *precision ordering* in abstract interpretation
 #definition(title: "Upper and Lower Bounds")[
   Let $(L, <=)$ be a poset and $S subset.eq L$ be a subset.
 
-  - An element $u in L$ is an *upper bound* of $S$ if $forall x in S: x <= u$
-  - An element $l in L$ is a *lower bound* of $S$ if $forall x in S: l <= x$
-  - The *least upper bound* (lub) or *supremum* of $S$, denoted $sup S$ or $ljoin.big S$, is the smallest element that is an upper bound of $S$ (if it exists)
-  - The *greatest lower bound* (glb) or *infimum* of $S$, denoted $inf S$ or $lmeet.big S$, is the largest element that is a lower bound of $S$ (if it exists)
+  - An element $u in L$ is an *upper bound* of $S$ if $forall x in S: x <= u$.
+  - An element $l in L$ is a *lower bound* of $S$ if $forall x in S: l <= x$.
+  - The *least upper bound* (lub) or *supremum* of $S$, denoted $sup S$ or $ljoin.big S$, is the smallest element that is an upper bound of $S$ (if it exists).
+  - The *greatest lower bound* (glb) or *infimum* of $S$, denoted $inf S$ or $lmeet.big S$, is the largest element that is a lower bound of $S$ (if it exists).
 ]
 
 These operations correspond to *join* ($ljoin$) and *meet* ($lmeet$) in abstract interpretation.
-The join computes the least precise abstraction containing both inputs (over-approximation), while the meet finds the most precise common refinement.
+The join computes the least precise abstraction containing both inputs (over-approximation).
+The meet finds the most precise common refinement.
 
 #definition(title: "Lattice")[
   A poset $(L, <=)$ is a *lattice* if every pair of elements $x, y in L$ has both:
@@ -145,25 +167,26 @@ The join computes the least precise abstraction containing both inputs (over-app
   - A greatest lower bound: $lmeet.big_(x in S) x$
 
   In particular, a complete lattice has:
-  - A *least element* $bot = lmeet.big_(x in L) x$ (bottom)
-  - A *greatest element* $top = ljoin.big_(x in L) x$ (top)
+  - A *least element* $bot = lmeet.big_(x in L) x$ (bottom).
+  - A *greatest element* $top = ljoin.big_(x in L) x$ (top).
 ]
 
-Complete lattices are the fundamental structure for abstract interpretation because program analysis must handle unbounded sets of states and infinite chains during iteration.
+Complete lattices are the fundamental structure for abstract interpretation.
+Program analysis must handle unbounded sets of states and infinite chains during iteration.
 
 #theorem(title: "Properties of Complete Lattices")[
   Let $(L, <=, ljoin, lmeet, bot, top)$ be a complete lattice.
 
-  + *Idempotence*: $x ljoin x = x$ and $x lmeet x = x$
-  + *Commutativity*: $x ljoin y = y ljoin x$ and $x lmeet y = y lmeet x$
-  + *Associativity*: $(x ljoin y) ljoin z = x ljoin (y ljoin z)$
-  + *Absorption*: $x ljoin (x lmeet y) = x$ and $x lmeet (x ljoin y) = x$
-  + *Identity*: $x ljoin bot = x$ and $x lmeet top = x$
-  + *Annihilation*: $x ljoin top = top$ and $x lmeet bot = bot$
+  + *Idempotence*: $x ljoin x = x$ and $x lmeet x = x$.
+  + *Commutativity*: $x ljoin y = y ljoin x$ and $x lmeet y = y lmeet x$.
+  + *Associativity*: $(x ljoin y) ljoin z = x ljoin (y ljoin z)$.
+  + *Absorption*: $x ljoin (x lmeet y) = x$ and $x lmeet (x ljoin y) = x$.
+  + *Identity*: $x ljoin bot = x$ and $x lmeet top = x$.
+  + *Annihilation*: $x ljoin top = top$ and $x lmeet bot = bot$.
 ]
 
 #proof[
-  We prove a representative subset:
+  We prove a representative subset.
 
   *Idempotence of $ljoin$:*
   Since $x <= x$, we have $x$ is an upper bound of ${x, x}$.
@@ -187,7 +210,8 @@ Complete lattices are the fundamental structure for abstract interpretation beca
   The *length* of a finite chain $x_0 < x_1 < dots < x_n$ is $n$ (number of strict comparisons).
 ]
 
-Chains are important because program analysis iterates along chains in the lattice, refining approximations until reaching a fixpoint.
+Chains are important because program analysis iterates along chains in the lattice.
+We refine approximations until reaching a fixpoint.
 
 #definition(title: "Height")[
   The *height* of a poset $(L, <=)$, denoted $"height"(L)$, is the length of the longest chain in $L$.
@@ -197,16 +221,17 @@ Chains are important because program analysis iterates along chains in the latti
 #example-box[
   *Heights of common lattices:*
 
-  - Sign domain: $"height"("Sign") = 2$ (chain: $bot < - < top$)
-  - Boolean lattice: $"height"({bot, top}) = 1$
-  - Powerset lattice: $"height"(cal(P)(S)) = |S|$ for finite set $S$
-  - Interval lattice over $ZZ$: $"height"("Interval") = infinity$ (unbounded chains)
+  - Sign domain: $"height"("Sign") = 2$ (chain: $bot < - < top$).
+  - Boolean lattice: $"height"({bot, top}) = 1$.
+  - Powerset lattice: $"height"(cal(P)(S)) = |S|$ for finite set $S$.
+  - Interval lattice over $ZZ$: $"height"("Interval") = infinity$ (unbounded chains).
 ]
 
 #theorem(title: "Ascending Chain Condition")[
   A poset $(L, <=)$ satisfies the *ascending chain condition* (ACC) if every increasing chain
   $ x_0 <= x_1 <= x_2 <= dots $
-  eventually stabilizes: there exists $N$ such that $x_N = x_(N+1) = x_(N+2) = dots$
+  eventually stabilizes.
+  There exists $N$ such that $x_N = x_(N+1) = x_(N+2) = dots$.
 ]
 
 #info-box(title: "Why ACC Matters")[
@@ -232,8 +257,8 @@ If an analysis loses precision when given more precise inputs, something is wron
   *Monotone functions on Sign:*
 
   Abstract addition is monotone:
-  - If $x_1 <= x_2$ and $y_1 <= y_2$, then $x_1 + y_1 <= x_2 + y_2$
-  - Example: $0 + 0 = 0 <= top = 0 + top$
+  - If $x_1 <= x_2$ and $y_1 <= y_2$, then $x_1 + y_1 <= x_2 + y_2$.
+  - Example: $0 + 0 = 0 <= top = 0 + top$.
 
   But consider a *non-monotone* function that returns $-$ for inputs $bot, -, 0$ and $top$ otherwise.
   Then $- <= top$ but $f(-) = - gt.eq.not top = f(top)$, violating monotonicity.
@@ -258,19 +283,20 @@ If an analysis loses precision when given more precise inputs, something is wron
 
   The set of all fixpoints is denoted $"Fix"(f) = {x in L mid(|) f(x) = x}$.
 
-  - A *least fixpoint* is $"lfp"(f) = lmeet.big_(x in "Fix"(f)) x$ (if it exists)
-  - A *greatest fixpoint* is $"gfp"(f) = ljoin.big_(x in "Fix"(f)) x$ (if it exists)
+  - A *least fixpoint* is $"lfp"(f) = lmeet.big_(x in "Fix"(f)) x$ (if it exists).
+  - A *greatest fixpoint* is $"gfp"(f) = ljoin.big_(x in "Fix"(f)) x$ (if it exists).
 ]
 
-Fixpoints represent stable abstract states in program analysis: applying the transfer function doesn't change the approximation.
+Fixpoints represent stable abstract states in program analysis.
+Applying the transfer function doesn't change the approximation.
 
 #theorem(title: "Tarski's Fixpoint Theorem")[
   Let $(L, <=, ljoin, lmeet, bot, top)$ be a complete lattice and $f: L -> L$ be monotone.
   Then:
 
-  + $f$ has a least fixpoint: $"lfp"(f) = lmeet.big_(f(x) <= x) x$
-  + $f$ has a greatest fixpoint: $"gfp"(f) = ljoin.big_(x <= f(x)) x$
-  + The set of all fixpoints $"Fix"(f)$ forms a complete lattice
+  + $f$ has a least fixpoint: $"lfp"(f) = lmeet.big_(f(x) <= x) x$.
+  + $f$ has a greatest fixpoint: $"gfp"(f) = ljoin.big_(x <= f(x)) x$.
+  + The set of all fixpoints $"Fix"(f)$ forms a complete lattice.
 ]
 
 This is the foundation of fixpoint iteration in abstract interpretation!
@@ -322,7 +348,8 @@ This is the foundation of fixpoint iteration in abstract interpretation!
 
   where $f^0(bot) = bot$ and $f^(i+1)(bot) = f(f^i(bot))$.
 
-  Moreover, the sequence stabilizes after finitely many steps: there exists $N$ such that $f^N(bot) = f^(N+1)(bot) = "lfp"(f)$.
+  Moreover, the sequence stabilizes after finitely many steps.
+  There exists $N$ such that $f^N(bot) = f^(N+1)(bot) = "lfp"(f)$.
 ]
 
 This gives us the standard fixpoint iteration algorithm used in dataflow analysis!
@@ -332,20 +359,20 @@ This gives us the standard fixpoint iteration algorithm used in dataflow analysi
 
   *Step 1:* The sequence is increasing.
   By induction on $i$:
-  - Base: $x_0 = bot <= f(bot) = x_1$ (bottom is below everything)
-  - Step: Assume $x_i <= x_(i+1)$. By monotonicity: $f(x_i) <= f(x_(i+1))$, i.e., $x_(i+1) <= x_(i+2)$
+  - Base: $x_0 = bot <= f(bot) = x_1$ (bottom is below everything).
+  - Step: Assume $x_i <= x_(i+1)$. By monotonicity: $f(x_i) <= f(x_(i+1))$, i.e., $x_(i+1) <= x_(i+2)$.
 
   *Step 2:* The sequence stabilizes.
   Since $L$ has finite height and the sequence is increasing, it must eventually stabilize at some $x_N = x_(N+1)$.
 
   *Step 3:* $x_N$ is a fixpoint.
-  $f(x_N) = f(x_(N)) = x_(N+1) = x_N$
+  $f(x_N) = f(x_(N)) = x_(N+1) = x_N$.
 
   *Step 4:* $x_N$ is the least fixpoint.
   Let $mu$ be any fixpoint.
   By induction, $x_i <= mu$ for all $i$:
-  - Base: $x_0 = bot <= mu$
-  - Step: Assume $x_i <= mu$. Then $x_(i+1) = f(x_i) <= f(mu) = mu$ (by monotonicity)
+  - Base: $x_0 = bot <= mu$.
+  - Step: Assume $x_i <= mu$. Then $x_(i+1) = f(x_i) <= f(mu) = mu$ (by monotonicity).
 
   Thus $x_N <= mu$, so $x_N$ is the least fixpoint.
 ]
@@ -407,17 +434,18 @@ This gives us the standard fixpoint iteration algorithm used in dataflow analysi
   Let $f(S)$ = $S union "successors"(S)$ compute one step of reachability.
 
   Starting from $S_0 = {s_0}$:
-  - $f^0({s_0}) = {s_0}$
-  - $f^1({s_0}) = {s_0, s_1}$ (reached $s_1$)
-  - $f^2({s_0}) = {s_0, s_1, s_2}$ (reached $s_2$)
-  - $f^3({s_0}) = {s_0, s_1, s_2}$ (no new states)
+  - $f^0({s_0}) = {s_0}$.
+  - $f^1({s_0}) = {s_0, s_1}$ (reached $s_1$).
+  - $f^2({s_0}) = {s_0, s_1, s_2}$ (reached $s_2$).
+  - $f^3({s_0}) = {s_0, s_1, s_2}$ (no new states).
 
   Fixpoint reached after 3 iterations!
 ]
 
 == Galois Connections
 
-Galois connections formalize the relationship between concrete and abstract domains, ensuring that abstraction and concretization are consistent.
+Galois connections formalize the relationship between concrete and abstract domains.
+They ensure that abstraction and concretization are consistent.
 
 #definition(title: "Galois Connection")[
   Let $(C, <=_C)$ and $(A, <=_A)$ be posets.
@@ -427,8 +455,8 @@ Galois connections formalize the relationship between concrete and abstract doma
 
   $ forall c in C, forall a in A: alpha(c) <=_A a <==> c <=_C gamma(a) $
 
-  - $alpha$ is the *abstraction function* (concrete $->$ abstract)
-  - $gamma$ is the *concretization function* (abstract $->$ concrete)
+  - $alpha$ is the *abstraction function* (concrete $->$ abstract).
+  - $gamma$ is the *concretization function* (abstract $->$ concrete).
 ]
 
 #figure(
@@ -511,11 +539,11 @@ Galois connections formalize the relationship between concrete and abstract doma
 #theorem(title: "Properties of Galois Connections")[
   Let $(C, alpha, gamma, A)$ be a Galois connection.
 
-  + $alpha$ and $gamma$ are monotone
-  + $alpha compose gamma$ is *reductive*: $alpha(gamma(a)) <=_A a$ for all $a in A$
-  + $gamma compose alpha$ is *extensive*: $c <=_C gamma(alpha(c))$ for all $c in C$
-  + $alpha(gamma(alpha(c))) = alpha(c)$ (abstraction idempotent)
-  + $gamma(alpha(gamma(a))) = gamma(a)$ (concretization idempotent)
+  + $alpha$ and $gamma$ are monotone.
+  + $alpha compose gamma$ is *reductive*: $alpha(gamma(a)) <=_A a$ for all $a in A$.
+  + $gamma compose alpha$ is *extensive*: $c <=_C gamma(alpha(c))$ for all $c in C$.
+  + $alpha(gamma(alpha(c))) = alpha(c)$ (abstraction idempotent).
+  + $gamma(alpha(gamma(a))) = gamma(a)$ (concretization idempotent).
 ]
 
 #proof[
@@ -535,8 +563,8 @@ Galois connections formalize the relationship between concrete and abstract doma
 #example-box[
   *Sign abstraction as Galois connection:*
 
-  Concrete domain: $C = cal(P)(ZZ)$ (powersets of integers)
-  Abstract domain: $A = {"Bot", "Neg", "Zero", "Pos", "Top"}$
+  Concrete domain: $C = cal(P)(ZZ)$ (powersets of integers).
+  Abstract domain: $A = {"Bot", "Neg", "Zero", "Pos", "Top"}$.
 
   Abstraction $alpha: cal(P)(ZZ) -> A$:
   $
@@ -560,7 +588,7 @@ Galois connections formalize the relationship between concrete and abstract doma
     )
   $
 
-  Verify adjunction: $alpha(S) <=_A a <==> S subset.eq gamma(a)$
+  Verify adjunction: $alpha(S) <=_A a <==> S subset.eq gamma(a)$.
 ]
 
 == The Lattice of Boolean Functions
@@ -572,10 +600,10 @@ We define the ordering $f <= g$ as logical implication:
 $ f <= g <==> forall x: f(x) => g(x) $
 
 This forms a complete lattice $(B_n, <=, or, and, "false", "true")$.
-- Join ($ljoin$) is logical OR ($or$)
-- Meet ($lmeet$) is logical AND ($and$)
-- Bottom ($bot$) is the constant function `false` (empty set of paths)
-- Top ($top$) is the constant function `true` (all paths)
+- Join ($ljoin$) is logical OR ($or$).
+- Meet ($lmeet$) is logical AND ($and$).
+- Bottom ($bot$) is the constant function `false` (empty set of paths).
+- Top ($top$) is the constant function `true` (all paths).
 
 #insight-box[
   *BDDs implement this lattice.*
@@ -587,10 +615,10 @@ This forms a complete lattice $(B_n, <=, or, and, "false", "true")$.
 
 This chapter established the mathematical foundations:
 
-- *Complete lattices* provide the structure for abstract domains
-- *Monotone functions* ensure sound approximation
-- *Tarski's theorem* guarantees fixpoint existence
-- *Kleene iteration* computes fixpoints constructively
-- *Galois connections* relate concrete and abstract semantics
+- *Complete lattices* provide the structure for abstract domains.
+- *Monotone functions* ensure sound approximation.
+- *Tarski's theorem* guarantees fixpoint existence.
+- *Kleene iteration* computes fixpoints constructively.
+- *Galois connections* relate concrete and abstract semantics.
 
 These tools enable rigorous program analysis with guaranteed termination and soundness.

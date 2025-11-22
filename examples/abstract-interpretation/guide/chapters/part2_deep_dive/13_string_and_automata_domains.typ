@@ -76,8 +76,7 @@ Combine automata with scalar domains to improve precision:
 
 #definition(title: "Granger-Style Reduced Product")[
   Let $(A_1, A_2)$ be two abstract elements.
-  A *reduction* operator $rho(A_1, A_2)$ computes a pair $(A_1', A_2')$ such that
-  $gamma(A_1', A_2') = gamma(A_1, A_2)$ and $A_i' <= A_i$.
+  A *reduction* operator $rho(A_1, A_2)$ computes a pair $(A_1', A_2')$ such that $gamma(A_1', A_2') = gamma(A_1, A_2)$ and $A_i' <= A_i$.
   Implement by mutual refinement until a local fixpoint or budgets are exhausted.
 ]
 

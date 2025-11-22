@@ -10,12 +10,13 @@ This chapter explores chaotic iteration, worklist algorithms, and strategies for
 == From Kleene to Chaotic Iteration
 
 Kleene iteration computes $f^0(bot), f^1(bot), f^2(bot), dots$ sequentially.
-For compositional problems (multiple equations), we can interleave updates --- this is *chaotic iteration*.
+For compositional problems (multiple equations), we can interleave updates.
+This is *chaotic iteration*.
 
 #definition(title: "Equation System")[
   A *system of equations* over a complete lattice $L$ consists of:
-  - Variables $X = {x_1, dots, x_n}$
-  - Equations $x_i = f_i(x_1, dots, x_n)$ where $f_i: L^n -> L$ are monotone
+  - Variables $X = {x_1, dots, x_n}$.
+  - Equations $x_i = f_i(x_1, dots, x_n)$ where $f_i: L^n -> L$ are monotone.
 
   A *solution* is an assignment $sigma: X -> L$ satisfying all equations.
   The *least solution* is the least fixpoint of the combined function $F: L^n -> L^n$ defined by $F(accent(x, arrow)) = (f_1(accent(x, arrow)), dots, f_n(accent(x, arrow)))$.
@@ -29,16 +30,17 @@ For compositional problems (multiple equations), we can interleave updates --- t
   $ "RD"[p] = union.big_(q in "pred"(p)) ("RD"[q] - "kill"[p]) union "gen"[p] $
 
   This gives one equation per program point.
-  Kleene iteration would update all points together, but chaotic iteration can update them in any order.
+  Kleene iteration would update all points together.
+  Chaotic iteration can update them in any order.
 ]
 
 #theorem(title: "Chaotic Iteration Convergence")[
   Let $X = {x_1, dots, x_n}$ be variables with equations $x_i = f_i(accent(x, arrow))$ over a complete lattice with ascending chain condition.
   Let $sigma^0, sigma^1, sigma^2, dots$ be a sequence of assignments where:
 
-  - $sigma^0(x_i) = bot$ for all $i$
-  - $sigma^(k+1)$ updates *some* variable: $sigma^(k+1)(x_i) = f_i(sigma^k(x_1), dots, sigma^k(x_n))$ for some $i$, and $sigma^(k+1)(x_j) = sigma^k(x_j)$ for $j != i$
-  - Every variable is updated *infinitely often*
+  - $sigma^0(x_i) = bot$ for all $i$.
+  - $sigma^(k+1)$ updates *some* variable: $sigma^(k+1)(x_i) = f_i(sigma^k(x_1), dots, sigma^k(x_n))$ for some $i$, and $sigma^(k+1)(x_j) = sigma^k(x_j)$ for $j != i$.
+  - Every variable is updated *infinitely often*.
 
   Then the sequence converges to the least fixpoint.
 ]
@@ -50,8 +52,8 @@ The key insight: as long as we keep updating variables (fairness), the order doe
 
   *Step 1:* The sequence is increasing.
   Each update $sigma^(k+1)(x_i) = f_i(sigma^k)$ satisfies:
-  - $sigma^k(x_i) <= f_i(sigma^k)$ (by induction: initially $bot <= f_i(bot)$, and if all components increased, monotonicity gives $f_i(sigma^k) <= f_i(sigma^(k+1))$)
-  - Thus $sigma^k <= sigma^(k+1)$ component-wise
+  - $sigma^k(x_i) <= f_i(sigma^k)$ (by induction: initially $bot <= f_i(bot)$, and if all components increased, monotonicity gives $f_i(sigma^k) <= f_i(sigma^(k+1))$).
+  - Thus $sigma^k <= sigma^(k+1)$ component-wise.
 
   *Step 2:* The sequence stabilizes.
   Since $L^n$ has ACC (product of ACC lattices), the increasing sequence stabilizes at some $sigma^*$.
@@ -68,24 +70,25 @@ The key insight: as long as we keep updating variables (fairness), the order doe
 
 == Worklist Algorithms
 
-Chaotic iteration can be wasteful: updating a variable when its inputs haven't changed accomplishes nothing.
+Chaotic iteration can be wasteful.
+Updating a variable when its inputs haven't changed accomplishes nothing.
 *Worklist algorithms* track dependencies and only recompute when necessary.
 
 #algorithm(title: "Basic Worklist")[
-  *Input:* Equation system $x_i = f_i(accent(x, arrow))$ with dependency graph $G$
+  *Input:* Equation system $x_i = f_i(accent(x, arrow))$ with dependency graph $G$.
 
-  *Output:* Least fixpoint solution
+  *Output:* Least fixpoint solution.
 
-  + $W <- {x_1, ..., x_n}$ $quad slash.double$ Initialize worklist with all variables
-  + $sigma <- lambda i . bot$ $quad slash.double$ Initialize solution to bottom
+  + $W <- {x_1, ..., x_n}$ $quad slash.double$ Initialize worklist with all variables.
+  + $sigma <- lambda i . bot$ $quad slash.double$ Initialize solution to bottom.
   + *while* $W != emptyset$ *do*
-    + $x <-$ *remove*$(W)$ $quad slash.double$ Pick a variable from worklist
+    + $x <-$ *remove*$(W)$ $quad slash.double$ Pick a variable from worklist.
     + $"old" <- sigma(x)$
-    + $"new" <- f_x (sigma)$ $quad slash.double$ Recompute using current solution
+    + $"new" <- f_x (sigma)$ $quad slash.double$ Recompute using current solution.
     + *if* $"new" != "old"$ *then*
-      + $sigma(x) <- "new"$ $quad slash.double$ Update solution
+      + $sigma(x) <- "new"$ $quad slash.double$ Update solution.
       + *for each* $y$ *where* $x -> y in G$ *do*
-        + *add*$(W, y)$ $quad slash.double$ Re-examine dependents
+        + *add*$(W, y)$ $quad slash.double$ Re-examine dependents.
       + *end for*
     + *end if*
   + *end while*
@@ -192,12 +195,13 @@ where
 
 #theorem(title: "Worklist Correctness")[
   The worklist algorithm computes the least fixpoint if:
-  + Each variable is processed when added to the worklist
-  + Dependencies are correctly tracked
-  + The lattice satisfies ACC
+  + Each variable is processed when added to the worklist.
+  + Dependencies are correctly tracked.
+  + The lattice satisfies ACC.
 ]
 
-The proof is similar to chaotic iteration, with the additional observation that only variables whose inputs changed need recomputation.
+The proof is similar to chaotic iteration.
+We observe that only variables whose inputs changed need recomputation.
 
 == Iteration Strategies
 
@@ -206,10 +210,10 @@ The order of processing the worklist affects performance significantly.
 #definition(title: "Iteration Order")[
   Common strategies for choosing the next variable:
 
-  - *FIFO* (breadth-first): Process in insertion order
-  - *LIFO* (depth-first): Process most recently added first
-  - *RPO* (reverse postorder): Process following CFG structure
-  - *Priority queue*: Process by estimated impact
+  - *FIFO* (breadth-first): Process in insertion order.
+  - *LIFO* (depth-first): Process most recently added first.
+  - *RPO* (reverse postorder): Process following CFG structure.
+  - *Priority queue*: Process by estimated impact.
 ]
 
 #example-box[
@@ -264,13 +268,13 @@ The order of processing the worklist affects performance significantly.
 #theorem(title: "Worklist Complexity")[
   For a system with $n$ variables and maximum dependency degree $d$:
 
-  - *Time per iteration*: $O(n d)$ (evaluate each function once)
-  - *Number of iterations*: $O(h dot n)$ where $h$ is lattice height
-  - *Total time*: $O(h dot n^2 dot d)$
+  - *Time per iteration*: $O(n d)$ (evaluate each function once).
+  - *Number of iterations*: $O(h dot n)$ where $h$ is lattice height.
+  - *Total time*: $O(h dot n^2 dot d)$.
 
   For *forward dataflow on reducible CFGs* with RPO:
-  - Iterations: $O("depth of loops")$
-  - Total: $O("loop depth" dot n dot d)$
+  - Iterations: $O("depth of loops")$.
+  - Total: $O("loop depth" dot n dot d)$.
 ]
 
 The key insight: good iteration order reduces the constant factor dramatically!
@@ -290,19 +294,19 @@ The key insight: good iteration order reduces the constant factor dramatically!
 
 == Widening with Worklist
 
-For infinite-height lattices, combine worklist with widening:
+For infinite-height lattices, combine worklist with widening.
 
 #algorithm(title: "Worklist with Widening")[
   + $W <- {x_1, ..., x_n}$
   + $sigma <- lambda i . bot$
-  + $"count" <- lambda i . 0$ $quad slash.double$ Track update count per variable
+  + $"count" <- lambda i . 0$ $quad slash.double$ Track update count per variable.
   + *while* $W != emptyset$ *do*
     + $x <-$ *remove*$(W)$
     + $"old" <- sigma(x)$
     + $"new" <- f_x (sigma)$
     + $"count"(x) <- "count"(x) + 1$
     + *if* $"count"(x) >$ threshold *then*
-      + $"new" <- "old" widen "new"$ $quad slash.double$ Apply widening after threshold
+      + $"new" <- "old" widen "new"$ $quad slash.double$ Apply widening after threshold.
     + *end if*
     + *if* $"new" != "old"$ *then*
       + $sigma(x) <- "new"$
@@ -356,19 +360,19 @@ Typical threshold: 2-3 iterations before widening kicks in.
 
 == Narrowing Iterations
 
-After widening converges to a post-fixpoint, narrow to recover precision:
+After widening converges to a post-fixpoint, narrow to recover precision.
 
 #algorithm(title: "Two-Phase Worklist")[
-  + $slash.double$ Phase 1: Widening (ascending)
+  + $slash.double$ Phase 1: Widening (ascending).
   + $sigma_"up" <-$ *widening_iteration*$(thin)$
-  + $slash.double$ Phase 2: Narrowing (descending)
+  + $slash.double$ Phase 2: Narrowing (descending).
   + $W <- {x_1, ..., x_n}$
   + $sigma <- sigma_"up"$
   + *while* $W != emptyset$ *and* *not_too_many_iterations*$(thin)$ *do*
     + $x <-$ *remove*$(W)$
     + $"old" <- sigma(x)$
     + $"new" <- f_x (sigma)$
-    + $"narrow" <- "old" triangle "new"$ $quad slash.double$ Apply narrowing
+    + $"narrow" <- "old" triangle "new"$ $quad slash.double$ Apply narrowing.
     + *if* $"narrow" != "old"$ *then*
       + $sigma(x) <- "narrow"$
       + add dependents to $W$
@@ -441,9 +445,9 @@ Applying widening too early loses precision unnecessarily.
 #definition(title: "Widening Delay")[
   Strategies for delaying widening:
 
-  - *Threshold-based*: Apply widening only after $k$ updates to a variable
-  - *Loop-based*: Apply widening only at loop heads
-  - *Heuristic*: Use domain-specific knowledge to identify widening points
+  - *Threshold-based*: Apply widening only after $k$ updates to a variable.
+  - *Loop-based*: Apply widening only at loop heads.
+  - *Heuristic*: Use domain-specific knowledge to identify widening points.
 ]
 
 #example-box[
@@ -464,10 +468,10 @@ Applying widening too early loses precision unnecessarily.
 
 This chapter developed practical fixpoint algorithms:
 
-- *Chaotic iteration* allows flexible update orders with convergence guarantees
-- *Worklist algorithms* track dependencies to minimize recomputation
-- *Iteration strategies* (RPO, FIFO, LIFO) affect performance dramatically
-- *Widening/narrowing* ensure termination for infinite-height lattices with two-phase iteration
-- *Delayed widening* improves precision by waiting for natural convergence
+- *Chaotic iteration* allows flexible update orders with convergence guarantees.
+- *Worklist algorithms* track dependencies to minimize recomputation.
+- *Iteration strategies* (RPO, FIFO, LIFO) affect performance dramatically.
+- *Widening/narrowing* ensure termination for infinite-height lattices with two-phase iteration.
+- *Delayed widening* improves precision by waiting for natural convergence.
 
 These techniques are essential for implementing efficient program analyzers.

@@ -62,7 +62,8 @@ When the analyzer encounters a check like `if is_safe(x)`, it performs a *refine
 
 + *Verification:* When `exec_sql(x)` is called, we check:
   - Is `x` tainted on any feasible path reaching this statement?
-  - Since we are in the true branch, `x` is marked `Clean`. The check passes.
+  - Since we are in the true branch, `x` is marked `Clean`.
+    The check passes.
 
 #insight-box[
   BDDs allow us to prove safety properties that depend on control flow.
@@ -97,3 +98,4 @@ To implement this in `bdd-rs`:
 + *Sanitizers:* `assume(is_safe(x))` refines `x` to `Clean` in the current partition.
 
 See `examples/security_and_normalization.rs` for a complete implementation.
+

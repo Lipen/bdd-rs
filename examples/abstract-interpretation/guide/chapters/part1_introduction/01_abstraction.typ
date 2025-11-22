@@ -175,15 +175,15 @@ impl std::ops::Add for Sign {
             (Sign::Neg, Sign::Neg) => Sign::Neg,
             (Sign::Zero, x) => x,
             (x, Sign::Zero) => x,
-            
+
             // Imprecise cases (Loss of information)
-            (Sign::Pos, Sign::Neg) => Sign::Top, 
+            (Sign::Pos, Sign::Neg) => Sign::Top,
             (Sign::Neg, Sign::Pos) => Sign::Top,
-            
+
             // Propagation of uncertainty
             (Sign::Top, _) => Sign::Top,
             (_, Sign::Top) => Sign::Top,
-            
+
             // Propagation of impossibility
             (Sign::Bot, _) => Sign::Bot,
             (_, Sign::Bot) => Sign::Bot,
@@ -200,7 +200,8 @@ impl std::ops::Add for Sign {
 
 == The Challenge of Control Flow
 
-Straight-line code is easy. Loops and branches are hard.
+Straight-line code is easy.
+Loops and branches are hard.
 
 ```rust
 if x > 0 {

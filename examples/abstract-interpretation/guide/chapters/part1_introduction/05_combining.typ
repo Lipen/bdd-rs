@@ -57,11 +57,11 @@ This technique is called *Trace Partitioning*.
       let (x, y) = pos
       rect((x - 1.5, y - 1), (x + 1.5, y + 1), ..style-state)
       content((x, y + 1.3), text(size: 0.8em, weight: "bold")[#label])
-      
+
       // BDD part
       rect((x - 1.3, y + 0.1), (x + 1.3, y + 0.8), ..style-bdd)
       content((x, y + 0.45), text(size: 0.7em, font: fonts.mono)[#bdd-text])
-      
+
       // Data part
       rect((x - 1.3, y - 0.8), (x + 1.3, y - 0.1), ..style-data)
       content((x, y - 0.45), text(size: 0.7em, font: fonts.mono)[#data-text])
@@ -73,7 +73,7 @@ This technique is called *Trace Partitioning*.
     // Branch
     line((0, 5), (-3, 4), mark: (end: ">"))
     content((-1.5, 4.8), text(size: 0.8em)[if x > 0])
-    
+
     line((0, 5), (3, 4), mark: (end: ">"))
     content((1.5, 4.8), text(size: 0.8em)[else])
 
@@ -98,19 +98,19 @@ This technique is called *Trace Partitioning*.
 
     // Merged State
     draw-state((0, -3), "True", "y: Top", "Merged State")
-    
+
     // Annotation for loss of precision
     content((2.5, -3), text(size: 0.7em, fill: colors.error)[Precision Loss!], anchor: "west")
-    
+
     // Alternative: Partitioned State
     line((-3, -1), (-3, -4), mark: (end: ">"), stroke: (dash: "dashed"))
     line((3, -1), (3, -4), mark: (end: ">"), stroke: (dash: "dashed"))
-    
+
     content((0, -4.5), text(size: 0.8em, weight: "bold")[Trace Partitioning])
-    
+
     rect((-4.5, -6), (4.5, -3.5), fill: none, stroke: (paint: colors.success, dash: "dashed"), radius: 0.2)
     content((0, -3.8), text(size: 0.8em, fill: colors.success)[Keeps states separate!])
-    
+
     content((-3, -5), text(size: 0.7em, font: fonts.mono)[(x>0, y:1)])
     content((3, -5), text(size: 0.7em, font: fonts.mono)[(!(x>0), y:-1)])
 

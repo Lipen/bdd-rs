@@ -24,11 +24,13 @@ It acts like a "join" but with an extra property: it guesses a stable upper boun
   + *Termination*: For any ascending chain $x_0 lle x_1 lle ...$, the sequence defined by $y_0 = x_0$ and $y_(n+1) = y_n widen x_(n+1)$ stabilizes in finite time.
 ]
 
-The termination property is the magic. Even if the underlying sequence $x_n$ grows forever, the widened sequence $y_n$ will hit a stable value (a post-fixpoint) in a finite number of steps.
+The termination property is the magic.
+Even if the underlying sequence $x_n$ grows forever, the widened sequence $y_n$ will hit a stable value (a post-fixpoint) in a finite number of steps.
 
 === Visualizing Widening
 
-Consider the Interval domain. The chain $[0, 1], [0, 2], [0, 3], ...$ never stabilizes.
+Consider the Interval domain.
+The chain $[0, 1], [0, 2], [0, 3], ...$ never stabilizes.
 A widening operator might observe the growth and jump to infinity.
 
 #figure(
@@ -70,7 +72,8 @@ This result is sound (it over-approximates the true behavior) but less precise.
 
 == Narrowing Operators
 
-Widening often overshoots. It might jump to $+infinity$ when the true bound is $100$.
+Widening often overshoots.
+It might jump to $+infinity$ when the true bound is $100$.
 Once we have a safe post-fixpoint $x^hash$ (where $f(x^hash) lle x^hash$), we can try to refine it.
 We can't just iterate $f(x^hash)$ because we might re-enter an infinite descending chain.
 We need a *narrowing operator* $narrow$ (Delta).
@@ -123,7 +126,8 @@ Good widening operators are domain-specific.
 
 - *Intervals:* If a bound changes, set it to $+infinity$ (or $-infinity$).
 - *Thresholds:* Instead of jumping to infinity, jump to the next value in a fixed set $T = \{0, 1, 2, 4, 8, ...\}$.
-- *Delayed Widening:* Perform $N$ normal joins before applying widening. This handles short loops precisely without over-approximation.
+- *Delayed Widening:* Perform $N$ normal joins before applying widening.
+  This handles short loops precisely without over-approximation.
 
 #warning-box(title: "Widening and BDDs")[
   BDD domains usually have finite height (for a fixed number of variables), so strictly speaking, they don't *need* widening to terminate.

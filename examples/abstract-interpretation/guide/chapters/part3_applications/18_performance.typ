@@ -24,7 +24,8 @@ We cannot stress this enough: *Variable ordering is the single most important fa
 
 === Garbage Collection
 
-`bdd-rs` uses a unique memory model. Nodes are stored in a large `Vec`.
+`bdd-rs` uses a unique memory model.
+Nodes are stored in a large `Vec`.
 Operations like `apply_and` create new nodes but do not automatically delete old ones (because they might be shared).
 
 You *must* call `collect_garbage` periodically.
@@ -96,7 +97,8 @@ This often reveals that the analyzer thinks a path is possible when it shouldn't
 Use standard Rust profiling tools.
 
 - *`perf` / `flamegraph`*: Check if time is spent in `bdd::apply` (normal) or in your domain logic (optimize your domain).
-- *`counts`*: The `bdd` manager tracks operation counts. Print `bdd.node_count()` to monitor growth.
+- *`counts`*: The `bdd` manager tracks operation counts.
+  Print `bdd.node_count()` to monitor growth.
 
 == Tuning Widening
 
@@ -122,3 +124,4 @@ fn widen_control(bdd: &Bdd, f1: Ref, f2: Ref) -> Ref {
 - *Visualize* BDDs to understand their structure and debug ordering.
 - *Profile* to find bottlenecks in domain operations vs. BDD operations.
 - *Widen aggressively* if convergence is too slow.
+

@@ -40,7 +40,8 @@ The direct product allows us to answer questions that neither domain could answe
   - Parity: Even / 2 $->$ Top (could be even or odd).
   - Result: $(+, top)$.
 
-  We lost the information that $x$ was even! If we knew $x=6$, then $x/2=3$ (odd).
+  We lost the information that $x$ was even!
+  If we knew $x=6$, then $x/2=3$ (odd).
   The domains operated independently and failed to refine the result.
 ]
 
@@ -109,8 +110,10 @@ So far, we have discussed *non-relational* domains (like Intervals), which track
 *Relational domains* track relationships *between* variables.
 
 Common relational domains:
-- *Octagons*: Constraints of the form $plus.minus x plus.minus y lle c$. Efficient ($O(n^3)$), good for array bounds checking ($i < n$).
-- *Polyhedra*: Linear inequalities $sum a_i x_i lle c$. Very precise, but exponential complexity.
+- *Octagons*: Constraints of the form $plus.minus x plus.minus y lle c$.
+  Efficient ($O(n^3)$), good for array bounds checking ($i < n$).
+- *Polyhedra*: Linear inequalities $sum a_i x_i lle c$.
+  Very precise, but exponential complexity.
 - *Equalities*: $x = y + c$.
 
 #example-box(title: "Why Relational Domains Matter")[
@@ -122,8 +125,12 @@ Common relational domains:
   assert(z > 0);
   ```
 
-  - *Intervals*: $y$ gets range of $x$. `if x > 0` refines $x$, but *not* $y$. Assertion fails (false positive).
-  - *Relational*: Knows $y = x$. `if x > 0` implies $y > 0$. Assertion passes.
+  - *Intervals*: $y$ gets range of $x$.
+    `if x > 0` refines $x$, but *not* $y$.
+    Assertion fails (false positive).
+  - *Relational*: Knows $y = x$.
+    `if x > 0` implies $y > 0$.
+    Assertion passes.
 ]
 
 == Widening in Product Domains

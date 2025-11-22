@@ -1,5 +1,7 @@
 #import "../../theme.typ": *
 
+#import "../../theme.typ": *
+
 = Case Study: N-Queens <ch-case-studies>
 
 #reading-path(path: "advanced")
@@ -113,3 +115,4 @@ if row == i && col == j {
 ```
 
 This "don't care" handling is where BDDs shine --- they automatically compress the state space where variables don't matter.
+
