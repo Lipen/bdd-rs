@@ -155,14 +155,16 @@ The meet finds the most precise common refinement.
 
   Consider a simplified protocol lattice:
 
-  #align(center, table(
+  #align(center, grid(
     columns: 5,
     stroke: colors.text-light + 0.5pt,
-    [$ljoin$], [$bot$], ["TCP"], ["UDP"], [$top$],
-    [$bot$], [$bot$], ["TCP"], ["UDP"], [$top$],
-    ["TCP"], ["TCP"], ["TCP"], [$top$], [$top$],
-    ["UDP"], ["UDP"], [$top$], ["UDP"], [$top$],
-    [$top$], [$top$], [$top$], [$top$], [$top$],
+    inset: 5pt,
+    fill: (x, y) => if x == 0 or y == 0 { colors.box-info },
+    [*$ljoin$*], [*$bot$*], [*TCP*], [*UDP*], [*$top$*],
+    [*$bot$*], [$bot$], [TCP], [UDP], [$top$],
+    [*TCP*], [TCP], [TCP], [$top$], [$top$],
+    [*UDP*], [UDP], [$top$], [UDP], [$top$],
+    [*$top$*], [$top$], [$top$], [$top$], [$top$],
   ))
 
   Note that $"TCP" ljoin "UDP" = top$ because there's no single protocol that is both TCP and UDP (except the generic "IP packet" which we model as $top$).
