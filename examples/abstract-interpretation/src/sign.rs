@@ -903,8 +903,8 @@ mod tests {
         assert_eq!(Zero.add(Neg), Neg);
 
         // Same sign
-        assert_eq!(Pos.add(Pos), NonNeg);
-        assert_eq!(Neg.add(Neg), NonPos);
+        assert_eq!(Pos.add(Pos), Pos);
+        assert_eq!(Neg.add(Neg), Neg);
 
         // Opposite signs
         assert_eq!(Pos.add(Neg), Top);
@@ -920,8 +920,8 @@ mod tests {
         use Sign::*;
 
         assert_eq!(Pos.sub(Pos), Top); // Could be any sign
-        assert_eq!(Pos.sub(Neg), NonNeg); // Positive - negative = positive
-        assert_eq!(Neg.sub(Pos), NonPos); // Negative - positive = negative
+        assert_eq!(Pos.sub(Neg), Pos); // Positive - negative = positive
+        assert_eq!(Neg.sub(Pos), Neg); // Negative - positive = negative
         assert_eq!(Zero.sub(Pos), Neg);
     }
 
@@ -1171,12 +1171,12 @@ mod tests {
         elem.set("y".to_string(), Sign::Neg);
         let expr = NumExpr::Mul(Box::new(NumExpr::Var("y".to_string())), Box::new(NumExpr::Var("y".to_string())));
         let result = domain.assign(&elem, &"temp".to_string(), &expr);
-        assert_eq!(result.get("temp"), Sign::NonNeg);
+        assert_eq!(result.get("temp"), Sign::Pos);
 
         elem.set("z".to_string(), Sign::Pos);
         let expr = NumExpr::Mul(Box::new(NumExpr::Var("z".to_string())), Box::new(NumExpr::Var("z".to_string())));
         let result = domain.assign(&elem, &"temp".to_string(), &expr);
-        assert_eq!(result.get("temp"), Sign::NonNeg);
+        assert_eq!(result.get("temp"), Sign::Pos);
     }
 
     #[test]

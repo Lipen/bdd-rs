@@ -25,8 +25,8 @@ fn test_sign_constant_cooperation() {
     let sign_result = sign_domain.assign(&sign_elem, &"y".to_string(), &expr);
     let const_result = const_domain.assign(&const_elem, &"y".to_string(), &expr);
 
-    // Sign: positive + positive = positive
-    assert_eq!(sign_result.get("y"), Sign::NonNeg);
+    // Sign: positive + positive = positive (strictly)
+    assert_eq!(sign_result.get("y"), Sign::Pos);
 
     // Constant: 5 + 10 = 15
     assert_eq!(const_result.get("y"), ConstValue::Const(15));
@@ -175,8 +175,8 @@ fn test_domain_precision_comparison() {
     let const_result = const_domain.assign(&constant, &"z".to_string(), &expr);
     let interval_result = interval_domain.assign(&interval, &"z".to_string(), &expr);
 
-    // Sign: positive + positive = non-negative (loses that it's strictly positive)
-    assert_eq!(sign_result.get("z"), Sign::NonNeg);
+    // Sign: positive + positive = positive (strictly)
+    assert_eq!(sign_result.get("z"), Sign::Pos);
 
     // Constant: exact value 15
     assert_eq!(const_result.get("z"), ConstValue::Const(15));
