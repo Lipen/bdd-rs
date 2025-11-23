@@ -544,8 +544,12 @@ impl SignDomain {
                             Sign::Bottom
                         } else if s == Sign::Zero {
                             Sign::Zero
+                        } else if s == Sign::Pos {
+                            Sign::Pos // Positive squared is positive
+                        } else if s == Sign::Neg {
+                            Sign::Pos // Negative squared is positive
                         } else {
-                            Sign::NonNeg
+                            Sign::NonNeg // NonNeg, NonPos, NonZero, Top -> could be zero
                         };
                     }
                 }

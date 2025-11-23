@@ -17,27 +17,18 @@ use abstract_interpretation::numeric::NumericDomain;
 use abstract_interpretation::sign::{Sign, SignDomain, SignElement};
 
 fn main() {
-    println!("\n=======================================================");
-    println!("   Combined Domain Analysis Examples");
-    println!("=======================================================\n");
+    println!("=== Combined Domain Analysis Examples ===\n");
 
     example_sign_constant_cooperation();
-    println!("=======================================================");
     example_sign_interval_cooperation();
-    println!("=======================================================");
     example_constant_interval_cooperation();
-    println!("=======================================================");
     example_triple_domain_analysis();
-
-    println!("=======================================================");
-    println!("   Analysis Complete");
-    println!("=======================================================\n");
 }
 
 /// Example 1: Sign and Constant cooperation
 fn example_sign_constant_cooperation() {
     println!("Example 1: Sign × Constant Domain");
-    println!();
+    println!("------------------------------------");
 
     let sign_domain = SignDomain;
     let const_domain = ConstantDomain;
@@ -74,7 +65,7 @@ fn example_sign_constant_cooperation() {
 /// Example 2: Sign and Interval cooperation
 fn example_sign_interval_cooperation() {
     println!("Example 2: Sign × Interval Domain");
-    println!();
+    println!("-----------------------------------");
 
     let sign_domain = SignDomain;
     let interval_domain = IntervalDomain;
@@ -129,7 +120,7 @@ fn example_sign_interval_cooperation() {
 /// Example 3: Constant and Interval cooperation
 fn example_constant_interval_cooperation() {
     println!("Example 3: Constant × Interval Domain");
-    println!();
+    println!("--------------------------------------");
 
     let const_domain = ConstantDomain;
     let interval_domain = IntervalDomain;
@@ -230,18 +221,19 @@ fn example_triple_domain_analysis() {
     interval_elem = interval_domain.assign(&interval_elem, &"z".to_string(), &expr);
 
     println!("\nAfter 'z = y - 3':");
-    println!("  Sign: {} (positive)", sign_elem.get("z"));
+    println!(
+        "  Sign: {} (uncertain - sign domain loses precision on subtraction)",
+        sign_elem.get("z")
+    );
     println!("  Constant: {} (exact!)", const_elem.get("z"));
     println!("  Interval: {} (precise bound)", interval_elem.get("z"));
-    assert_eq!(sign_elem.get("z"), Sign::Pos);
+    assert_eq!(sign_elem.get("z"), Sign::Top); // Pos - Pos = Top (uncertain)
     assert_eq!(const_elem.get("z"), ConstValue::Const(7));
     assert_eq!(interval_elem.get("z"), Interval::new(Bound::Finite(7), Bound::Finite(7)));
 
-    println!("\n✓ Combined analysis provides maximum precision:");
-    println!("  - Sign: z is positive");
-    println!("  - Constant: z is exactly 7");
-    println!("  - Interval: z ∈ [7, 7]");
-    println!("  All domains agree and provide complementary views!");
-
-    println!("\n");
+    println!("\n✓ Combined analysis shows complementary strengths:");
+    println!("  - Sign: ⊤ (loses precision on Pos - Pos)");
+    println!("  - Constant: exactly 7 (most precise!)");
+    println!("  - Interval: [7, 7] (maintains bounds)");
+    println!("  Different domains excel at different operations!");
 }
