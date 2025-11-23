@@ -265,11 +265,21 @@ Path count becomes astronomical ($2^100$).
 
 === Path Sensitivity vs. Scalability
 
-We want *Path Sensitive* analysis.
-This means distinguishing between different execution histories.
+We want *path-sensitive* analysis --- analysis that distinguishes between different execution histories.
 
-- *Path Insensitive*: "At this point, `x` could be anything." (Fast, imprecise)
-- *Path Sensitive*: "If we took True branch, `x` is positive. If False branch, `x` is negative." (Precise, expensive)
+=== Path-Insensitive Analysis
+
+Path-insensitive analysis merges all incoming paths at join points.
+At any program point, it can only say "variable `x` could be anything."
+This approach is fast because it only tracks one abstract state per program location.
+However, it loses precision by forgetting which path was taken.
+
+=== Path-Sensitive Analysis
+
+Path-sensitive analysis maintains separate information for each path.
+It can make precise statements like "if we took the true branch, `x` is positive; if we took the false branch, `x` is negative."
+This provides much better precision, enabling detection of subtle bugs.
+The cost is potentially exponential state growth as paths multiply.
 
 #warning-box(title: "The Dilemma")[
   We want the precision of path sensitivity without the cost of enumerating exponential paths.

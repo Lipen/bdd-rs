@@ -380,9 +380,15 @@ $ S equiv (b_1 and rho_1) or (b_2 and rho_2) or ... or (b_k and rho_k) $
 
 Reading: "Either the execution satisfies path condition $b_1$ with variable environment $rho_1$, OR it satisfies $b_2$ with environment $rho_2$, ..."
 
-*Concrete execution matching:* Given a concrete input $sigma$:
-+ Find partition $i$ where $sigma$ satisfies $b_i$ (at most one if disjoint)
-+ Check if actual variable values match abstraction $rho_i$
+=== Matching Concrete Executions
+
+Given a concrete input $sigma$, we can determine which partition corresponds to that execution:
+
++ Search for partition $i$ where the concrete input $sigma$ satisfies the BDD condition $b_i$.
+  Since partitions are disjoint, at most one will match.
++ Once found, check whether the actual variable values match the abstract environment $rho_i$.
+
+This allows us to verify that our abstract analysis correctly covers all concrete behaviors.
 
 #example-box(title: "State Evolution Example")[
   Consider program:

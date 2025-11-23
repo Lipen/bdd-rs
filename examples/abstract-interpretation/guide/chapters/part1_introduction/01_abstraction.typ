@@ -167,21 +167,28 @@ Let's build intuition by playing a game using this domain.
 I have two hidden program states (variables), $A$ and $B$.
 I won't tell you their exact values, but I will tell you their *abstract signs*.
 
-*Round 1:*
-- Fact: $A$ is `Pos`.
-- Fact: $B$ is `Pos`.
-- Question: If I pick one at random, what is its sign?
+=== First Scenario: Both Positive
 
-*Answer:* `Pos`.
-Reasoning: The union of positive and positive is still positive.
+Suppose:
+- $A$ has sign `Pos`
+- $B$ has sign `Pos`
 
-*Round 2:*
-- Fact: $A$ is `Pos`.
-- Fact: $B$ is `Neg`.
-- Question: If I pick one at random, what is its sign?
+Question: If I pick one variable at random, what is its sign?
 
-*Answer:* $top$ (Unknown).
-Reasoning:
+The answer is `Pos`.
+Reasoning: The union of two positive value sets is still positive.
+Both possibilities lead to positive values, so we can be certain.
+
+=== Second Scenario: Mixed Signs
+
+Now suppose:
+- $A$ has sign `Pos`
+- $B$ has sign `Neg`
+
+Question: If I pick one variable at random, what is its sign?
+
+The answer is $top$ (Unknown).
+Here's why:
 - Could be positive or negative.
 - Domain $D$ lacks a "Non-Zero" value.
 - Smallest value covering both is $top$.

@@ -184,23 +184,35 @@ fn process_data(arr: &[u8], size: usize) {
 }
 ```
 
-*Analysis Trace:*
+=== Detailed Analysis Trace
 
-+ *Entry*: `size` is $[0, infinity]$.
-+ *Branch 1*: `size < 4`.
-  - False branch (fallthrough): BDD adds $!v_1$ (`!(size < 4)`).
-  - Data domain refines `size` to $[4, infinity]$.
-+ *Access 1*: `arr[0..4]`.
-  - Safety check: Is `size >= 4`?
-  - Data domain says yes ($[4, infinity]$). *Safe.*
-+ *Branch 3*: `meta[0] == 0x1`.
-  - True branch: BDD adds $v_2$. Path is $!v_1 and v_2$.
-+ *Branch 4*: `size >= 8`.
-  - True branch: BDD adds $v_3$. Path is $!v_1 and v_2 and v_3$.
-  - Data domain refines `size` to $[8, infinity]$.
-+ *Access 2*: `arr[4..8]`.
-  - Safety check: Is `size >= 8`?
-  - Data domain says yes ($[8, infinity]$). *Safe.*
+Let's walk through this analysis step by step, tracking how the BDD path condition and data domain evolve together.
+
+*At entry:*
+The variable `size` has interval $[0, infinity]$ (unknown but non-negative).
+The path condition is True (all paths feasible initially).
+
+*After first branch (`size < 4`):*
+We take the false branch (fallthrough), meaning the condition `size < 4` is false.
+The BDD adds constraint $not v_1$ (where $v_1$ represents `size < 4`).
+The data domain refines: `size` $in [4, infinity]$.
+
+*At first array access (`arr[0..4]`):*
+Safety requires `size >= 4` to access indices 0 through 3.
+The data domain confirms $[4, infinity] subset.eq [4, infinity]$, so this access is safe.
+
+*After third branch (`meta[0] == 0x1`):*
+We enter the true branch, so the BDD adds $v_2$ (representing `meta[0] == 0x1`).
+The path condition is now $not v_1 and v_2$.
+
+*After fourth branch (`size >= 8`):*
+We enter the true branch again, so the BDD adds $v_3$ (representing `size >= 8`).
+The path condition becomes $not v_1 and v_2 and v_3$.
+The data domain refines: `size` $in [8, infinity]$.
+
+*At second array access (`arr[4..8]`):*
+Safety requires `size >= 8` to access indices 4 through 7.
+The data domain confirms $[8, infinity] subset.eq [8, infinity]$, so this access is safe.
 
 Without path sensitivity (BDD), merging the paths after Branch 4 would lose the correlation between "we are inside the `size >= 8` block" and the variable `size`.
 The BDD keeps these states distinct if we use partitioning, or allows us to recover the condition if we use the product domain.

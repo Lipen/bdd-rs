@@ -41,14 +41,15 @@ if y == 5 { // Decision B
 
 Let $A$ represent the condition `x > 0` and $B$ represent `y == 5`.
 
-Each path corresponds to a conjunction of these variables:
+Each path through the program corresponds to a conjunction of these Boolean variables.
+We have four possible paths:
 
-- *Path 1* (x > 0, y == 5): $A and B$
-- *Path 2* (x > 0, y != 5): $A and not B$
-- *Path 3* (x <= 0, y == 5): $not A and B$
-- *Path 4* (x <= 0, y != 5): $not A and not B$
++ When both conditions are true (`x > 0` and `y == 5`): represented by $A and B$
++ When the first is true but second is false (`x > 0` and `y != 5`): represented by $A and not B$
++ When the first is false but second is true (`x <= 0` and `y == 5`): represented by $not A and B$
++ When both conditions are false (`x <= 0` and `y != 5`): represented by $not A and not B$
 
-The set of *all* valid paths is the disjunction of these formulas.
+The set of all valid paths through the program is the disjunction (logical OR) of these four formulas.
 
 To represent the set of states where `valid = true` (i.e., where decision $B$ is true), we write:
 $ (A and B) or (not A and B) $
@@ -310,10 +311,29 @@ Let $n$ be variable count and $|B|$ denote node count.
 Variable ordering dominates BDD size, thus memory and time.
 Several approaches exist:
 
-- *Static Heuristics*: Domain-driven grouping (e.g., related bitfields adjacent) applied once at initialization.
-- *Dynamic Sifting*: Iteratively moving a variable through the order to minimize size locally.
-- *Genetic / Annealing Approaches*: Global stochastic search exploring permutations for stable benchmarks.
-- *Machine Guidance*: Feature extraction (node fanout, support size) feeding ranking models to select the next swap candidate.
+=== Static Heuristics
+
+Apply domain-driven grouping once at initialization.
+For example, place related bitfields adjacent to each other.
+This leverages problem structure without runtime overhead.
+
+=== Dynamic Sifting
+
+Iteratively move a variable up and down through the ordering to minimize BDD size.
+At each position, measure the total node count and keep the best placement.
+This local optimization works well in practice.
+
+=== Genetic and Annealing Approaches
+
+Use global stochastic search to explore the space of variable permutations.
+Suitable for stable benchmarks where investment in finding good orderings pays off.
+These methods can escape local minima that trap greedy approaches.
+
+=== Machine Learning Guidance
+
+Extract features from BDD structure (node fanout, support size, etc.) and feed them to ranking models.
+The model predicts which variable swap is most promising.
+This combines the power of search with learned heuristics from previous problems.
 
 #historical-note(person: "R. E. Bryant", year: 1986, title: "Graph Based Algorithms for Boolean Function Manipulation")[
   Bryant's seminal work introduced reduced ordered BDDs and established foundational complexity tradeoffs still optimized with modern heuristics.
@@ -409,8 +429,15 @@ BDDs mitigate this by exploiting structure and independence.
 When decisions don't interact (e.g., independent checks), BDD size grows *linearly* with variable count, not exponentially.
 
 For example, consider 100 independent `if` statements:
-- *Explicit Paths*: $2^100$ paths (computationally intractable).
-- *BDD Nodes*: $2 times 100 = 200$ nodes (trivial to store).
+Consider the difference in representation size:
+
+With explicit path enumeration, we would need to store $2^100$ distinct paths.
+This number is astronomically large --- more than the number of atoms in the observable universe.
+Storing this explicitly is computationally intractable.
+
+With the BDD representation, we only need $2 times 100 = 200$ nodes.
+Each chain contributes exactly 2 nodes (one decision node pointing to True, one to False).
+This linear size makes the representation trivial to store and manipulate.
 
 The BDD automatically factors out independence.
 
