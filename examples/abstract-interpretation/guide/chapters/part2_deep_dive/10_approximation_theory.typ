@@ -4,18 +4,16 @@
 
 #reading-path(path: "advanced")
 
-In @ch-fixpoint-algorithms, we saw that Kleene iteration computes the least fixpoint of a monotone function.
-However, this guarantee comes with a catch: it only terminates if the lattice has finite height or if the function has specific properties.
-For many useful domains (like Intervals or Polyhedra), the lattice has infinite height.
-A naive iteration `x := x join f(x)` might climb the lattice forever without reaching a fixpoint.
+@ch-fixpoint-algorithms saw that Kleene iteration computes the least fixpoint of a monotone function.
+This guarantee comes with a catch: it only terminates if the lattice has finite height or if the function has specific properties.
+Many useful domains (like Intervals or Polyhedra) have infinite height, where naive iteration `x := x join f(x)` might climb forever without reaching a fixpoint.
 
-To solve this, we introduce *Widening* and *Narrowing*.
-These operators allow us to trade precision for termination, ensuring we can analyze even infinite-state systems in finite time.
+We introduce *Widening* and *Narrowing* to solve this.
+These operators trade precision for termination, ensuring we can analyze even infinite-state systems in finite time.
 
 == Widening Operators
 
-A *widening operator* $widen$ (nabla) is a binary operator $A times A -> A$ that accelerates convergence.
-It acts like a "join" but with an extra property: it guesses a stable upper bound.
+A *widening operator* $widen$ (nabla) is a binary operator $A times A -> A$ that accelerates convergence, acting like a "join" but guessing a stable upper bound.
 
 #definition(title: "Widening Operator")[
   An operator $widen: A times A -> A$ is a widening if:
@@ -24,14 +22,12 @@ It acts like a "join" but with an extra property: it guesses a stable upper boun
   + *Termination*: For any ascending chain $x_0 lle x_1 lle ...$, the sequence defined by $y_0 = x_0$ and $y_(n+1) = y_n widen x_(n+1)$ stabilizes in finite time.
 ]
 
-The termination property is the magic.
-Even if the underlying sequence $x_n$ grows forever, the widened sequence $y_n$ will hit a stable value (a post-fixpoint) in a finite number of steps.
+Even if the underlying sequence $x_n$ grows forever, the widened sequence $y_n$ will hit a stable value (a post-fixpoint) in finite steps.
 
 === Visualizing Widening
 
-Consider the Interval domain.
-The chain $[0, 1], [0, 2], [0, 3], ...$ never stabilizes.
-A widening operator might observe the growth and jump to infinity.
+Consider the Interval domain: the chain $[0, 1], [0, 2], [0, 3], ...$ never stabilizes.
+A widening operator observes the growth and jumps to infinity.
 
 #figure(
   caption: [Widening accelerates convergence by jumping over the limit],
@@ -66,16 +62,14 @@ A widening operator might observe the growth and jump to infinity.
   })
 )
 
-In the diagram above, the exact sequence approaches the Least Fixpoint (LFP) asymptotically but never reaches it.
-The widened sequence jumps *above* the LFP to a "Post-Fixpoint".
-This result is sound (it over-approximates the true behavior) but less precise.
+The exact sequence approaches the Least Fixpoint (LFP) asymptotically but never reaches it.
+The widened sequence jumps *above* the LFP to a "Post-Fixpoint" --- sound (over-approximates the true behavior) but less precise.
 
 == Narrowing Operators
 
-Widening often overshoots.
-It might jump to $+infinity$ when the true bound is $100$.
-Once we have a safe post-fixpoint $x^hash$ (where $f(x^hash) lle x^hash$), we can try to refine it.
-We can't just iterate $f(x^hash)$ because we might re-enter an infinite descending chain.
+Widening often overshoots, jumping to $+infinity$ when the true bound is $100$.
+Once we have a safe post-fixpoint $x^hash$ (where $f(x^hash) lle x^hash$), we refine it.
+We can't just iterate $f(x^hash)$ (might re-enter an infinite descending chain).
 We need a *narrowing operator* $narrow$ (Delta).
 
 #definition(title: "Narrowing Operator")[
@@ -89,7 +83,7 @@ Narrowing allows us to step down from the coarse post-fixpoint towards the least
 
 == The Analysis Loop Pattern
 
-The standard recipe for analyzing loops with infinite domains is:
+Analyzing loops with infinite domains:
 
 + *Upward Iteration (Widening)*:
   Compute $x_0 = bot$, $x_(i+1) = x_i widen f(x_i)$.

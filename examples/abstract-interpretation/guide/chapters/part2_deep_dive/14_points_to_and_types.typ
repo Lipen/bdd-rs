@@ -4,8 +4,8 @@
 
 #reading-path(path: "advanced") #h(0.7em) #reading-path(path: "implementation")
 
-Heap-manipulating programs require alias reasoning and heap modeling, while dynamic languages (and languages with runtime checks) require tracking runtime types.
-This chapter presents a lightweight may-points-to abstraction with allocation-site sensitivity and a flow-sensitive dynamic type domain, including concretizations, transfer functions, precision tradeoffs, and soundness considerations.
+Heap-manipulating programs require alias reasoning and heap modeling; dynamic languages require tracking runtime types.
+We present a lightweight may-points-to abstraction with allocation-site sensitivity and a flow-sensitive dynamic type domain.
 
 == Program Model and Sensitivities
 
@@ -22,7 +22,7 @@ Analyses may be:
   A may-points-to map is a function $"PT": "Var" -> cal(P)("Site")$.
   Its concretization $gamma_"PT" ("PT")$ is the set of concrete heaps where, for each pointer variable $p$, any concrete location referenced by $p$ belongs to $"PT"(p)$.
 
-  Ordering: $"PT"_1 <= "PT"_2$ iff $forall p . "PT"_1(p) subset.eq "PT"_2(p)$.
+  Ordering: $"PT"_1 <= "PT"_2$ iff $forall p . "PT"_1 (p) subset.eq "PT"_2 (p)$.
   Join/meet: pointwise union/intersection.
   Widening: cap $|"PT"(p)|$ and collapse excess sites to a summary site.
 ]

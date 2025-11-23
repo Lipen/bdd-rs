@@ -4,8 +4,7 @@
 
 #reading-path(path: "advanced")
 
-This chapter provides a detailed walkthrough of analyzing a realistic access control policy using `bdd-rs`.
-We demonstrate how to encode rules, verify security properties, and detect misconfigurations.
+This chapter provides a detailed walkthrough of analyzing a realistic access control policy using `bdd-rs`, demonstrating how to encode rules, verify security properties, and detect misconfigurations.
 
 == Problem Statement
 
@@ -46,8 +45,6 @@ Each rule is a boolean formula over these variables.
   $ P = R_1 or R_2 $
 
 == Walkthrough
-
-Let's trace the verification process.
 
 === Step 1: Building the Policy BDD
 

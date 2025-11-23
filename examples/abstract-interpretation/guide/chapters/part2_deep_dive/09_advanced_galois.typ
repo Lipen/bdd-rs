@@ -5,8 +5,7 @@
 #reading-path(path: "advanced")
 
 @ch-lattice-theory introduced Galois connections as the mathematical foundation relating concrete and abstract domains.
-This chapter explores advanced topics: abstract transformers, best transformers, completeness, and the reduced product construction.
-These are essential tools for designing precise and efficient analyses.
+We now explore advanced topics: abstract transformers, best transformers, completeness, and the reduced product construction --- essential tools for designing precise and efficient analyses.
 
 == From Concrete to Abstract Transformers
 
@@ -39,8 +38,7 @@ These are essential tools for designing precise and efficient analyses.
   $ llb s rrb_C (gamma(a)) subset.eq gamma(llb s rrb^sharp (a)) $
 ]
 
-The soundness condition ensures that the abstract transformer over-approximates the concrete behavior.
-Any concrete state reachable by executing $s$ is represented in the abstract result.
+The soundness condition ensures the abstract transformer over-approximates the concrete behavior: any concrete state reachable by executing $s$ is represented in the abstract result.
 
 #insight-box[
   Soundness is the cornerstone of abstract interpretation.
@@ -100,7 +98,7 @@ The *best* (most precise) transformer exists when the Galois connection has cert
 
 == Completeness of Abstract Transformers
 
-While best transformers are most precise, computing them may be expensive or impossible.
+Best transformers are most precise, but computing them may be expensive or impossible.
 *Completeness* characterizes when a practical transformer achieves the precision of the best transformer.
 
 #definition(title: "Completeness")[
@@ -169,8 +167,7 @@ For a conceptual implementation-oriented overview see @ch-combining-domains; thi
   Operations are component-wise: $(a_1, a_2) ljoin (b_1, b_2) = (a_1 ljoin b_1, a_2 ljoin b_2)$.
 ]
 
-The direct product is sound but may contain *unrealizable* elements.
-These are pairs $(a_1, a_2)$ where $gamma_1(a_1) inter gamma_2(a_2) = emptyset$.
+The direct product is sound but may contain *unrealizable* elements: pairs $(a_1, a_2)$ where $gamma_1 (a_1) inter gamma_2 (a_2) = emptyset$.
 
 #example-box[
   *Real-World Example: Type × Value*
@@ -298,7 +295,7 @@ These are pairs $(a_1, a_2)$ where $gamma_1(a_1) inter gamma_2(a_2) = emptyset$.
   Let $(C, alpha_i, gamma_i, A_i)$ for $i=1,2$ be Galois connections, and $rho$ be a reduction operator.
 
   + The reduced product forms a Galois connection with:
-    $ alpha(c) = rho(alpha_1(c), alpha_2(c)) $
+    $ alpha(c) = rho(alpha_1 (c), alpha_2 (c)) $
     $ gamma((a_1, a_2)) = gamma_1 (a_1) inter gamma_2 (a_2) $
 
   + Reduced product is *at least as precise* as the direct product:
@@ -364,7 +361,7 @@ Effective reduction operators exploit *domain-specific relationships*.
 
 == Composing Multiple Domains
 
-For more than two domains, reduced products generalize.
+For more than two domains:
 
 #definition(title: "Multi-Domain Reduced Product")[
   Given domains $A_1, ..., A_n$ with abstractions $alpha_i$ and concretizations $gamma_i$, the reduced product is:
@@ -372,7 +369,7 @@ For more than two domains, reduced products generalize.
   $ A = {(a_1, ..., a_n) mid(|) a_i in A_i, gamma_1 (a_1) inter ... inter gamma_n (a_n) != emptyset} $
 
   with reduction operator:
-  $ rho(a_1, ..., a_n) = "fix"(lambda (b_1, ..., b_n) . (rho_1(b_1, ..., b_n), ..., rho_n(b_1, ..., b_n))) $
+  $ rho(a_1, ..., a_n) = "fix"(lambda (b_1, ..., b_n) . (rho_1 (b_1, ..., b_n), ..., rho_n (b_1, ..., b_n))) $
 
   where each $rho_i$ refines domain $A_i$ based on constraints from other domains.
 ]
@@ -467,8 +464,6 @@ Transformers on product domains must maintain reduction.
 ]
 
 == Chapter Summary
-
-This chapter explored advanced Galois connection theory:
 
 - *Abstract transformers* compute statement effects in abstract domains.
 - *Best transformers* achieve maximum precision but may be expensive.

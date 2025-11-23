@@ -5,8 +5,7 @@
 #reading-path(path: "essential")
 
 Security analysis is one of the most impactful applications of abstract interpretation.
-In the context of program verification, we track the flow of "tainted" (potentially malicious) data from untrusted sources to sensitive sinks.
-This allows us to detect vulnerabilities like unauthorized access, data exfiltration, and bypass of security controls.
+We track the flow of "tainted" (potentially malicious) data from untrusted sources to sensitive sinks, detecting vulnerabilities like unauthorized access, data exfiltration, and bypass of security controls.
 
 == Input Taint Analysis
 
@@ -23,9 +22,8 @@ The core concept is *taint tracking*.
 
 == BDD-Guided Taint Analysis
 
-Standard taint analysis is often path-insensitive, leading to false positives.
-It might flag validation logic as unsafe because it merges paths where inputs are validated with paths where they aren't.
-BDDs allow us to track *under what conditions* an input is tainted.
+Taint analysis is often path-insensitive, leading to false positives: flagging validation logic as unsafe because it merges paths where inputs are validated with paths where they aren't.
+BDDs let us track *under what conditions* an input is tainted.
 
 #example-box(title: "Conditional Sanitization")[
   Consider a validation logic that only processes data after a check:

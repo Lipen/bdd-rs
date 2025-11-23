@@ -6,21 +6,20 @@
 
 #reading-path(path: "essential") #h(0.5em) #reading-path(path: "beginner")
 
-In the Prologue, we established that we cannot test every possible input.
+The Prologue showed we cannot test every possible input.
 We must reason about *sets* of inputs (abstract properties) rather than individual values.
 But how do we actually do this?
-How do we ensure we don't "approximate away" the bugs we are trying to find?
+How do we ensure approximation doesn't hide the bugs we seek?
 
-This chapter introduces the core mechanism of Abstract Interpretation:
-*Abstract Domains*.
+This chapter introduces the core mechanism: *Abstract Domains*.
 
 == The Geometric Analogy
 
-Imagine a complex 3D object, such as a cylinder, floating in space.
-Describing its exact position and shape requires precise coordinates for every point on its surface.
-This is like the *concrete state* of a program: complex, detailed (all variable values, memory, heap), and hard to manipulate.
+Imagine a cylinder floating in space.
+Describing its exact position and shape requires precise coordinates for every surface point.
+This is like a program's *concrete state*: complex, detailed (all variable values, memory, heap), hard to manipulate.
 
-Now, imagine shining a light on the object to cast a shadow on the wall.
+Now imagine shining light to cast shadows on walls.
 - From the top, the shadow is a *circle*.
 - From the side, the shadow is a *rectangle*.
 
@@ -80,17 +79,17 @@ Now, imagine shining a light on the object to cast a shadow on the wall.
   }),
 )
 
-Abstract Interpretation is the art of choosing the right "projection" (abstraction) for the property we want to prove.
-- If we want to prove a variable is positive, we project it to its *Sign*.
-- If we want to prove a variable is even, we project it to its *Parity*.
-- If we want to prove a variable is within a range, we project it to an *Interval*.
+Abstract Interpretation is choosing the right "projection" (abstraction) for the property we want to prove.
+- To prove a variable is positive, project to its *Sign*.
+- To prove a variable is even, project to its *Parity*.
+- To prove a variable is within a range, project to an *Interval*.
 
 == The Subject of Analysis: IMP
 
-To make our discussion concrete, we need a subject to analyze.
-Throughout this guide, we will build a *Static Analyzer* for a toy language called *IMP* (Minimal Imperative Language).
+We need a concrete subject to analyze.
+Throughout this guide, we build a *Static Analyzer* for a toy language called *IMP* (Minimal Imperative Language).
 
-IMP is a standard language used in verification textbooks.
+IMP is standard in verification textbooks.
 It supports:
 - *Variables*: Integers (`x`, `y`, `z`).
 - *Arithmetic*: `+`, `-`, `*`, `/`.
@@ -110,16 +109,16 @@ if x > 0 {
 assert(y > 0);
 ```
 
-Our goal is to verify properties of such programs, such as "Is the assertion always true?" or "Can `y` ever be negative?".
+Our goal: verify properties like "Is the assertion always true?" or "Can `y` ever be negative?".
 
 == Designing an Abstract Domain
 
-To answer such questions, we cannot simulate every possible integer input.
-Instead, we design an *Abstract Domain* that captures the properties we care about.
+We cannot simulate every possible integer input.
+Instead, we design an *Abstract Domain* capturing the properties we care about.
 
-Let's focus on the *sign* of variables.
+Focus on variable *sign*.
 Concrete variables hold specific integers (e.g., `5`, `-42`, `0`).
-For our analysis, we often only care if a number is positive, negative, or zero.
+For analysis, we often only care if a number is positive, negative, or zero.
 
 We define a set of abstract values $D$:
 $ D = \{bot, "Neg", "Zero", "Pos", top\} $
@@ -144,8 +143,8 @@ We can implement this in Rust:
 
 == Formalizing Abstraction
 
-Now that we have a domain, we can be rigorous.
-We define two functions connecting the concrete world (actual execution) and the abstract world (properties).
+With a domain defined, we can be rigorous.
+We define two functions connecting the concrete world (actual execution) and abstract world (properties).
 
 #definition(title: "Concretization Function")[
   The concretization function $gamma: D -> cal(P)(ZZ)$ maps an abstract value to a set of concrete integers $ZZ$.
@@ -159,8 +158,8 @@ We define two functions connecting the concrete world (actual execution) and the
   $
 ]
 
-An analysis is *sound* if the abstract result always covers the concrete result.
-If a variable is actually `5`, our analysis must return either `Pos` or $top$. It cannot return `Neg`.
+Analysis is *sound* if abstract results always cover concrete results.
+If a variable is actually `5`, analysis must return either `Pos` or $top$, never `Neg`.
 
 == Interactive Reasoning
 
@@ -183,13 +182,12 @@ Reasoning: The union of positive and positive is still positive.
 
 *Answer:* $top$ (Unknown).
 Reasoning:
-- It could be positive.
-- It could be negative.
-- Our domain $D$ does not have a value for "Non-Zero".
-- The smallest value that covers both is $top$.
+- Could be positive or negative.
+- Domain $D$ lacks a "Non-Zero" value.
+- Smallest value covering both is $top$.
 
-Because the result depends on *which path* we took, we cannot give a precise single sign.
-We must return $top$ to remain sound.
+Since the result depends on *which path* was taken, we cannot give a precise single sign.
+We return $top$ to remain sound.
 
 === Abstract Semantics
 
@@ -227,7 +225,7 @@ if input > 0 {
 ```
 
 At the merge point, `x` could be `1` OR `-1`.
-In the Sign domain, we must find a single value that covers *both* possibilities.
+In the Sign domain, we must find one value covering *both* possibilities.
 The smallest value covering both `Pos` and `Neg` is $top$.
 
 #figure(
@@ -265,10 +263,10 @@ The smallest value covering both `Pos` and `Neg` is $top$.
 )
 
 We lost the information that `x` is non-zero!
-We know it's one of the two, but our abstraction forces us to say "It could be anything."
+We know it's one of the two, but abstraction forces us to say "could be anything."
 
-This is where *BDDs* will come in.
-Instead of merging everything into a single abstract value (and getting $top$), we can use BDDs to track *which path* leads to which value.
+This is where *BDDs* enter.
+Instead of merging everything into one abstract value (getting $top$), BDDs track *which path* leads to which value.
 
 - Path 1 (`input > 0`): `x` is `Pos`
 - Path 2 (`input <= 0`): `x` is `Neg`

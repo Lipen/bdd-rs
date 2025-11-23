@@ -5,14 +5,14 @@
 #reading-path(path: "implementation")
 
 Building a correct abstract interpreter is hard; building a *fast* one is even harder.
-When using BDDs for program analysis, performance cliffs are steep: a good variable ordering runs in milliseconds, while a bad one might never terminate.
+When using BDDs for program analysis, performance cliffs are steep: good variable ordering runs in milliseconds, bad ordering might never terminate.
 This chapter provides a survival guide for tuning and debugging your BDD-based analyzer.
 
 == The Three Pillars of BDD Performance
 
 === Variable Ordering
 
-We cannot stress this enough: *Variable ordering is the single most important factor.*
+*Variable ordering is the single most important factor.*
 
 - *Heuristic:* Group related variables together.
 - *Data Structures:* Keep bits of the same variable adjacent (e.g., `x[0]`, `x[1]`, ...).

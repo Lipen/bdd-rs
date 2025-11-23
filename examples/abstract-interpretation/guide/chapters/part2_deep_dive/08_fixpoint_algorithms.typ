@@ -4,22 +4,21 @@
 
 #reading-path(path: "advanced")
 
-While Tarski's theorem guarantees fixpoint existence and Kleene's theorem provides a basic iteration method, practical program analysis requires more sophisticated algorithms.
+Tarski's theorem guarantees fixpoint existence and Kleene's theorem provides a basic iteration method, but practical program analysis requires more sophisticated algorithms.
 This chapter explores chaotic iteration, worklist algorithms, and strategies for computing fixpoints efficiently.
 
 == From Kleene to Chaotic Iteration
 
-Kleene iteration computes $f^0(bot), f^1(bot), f^2(bot), dots$ sequentially.
-For compositional problems (multiple equations), we can interleave updates.
-This is *chaotic iteration*.
+Kleene iteration computes $f^0 (bot), f^1 (bot), f^2 (bot), dots$ sequentially.
+For compositional problems (multiple equations), we can interleave updates --- this is *chaotic iteration*.
 
 #definition(title: "Equation System")[
   A *system of equations* over a complete lattice $L$ consists of:
   - Variables $X = {x_1, dots, x_n}$.
-  - Equations $x_i = f_i(x_1, dots, x_n)$ where $f_i: L^n -> L$ are monotone.
+  - Equations $x_i = f_i (x_1, dots, x_n)$ where $f_i: L^n -> L$ are monotone.
 
   A *solution* is an assignment $sigma: X -> L$ satisfying all equations.
-  The *least solution* is the least fixpoint of the combined function $F: L^n -> L^n$ defined by $F(accent(x, arrow)) = (f_1(accent(x, arrow)), dots, f_n(accent(x, arrow)))$.
+  The *least solution* is the least fixpoint of the combined function $F: L^n -> L^n$ defined by $F(accent(x, arrow)) = (f_1 (accent(x, arrow)), dots, f_n (accent(x, arrow)))$.
 ]
 
 #example-box[
@@ -37,24 +36,24 @@ This is *chaotic iteration*.
 ]
 
 #theorem(title: "Chaotic Iteration Convergence")[
-  Let $X = {x_1, dots, x_n}$ be variables with equations $x_i = f_i(accent(x, arrow))$ over a complete lattice with ascending chain condition.
+  Let $X = {x_1, dots, x_n}$ be variables with equations $x_i = f_i (accent(x, arrow))$ over a complete lattice with ascending chain condition.
   Let $sigma^0, sigma^1, sigma^2, dots$ be a sequence of assignments where:
 
   - $sigma^0(x_i) = bot$ for all $i$.
-  - $sigma^(k+1)$ updates *some* variable: $sigma^(k+1)(x_i) = f_i(sigma^k(x_1), dots, sigma^k(x_n))$ for some $i$, and $sigma^(k+1)(x_j) = sigma^k(x_j)$ for $j != i$.
+  - $sigma^(k+1)$ updates *some* variable: $sigma^(k+1)(x_i) = f_i (sigma^k(x_1), dots, sigma^k(x_n))$ for some $i$, and $sigma^(k+1)(x_j) = sigma^k(x_j)$ for $j != i$.
   - Every variable is updated *infinitely often*.
 
   Then the sequence converges to the least fixpoint.
 ]
 
-The key insight: as long as we keep updating variables (fairness), the order doesn't matter!
+As long as we keep updating variables (fairness), the order doesn't matter.
 
 #proof[
   Define the *product lattice* $L^n$ with ordering $(x_1, dots, x_n) <= (y_1, dots, y_n)$ iff $x_i <= y_i$ for all $i$.
 
   *Step 1:* The sequence is increasing.
-  Each update $sigma^(k+1)(x_i) = f_i(sigma^k)$ satisfies:
-  - $sigma^k(x_i) <= f_i(sigma^k)$ (by induction: initially $bot <= f_i(bot)$, and if all components increased, monotonicity gives $f_i(sigma^k) <= f_i(sigma^(k+1))$).
+  Each update $sigma^(k+1)(x_i) = f_i (sigma^k)$ satisfies:
+  - $sigma^k(x_i) <= f_i (sigma^k)$ (by induction: initially $bot <= f_i (bot)$, and if all components increased, monotonicity gives $f_i (sigma^k) <= f_i (sigma^(k+1))$).
   - Thus $sigma^k <= sigma^(k+1)$ component-wise.
 
   *Step 2:* The sequence stabilizes.
@@ -62,22 +61,21 @@ The key insight: as long as we keep updating variables (fairness), the order doe
 
   *Step 3:* $sigma^*$ is a fixpoint.
   For each $i$, since $x_i$ is updated infinitely often and the sequence stabilized:
-  $ sigma^*(x_i) = f_i(sigma^*) $
+  $ sigma^*(x_i) = f_i (sigma^*) $
 
   *Step 4:* $sigma^*$ is the least fixpoint.
   Any fixpoint $mu$ satisfies $sigma^0 <= mu$ (base case).
-  If $sigma^k <= mu$, then $sigma^(k+1)(x_i) = f_i(sigma^k) <= f_i(mu) = mu(x_i)$ by monotonicity.
+  If $sigma^k <= mu$, then $sigma^(k+1)(x_i) = f_i (sigma^k) <= f_i (mu) = mu(x_i)$ by monotonicity.
   Thus $sigma^* <= mu$.
 ]
 
 == Worklist Algorithms
 
-Chaotic iteration can be wasteful.
-Updating a variable when its inputs haven't changed accomplishes nothing.
+Chaotic iteration can be wasteful: updating a variable when its inputs haven't changed accomplishes nothing.
 *Worklist algorithms* track dependencies and only recompute when necessary.
 
 #algorithm(title: "Basic Worklist")[
-  *Input:* Equation system $x_i = f_i(accent(x, arrow))$ with dependency graph $G$.
+  *Input:* Equation system $x_i = f_i (accent(x, arrow))$ with dependency graph $G$.
 
   *Output:* Least fixpoint solution.
 
@@ -97,7 +95,7 @@ Updating a variable when its inputs haven't changed accomplishes nothing.
   + *return* $sigma$
 ]
 
-Here is how a generic worklist solver looks in Rust:
+A generic worklist solver in Rust:
 
 ```rust
 use std::collections::{VecDeque, HashSet};
@@ -221,8 +219,7 @@ where
   + The lattice satisfies ACC.
 ]
 
-The proof is similar to chaotic iteration.
-We observe that only variables whose inputs changed need recomputation.
+Proof follows chaotic iteration: only variables whose inputs changed need recomputation.
 
 == Iteration Strategies
 
@@ -298,7 +295,7 @@ The order of processing the worklist affects performance significantly.
   - Total: $O("loop depth" dot n dot d)$.
 ]
 
-The key insight: good iteration order reduces the constant factor dramatically!
+Good iteration order reduces the constant factor dramatically.
 
 #proof[
   Each variable can increase at most $h$ times (lattice height).
@@ -337,7 +334,7 @@ For infinite-height lattices, combine worklist with widening.
   + *return* $sigma$
 ]
 
-To support this in Rust, we extend our `AbstractDomain` trait with a `widen` method:
+Extend the `AbstractDomain` trait with a `widen` method:
 
 ```rust
 pub trait AbstractDomain: Clone + PartialEq + Debug {
@@ -511,8 +508,6 @@ Applying widening too early loses precision unnecessarily.
 ]
 
 == Chapter Summary
-
-This chapter developed practical fixpoint algorithms:
 
 - *Chaotic iteration* allows flexible update orders with convergence guarantees.
 - *Worklist algorithms* track dependencies to minimize recomputation.

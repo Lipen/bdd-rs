@@ -4,12 +4,10 @@
 
 #reading-path(path: "implementation")
 
-In @ch-domain-combinations, we established the theory of *Trace Partitioning* and *Reduced Products*.
-Now, we will implement the "Killer Feature" of our analyzer.
-We will use Binary Decision Diagrams (BDDs) as the trace partitioning domain.
+@ch-domain-combinations established the theory of *Trace Partitioning* and *Reduced Products*.
+We now implement the "Killer Feature": using Binary Decision Diagrams (BDDs) as the trace partitioning domain.
 
-This architecture solves the "Diamond Problem" (loss of precision at join points).
-It maintains separate abstract states for different execution paths, efficiently compressed by the BDD.
+This architecture solves the "Diamond Problem" (loss of precision at join points) by maintaining separate abstract states for different execution paths, efficiently compressed by the BDD.
 
 == The BDD Product Domain
 
@@ -76,8 +74,7 @@ fn meet(&self, other: &Self) -> Self {
 
 == The Transfer Function: Assume & Filter
 
-The magic happens in the `assume` function (filtering).
-When the program encounters a condition `if x > 0`, we update *both* the BDD control state and the data state.
+The `assume` function (filtering) updates *both* the BDD control state and the data state when the program encounters a condition `if x > 0`.
 
 + *Control Update*: We AND the current path condition with the BDD variable representing `x > 0`.
 + *Data Update*: We refine the data domain using `assume(x > 0)`.

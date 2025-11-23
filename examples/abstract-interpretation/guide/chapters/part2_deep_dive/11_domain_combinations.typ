@@ -4,9 +4,9 @@
 
 #reading-path(path: "advanced")
 
-In the previous chapters, we explored individual abstract domains like Intervals and Signs.
-However, real-world analysis often requires tracking multiple properties simultaneously or capturing relationships between them.
-This chapter formalizes the algebra of *combining* abstract domains.
+Previous chapters explored individual abstract domains like Intervals and Signs.
+Real-world analysis often requires tracking multiple properties simultaneously or capturing relationships between them.
+We formalize the algebra of *combining* abstract domains.
 
 We will explore:
 - *Direct Products*: Running multiple analyses in parallel.
@@ -16,8 +16,7 @@ We will explore:
 
 == The Direct Product
 
-The simplest way to combine two domains $A$ and $B$ is the *direct product*.
-This corresponds to running two independent analyses and pairing their results.
+Combine two domains $A$ and $B$ via the *direct product*: run two independent analyses and pair their results.
 
 #definition(title: "Direct Product Domain")[
   Given two abstract domains $A$ and $B$, their direct product $A times B$ is defined as:
@@ -28,7 +27,7 @@ This corresponds to running two independent analyses and pairing their results.
   - *Concretization*: $gamma((a, b)) = gamma_A (a) inter gamma_B (b)$.
 ]
 
-The direct product allows us to answer questions that neither domain could answer alone, but it does not allow the domains to *help* each other.
+The direct product answers questions neither domain could answer alone, but domains cannot *help* each other.
 
 #example-box(title: "Loss of Precision in Direct Product")[
   Consider the product of *Signs* and *Parity* domains.
@@ -55,7 +54,7 @@ The *reduced product* improves upon the direct product by allowing information e
   + $(a', b') lle (a, b)$ (Improvement: result is smaller or equal).
 ]
 
-The goal of reduction is to propagate constraints discovered by one domain to the other.
+Reduction propagates constraints discovered by one domain to the other.
 
 #example-box(title: "Reduction Example")[
   *Intervals* $times$ *Congruence*.

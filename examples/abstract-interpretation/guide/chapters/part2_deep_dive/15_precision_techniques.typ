@@ -4,10 +4,8 @@
 
 #reading-path(path: "advanced")
 
-In the previous chapters, we built a functional analyzer.
-It is sound, meaning it will never miss a bug.
-However, a sound analyzer is not necessarily a *useful* one.
-If it reports a potential violation for every single input, it provides no value.
+Previous chapters built a functional analyzer that is sound (never misses a bug).
+A sound analyzer is not necessarily *useful*: reporting a potential violation for every input provides no value.
 This is the "False Positive" problem.
 
 The central craft of Abstract Interpretation is balancing three competing goals:
@@ -15,22 +13,18 @@ The central craft of Abstract Interpretation is balancing three competing goals:
 + *Performance*: Analyzing large programs quickly (seconds, not hours).
 + *Termination*: Ensuring the analysis always finishes, even with loops.
 
-This chapter catalogs the advanced techniques required to turn a toy analyzer into a production-grade tool.
-We will move beyond simple domains and explore how to combine them, split them, and accelerate them.
+We catalog advanced techniques to turn a toy analyzer into a production-grade tool, exploring how to combine, split, and accelerate domains.
 
 == The Power of Combination: Reduced Products
 
-Real-world programs are complex.
-They involve boolean logic ("allow if Admin and id > 100"), arithmetic ("buffer size > 64"), and set membership ("value in [0, 100]").
-No single abstract domain is good at all of these.
+Real-world programs involve boolean logic ("allow if Admin and id > 100"), arithmetic ("buffer size > 64"), and set membership ("value in [0, 100]").
+No single abstract domain handles all of these well.
 
 - *BDDs* are excellent for boolean logic and sets of discrete values, but they explode when tracking arithmetic ranges.
 - *Intervals* are great for arithmetic bounds ($min <= x <= max$) but lose relationships between variables (e.g., $x = y$).
 
-To get the best of both worlds, we run multiple domains in parallel.
-This is called a *Product Domain*.
-However, simply running them side-by-side is not enough; they must communicate.
-This communication is called *Reduction*.
+We run multiple domains in parallel (*Product Domain*).
+Simply running them side-by-side is not enough; they must communicate via *Reduction*.
 
 #intuition-box[
   *The Two Detectives*

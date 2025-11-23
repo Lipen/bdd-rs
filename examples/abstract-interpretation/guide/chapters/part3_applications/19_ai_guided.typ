@@ -9,9 +9,9 @@
   Unlike the previous chapters, these methods are active research topics and not yet standard practice.
 ]
 
-The intersection of Artificial Intelligence --- specifically Large Language Models (LLMs) --- and Formal Methods represents a rapidly evolving frontier.
-While Abstract Interpretation provides rigorous mathematical guarantees, it often grapples with computational complexity and the precision loss inherent in the "widening" operators required for termination.
-Conversely, AI models excel at pattern recognition and heuristic guessing but lack formal guarantees.
+The intersection of Artificial Intelligence (specifically Large Language Models) and Formal Methods represents a rapidly evolving frontier.
+Abstract Interpretation provides rigorous mathematical guarantees but often grapples with computational complexity and precision loss from "widening" operators.
+AI models excel at pattern recognition and heuristic guessing but lack formal guarantees.
 
 == The Wizard and the Clerk
 

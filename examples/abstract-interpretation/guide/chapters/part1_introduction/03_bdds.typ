@@ -2,19 +2,19 @@
 
 = Symbolic Reasoning with BDDs <ch-bdds>
 
-In @ch-control-flow, we saw that tracking every execution path individually leads to the *path explosion problem*.
+@ch-control-flow showed that tracking every execution path individually leads to *path explosion*.
 
-To build a scalable verifier, we need a mechanism to represent *sets of states* efficiently.
+To build a scalable verifier, we need a mechanism representing *sets of states* efficiently.
 
 This chapter introduces the *Binary Decision Diagram (BDD)*, the core data structure powering our Symbolic Analyzer.
 
-Instead of enumerating states as a list, we represent them as a *Boolean function*.
+Instead of enumerating states as lists, we represent them as *Boolean functions*.
 
 == From Sets to Functions
 
-A fundamental insight in symbolic execution is the correspondence between sets and functions.
+A fundamental insight: sets and functions correspond.
 
-We can represent any subset $S$ of a universe $U$ using a *characteristic function* $f_S : U -> {0, 1}$:
+We represent any subset $S$ of universe $U$ using a *characteristic function* $f_S : U -> {0, 1}$:
 
 $ f_S (x) = cases(1 &"if" x in S, 0 &"if" x in.not S) $
 
@@ -22,9 +22,9 @@ If we can represent $f_S$ compactly, we effectively represent the set $S$ compac
 
 === Constraints as Boolean Formulas
 
-In a CFG, a path is determined by the sequence of decisions made at branching points.
+In a CFG, a path is determined by decisions made at branch points.
 
-By assigning a Boolean variable to each branch condition, we can encode paths as logical formulas.
+By assigning Boolean variables to branch conditions, we encode paths as logical formulas.
 
 Consider the following IMP snippet:
 
@@ -65,9 +65,9 @@ Using Boolean algebra, this simplifies to just $B$.
 
 == Formal Definition of BDDs
 
-A *Binary Decision Diagram (BDD)* is a graph-based data structure representing a Boolean function $f: {0, 1}^n -> {0, 1}$.
+A *Binary Decision Diagram (BDD)* is a graph-based data structure representing Boolean function $f: {0, 1}^n -> {0, 1}$.
 
-Its construction relies on the *Shannon Expansion*.
+Construction relies on the *Shannon Expansion*.
 
 #definition(title: "Shannon Expansion")[
   Any Boolean function $f(x_1, ..., x_n)$ can be decomposed with respect to a variable $x_i$:
@@ -79,13 +79,13 @@ Its construction relies on the *Shannon Expansion*.
 
 Recursively applying this expansion yields a *Decision Tree*.
 
-Since trees grow exponentially with the number of variables ($2^n$ leaves), we transform the tree into a *Directed Acyclic Graph (DAG)* to achieve compactness.
+Since trees grow exponentially with variable count ($2^n$ leaves), we transform the tree into a *Directed Acyclic Graph (DAG)* for compactness.
 
 === Ordered Binary Decision Diagrams (OBDD)
 
-A BDD is *Ordered* (OBDD) if the variables appear in the same fixed order on all paths from the root to the terminals.
+A BDD is *Ordered* (OBDD) if variables appear in the same fixed order on all root-to-terminal paths.
 
-For instance, given the natural ordering $A < B < C$, every path tests $A$ before $B$, and $B$ before $C$.
+For instance, given ordering $A < B < C$, every path tests $A$ before $B$, and $B$ before $C$.
 
 #pitfall-box[
   *Variable Ordering Matters!*
@@ -282,8 +282,8 @@ To illustrate these concepts, let us visualize the reduction of the decision tre
 
 == Complexity of Core Operations <sec-bdd-complexity>
 
-Operation cost depends on input BDD sizes and variable ordering quality rather than raw path count.
-Let $n$ be the number of variables and let $|B|$ denote node count.
+Operation cost depends on input BDD sizes and variable ordering quality, not raw path count.
+Let $n$ be variable count and $|B|$ denote node count.
 
 #table(
   columns: (auto, 1fr),
@@ -307,8 +307,8 @@ Let $n$ be the number of variables and let $|B|$ denote node count.
 
 == Research Spotlight: Variable Ordering Heuristics <sec-ordering-spotlight>
 
-Variable ordering dominates BDD size and thus memory and time.
-Several approaches have been developed:
+Variable ordering dominates BDD size, thus memory and time.
+Several approaches exist:
 
 - *Static Heuristics*: Domain-driven grouping (e.g., related bitfields adjacent) applied once at initialization.
 - *Dynamic Sifting*: Iteratively moving a variable through the order to minimize size locally.
@@ -347,9 +347,9 @@ Several approaches have been developed:
 
 == The `SymbolicManager`
 
-In our Analyzer, we must bridge the gap between the "semantic" world of the AST (nodes like `x > 0`) and the "numeric" world of the BDD library (integer variables like 1, 2, 3).
+In our Analyzer, we bridge the gap between the "semantic" AST world (nodes like `x > 0`) and the "numeric" BDD library world (integer variables like 1, 2, 3).
 
-We implement a `SymbolicManager` to handle this translation and ensure consistency.
+We implement a `SymbolicManager` to handle translation and ensure consistency.
 
 #info-box(title: "Design Pattern")[
   The `SymbolicManager` acts as a facade over the raw BDD manager.
@@ -394,38 +394,39 @@ impl SymbolicManager {
   Think of it like a "file descriptor" --- you need the OS (Manager) to read the file.
 ]
 
-The workflow is:
-+ When the analyzer encounters a condition (e.g., `x > 0`) for the first time, the manager allocates a new BDD variable (e.g., index 1) and stores the mapping.
-+ When the same condition is encountered later, the manager retrieves the existing mapping and returns the same BDD variable.
+The workflow:
++ When analyzer encounters a condition (e.g., `x > 0`) for the first time, manager allocates a new BDD variable (e.g., index 1) and stores the mapping.
++ When the same condition appears later, manager retrieves existing mapping and returns the same BDD variable.
 
-This guarantees that the *same* logical condition is always represented by the *same* BDD variable, preserving the logical consistency of the analysis.
+This guarantees the *same* logical condition always gets the *same* BDD variable, preserving logical consistency.
 
 == Why BDDs Solve State Explosion
 
-As discussed in @ch-control-flow, a sequence of $N$ branches can create $2^N$ paths.
+@ch-control-flow showed: $N$ branches can create $2^N$ paths.
 
-BDDs mitigate this explosion by exploiting structure and independence.
+BDDs mitigate this by exploiting structure and independence.
 
-If decisions do not interact (e.g., independent checks), the BDD size grows *linearly* with the number of variables, rather than exponentially.
+When decisions don't interact (e.g., independent checks), BDD size grows *linearly* with variable count, not exponentially.
 
 For example, consider 100 independent `if` statements:
 - *Explicit Paths*: $2^100$ paths (computationally intractable).
 - *BDD Nodes*: $2 times 100 = 200$ nodes (trivial to store).
 
-The BDD automatically "factors out" the independence.
+The BDD automatically factors out independence.
 
-Explosion typically occurs only when variables are heavily correlated in complex ways (e.g., cryptographic hashes), which is less common in typical control logic.
+Explosion typically occurs only when variables are heavily correlated in complex ways (e.g., cryptographic hashes).
+This is less common in typical control logic.
 
 
 == Summary
 
 - *Sets of states* are represented as *Boolean functions*.
-- *BDDs* provide a compact, canonical graph representation of these functions.
-- *Reduction rules* (Isomorphism and Redundant Tests) compress the representation by sharing common sub-structures.
+- *BDDs* provide compact, canonical graph representations of these functions.
+- *Reduction rules* (Isomorphism and Redundant Tests) compress by sharing common substructures.
 - The *`SymbolicManager`* maps program conditions to BDD variables, ensuring consistency.
 
 #info-box(title: "Explore BDD Operations")[
-  To see boolean operations in action, check out the example below which demonstrates AND, OR, XOR, and their algebraic properties like De Morgan's laws and absorption.
+  To see boolean operations in action, check out the example demonstrating AND, OR, XOR, and their algebraic properties like De Morgan's laws and absorption.
 ]
 
 #example-reference(
@@ -438,4 +439,4 @@ Explosion typically occurs only when variables are heavily correlated in complex
   ],
 )
 
-In the next chapter, we will implement the `AnalysisManager` and the core BDD interface in Rust.
+Next chapter: we implement the `AnalysisManager` and core BDD interface in Rust.

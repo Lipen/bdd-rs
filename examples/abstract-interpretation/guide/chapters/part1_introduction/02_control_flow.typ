@@ -4,11 +4,11 @@
 
 = Control Flow and Program Structure <ch-control-flow>
 
-In the previous chapter, we defined the syntax of our Toy Language (IMP) using an Abstract Syntax Tree (AST).
-While ASTs are excellent for representing the *structure* of the code (how it is written), they are often awkward for analyzing its *behavior* (how it executes).
+The previous chapter defined our Toy Language (IMP) using an Abstract Syntax Tree (AST).
+ASTs excel at representing code *structure* (how it's written), but analyzing *behavior* (how it executes) is awkward.
 
-To analyze a program, we need to view it not as a hierarchy of rules, but as a network of possible execution paths.
-This representation is called the *Control Flow Graph (CFG)*.
+To analyze a program, we need to see it not as a hierarchy of rules, but as a network of execution paths.
+This representation is the *Control Flow Graph (CFG)*.
 
 #insight-box[
   *Analogy:* Think of an AST as a *Rule Book* --- it lists regulations chapter by chapter.
@@ -17,9 +17,9 @@ This representation is called the *Control Flow Graph (CFG)*.
 
 == From AST to CFG
 
-An AST is recursive and hierarchical.
-Program execution, however, is sequential (instruction-by-instruction) and sometimes jumps between blocks.
-A CFG "flattens" the recursive structure into a graph.
+ASTs are recursive and hierarchical.
+Program execution is sequential (instruction-by-instruction) and sometimes jumps between blocks.
+A CFG "flattens" recursive structure into a graph.
 
 #definition(title: "Control Flow Graph")[
   A *Control Flow Graph* is a directed graph $G = (V, E, v_"entry")$ where:
@@ -93,9 +93,9 @@ Let's visualize how each structure is transformed.
 
 === Sequence (`s1; s2`)
 
-Sequences are simply concatenated.
-If `s1` is just a modification, `s2` is appended to it.
-If~`s1` contains control flow, it will end the current block, and `s2` will start in a new block.
+Sequences are concatenated.
+If `s1` is just a modification, `s2` appends to it.
+If `s1` contains control flow, it ends the current block and `s2` starts a new one.
 
 === Branch (`if m { t } else { e }`)
 
@@ -147,7 +147,7 @@ A branch splits the execution flow into two paths that eventually merge.
 === Loops
 
 While our toy language PFL is loop-free, general programs have loops.
-We need a "Header" block to evaluate the loop condition every time the execution loops.
+We need a "Header" block to evaluate the condition each time execution loops.
 
 #figure(
   caption: [Translation of a `while` loop into CFG blocks.],
@@ -191,11 +191,11 @@ We need a "Header" block to evaluate the loop condition every time the execution
 
 == The Path Explosion Problem
 
-Why do we go through all this trouble?
+Why all this trouble?
 Why is program verification so hard?
 
-The answer lies in the structure of the CFG.
-Every time we encounter a branch, the number of possible execution paths multiplies.
+The answer lies in CFG structure.
+Every branch multiplies the number of possible execution paths.
 
 Consider a sequence of just 3 independent checks in IMP:
 
@@ -260,16 +260,16 @@ This is *exponential growth*.
   }),
 )
 
-If we analyze a loop by unrolling it (simulating each iteration), 100 iterations is conceptually similar to 100 nested `if` statements.
-The number of paths becomes astronomical ($2^100$).
+Analyzing a loop by unrolling it (simulating each iteration) treats 100 iterations like 100 nested `if` statements.
+Path count becomes astronomical ($2^100$).
 
 === Path Sensitivity vs. Scalability
 
-We want our analysis to be *Path Sensitive*.
+We want *Path Sensitive* analysis.
 This means distinguishing between different execution histories.
 
-- *Path Insensitive*: "At this point, `x` could be anything." (Fast, but imprecise)
-- *Path Sensitive*: "If we took the True branch, `x` is positive. If we took the False branch, `x`~is~negative." (Precise, but expensive)
+- *Path Insensitive*: "At this point, `x` could be anything." (Fast, imprecise)
+- *Path Sensitive*: "If we took True branch, `x` is positive. If False branch, `x` is negative." (Precise, expensive)
 
 #warning-box(title: "The Dilemma")[
   We want the precision of path sensitivity without the cost of enumerating exponential paths.
@@ -280,7 +280,7 @@ This means distinguishing between different execution histories.
 == The Solution: Symbolic Representation
 
 We need a "Third Way."
-We need a data structure that can represent *sets of states* compactly, without listing them one by one.
+We need a data structure representing *sets of states* compactly, without listing them individually.
 
 #intuition-box[
   *Extensional vs. Intensional Definition*
@@ -290,22 +290,22 @@ We need a data structure that can represent *sets of states* compactly, without 
     $ S = {s_1, s_2, dots, s_n} $
     This is computationally infeasible when $|S|$ is large (e.g., $|cal(U)| approx 2^256$).
 
-  - *Intensional:* Specifying a logical predicate $P$ that characterizes the set.
+  - *Intensional:* Specifying a logical predicate $P$ characterizing the set.
     $ S = {x in cal(U) mid(|) P(x)} $
 
-  Symbolic execution relies on the *intensional* approach.
-  A BDD encodes the *characteristic function* $chi_S: cal(U) -> {0, 1}$ defined as:
-  $ chi_S(x) = cases(1 &"if" P(x) "is true", 0 &"otherwise") $
-  This allows us to manipulate the *logic* of the set (the function $chi_S$) rather than enumerating its elements.
+  Symbolic execution uses the *intensional* approach.
+  A BDD encodes the *characteristic function* $chi_S: cal(U) -> {0, 1}$:
+  $ chi_S (x) = cases(1 &"if" P(x) "is true", 0 &"otherwise") $
+  This lets us manipulate the *logic* of the set (function $chi_S$) rather than enumerating elements.
 ]
 
-In this guide, we will use *Binary Decision Diagrams (BDDs)* as our symbolic representation.
-BDDs will allow us to:
-+ Encode the logic of the program.
-+ Represent huge sets of program states efficiently.
-+ Perform operations on these sets (like "join" or "intersection") mathematically.
+In this guide, we use *Binary Decision Diagrams (BDDs)* as our symbolic representation.
+BDDs let us:
++ Encode program logic.
++ Represent huge state sets efficiently.
++ Perform operations (join, intersection) on these sets mathematically.
 
-In the next chapter, we will dive into BDDs and see how they work their magic.
+Next chapter: we dive into how BDDs work their magic.
 
 #chapter-summary[
   - *CFGs capture behavior.*

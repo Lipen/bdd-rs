@@ -202,11 +202,9 @@ impl AnalysisManager {
 
 == Allocating Conditions
 
-The core method is `get_condition_var`.
-It takes a `Condition` and returns a BDD `Ref`.
-
+`get_condition_var` takes a `Condition` and returns a BDD `Ref`.
 If we've seen this condition before, return the existing variable.
-If not, create a new one.
+Otherwise, allocate a new one.
 
 ```rust
 impl AnalysisManager {
@@ -228,24 +226,21 @@ impl AnalysisManager {
 ```
 
 #warning-box(title: "The Boolean Abstraction Gap")[
-  Our simple manager treats every distinct `Condition` as a completely independent boolean variable.
+  Our simple manager treats each `Condition` as an independent boolean variable.
 
-  For example, if we encounter `x > 0` and `x > 5`, they will be assigned two different variables, say $1$ and $2$.
-  The BDD will allow both to be true simultaneously ($1 and 2$), which is fine.
-  However, it also allows $1 and not 2$ (x > 0 but not x > 5), which is also fine.
-  But it allows $not 1 and 2$ (not x > 0 but x > 5), which is logically impossible!
+  If we encounter `x > 0` and `x > 5`, they get separate variables $1$ and $2$.
+  The BDD allows $1 and 2$ (fine), $1 and not 2$ (fine), but also $not 1 and 2$ (impossible: `x > 5` implies `x > 0`).
 
-  This is known as *Boolean Abstraction*.
-  We lose the semantic relationships between arithmetic constraints.
-  Fixing this requires a more sophisticated mapping strategy (e.g., SMT integration or domain refinement), but for now, we accept this precision loss.
+  This is *Boolean Abstraction*: we lose semantic relationships between arithmetic constraints.
+  Fixing this requires SMT integration or domain refinement, but we accept this precision loss for now.
 ]
 
-This simple logic guarantees that `x > 0` always maps to the same BDD variable, ensuring consistency across the entire analysis.
-This is crucial: if we mapped `x > 0` to variable `1` in one place and variable `2` in another, the BDD would treat them as independent facts!
+This guarantees `x > 0` always maps to the same BDD variable, ensuring consistency.
+Mismapping it to `1` in one place and `2` elsewhere would create independent facts.
 
 == Exposing BDD Operations
 
-We also need to expose the BDD operations (AND, OR, NOT) so the rest of the engine can use them without touching the raw `Bdd` field directly.
+We expose AND, OR, NOT so the rest of the engine can use them without touching the raw `Bdd` field.
 This encapsulates the BDD logic.
 
 ```rust
@@ -279,9 +274,8 @@ impl AnalysisManager {
 
 == Debugging with Graphviz
 
-BDDs are graphs, so the best way to debug them is to look at them!
-We exposed a `to_dot` method in our manager.
-Here is how to use it:
+BDDs are graphs --- visualize them to debug.
+We exposed a `to_dot` method in our manager:
 
 ```rust
 // Inside main()
@@ -302,8 +296,7 @@ dot -Tpng output.dot -o output.png
 
 == Putting It Together
 
-Let's test our manager with a simple scenario.
-We will use the `Var`, `Op`, and `Condition` types we defined earlier.
+Test our manager with a simple scenario using the `Var`, `Op`, and `Condition` types:
 
 ```rust
 // Make sure to include the AST definition from above!
@@ -334,8 +327,8 @@ fn main() {
 }
 ```
 
-This `AnalysisManager` is the foundation of our symbolic execution engine.
-In the next chapter, we will use it to "execute" our IMP programs and build these BDDs automatically.
+`AnalysisManager` is the foundation of our symbolic execution engine.
+Next chapter, we use it to "execute" IMP programs and build BDDs automatically.
 
 #info-box(title: "Advanced BDD Topics")[
   For production BDD engines, two advanced topics are critical:
@@ -358,7 +351,6 @@ In the next chapter, we will use it to "execute" our IMP programs and build thes
 
 == Manager Internals Deep Dive <sec-manager-internals>
 
-We now enrich the conceptual picture with concrete internal data structures.
 The `Bdd` manager maintains three critical components:
 
 + *Unique Table*: Hash map keyed by `(var, low, high)` ensuring canonical node reuse.
@@ -379,9 +371,7 @@ The `Bdd` manager maintains three critical components:
 === Apply Operation Workflow <sec-apply-workflow>
 
 Every binary boolean operation follows a recursive pattern.
-Given an input pair `(f, g)` and operator `op`, the algorithm returns a canonical `Ref`.
-
-The workflow consists of six steps:
+Given `(f, g)` and operator `op`, the algorithm returns a canonical `Ref` through six steps:
 
 #[
   #set enum(numbering: it => [*Step #it:*])
@@ -416,8 +406,8 @@ The workflow consists of six steps:
 
 === Instrumentation and Metrics <sec-instrumentation>
 
-We add lightweight counters to monitor performance characteristics.
-Suggested metrics include:
+Add lightweight counters to monitor performance.
+Suggested metrics:
 
 - *Node Creations*: Count of unique table insertions.
 - *Cache Hits / Misses*: Ratio guiding apply optimization.
@@ -445,10 +435,10 @@ Suggested metrics include:
 
 === Concurrency and Thread Safety <sec-concurrency>
 
-BDD managers rely on global uniqueness, which complicates multi-threaded usage.
-Naive parallel apply operations can race during node creation, leading to duplicate nodes that violate canonicity.
+BDD managers rely on global uniqueness, complicating multi-threaded usage.
+Parallel apply operations can race during node creation, violating canonicity.
 
-Safe strategies include:
+Safe strategies:
 
 - *Sharding*: Partition variable sets and build partial BDDs, then combine sequentially.
 - *Task Queues*: Serialize unique table insertions while allowing parallel cofactor recursion.
@@ -507,10 +497,10 @@ Emerging work couples ML models predicting beneficial swap candidates using feat
 
 == Summary
 
-- We set up a Rust project with `bdd-rs` dependency.
-- We implemented `AnalysisManager` to map `Condition` AST nodes to BDD variables.
-- We ensured that identical conditions map to identical variables (canonicalization).
-- We exposed basic Boolean operations.
+- Set up Rust project with `bdd-rs` dependency.
+- Implemented `AnalysisManager` to map `Condition` AST nodes to BDD variables.
+- Ensured identical conditions map to identical variables (canonicalization).
+- Exposed basic Boolean operations.
 
 Next: *Symbolic Execution*.
-We will write the code that walks the IMP programs and builds these BDDs automatically.
+We write the code that walks IMP programs and builds BDDs automatically.

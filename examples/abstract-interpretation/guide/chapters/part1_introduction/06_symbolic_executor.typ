@@ -3,9 +3,7 @@
 = A Complete Example: Symbolic Execution Engine <ch-symbolic-executor>
 
 Theory and fragments are valuable, but nothing beats a complete working example.
-This chapter implements a simple symbolic execution engine for IMP programs using BDDs.
-
-This chapter will analyze real programs, track execution flows symbolically, and detect bugs like unreachable code.
+This chapter implements a simple symbolic execution engine for IMP programs using BDDs, analyzing real programs, tracking execution flows symbolically, and detecting bugs like unreachable code.
 
 == What is Symbolic Execution?
 
@@ -17,42 +15,37 @@ Traditional execution:
 fn check(x: i32) -> Status {
     if x > 0 { Safe } else { Error }
 }
-
-// Concrete: check(5) = Safe
 ```
 
 Symbolic execution:
 
 ```rust
 // Symbolic: x is symbol α
-// Path 1: α > 0 → Status = Safe
-// Path 2: α <= 0 → Status = Error
+// Path 1: α > 0 → Safe
+// Path 2: α <= 0 → Error
 ```
 
-Symbolic execution generates path conditions (Boolean formulas) and symbolic states for variables.
+Symbolic execution generates path conditions (Boolean formulas) and symbolic states.
 
 #definition(title: "Symbolic Program Execution")[
-  Symbolic execution simulates program flows with symbolic variables while maintaining three key elements.
-  + The *path condition* is a Boolean formula describing the constraints on the inputs to reach this point.
-  + The *symbolic state* maps each variable to a symbolic expression or value set.
-  + During *flow exploration*, we fork at branches to explore both true and false paths.
+  Symbolic execution simulates program flows with symbolic variables, maintaining:
+  + *Path condition*: Boolean formula describing constraints on inputs to reach this point.
+  + *Symbolic state*: Maps each variable to a symbolic expression or value set.
+  + *Flow exploration*: Fork at branches to explore both true and false paths.
 ]
 
-This implementation takes a hybrid approach.
-Rather than using explicit formulas or constraint solvers for path conditions, it represents them compactly as BDDs.
-The symbolic values themselves remain as expressions, but the feasibility of paths is tracked through BDD operations.
-This combines the precision of symbolic execution with the efficiency of BDD-based path representation explored in earlier chapters.
+This implementation takes a hybrid approach: path conditions are represented compactly as BDDs instead of explicit formulas or constraint solvers.
+Symbolic values remain as expressions, but path feasibility is tracked through BDD operations.
+This combines symbolic execution precision with BDD-based path representation efficiency.
 
 == Architecture Overview
-
-Components:
 
 + *Condition Language:* Represent program conditions
 + *Symbolic State:* Path condition (BDD) + variable environment
 + *Program Walker:* Execute statements, update state
 + *Path Explorer:* Manage multiple paths, detect conflicts
 
-This chapter brings together everything we've learned --- abstract domains, BDDs, control flow, and path-sensitive analysis --- into a complete symbolic execution engine.
+This brings together everything we've learned --- abstract domains, BDDs, control flow, and path-sensitive analysis.
 Study this implementation to see all the pieces working in harmony:
 
 #example-reference(
@@ -194,8 +187,8 @@ state.assign(Var::X, 10);
 
 == Branching
 
-When encountering an `If` statement, we must split execution.
-Crucially, we first *evaluate* the condition to its symbolic form, then check if we've seen it before.
+When encountering an `If` statement, we split execution.
+We first evaluate the condition to its symbolic form, then check if we've seen it before.
 
 ```rust
 impl SymbolicState {
@@ -222,8 +215,8 @@ impl SymbolicState {
 }
 ```
 
-By using the `AnalysisManager`, we ensure that if the program checks `if x > 0` twice, we use the same BDD variable.
-This allows the BDD to automatically deduce that the second check is redundant!
+By using `AnalysisManager`, we ensure identical conditions map to the same BDD variable.
+This lets the BDD deduce that a repeated check (e.g., `if x > 0` twice) is redundant.
 
 #figure(
   caption: [Flow forking at branches. Starting from an initial state, each `Condition` allocates a fresh BDD variable and splits into two states. The true branch updates the path with $(p and c)$, the false branch with $(p and not c)$ where $p$ is the current path condition. Both branches inherit the symbolic environment.],
@@ -408,7 +401,7 @@ impl ProgramWalker {
 
 == Complete Example: Simple Program
 
-Let's analyze a simple program end-to-end.
+Analyze a simple program end-to-end:
 
 ```rust
 fn program_example() {
@@ -459,10 +452,10 @@ Two paths, both feasible, covering the entire input space.
 
 == Enhancements for Real Systems
 
-This toy executor lacks several features needed for production use.
-It needs *Interval Analysis* to handle ranges efficiently.
-*Abstract domain integration* would let us use intervals or signs to refine paths.
-*SMT solver integration* is essential for checking complex arithmetic constraints (e.g., `x + y > 10`).
+This toy executor lacks features needed for production.
+*Interval Analysis* handles ranges efficiently.
+*Abstract domain integration* uses intervals or signs to refine paths.
+*SMT solver integration* checks complex arithmetic constraints (e.g., `x + y > 10`).
 *Loop handling* requires fixpoint iteration.
 *Function calls* demand inter-procedural analysis.
 
@@ -489,19 +482,19 @@ struct RefinedState<D: AbstractDomain> {
 
 #info-box(title: "Symbolic Execution vs Abstract Interpretation")[
 
-  *Symbolic Execution:*
+  *Symbolic Execution*
   - Explores paths explicitly (or with BDDs)
   - Maintains precise symbolic variables
   - Uses SMT solvers for feasibility
   - Goal: Find specific input that crashes program
 
-  *Abstract Interpretation:*
+  *Abstract Interpretation*
   - Over-approximates all paths
   - Uses abstract domains (Intervals, Signs)
   - Guaranteed termination
   - Goal: Prove program correctness for *all* inputs
 
-  *Hybrid approach:*
+  *Hybrid approach*
   - BDDs for control flow
   - Abstract domains for data
   - Best of both worlds
@@ -512,7 +505,6 @@ struct RefinedState<D: AbstractDomain> {
 === Path Explosion
 
 Even with BDDs, deeply nested branches create explosion.
-
 Mitigation strategies:
 - Bound exploration depth
 - Prioritize paths (heuristics)
@@ -546,7 +538,7 @@ They can detect buffer overflows, null pointer dereferences, and dead code.
 
 == Summary
 
-The chapter built a simple symbolic execution engine:
+Built a simple symbolic execution engine:
 - Condition and Statement language
 - Symbolic state with BDD path conditions
 - Program Walker exploring all paths

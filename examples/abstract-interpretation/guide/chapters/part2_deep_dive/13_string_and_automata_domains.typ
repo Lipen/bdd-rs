@@ -4,8 +4,8 @@
 
 #reading-path(path: "advanced") #h(0.7em) #reading-path(path: "implementation")
 
-String-heavy programs require reasoning about concatenation, length, prefixes/suffixes, and membership in regular sets (e.g., input validation, sanitization).
-This chapter develops abstract domains for strings, from lightweight numeric properties to regular-language abstractions via finite automata, and discusses widenings and reduced products.
+String-heavy programs require reasoning about concatenation, length, prefixes/suffixes, and membership in regular sets (input validation, sanitization).
+We develop abstract domains for strings, from lightweight numeric properties to regular-language abstractions via finite automata.
 
 == Motivation and Threat Model
 
@@ -57,8 +57,8 @@ Represent sets of strings with a deterministic finite automaton (DFA) $A = (Q, q
 
 == Transformers for Common Operations
 
-- Concatenation: $L(A_x dot A_y) = { x y mid(|) x in L(A_x), y in L(A_y) }$ via epsilon-bridge construction with determinization.
-- Prefix/Suffix: $"prefix"_k(L)$ and $"suffix"_k(L)$ realized by state annotation up to bound $k$; widen by increasing $k$ lazily.
+- Concatenation: $L(A_x dot A_y) = { x y | x in L(A_x), y in L(A_y) }$ via epsilon-bridge construction with determinization.
+- Prefix/Suffix: $"prefix"_k (L)$ and $"suffix"_k (L)$ realized by state annotation up to bound $k$; widen by increasing $k$ lazily.
 - Replace: Over-approximate $"replace"(s, "re", r)$ by composing with a transducer; when unavailable, approximate by charset and length effects plus inclusion checks.
 - Substring: Restrict by positions using length bounds; refine with automata if indices are narrow.
 

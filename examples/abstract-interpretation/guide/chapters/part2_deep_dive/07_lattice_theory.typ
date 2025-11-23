@@ -4,9 +4,7 @@
 
 #reading-path(path: "advanced")
 
-This chapter provides the mathematical foundations for abstract interpretation.
-We develop the theory of complete lattices, fixpoint theorems, and Galois connections.
-These are the essential tools for understanding program analysis rigorously.
+We develop the theory of complete lattices, fixpoint theorems, and Galois connections --- the essential mathematical foundations for understanding program analysis rigorously.
 
 == Partial Orders and Lattices
 
@@ -37,9 +35,7 @@ These are the essential tools for understanding program analysis rigorously.
   This is called a *partially ordered set* or *poset*.
 ]
 
-The partial order represents the *precision ordering* in abstract interpretation.
-$x <= y$ means "$x$ is more precise than $y$".
-Alternatively, "$x$ approximates fewer concrete behaviors than $y$".
+The partial order is the *precision ordering* in abstract interpretation: $x <= y$ means "$x$ is more precise than $y$", or "$x$ approximates fewer concrete behaviors".
 
 #example-box[
   *Real-World Example: Integer Intervals*
@@ -131,8 +127,8 @@ Alternatively, "$x$ approximates fewer concrete behaviors than $y$".
 ]
 
 These operations correspond to *join* ($ljoin$) and *meet* ($lmeet$) in abstract interpretation.
-The join computes the least precise abstraction containing both inputs (over-approximation).
-The meet finds the most precise common refinement.
+Join computes the least precise abstraction containing both inputs (over-approximation).
+Meet finds the most precise common refinement.
 
 #definition(title: "Lattice")[
   A poset $(L, <=)$ is a *lattice* if every pair of elements $x, y in L$ has both:
@@ -283,8 +279,8 @@ We refine approximations until reaching a fixpoint.
   Intuitively, increasing precision in the input increases precision in the output.
 ]
 
-All abstract operations in program analysis must be monotone to ensure sound approximation.
-If an analysis loses precision when given more precise inputs, something is wrong.
+Abstract operations in program analysis must be monotone to ensure sound approximation.
+If analysis loses precision when given more precise inputs, something is wrong.
 
 #example-box[
   *Monotone functions on Intervals:*
@@ -314,14 +310,13 @@ If an analysis loses precision when given more precise inputs, something is wron
   Let $f: L -> L$ be a function on a poset.
   An element $x in L$ is a *fixpoint* of $f$ if $f(x) = x$.
 
-  The set of all fixpoints is denoted $"Fix"(f) = {x in L mid(|) f(x) = x}$.
+  The set of all fixpoints is $"Fix"(f) = {x in L mid(|) f(x) = x}$.
 
-  - A *least fixpoint* is $"lfp"(f) = lmeet.big_(x in "Fix"(f)) x$ (if it exists).
-  - A *greatest fixpoint* is $"gfp"(f) = ljoin.big_(x in "Fix"(f)) x$ (if it exists).
+  - A *least fixpoint* is $"lfp"(f) = lmeet.big_(x in "Fix"(f)) x$.
+  - A *greatest fixpoint* is $"gfp"(f) = ljoin.big_(x in "Fix"(f)) x$.
 ]
 
-Fixpoints represent stable abstract states in program analysis.
-Applying the transfer function doesn't change the approximation.
+Fixpoints represent stable abstract states: applying the transfer function doesn't change the approximation.
 
 #theorem(title: "Tarski's Fixpoint Theorem")[
   Let $(L, <=, ljoin, lmeet, bot, top)$ be a complete lattice and $f: L -> L$ be monotone.
@@ -339,11 +334,9 @@ This is the foundation of fixpoint iteration in abstract interpretation!
 
   Let $P = {x in L mid(|) f(x) <= x}$ be the set of *post-fixpoints*.
 
-  *Claim 1:* $P$ is non-empty.
-  Since $L$ is a complete lattice, it has a top element $top$.
-  We have $f(top) <= top$ (anything is below $top$), so $top in P$.
+  $P$ is non-empty: $L$ has a top element $top$, and $f(top) <= top$ (anything is below $top$), so $top in P$.
 
-  *Claim 2:* Let $mu = lmeet.big_(x in P) x$ be the greatest lower bound of $P$.
+  Let $mu = lmeet.big_(x in P) x$ be the greatest lower bound of $P$.
   We show $f(mu) = mu$.
 
   First, show $f(mu) <= mu$:
@@ -361,8 +354,7 @@ This is the foundation of fixpoint iteration in abstract interpretation!
 
   By antisymmetry, $f(mu) = mu$, so $mu$ is a fixpoint.
 
-  *Claim 3:* $mu$ is the least fixpoint.
-  Any fixpoint $x$ satisfies $f(x) = x$, hence $f(x) <= x$, so $x in P$.
+  $mu$ is the least fixpoint: any fixpoint $x$ satisfies $f(x) = x$, hence $f(x) <= x$, so $x in P$.
   Thus $mu = lmeet.big_(x in P) x <= x$ for all fixpoints $x$.
 ]
 
@@ -385,7 +377,7 @@ This is the foundation of fixpoint iteration in abstract interpretation!
   There exists $N$ such that $f^N(bot) = f^(N+1)(bot) = "lfp"(f)$.
 ]
 
-This gives us the standard fixpoint iteration algorithm used in dataflow analysis!
+This is the standard fixpoint iteration algorithm used in dataflow analysis.
 
 #proof[
   Define the *Kleene sequence*: $x_0 = bot, x_(i+1) = f(x_i)$.
@@ -477,16 +469,15 @@ This gives us the standard fixpoint iteration algorithm used in dataflow analysi
 
 == Galois Connections
 
-Galois connections formalize the relationship between concrete and abstract domains.
-They ensure that abstraction and concretization are consistent.
+Galois connections relate concrete and abstract domains, ensuring abstraction and concretization are consistent.
 
 #definition(title: "Galois Connection")[
-  Let $(C, <=_C)$ and $(A, <=_A)$ be posets.
+  Let $(C, scripts(<=)_C)$ and $(A, scripts(<=)_A)$ be posets.
   A pair of monotone functions
   $ alpha: C -> A quad "and" quad gamma: A -> C $
-  forms a *Galois connection*, written $(C, alpha, gamma, A)$ or $C limits(-->)^alpha_gamma A$, if:
+  forms a *Galois connection*, written $(C, alpha, gamma, A)$ or $C -->^alpha_gamma A$, if:
 
-  $ forall c in C, forall a in A: alpha(c) <=_A a <==> c <=_C gamma(a) $
+  $ forall c in C, forall a in A: alpha(c) scripts(<=)_A a <==> c scripts(<=)_C gamma(a) $
 
   - $alpha$ is the *abstraction function* (concrete $->$ abstract).
   - $gamma$ is the *concretization function* (abstract $->$ concrete).
@@ -525,14 +516,14 @@ They ensure that abstraction and concretization are consistent.
     draw.content((2, -0.3), text(fill: colors.accent)[$f^sharp$ (Abstract)])
 
     // Abstraction (alpha)
-    draw.line("c1", "a1", stroke: (paint: colors.text-light, dash: "dashed"), mark: (end: ">"))
+    draw.line("c1", "a1", stroke: (paint: colors.text-light, dash: "dashed"), mark: (end: ">", stroke: (dash: "solid")))
     draw.content((-0.5, 2), $alpha$)
 
-    draw.line("c2", "a2", stroke: (paint: colors.text-light, dash: "dashed"), mark: (end: ">"))
+    draw.line("c2", "a2", stroke: (paint: colors.text-light, dash: "dashed"), mark: (end: ">", stroke: (dash: "solid")))
     draw.content((4.5, 2), $alpha$)
 
     // Soundness condition
-    draw.content((2, 2), text(size: 9pt)[$alpha compose f <= f^sharp compose alpha$])
+    draw.content((2, 2), [$alpha compose f <= f^sharp compose alpha$])
   }),
 ) <fig:commuting-diagram>
 
@@ -565,7 +556,10 @@ They ensure that abstraction and concretization are consistent.
     draw.content((3.25, 1.8), text(fill: colors.accent)[$gamma$])
 
     // Adjunction property
-    draw.content((3.25, 0.3), text(size: 9pt, fill: colors.text-light)[$alpha(c) <=_A a <==> c <=_C gamma(a)$])
+    draw.content((3.25, 0.3), text(
+      size: 9pt,
+      fill: colors.text-light,
+    )[$alpha(c) scripts(<=)_A a <==> c scripts(<=)_C gamma(a)$])
   }),
 )
 
@@ -573,8 +567,8 @@ They ensure that abstraction and concretization are consistent.
   Let $(C, alpha, gamma, A)$ be a Galois connection.
 
   + $alpha$ and $gamma$ are monotone.
-  + $alpha compose gamma$ is *reductive*: $alpha(gamma(a)) <=_A a$ for all $a in A$.
-  + $gamma compose alpha$ is *extensive*: $c <=_C gamma(alpha(c))$ for all $c in C$.
+  + $alpha compose gamma$ is *reductive*: $alpha(gamma(a)) scripts(<=)_A a$ for all $a in A$.
+  + $gamma compose alpha$ is *extensive*: $c scripts(<=)_C gamma(alpha(c))$ for all $c in C$.
   + $alpha(gamma(alpha(c))) = alpha(c)$ (abstraction idempotent).
   + $gamma(alpha(gamma(a))) = gamma(a)$ (concretization idempotent).
 ]
@@ -584,13 +578,13 @@ They ensure that abstraction and concretization are consistent.
 
   *Property 2* ($alpha compose gamma$ reductive):
   By definition of Galois connection with $c = gamma(a)$ and $a = a$:
-  $ alpha(gamma(a)) <=_A a <==> gamma(a) <=_C gamma(a) $
-  The right side is trivially true, so $alpha(gamma(a)) <=_A a$.
+  $ alpha(gamma(a)) scripts(<=)_A a <==> gamma(a) scripts(<=)_C gamma(a) $
+  The right side is trivially true, so $alpha(gamma(a)) scripts(<=)_A a$.
 
   *Property 3* ($gamma compose alpha$ extensive):
   By definition with $c = c$ and $a = alpha(c)$:
-  $ alpha(c) <=_A alpha(c) <==> c <=_C gamma(alpha(c)) $
-  The left side is trivially true, so $c <=_C gamma(alpha(c))$.
+  $ alpha(c) scripts(<=)_A alpha(c) <==> c scripts(<=)_C gamma(alpha(c)) $
+  The left side is trivially true, so $c scripts(<=)_C gamma(alpha(c))$.
 ]
 
 #example-box[
@@ -621,7 +615,7 @@ They ensure that abstraction and concretization are consistent.
     )
   $
 
-  Verify adjunction: $alpha(S) <=_A a <==> S subset.eq gamma(a)$.
+  Verify adjunction: $alpha(S) scripts(<=)_A a <==> S subset.eq gamma(a)$.
 ]
 
 == The Lattice of Boolean Functions
@@ -645,8 +639,6 @@ This forms a complete lattice $(B_n, <=, or, and, "false", "true")$.
 ]
 
 == Chapter Summary
-
-This chapter established the mathematical foundations:
 
 - *Complete lattices* provide the structure for abstract domains.
 - *Monotone functions* ensure sound approximation.

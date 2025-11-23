@@ -4,8 +4,7 @@
 
 #reading-path(path: "advanced")
 
-Real-world programs are rarely a single flat list of instructions.
-They are organized into *functions* or *modules* that call one another.
+Real-world programs are rarely a single flat list of instructions; they are organized into *functions* or *modules* that call one another.
 Inter-procedural analysis reasons across these boundaries, treating functions as modular units.
 
 == Call Graph and Summaries
