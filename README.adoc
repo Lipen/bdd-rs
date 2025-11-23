@@ -3,21 +3,20 @@
 image:https://github.com/Lipen/bdd-rs/actions/workflows/ci.yml/badge.svg?branch=master["CI",link="https://github.com/Lipen/bdd-rs/actions"]
 image:https://hitsofcode.com/github/Lipen/bdd-rs["Hits-of-Code",link="https://hitsofcode.com/view/github/Lipen/bdd-rs"]
 
-> A high-performance, safe, and manager-centric library for Binary Decision Diagrams (BDDs) in Rust.
-> BDDs are canonical data structures for representing and manipulating Boolean functions, widely used in formal verification, static analysis, symbolic model checking, and combinatorial optimization.
+> High-performance Binary Decision Diagrams (BDDs) library for Rust.
+> BDDs represent Boolean functions canonically, enabling efficient formal verification, static analysis, model checking, and optimization.
 
 == Features
 
-* *Manager-Centric Architecture*: All BDD operations go through the central `Bdd` manager, ensuring structural sharing (hash consing) and maintaining canonical form
-* *Safe & Efficient*: Lightweight `Ref` handles to reference nodes prevent invalid access while keeping memory overhead minimal
-* *Performance First*: Built-in operation caching (computed table) ensures redundant computations are avoided
-* *1-Based Variable Indexing*: Variables are 1-indexed (0 reserved for internal use), simplifying integration with standard formats like DIMACS
-* *Rich Boolean Operations*: Full support for AND, OR, XOR, NOT, ITE (if-then-else), implication, and equivalence
-* *Quantification*: Existential (∃) and universal (∀) quantification over variables
-* *Complement Edges*: Efficient negation through edge attributes without creating new nodes
-* *Variable Substitution*: Rename and substitute variables in Boolean formulas
-* *Satisfiability & Model Counting*: Check satisfiability, extract models, count solutions
-* *Visualization*: Export BDDs to Graphviz DOT format for visualization
+* *Manager-Centric*: All operations through central `Bdd` manager with hash consing
+* *Safe & Efficient*: Lightweight `Ref` handles with minimal overhead
+* *Operation Caching*: Computed table avoids redundant operations
+* *1-Based Variables*: Simplifies integration with DIMACS and similar formats
+* *Boolean Operations*: AND, OR, XOR, NOT, ITE, implication, equivalence
+* *Quantification*: Existential (∃) and universal (∀) over variables
+* *Complement Edges*: Efficient negation via edge attributes
+* *SAT & Model Counting*: Satisfiability checking, model extraction, solution counting
+* *Visualization*: Graphviz DOT export
 
 == Installation
 
@@ -98,15 +97,15 @@ assert!(bdd.is_one(result));
 
 == Case Studies & Examples
 
-This repository includes comprehensive examples demonstrating BDD applications in formal methods:
+Comprehensive examples demonstrating BDD applications:
 
 === Abstract Interpretation
 
 See link:examples/abstract-interpretation/[`examples/abstract-interpretation/`]
 
-A complete framework for static program analysis combining abstract interpretation with BDDs for path-sensitive analysis.
+Static program analysis framework combining abstract interpretation with BDDs.
 
-*Detailed Examples*:
+*Examples*:
 
 * *Numeric Analysis*: Sign domain, constant propagation, interval analysis, congruence domain
 * *Fixpoint Computation*: Loop analysis with widening/narrowing
@@ -119,13 +118,11 @@ A complete framework for static program analysis combining abstract interpretati
 
 *Tests*: Comprehensive unit and integration tests for all domains
 
-*Companion Guide*: link:examples/abstract-interpretation/guide/[`guide/`]
-
-150+ page tutorial covering theory and implementation:
+*Companion Guide*: link:examples/abstract-interpretation/guide/[`guide/`] (150+ pages)
 
 * Part I: Gentle Introduction
-* Part II: Deep Dive into lattice theory, fixpoints, and domain design
-* Part III: Applications and case studies
+* Part II: Lattice theory, fixpoints, domain design
+* Part III: Applications
 
 [source,bash]
 ----
@@ -139,17 +136,13 @@ cargo test  # Run 80+ tests
 
 See link:examples/model-checking/[`examples/model-checking/`]
 
-BDD-based symbolic model checking implementing classic algorithms from _"Symbolic Model Checking: 10^20 States and Beyond"_ (Burch et al., 1990).
+Symbolic model checking implementing algorithms from Burch et al. (1990).
 
 *Features*:
 
-* Symbolic representation of Kripke structures
-* Forward/backward reachability via image/preimage computation
-* Full CTL (Computation Tree Logic) support: EX, AX, EF, AF, EG, AG, EU, AU
-* Fixpoint-based algorithms handling millions to billions of states
-* Efficient symbolic state space exploration
-
-*Tests*: All CTL operators and transition system operations verified
+* Kripke structures with image/preimage computation
+* Full CTL support: EX, AX, EF, AF, EG, AG, EU, AU
+* Fixpoint algorithms for millions to billions of states
 
 [source,bash]
 ----
@@ -162,17 +155,16 @@ cargo run --bin modelcheck -- example toggle
 
 See link:examples/symbolic-execution/[`examples/symbolic-execution/`]
 
-Symbolic execution engine for boolean imperative programs with BDD-based constraint solving.
+Symbolic execution for boolean programs with BDD constraint solving.
 
 *Features*:
 
-* Path-sensitive symbolic state tracking
-* Automatic counterexample generation from assertion failures
-* Loop handling with bounded unrolling
+* Path-sensitive state tracking
+* Counterexample generation from assertion failures
+* Bounded loop unrolling
 * Exception handling (try/catch/finally)
-* Test case generation from failing assertions
 
-*Built-in Examples*: Simple programs, branching logic, XOR properties, mutex verification, loops
+*Examples*: Branching, XOR properties, mutex verification, loops
 
 [source,bash]
 ----
@@ -189,19 +181,16 @@ cargo run --bin symexec -- example buggy  # See counterexamples!
 
 == Documentation
 
-* *API Documentation*: Run `cargo doc --open` for detailed API reference
-* *Abstract Interpretation Guide*: 150-page tutorial in link:examples/abstract-interpretation/guide/[`examples/abstract-interpretation/guide/`]
-* *Example READMEs*: Each example directory contains detailed documentation:
-** link:examples/abstract-interpretation/README.md[Abstract Interpretation README]
-** link:examples/model-checking/README.md[Model Checking README]
-** link:examples/symbolic-execution/README.md[Symbolic Execution README]
+* *API*: `cargo doc --open`
+* *Guide*: link:examples/abstract-interpretation/guide/[150-page tutorial]
+* *Examples*: link:examples/abstract-interpretation/README.md[Abstract Interpretation], link:examples/model-checking/README.md[Model Checking], link:examples/symbolic-execution/README.md[Symbolic Execution]
 
-== Performance Notes
+== Performance
 
-* *Release Mode*: BDD operations are exponentially faster with optimizations. Always use `cargo build --release` for production
-* *Variable Ordering*: BDD size is critically dependent on variable ordering. Poor ordering can lead to exponential blowup
-* *Garbage Collection*: Call `collect_garbage()` periodically to reclaim unused nodes
-* *Caching*: Operation cache significantly improves performance for repeated operations
+* *Release Mode*: Always use `--release` for production (exponentially faster)
+* *Variable Ordering*: Critical for BDD size; poor ordering causes exponential blowup
+* *Garbage Collection*: Call `collect_garbage()` periodically
+* *Caching*: Operation cache improves repeated operations
 
 == Architecture
 
@@ -219,13 +208,13 @@ cargo run --bin symexec -- example buggy  # See counterexamples!
 * link:src/dot.rs[`dot.rs`] -- Graphviz visualization
 * link:src/utils.rs[`utils.rs`] -- Utility functions
 
-=== Key Design Decisions
+=== Design Decisions
 
-* *Manager-Centric*: All operations go through `Bdd` manager (no standalone node operations)
-* *Complement Edges*: Only low edges can be negated, high edges are never complemented
-* *1-Based Variables*: Variables start at 1 (0 reserved for internal use)
-* *Canonical Representation*: Each Boolean function has unique BDD representation
-* *Hash Consing*: Automatic deduplication ensures memory efficiency
+* *Manager-Centric*: All operations through `Bdd` manager
+* *Complement Edges*: Only low edges negated, high edges never complemented
+* *1-Based Variables*: Start at 1 (0 reserved internally)
+* *Canonical Form*: Unique representation per Boolean function
+* *Hash Consing*: Automatic deduplication
 
 == Testing
 
@@ -263,8 +252,3 @@ Contributions are welcome! Areas for improvement:
 == License
 
 This crate is licensed under the link:LICENSE[MIT License].
-
-== Acknowledgments
-
-This implementation builds on decades of research in BDDs and formal methods.
-Special thanks to Randal Bryant for introducing BDDs, and to the symbolic model checking and abstract interpretation communities.
