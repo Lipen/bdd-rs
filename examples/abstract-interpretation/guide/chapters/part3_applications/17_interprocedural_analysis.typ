@@ -51,6 +51,52 @@ A `log_error` function might be called from 50 different places.
   Summaries are memoized by `(function, context_k)`.
 ]
 
+#figure(
+  caption: [Context sensitivity distinguishes call paths],
+
+  cetz.canvas({
+    import cetz: draw
+
+    // Nodes
+    draw.circle((0, 4), radius: 0.5, name: "main", stroke: colors.primary + 1pt)
+    draw.content("main", [Main])
+
+    draw.circle((-2, 2), radius: 0.4, name: "A", stroke: colors.primary + 1pt)
+    draw.content("A", [A])
+
+    draw.circle((2, 2), radius: 0.4, name: "B", stroke: colors.primary + 1pt)
+    draw.content("B", [B])
+
+    draw.circle((0, 0), radius: 0.4, name: "C", stroke: colors.accent + 1pt)
+    draw.content("C", [C])
+
+    // Edges
+    draw.line("main", "A", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+    draw.line("main", "B", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+
+    draw.line(
+      "A",
+      "C",
+      stroke: (paint: colors.success, dash: "dashed"),
+      mark: (end: ">", stroke: (dash: "solid")),
+      name: "A-C",
+    )
+    draw.content("A-C", text(size: 9pt, fill: colors.success)[Context 1], anchor: "north-east", padding: 0.1)
+
+    draw.line(
+      "B",
+      "C",
+      stroke: (paint: colors.warning, dash: "dashed"),
+      mark: (end: ">", stroke: (dash: "solid")),
+      name: "B-C",
+    )
+    draw.content("B-C", text(size: 9pt, fill: colors.warning)[Context 2], anchor: "north-west", padding: 0.1)
+
+    // Contexts
+    draw.content((0, -1), text(size: 9pt)[C is analyzed twice])
+  }),
+)
+
 This is useful if `log_error` needs to know *which* function called it to provide a precise error analysis (e.g., "Error in SQL Module" vs "Error in Rate Limiter").
 
 == Handling Loops and Recursion
