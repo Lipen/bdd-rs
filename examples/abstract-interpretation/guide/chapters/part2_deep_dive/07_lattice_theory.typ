@@ -162,9 +162,10 @@ The meet finds the most precise common refinement.
 ]
 
 #example-box[
-  *Sign Lattice:*
+  *Sign Lattice Join Table:*
 
-  Consider the Sign lattice:
+  Consider the Sign lattice.
+  The table below shows the result of the join operation ($ljoin$) for every pair of elements:
 
   #align(center, grid(
     columns: 5,
