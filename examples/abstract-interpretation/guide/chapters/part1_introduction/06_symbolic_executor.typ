@@ -65,49 +65,85 @@ Study this implementation to see all the pieces working in harmony:
     import cetz.draw: *
 
     // Helper functions
-    let draw-component(pos, width, height, label, color) = {
-      rect(pos, (pos.at(0) + width, pos.at(1) + height), fill: colors.bg-code, stroke: color + 2pt, radius: 0.15)
-      content((pos.at(0) + width / 2, pos.at(1) + height / 2), text(
+    let draw-component(pos, name, width, height, label, color) = {
+      let (x, y) = pos
+      rect(
+        (x - width / 2, y - height / 2),
+        (x + width / 2, y + height / 2),
+        fill: colors.bg-code,
+        stroke: color + 2pt,
+        radius: 0.15,
+        name: name,
+      )
+      content(name, text(
         fill: color,
         weight: "bold",
         size: 0.8em,
-      )[#label])
+        label,
+      ))
     }
 
-    let draw-data-box(pos, width, height, label) = {
-      rect(pos, (pos.at(0) + width, pos.at(1) + height), fill: white, stroke: colors.secondary + 1pt, radius: 0.08)
-      content((pos.at(0) + width / 2, pos.at(1) + height - 0.2), text(size: 0.7em)[#label], anchor: "north")
+    let draw-data-box(pos, name, width, height, label) = {
+      let (x, y) = pos
+      rect(
+        (x - width / 2, y - height / 2),
+        (x + width / 2, y + height / 2),
+        name: name,
+        fill: white,
+        stroke: colors.secondary + 1pt,
+        radius: 0.08,
+      )
+      content(name, text(size: 0.7em)[#label])
     }
 
-    let draw-connection(from-pos, to-pos) = {
-      line(from-pos, to-pos, stroke: colors.primary + 1pt, mark: (end: ">"))
+    let draw-connection(from, to) = {
+      line(from, to, name: from + "--" + to, stroke: colors.primary + 1pt, mark: (end: ">"))
     }
 
     // Main components
-    draw-component((0, 3.2), 2.5, 0.8, [Path Explorer], colors.primary)
-    draw-component((3.5, 3.2), 2.5, 0.8, [Program Walker], colors.accent)
-    draw-component((6.5, 3.2), 2, 0.8, [Conflict Detector], colors.error)
+    draw-component((-1, 3.5), "path-explorer", 2.5, 0.8, [Path Explorer], colors.primary)
+    draw-component((3.5, 3.5), "program-walker", 3, 0.8, [Program Walker], colors.accent)
+    draw-component((8, 3.5), "conflict-detector", 3, 0.8, [Conflict Detector], colors.error)
 
     // Worklist of states
-    content((1.25, 2.5), text(size: 0.75em, fill: colors.text-light)[Worklist:], anchor: "north")
-    draw-data-box((0.2, 1.5), 2.1, 0.8, [Path 1])
-    draw-data-box((0.2, 0.5), 2.1, 0.8, [Path 2])
-    content((1.25, -0.1), text(size: 0.7em, fill: colors.text-light)[...], anchor: "north")
+    draw-data-box((0, 2), "path-1", 2.1, 0.8, [Path 1])
+    draw-data-box((0, 1), "path-2", 2.1, 0.8, [Path 2])
+    content(
+      "path-1.north",
+      text(size: 0.8em, fill: colors.text-light)[Worklist:],
+      anchor: "south",
+      padding: 0.2,
+    )
 
     // Symbolic state details
-    content((4.75, 2.5), text(size: 0.75em, fill: colors.text-light)[Symbolic State:], anchor: "north")
-    draw-data-box((3.5, 1.8), 2.5, 0.5, [Path: BDD])
-    draw-data-box((3.5, 1.1), 2.5, 0.5, [Env: Var $->$ Val])
+    draw-data-box((3.5, 2), "path-bdd", 2.5, 0.5, [Path: BDD])
+    draw-data-box((3.5, 1.2), "env", 2.5, 0.5, [Env: Var $->$ Val])
+    content(
+      "path-bdd.north",
+      text(size: 0.8em, fill: colors.text-light)[Symbolic State:],
+      anchor: "south",
+      padding: 0.2,
+    )
 
     // Connections
-    draw-connection((1.25, 3.2), (4.75, 3.2))
-    draw-connection((4.75, 3.2), (7.5, 3.2))
-    draw-connection((2.3, 2.0), (3.5, 2.0))
+    draw-connection("path-explorer", "program-walker")
+    draw-connection("program-walker", "conflict-detector")
+    draw-connection("path-1", "path-bdd")
 
     // Labels on connections
-    content((2.5, 3.4), text(size: 0.65em, fill: colors.text-light)[pop path], anchor: "south")
-    content((5.75, 3.4), text(size: 0.65em, fill: colors.text-light)[check], anchor: "south")
-    content((2.5, 2.2), text(size: 0.65em, fill: colors.text-light)[current], anchor: "south")
+    content(
+      "path-explorer--program-walker",
+      text(size: 0.7em, fill: colors.text-light)[pop path],
+      anchor: "south",
+      padding: 0.2,
+    )
+    content(
+      "program-walker--conflict-detector",
+      text(size: 0.7em, fill: colors.text-light)[check],
+      anchor: "south",
+      padding: 0.2,
+    )
+    content("path-1--path-bdd", text(size: 0.7em, fill: colors.text-light)[current], anchor: "south", padding: 0.2)
   }),
 ) <fig:symbolic-executor-architecture>
 
