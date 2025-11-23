@@ -245,7 +245,7 @@ This simple idea leads to significant improvements in scalability.
     )
   $
 
-  For brevity, we often write $S(v_1, ..., v_n)$ instead of $chi_S(v_1, ..., v_n)$ when the context is clear.
+  For brevity, we often write $S(v_1, ..., v_n)$ instead of $chi_S (v_1, ..., v_n)$ when the context is clear.
   This notation treats the set $S$ as a Boolean function: $S(s) = 1$ if and only if $s in S$.
 ]
 
@@ -3159,7 +3159,7 @@ Instead of monolithic $T(v,v')$, use conjunctive partitioning.
 
 #definition(name: "Conjunctive Partitioning")[
   Express transition relation as:
-  $ T(v,v') = T_1(v,v') and T_2(v,v') and ... and T_n(v,v') $
+  $ T(v,v') = T_1 (v,v') and T_2 (v,v') and ... and T_n (v,v') $
 
   Where each $T_i$ depends on only a few variables.
 ]
@@ -3169,7 +3169,7 @@ Instead of monolithic $T(v,v')$, use conjunctive partitioning.
 #example(name: "Variable-Based Partitioning")[
   For system with variables $x_1, ..., x_n$:
 
-  $ T(v,v') = and.big_(i=1)^n T_i(x_i, x'_i, x_1, ..., x_(i-1)) $
+  $ T(v,v') = and.big_(i=1)^n T_i (x_i, x'_i, x_1, ..., x_(i-1)) $
 
   Each $T_i$ defines next value of $x'_i$ in terms of current state.
 
