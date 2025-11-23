@@ -6,12 +6,12 @@
 
 #reading-path(path: "essential") #h(0.5em) #reading-path(path: "beginner")
 
-In the Prologue, we established that exact verification is impossible for general networks.
-We must approximate.
-But how do we approximate in a way that is useful for networks?
+In the Prologue, we established that we cannot test every possible input.
+We must reason about *sets* of inputs (abstract properties) rather than individual values.
+But how do we actually do this for network packets?
 How do we ensure we don't "approximate away" the security holes we are trying to find?
 
-This chapter introduces the core concept of Abstract Interpretation applied to networks:
+This chapter introduces the core mechanism of Abstract Interpretation applied to networks:
 *Header Space Analysis*.
 
 == The Geometric Analogy
