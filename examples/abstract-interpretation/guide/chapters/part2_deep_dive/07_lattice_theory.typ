@@ -638,23 +638,23 @@ This forms a complete lattice $(B_n, <=, or, and, "false", "true")$.
   This is why we can use BDDs directly in our abstract interpretation framework.
 ]
 
-== Chapter Summary
+#chapter-summary[
+  This chapter established the mathematical foundations that make abstract interpretation both rigorous and practical.
 
-This chapter established the mathematical foundations that make abstract interpretation both rigorous and practical.
+  *Complete lattices* provide the algebraic structure underlying abstract domains, ensuring every set of approximations has both a least upper bound (join) and greatest lower bound (meet).
+  This structure enables systematic combination of information from multiple execution paths.
 
-*Complete lattices* provide the algebraic structure underlying abstract domains, ensuring every set of approximations has both a least upper bound (join) and greatest lower bound (meet).
-This structure enables systematic combination of information from multiple execution paths.
+  *Monotone functions* preserve the precision ordering, ensuring that abstract transformers never lose information in unexpected ways.
+  This monotonicity property is essential for soundness: if we start with a safe approximation, applying a monotone function maintains that safety.
 
-*Monotone functions* preserve the precision ordering, ensuring that abstract transformers never lose information in unexpected ways.
-This monotonicity property is essential for soundness: if we start with a safe approximation, applying a monotone function maintains that safety.
+  *Tarski's fixpoint theorem* provides the existence guarantee for program analysis, proving that every monotone function over a complete lattice has both a least and greatest fixpoint.
+  This theorem justifies the search for least fixpoints as optimal solutions to dataflow equations.
 
-*Tarski's fixpoint theorem* provides the existence guarantee for program analysis, proving that every monotone function over a complete lattice has both a least and greatest fixpoint.
-This theorem justifies the search for least fixpoints as optimal solutions to dataflow equations.
+  *Kleene iteration* transforms existence into construction, providing a concrete algorithm that computes least fixpoints by iterating from the bottom element.
+  The ascending chain condition ensures this iteration terminates after finitely many steps for well-designed abstract domains.
 
-*Kleene iteration* transforms existence into construction, providing a concrete algorithm that computes least fixpoints by iterating from the bottom element.
-The ascending chain condition ensures this iteration terminates after finitely many steps for well-designed abstract domains.
+  *Galois connections* formalize the relationship between concrete and abstract semantics through adjoint abstraction and concretization functions.
+  This framework enables proving soundness compositionally and reasoning about precision loss systematically.
 
-*Galois connections* formalize the relationship between concrete and abstract semantics through adjoint abstraction and concretization functions.
-This framework enables proving soundness compositionally and reasoning about precision loss systematically.
-
-Together, these tools enable rigorous program analysis with guaranteed termination, soundness, and predictable precision characteristics.
+  Together, these tools enable rigorous program analysis with guaranteed termination, soundness, and predictable precision characteristics.
+]

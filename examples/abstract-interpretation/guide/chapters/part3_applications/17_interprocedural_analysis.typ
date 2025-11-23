@@ -117,6 +117,17 @@ In these cases, we compute the *Least Fixpoint* of the function summaries.
 - *Whole-Program*: Analyze the entire codebase as one giant control flow graph. More precise but slower.
 
 #chapter-summary[
-  Inter-procedural analysis treats functions as modular units.
-  By computing *summaries* and handling *variable remapping* with BDDs, we can efficiently analyze complex, modular programs without exploding the state space.
+  This chapter extended analysis beyond single procedures to handle function calls and modular programs.
+
+  *Inter-procedural analysis* treats functions as compositional units with computed summaries.
+  Rather than re-analyzing every function at each call site, we compute a *function summary* once that captures its input-output behavior abstractly.
+  This summary can then be instantiated at each call site through *variable remapping*, dramatically reducing analysis cost.
+
+  *BDDs facilitate variable remapping* through their symbolic representation.
+  By building correspondence mappings between caller and callee variables, we can apply Boolean operations to transfer path conditions across procedure boundaries while preserving correlation structure.
+
+  *Context sensitivity* distinguishes different calling contexts, enabling more precise summaries at the cost of additional computation.
+  The trade-off between context-insensitive (fast, imprecise), $k$-limited call-string (balanced), and fully context-sensitive (slow, precise) analysis depends on verification goals and program structure.
+
+  This modular approach enables analyzing large programs by dividing them into tractable pieces, with summaries providing the glue that preserves soundness across composition.
 ]

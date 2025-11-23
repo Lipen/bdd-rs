@@ -990,21 +990,20 @@ Trade-offs:
 In the next chapter, we build a symbolic executor using these techniques.
 
 #chapter-summary[
-  - *BDDs enable path-sensitive abstract interpretation without explicit path enumeration.*
-    Represent $2^n$ paths symbolically, manipulate in polynomial time.
+  This chapter synthesized control flow and data abstraction into a unified path-sensitive analysis framework.
 
-  - *Combined state $(b, rho)$: control layer + data layer.*
-    BDD tracks feasible paths, domain tracks variable values.
+  The key architectural insight is *layered state representation*: $(b, rho)$ pairs a BDD tracking feasible execution paths with an abstract domain tracking variable values.
+  This separation enables *orthogonal composition* --- the BDD layer handles control flow sensitivity independently of the chosen data abstraction (signs, intervals, polyhedra, etc.).
 
-  - *Branching refines path conditions.*
-    True branch: $"path" and "cond"$. False branch: $"path" and not "cond"$.
+  *Path condition refinement* occurs automatically at branches.
+  The true branch conjoins the condition to the path BDD ($"path" and "cond"$), while the false branch conjoins its negation.
+  When a path BDD becomes False, that execution path has been proven infeasible through contradiction, enabling *automatic infeasible path pruning*.
 
-  - *Automatic infeasible path pruning.*
-    When BDD becomes False, that path is impossible.
+  This architecture *represents $2^n$ paths symbolically* while performing operations in polynomial time.
+  Rather than explicitly enumerating execution paths, Boolean operations on BDDs manipulate entire path families implicitly.
 
-  - *Generic design works with any abstract domain.*
-    Sign, interval, congruence, polyhedra --- BDD layer is orthogonal.
+  The *control-data cooperation* reveals its power when path conditions constrain data domains.
+  If a path BDD encodes $x = 5$, the data domain can strengthen its approximation accordingly, recovering precision lost to path-insensitive merging.
 
-  - *Precision-performance trade-off.*
-    Partitioning strategies balance path sensitivity against state explosion.
+  This framework's *genericity* enables experimenting with different partitioning strategies, trading between path sensitivity (precision) and state space size (performance).
 ]

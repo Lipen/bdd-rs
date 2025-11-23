@@ -287,21 +287,21 @@ $ (a_1, b_1) widen (a_2, b_2) = (a_1 widen_A a_2, b_1 widen_B b_2) $
 However, this can be too aggressive.
 *Delayed widening* or *widening with thresholds* is often necessary to prevent precision loss in one domain from destabilizing the other.
 
-== Chapter Summary
+#chapter-summary[
+  This chapter developed a hierarchy of domain combination techniques, each adding sophistication to multi-property analysis.
 
-This chapter developed a hierarchy of domain combination techniques, each adding sophistication to multi-property analysis.
+  The *direct product* provides the foundation by running multiple analyses independently, combining their results through simple pairing.
+  While answering questions neither domain could handle alone, it cannot exploit synergies between domains.
 
-The *direct product* provides the foundation by running multiple analyses independently, combining their results through simple pairing.
-While answering questions neither domain could handle alone, it cannot exploit synergies between domains.
+  The *reduced product* overcomes this limitation by introducing reduction operators that enable bidirectional information exchange.
+  Domains can now refine each other's abstract states, recovering precision lost to independent analysis.
 
-The *reduced product* overcomes this limitation by introducing reduction operators that enable bidirectional information exchange.
-Domains can now refine each other's abstract states, recovering precision lost to independent analysis.
+  The *trace partitioning* construction provides the theoretical basis for path sensitivity.
+  By distinguishing abstract states based on execution history captured through control flow predicates, it enables precise reasoning about conditional program behavior.
 
-The *trace partitioning* construction provides the theoretical basis for path sensitivity.
-By distinguishing abstract states based on execution history captured through control flow predicates, it enables precise reasoning about conditional program behavior.
+  Finally, *relational domains* transcend per-variable analysis by tracking correlations between multiple variables.
+  They enable expressing constraints like $x < y$ or $x = 2y + 1$, which are essential for reasoning about array bounds, pointer arithmetic, and data structure consistency.
 
-Finally, *relational domains* transcend per-variable analysis by tracking correlations between multiple variables.
-They enable expressing constraints like $x < y$ or $x = 2y + 1$, which are essential for reasoning about array bounds, pointer arithmetic, and data structure consistency.
-
-In the next chapter, we will implement a powerful instance of these concepts: a *Reduced Product of BDDs (Trace Partitioning) and Abstract Domains*.
-This "Killer Feature" uses BDDs to efficiently manage the trace partition $T$, enabling scalable path-sensitive analysis.
+  In the next chapter, we will implement a powerful instance of these concepts: a *Reduced Product of BDDs (Trace Partitioning) and Abstract Domains*.
+  This "Killer Feature" uses BDDs to efficiently manage the trace partition $T$, enabling scalable path-sensitive analysis.
+]

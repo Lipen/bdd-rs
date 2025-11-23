@@ -149,6 +149,17 @@ We model pipelines `validate; normalize; use`:
 )
 
 #chapter-summary[
-  String analysis benefits from layered abstractions: scalar (length/charset) and language-level (automata).
-  Reduced products and prudent widenings yield practical, sound analyses for validation and normalization pipelines.
+  This chapter extended abstract interpretation into the string domain, enabling reasoning about programs that manipulate text --- critical for parsing, validation, and security analysis.
+
+  *Finite automata* provide the abstract representation, compactly encoding potentially infinite sets of strings.
+  Each automaton represents a regular language, with states corresponding to partial parsing positions and transitions encoding character consumption.
+
+  String *operations* (concatenation, union, intersection, replacement) have efficient automata-theoretic implementations.
+  These enable tracking how strings flow through program operations while maintaining polynomial-time complexity for key operations.
+
+  As with other infinite-height domains, *widening operators* prevent unbounded automaton growth.
+  Language-based widening collapses states to bound automaton size while preserving essential string properties like prefix sets or character classes.
+
+  *Integration with BDDs and numeric domains* through reduced products enables sophisticated analyses.
+  The BDD layer can track control flow dependencies ("if valid, then process"), while numeric domains constrain string lengths, creating a powerful multi-property verification framework.
 ]

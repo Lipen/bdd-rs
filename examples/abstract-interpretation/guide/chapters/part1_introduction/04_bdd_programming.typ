@@ -510,12 +510,14 @@ Emerging work couples ML models predicting beneficial swap candidates using feat
   Trigger a local reorder when any variable exceeds 20% growth.
 ]
 
-== Summary
+#chapter-summary[
+  This chapter transformed BDD theory into concrete Rust implementation, establishing the analysis infrastructure.
 
-- Set up Rust project with `bdd-rs` dependency.
-- Implemented `AnalysisManager` to map `Condition` AST nodes to BDD variables.
-- Ensured identical conditions map to identical variables (canonicalization).
-- Exposed basic Boolean operations.
+  We built the *`AnalysisManager`* as the central coordinator that maps program conditions to BDD variables.
+  Its *canonicalization mechanism* ensures identical conditions consistently map to identical variables, enabling efficient reuse and preventing redundant variable allocation.
 
-Next: *Symbolic Execution*.
-We write the code that walks IMP programs and builds BDDs automatically.
+  The implementation exposes *core Boolean operations* --- AND, OR, NOT, ITE --- that will serve as primitives for symbolic execution.
+  By wrapping the `bdd-rs` library's low-level operations, we provide a clean interface for building complex symbolic state manipulations.
+
+  With this foundation established, we're equipped to implement the symbolic executor that automatically constructs BDDs while traversing program control flow.
+]

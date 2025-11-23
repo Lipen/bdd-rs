@@ -162,11 +162,26 @@ fn widen_control(bdd: &Bdd, f1: Ref, f2: Ref) -> Ref {
 }
 ```
 
-== Chapter Summary
+#chapter-summary[
+  This chapter revealed that abstract interpretation performance often hinges on implementation details rather than algorithmic complexity alone.
 
-- *Order variables* carefully; it's the difference between $O(n)$ and $O(2^n)$.
-- *Collect garbage* to manage memory usage.
-- *Visualize* BDDs to understand their structure and debug ordering.
-- *Profile* to find bottlenecks in domain operations vs. BDD operations.
-- *Widen aggressively* if convergence is too slow.
+  *Variable ordering* is paramount for BDD efficiency.
+  Poor ordering can inflate BDD size from $O(n)$ to $O(2^n)$ nodes, transforming tractable problems into intractable ones.
+  Place variables that appear together in Boolean expressions adjacent in the ordering to maximize sharing.
+
+  *Garbage collection* becomes critical for long-running analyses.
+  BDD nodes accumulate during exploration, and without periodic cleanup, memory exhaustion occurs even when the final result is small.
+  Trigger collection when node count exceeds thresholds or at natural analysis boundaries.
+
+  *Visualization* provides invaluable debugging insight.
+  Rendering BDDs graphically exposes structural problems like poor ordering, excessive node duplication, or unexpected BDD growth.
+  Tools that export to DOT format enable inspecting symbolic states that would be opaque in textual form.
+
+  *Profiling* distinguishes between domain operation costs and BDD manipulation overhead.
+  If BDD operations dominate, consider variable reordering or simplification.
+  If domain operations dominate, consider faster abstract domains or reduced product optimizations.
+
+  *Aggressive widening* trades precision for convergence speed.
+  If fixpoint iteration stalls, applying widening earlier or with coarser thresholds sacrifices some accuracy to ensure termination.
+]
 

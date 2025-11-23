@@ -507,19 +507,19 @@ Applying widening too early loses precision unnecessarily.
   With delay (threshold = 5): Natural convergence to $[0, 10]$ before widening triggers, preserving the precise bound.
 ]
 
-== Chapter Summary
+#chapter-summary[
+  This chapter bridged the gap between fixpoint theory and practical implementation by developing algorithms that compute least fixpoints efficiently on real programs.
 
-This chapter bridged the gap between fixpoint theory and practical implementation by developing algorithms that compute least fixpoints efficiently on real programs.
+  *Chaotic iteration* generalizes Kleene's sequential approach by allowing flexible update orders while preserving convergence guarantees through fairness conditions.
+  This freedom enables *worklist algorithms* that exploit program structure by tracking dependencies explicitly, ensuring each computation step processes only variables whose inputs have changed.
 
-*Chaotic iteration* generalizes Kleene's sequential approach by allowing flexible update orders while preserving convergence guarantees through fairness conditions.
-This freedom enables *worklist algorithms* that exploit program structure by tracking dependencies explicitly, ensuring each computation step processes only variables whose inputs have changed.
+  *Iteration strategies* determine the order of worklist processing, with dramatic performance implications.
+  Reverse postorder traversal aligns with program control flow, enabling rapid propagation through acyclic regions.
+  Queue-based (FIFO) and stack-based (LIFO) strategies offer simpler alternatives with different propagation characteristics.
 
-*Iteration strategies* determine the order of worklist processing, with dramatic performance implications.
-Reverse postorder traversal aligns with program control flow, enabling rapid propagation through acyclic regions.
-Queue-based (FIFO) and stack-based (LIFO) strategies offer simpler alternatives with different propagation characteristics.
+  For infinite-height lattices where natural convergence is impossible, *widening operators* force termination by extrapolating ascending chains to stable upper bounds.
+  The complementary *narrowing phase* refines these approximations in a descending iteration, recovering precision lost to aggressive widening.
+  *Delayed widening* further improves results by deferring extrapolation until natural convergence stalls, preserving precise invariants when they arise quickly.
 
-For infinite-height lattices where natural convergence is impossible, *widening operators* force termination by extrapolating ascending chains to stable upper bounds.
-The complementary *narrowing phase* refines these approximations in a descending iteration, recovering precision lost to aggressive widening.
-*Delayed widening* further improves results by deferring extrapolation until natural convergence stalls, preserving precise invariants when they arise quickly.
-
-These techniques form the algorithmic backbone of practical program analyzers, transforming abstract interpretation from theoretical framework to deployable verification technology.
+  These techniques form the algorithmic backbone of practical program analyzers, transforming abstract interpretation from theoretical framework to deployable verification technology.
+]

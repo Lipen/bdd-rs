@@ -159,7 +159,21 @@ We lose precision because we must assume both objects might have been modified, 
 - Shape abstraction: track summaries for lists/trees (outside this chapter's scope); integrate via summary sites.
 
 #chapter-summary[
-  A pragmatic points-to and dynamic type analysis models aliases with a may-points-to map, performs strong updates on singletons and weak updates otherwise, and stores abstract values per allocation site.
-  Flow- and context-sensitivity improve precision when bounded carefully.
-  Reduced products with numeric, string, and BDD control domains provide path-sensitive, field-aware reasoning while maintaining soundness and termination.
+  This chapter introduced heap and type abstractions essential for analyzing real-world programs with dynamic allocation and polymorphism.
+
+  *May-points-to analysis* uses *allocation-site abstraction* to track heap locations.
+  Each allocation statement defines a unique site, and pointer variables map to sets of sites they may reference.
+  This provides sufficient precision for many analyses while keeping the abstract domain finite.
+
+  The *strong versus weak update* distinction fundamentally impacts precision.
+  When a pointer definitely refers to a single site (singleton points-to set), we can perform a *strong update* that replaces the abstract value.
+  When multiple sites are possible, *weak updates* must conservatively join the new value with all existing values, losing precision.
+
+  *Dynamic type domains* track runtime type information for each variable, refining through control flow guards.
+  Conditional type tests (`if is_int(x)`) narrow type sets in then-branches and exclude types in else-branches, enabling precise reasoning about polymorphic code.
+
+  *Cooperation with BDDs and numeric domains* amplifies effectiveness.
+  Path-sensitive type refinement combined with numeric bounds enables proving properties like "after the type guard, this field access is safe and returns a value in range $[0, 100]$."
+
+  *Summarization techniques* prevent combinatorial explosion of contexts × sites × fields, making the analysis tractable for large programs.
 ]

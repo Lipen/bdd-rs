@@ -316,19 +316,20 @@ BDDs let us:
 Next chapter: we dive into how BDDs work their magic.
 
 #chapter-summary[
-  *Control Flow Graphs capture program behavior.*
-  We transform the hierarchical AST into a flat graph of Basic Blocks to model execution.
-  Each node represents a sequence of statements that execute together atomically.
+  This chapter dissected program structure to reveal both the analysis challenge and its solution.
 
-  *Basic Blocks are the unit of analysis.*
-  They are sequences of instructions that always execute together without branching.
-  Control flow changes only happen at block boundaries, making them natural analysis units.
+  *Control Flow Graphs provide the analysis substrate* by transforming hierarchical program syntax into a flat graph structure.
+  Each node represents a basic block --- a maximal sequence of statements that always execute together atomically, with control flow decisions occurring only at block boundaries.
+  This representation exposes program execution topology explicitly, enabling systematic traversal and analysis.
 
-  *Path explosion is the fundamental bottleneck.*
-  The number of execution paths grows exponentially with program size.
-  With loops, the path count can become infinite, making naive enumeration impossible.
+  The *path explosion problem* emerges as program analysis's central computational challenge.
+  With $n$ independent conditionals, a program contains $2^n$ distinct execution paths.
+  Loops introduce infinite path families, making exhaustive enumeration fundamentally intractable.
 
-  *Symbolic execution provides the solution.*
-  We will use BDDs to represent and manipulate sets of states implicitly.
-  This lets us work with exponentially many paths without explicitly enumerating them.
+  *Path-insensitive analysis* addresses this by merging states at control flow join points, sacrificing precision for tractability.
+  While sufficient for many properties, it loses the ability to prove properties that depend on specific execution sequences.
+
+  *Symbolic execution with BDDs* provides the breakthrough: representing exponentially many paths implicitly through symbolic constraints.
+  Rather than enumerating paths individually, we manipulate entire path sets using polynomial-time Boolean operations.
+  This combination of precision and efficiency enables practical path-sensitive analysis.
 ]

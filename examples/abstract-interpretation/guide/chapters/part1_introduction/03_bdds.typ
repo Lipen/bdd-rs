@@ -445,12 +445,20 @@ Explosion typically occurs only when variables are heavily correlated in complex
 This is less common in typical control logic.
 
 
-== Summary
+#chapter-summary[
+  This chapter introduced Binary Decision Diagrams as the symbolic representation backbone for path-sensitive analysis.
 
-- *Sets of states* are represented as *Boolean functions*.
-- *BDDs* provide compact, canonical graph representations of these functions.
-- *Reduction rules* (Isomorphism and Redundant Tests) compress by sharing common substructures.
-- The *`SymbolicManager`* maps program conditions to BDD variables, ensuring consistency.
+  The fundamental insight is that *sets of program states can be represented as Boolean functions*, mapping variable valuations to true (state included) or false (state excluded).
+  *BDDs provide compact, canonical graph representations* of these functions through systematic sharing of common substructure.
+
+  Two *reduction rules* --- eliminating isomorphic subgraphs and removing redundant tests --- enable exponential compression while preserving canonicity.
+  This means equivalent Boolean functions always produce identical BDD structures, making equality testing trivial.
+
+  The *`SymbolicManager`* bridges program syntax and BDD representation by mapping conditions to BDD variables consistently.
+  This canonicalization ensures that identical program conditions always map to the same BDD variable, enabling efficient reuse and comparison.
+
+  With these foundations in place, we're ready to implement the concrete analysis infrastructure that leverages BDDs for symbolic program analysis.
+]
 
 #info-box(title: "Explore BDD Operations")[
   To see boolean operations in action, check out the example demonstrating AND, OR, XOR, and their algebraic properties like De Morgan's laws and absorption.
@@ -465,5 +473,3 @@ This is less common in typical control logic.
     Includes verification of De Morgan's laws and other identities.
   ],
 )
-
-Next chapter: we implement the `AnalysisManager` and core BDD interface in Rust.

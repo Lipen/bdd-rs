@@ -561,38 +561,22 @@ Key takeaways:
 @part-ii dives deeper into mathematical foundations and advanced techniques.
 
 #chapter-summary[
-  *Symbolic execution simulates program flows with symbolic variables.*
-  Instead of concrete values, we maintain path conditions (Boolean formulas) and symbolic environments.
-  This allows exploring multiple execution paths simultaneously.
+  This chapter completed the journey from abstract theory to concrete implementation by building a full symbolic executor.
 
-  *The condition language models program logic.*
-  We represent program predicates using variables, comparison operators, and integer values.
-  This forms the vocabulary for expressing path conditions.
+  The *executor architecture* integrates control flow traversal with symbolic state manipulation.
+  It maintains a worklist of basic blocks awaiting analysis, processing each by applying transfer functions that update both path conditions (BDDs) and data values (abstract domains).
 
-  *Symbolic state pairs BDDs with variable environments.*
-  The BDD tracks which combinations of inputs are feasible (which paths are reachable).
-  The environment maps each variable to its symbolic value or abstract property.
+  At control flow *merge points*, the executor performs sound joins that preserve path sensitivity.
+  Rather than collapsing distinct paths into a single approximate state, it maintains the BDD-based partition that distinguishes execution contexts.
+  This preserves precision while ensuring termination through widening operators.
 
-  *Branching creates path splits.*
-  At each conditional, we allocate a fresh BDD variable.
-  The true branch gets path condition $"path" and "cond"$, the false branch gets $"path" and not "cond"$.
+  The analysis *detects assertion violations* by checking whether the path condition at an assertion point allows states violating the assertion.
+  When such states exist, the BDD encoding the infeasible paths proves the assertion must hold.
+  When satisfiable states remain, we've found a potential bug with its exact path conditions.
 
-  *The program walker explores all feasible paths.*
-  Assignments update the environment without changing the path condition.
-  Branches split the state into two copies, one for each direction.
+  *Practical challenges* include path explosion (exponential state space growth), variable ordering effects on BDD size, and engineering tradeoffs between precision and performance.
+  Production systems address these through bounded unrolling, aggressive widening, and hybrid approaches combining symbolic execution with other techniques.
 
-  *Conflict detection identifies unreachable code.*
-  When a path condition becomes False (unsatisfiable), that code is provably dead.
-  This catches bugs like impossible branches and redundant checks.
-
-  *Real systems need enhancements.*
-  Production symbolic executors integrate abstract domains (intervals, octagons), constraint solvers (SMT), loop handling (bounded unrolling, widening), and sophisticated pruning strategies.
-
-  *Practical challenges remain.*
-  Path explosion limits scalability, variable ordering affects BDD size, and performance requires careful engineering.
-  Hybrid approaches combining multiple techniques offer the best trade-offs.
-
-  *The key insight: BDDs enable tractable path-sensitivity.*
-  By compactly representing exponentially many path conditions, BDDs make path-sensitive analysis practical.
-  This bridges the gap between theoretical precision and real-world scalability.
+  The fundamental insight remains: *BDDs enable tractable path-sensitivity* by compactly representing exponentially many execution paths.
+  This bridges the theoretical ideal of complete precision with the practical necessity of polynomial-time operations.
 ]

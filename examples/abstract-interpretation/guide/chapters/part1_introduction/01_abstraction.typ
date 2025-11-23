@@ -279,16 +279,19 @@ Instead of merging everything into one abstract value (getting $top$), BDDs trac
 This is called *Path Sensitivity*, and it is the main focus of this guide.
 
 #chapter-summary[
-  - *Abstraction is Projection.*
-    Like a shadow of a 3D object, an abstract domain captures some properties while ignoring others.
+  This chapter established the foundational paradigm of abstract interpretation through concrete examples.
 
-  - *Soundness is Key.*
-    If the abstraction says "Safe", the concrete program must be safe.
-    If the abstraction says "Unknown", the program might be safe or unsafe.
+  *Abstraction is projection* --- like a shadow of a three-dimensional object, an abstract domain captures essential properties while intentionally discarding others.
+  The choice of what to track (sign, interval, exact value) fundamentally determines analysis capability and cost.
 
-  - *Precision vs. Speed.*
-    More complex domains (Interval vs. Sign) give better answers but cost more to compute.
+  *Soundness is the non-negotiable guarantee*: when the abstraction claims "safe", the concrete program must indeed be safe.
+  The abstraction may answer "unknown" for programs that are actually safe, but it must never claim safety for unsafe programs.
+  This one-directional guarantee enables using abstract interpretation for verification rather than mere bug finding.
 
-  - *The Merge Problem.*
-    Control flow merges force us to combine conflicting information, often leading to precision loss ($top$).
+  The *precision-versus-speed tradeoff* pervades all analysis design.
+  Richer domains like intervals provide more detailed information than simple signs, but require more computation per operation.
+  Understanding this tradeoff guides domain selection for specific verification goals.
+
+  Finally, *the merge problem* reveals abstraction's fundamental challenge: when execution paths reconverge, we must combine possibly conflicting information.
+  Naive joining often loses precision, motivating the path-sensitive techniques we'll explore in subsequent chapters.
 ]

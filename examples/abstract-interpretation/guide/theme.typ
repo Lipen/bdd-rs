@@ -981,20 +981,38 @@
 
 #let chapter-summary(title: "Chapter Summary", body) = {
   block(
-    fill: colors.bg-subtle,
-    stroke: 1pt + colors.line,
+    fill: colors.primary.lighten(95%),
+    stroke: (
+      left: 4pt + colors.primary,
+      rest: 1pt + colors.primary.lighten(60%),
+    ),
     inset: spacing.inset-large,
     radius: 6pt,
     width: 100%,
+    breakable: true,
   )[
+    // Title
     #text(
       font: fonts.heading,
       weight: "bold",
-      size: 1.1em,
+      size: 1.2em,
       fill: colors.primary,
       title,
     )
 
+    #v(spacing.medium, weak: true)
+
+    // Subtle separator line
+    #line(
+      length: 100%,
+      stroke: 0.5pt + colors.primary.lighten(70%),
+    )
+
+    #v(spacing.small, weak: true)
+
+    // Body content with refined styling
+    #set text(size: 0.98em, fill: colors.text)
+    #set par(leading: 0.75em, spacing: 1.1em, justify: true)
     #set list(spacing: spacing.medium, indent: 0pt)
     #body
   ]

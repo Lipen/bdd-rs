@@ -129,11 +129,21 @@ More advanced reduction can extract facts from the BDD to refine the data.
     draw.content("one", [1])
 
     // Edges
-    draw.line("root.south-west", "left.north", stroke: (paint: colors.text-light, dash: "dashed"), mark: (end: ">")) // Low
+    draw.line(
+      "root.south-west",
+      "left.north",
+      stroke: (paint: colors.text-light, dash: "dashed"),
+      mark: (end: ">", stroke: (dash: "solid")),
+    ) // Low
     draw.line("root.south-east", "zero.north", stroke: colors.text-light + 0.8pt, mark: (end: ">")) // High
 
     draw.line("left.south", "one.north", stroke: colors.text-light + 0.8pt, mark: (end: ">")) // High
-    draw.line("left.south-east", "zero.west", stroke: (paint: colors.text-light, dash: "dashed"), mark: (end: ">")) // Low
+    draw.line(
+      "left.south-east",
+      "zero.west",
+      stroke: (paint: colors.text-light, dash: "dashed"),
+      mark: (end: ">", stroke: (dash: "solid")),
+    ) // Low
 
     // Data Component
     draw.content((5, 4), text(weight: "bold")[Data (Intervals)])
@@ -219,16 +229,77 @@ The BDD keeps these states distinct if we use partitioning, or allows us to reco
 
 == Performance Considerations
 
-- *BDD Size*: For typical control flow (structured programming), BDDs remain small.
-- *Widening*: We must widen the BDD to prevent infinite growth in loops.
-  A simple strategy is to stop tracking path conditions after $N$ iterations (force `control = true`).
+BDD-based path sensitivity trades precision for computational cost.
+Managing this tradeoff determines whether an analyzer scales to real programs.
+
+=== BDD Size Growth
+
+Well-structured control flow produces compact BDDs.
+A function with $n$ sequential conditionals generates $O(n)$ nodes when variable ordering follows control flow.
+However, complex Boolean combinations can trigger exponential blowup to $O(2^n)$ nodes.
+
+*Key factors affecting size:*
+- *Variable ordering*: Allocate BDD variables following reverse postorder CFG traversal.
+  This groups related conditions together, maximizing structural sharing.
+- *Loop complexity*: Deeply nested loops with many exit conditions stress the representation.
+- *Boolean structure*: Arbitrary functions over distant program points prevent sharing.
+
+*Mitigation approaches:*
+- Trigger garbage collection at loop headers or when node count exceeds thresholds (e.g., 10,000 nodes).
+- Impose hard node limits per function (e.g., 100,000 nodes).
+  When exceeded, widen aggressively or fall back to path-insensitive mode.
+
+=== Loop Widening
+
+Loops create infinite path families that require finite representation.
+After $k$ iterations (typically $k = 2$), replace the path condition with `True`:
+
+```rust
+fn widen_bdd(&self, iteration: usize) -> Ref {
+    if iteration >= 2 {
+        self.bdd.constant(true)  // Abandon path tracking
+    } else {
+        self.control
+    }
+}
+```
+
+This abandons path sensitivity within loops, reverting to path-insensitive analysis.
+More sophisticated strategies preserve conditions guarding safety checks while dropping routine control flow.
+
+=== Performance Profiling
+
+Identify whether BDD operations or data domain operations dominate:
+
+- *Cheap data domains* (intervals, signs): BDD operations dominate.
+  Focus on variable ordering and garbage collection.
+- *Expensive data domains* (polyhedra, automata): Domain operations dominate.
+  BDD overhead is negligible; consider domain simplifications instead.
+- *Typical case* (BDDs + intervals): Expect some overhead versus path-insensitive analysis.
+
+=== Practical Guidelines
+
++ Use widening threshold $k=2$.
+  Most programs converge quickly; higher thresholds rarely improve precision.
++ Allocate BDD variables in reverse postorder.
+  This single heuristic handles most ordering challenges.
++ Monitor node count during iteration.
+  Spikes indicate problem regions requiring specialized handling.
++ For complex functions, fall back to path-insensitive analysis automatically.
+  Hybrid approaches maintain soundness while bounding worst-case cost.
 
 #chapter-summary[
-  - The `BddProductDomain` combines a BDD manager with a data domain.
+  This chapter made path-sensitive abstract interpretation concrete through the BDD-based product domain implementation.
 
-  - `join` and `meet` operate component-wise.
+  The *`BddProductDomain`* architecture combines a BDD manager (tracking feasible paths) with an arbitrary data domain (tracking variable values).
+  This separation enables *orthogonal composition* --- switching between different data abstractions without modifying the path-tracking mechanism.
 
-  - `assume` updates both the path condition (BDD) and the data facts.
+  *Lattice operations* (`join`, `meet`) operate component-wise: combine path conditions through Boolean operations, merge data states through domain operations.
+  The critical *`assume` operation* updates both layers: conjoining conditions to the path BDD and refining data facts based on the assumption.
 
-  - This architecture enables precise, path-sensitive analysis that can verify properties dependent on control flow, like array access in guarded blocks.
+  This architecture enables *automatic infeasible path detection*.
+  When a path BDD becomes False through contradiction, that execution trace is proven unreachable.
+  The executor can prune entire branches without explicit satisfiability checking.
+
+  The implementation demonstrates path sensitivity's *practical value*: verifying properties dependent on control flow sequences, like array bounds under conditional guards or authorization checks under role conditions.
 ]
