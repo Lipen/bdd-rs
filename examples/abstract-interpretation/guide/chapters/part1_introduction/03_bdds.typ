@@ -55,7 +55,7 @@ $ (A and B) or (not A and B) $
 
 Using Boolean algebra, this simplifies to just $B$.
 
-#info-box(title: "Key Insight")[
+#insight-box[
   Set operations on states correspond directly to Boolean operations on formulas:
   - *Union* ($union$) $->$ Logical OR ($or$)
   - *Intersection* ($inter$) $->$ Logical AND ($and$)
