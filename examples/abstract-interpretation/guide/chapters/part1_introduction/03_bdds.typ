@@ -103,17 +103,47 @@ We achieve this by repeatedly applying two reduction rules until the graph is mi
 
 + *Merge Isomorphic Nodes*:
   If two nodes $u$ and $v$ represent the same variable and have identical high and low children, they are equivalent.
-
   We keep one and redirect all edges pointing to the other.
+
 + *Eliminate Redundant Tests*:
   If a node $u$ has identical high and low children ($"high"(u) = "low"(u)$), the decision at $u$ does not affect the outcome.
-
   We remove $u$ and redirect incoming edges directly to its child.
 
 #info-box(title: "Canonicity Property")[
   For a fixed variable ordering, the reduced OBDD for any Boolean function is *unique*.
 
   This property is crucial for verification: checking the equivalence of two functions $f equiv g$ reduces to checking if their BDD root nodes are identical (pointer equality), which is an $O(1)$ operation.
+]
+
+== ROBDD Invariants <sec-robdd-invariants>
+
+The reduced ordered BDD representation satisfies three core invariants that guarantee canonicity:
+
++ *Invariant 1 (Ordering)*: Variables appear in strictly ascending order along every root-to-terminal path.
++ *Invariant 2 (No Redundant Tests)*: No internal node has identical high and low children.
++ *Invariant 3 (No Duplicate Nodes)*: No two distinct nodes share the same variable and identical child pair ("low", "high").
+
+Together, these invariants ensure a one-to-one mapping between Boolean functions and their graph representation under a fixed order.
+
+#definition(title: "Canonicity of ROBDDs")[
+  Let $f$ be a Boolean function and let $pi$ be a fixed total order over its variables.
+  There exists exactly one ROBDD $B$ such that $B$ represents $f$ and respects $pi$.
+]
+
+#intuition-box[
+  The uniqueness result turns semantic equivalence checking into pointer equality, allowing $O(1)$ functional equivalence tests and enabling aggressive memoization.
+]
+
+=== Practical Check List
+
+Before committing a node to the unique table we must enforce:
+- Ordering: Reject construction if a child violates variable order.
+- Redundancy: Collapse a node whose children match.
+- Duplication: Reuse existing canonical node if present.
+
+#implementation-box[
+  The `Bdd` manager uses a hash consing table keyed by `(var, low, high)`.
+  After computing low and high references for an apply step, it calls an insertion routine returning an existing node reference when possible.
 ]
 
 Before diving deeper into BDD theory, it's worth getting hands-on experience with basic BDD operations.
@@ -249,6 +279,72 @@ To illustrate these concepts, let us visualize the reduction of the decision tre
     This means the value of $B$ is irrelevant.
     The redundant $B$ node is removed, and $A$ connects directly to $C$.
 
+
+== Complexity of Core Operations <sec-bdd-complexity>
+
+Operation cost depends on input BDD sizes and variable ordering quality rather than raw path count.
+Let $n$ be the number of variables and let $|B|$ denote node count.
+
+#table(
+  columns: (auto, 1fr),
+  align: (left, left),
+  [*Operation*], [*Complexity*],
+  [Apply (Binary Boolean)], [$O(|B_f| times |B_g|)$ worst case; typically near-linear with caching],
+  [Negation], [$O(|B|)$ via complement edge toggling],
+  [Restriction / Cofactor], [$O(|B|)$ traversing affected nodes],
+  [Quantification], [Potentially $O(|B| times n)$; reduced by variable clustering],
+  [Variable Reordering], [Heuristic sifting $O(n^2)$ swaps],
+)
+
+#pitfall-box[
+  *Worst Case Alert*: Adversarial formulas destroy sharing and approach exponential size, e.g., integer multiplication bit level carry dependencies.
+]
+
+#implementation-box[
+  Performance hotspots concentrate in apply and quantification routines.
+  Instrument counters for cache hit ratio and node creation frequency to guide reordering heuristics.
+]
+
+== Research Spotlight: Variable Ordering Heuristics <sec-ordering-spotlight>
+
+Variable ordering dominates BDD size and thus memory and time.
+Several approaches have been developed:
+
+- *Static Heuristics*: Domain-driven grouping (e.g., related bitfields adjacent) applied once at initialization.
+- *Dynamic Sifting*: Iteratively moving a variable through the order to minimize size locally.
+- *Genetic / Annealing Approaches*: Global stochastic search exploring permutations for stable benchmarks.
+- *Machine Guidance*: Feature extraction (node fanout, support size) feeding ranking models to select the next swap candidate.
+
+#historical-note(person: "R. E. Bryant", year: 1986, title: "Graph Based Algorithms for Boolean Function Manipulation")[
+  Bryant's seminal work introduced reduced ordered BDDs and established foundational complexity tradeoffs still optimized with modern heuristics.
+]
+
+#implementation-box[
+  Integrate a *lazy sifting trigger*: when node count crosses a threshold factor versus baseline, schedule a limited window reordering batch.
+]
+
+== Exercises <sec-bdd-exercises>
+
+#exercise-box(difficulty: "Easy")[
+  Construct the full decision tree and reduced BDD for $(A or B) and (C or D)$ under order $A < B < C < D$.
+  Count nodes and compare reduction ratio.
+]
+#exercise-box(difficulty: "Medium")[
+  Show that two distinct Boolean formulas can share an identical ROBDD when variable ordering differs.
+  Provide explicit counterexample and explain resolution.
+]
+#exercise-box(difficulty: "Medium")[
+  Instrument the `apply` operation to record cache hits and misses for random 50 variable CNF instances.
+  Plot hit ratio vs clause density.
+]
+#exercise-box(difficulty: "Hard")[
+  Propose a scoring function for dynamic ordering decisions using features: variable level, node fanout, subtree size.
+  Evaluate on synthetic benchmark set.
+]
+#exercise-box(difficulty: "Hard")[
+  Implement existential quantification of a subset of variables and empirically measure node count delta for structured vs random formulas.
+]
+
 == The `SymbolicManager`
 
 In our Analyzer, we must bridge the gap between the "semantic" world of the AST (nodes like `x > 0`) and the "numeric" world of the BDD library (integer variables like 1, 2, 3).
@@ -319,6 +415,7 @@ For example, consider 100 independent `if` statements:
 The BDD automatically "factors out" the independence.
 
 Explosion typically occurs only when variables are heavily correlated in complex ways (e.g., cryptographic hashes), which is less common in typical control logic.
+
 
 == Summary
 

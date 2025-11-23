@@ -323,6 +323,269 @@ fn eval_stmt<D: AbstractDomain>(stmt: &Stmt, state: &mut PartitionedState<D>) {
 
 This recursive structure naturally handles nested blocks, while the `PartitionedState` manages the complexity of path conditions under the hood.
 
+== Product Construction Theory <sec-product-theory>
+
+ A combined abstract state carries two kinds of information.
+ Control records which execution traces reach the program point.
+ Data records abstract values of variables along those traces.
+ The pair $(b, rho)$ behaves like a product ordered componentwise.
+ Precision improves when constraints flow in both directions.
+
+ #info-box(title: "Conceptual Placement")[
+ Formal lattice definitions (standard product, reduced product, multi domain reduction) live in @ch-advanced-galois.
+ Here we keep the *design intuition* only to avoid duplication.
+]
+
+ - *Control restricts data*: Branch predicate `x > 0` rules out negative interval bounds.
+ - *Data refutes control*: Interval $[5,5]$ makes predicate `x < 0` infeasible.
+ - *Reduction*: Propagate constraints until no component tightens further.
+ - *Contradiction*: Empty path or impossible data collapses state to bottom.
+ - *Local fixpoint*: Stabilization after a propagation round means reduction reached equilibrium.
+
+ #insight-box[
+ Partitioning and product address different axes.
+ Partitioning decides *how many* $(b_i, rho_i)$ pairs we keep.
+ Product interaction explains *inside each pair* how control and data cooperate via reduction.
+]
+
+=== BDD Control as Product Component
+
+Our BDD path condition acts as one component of a product.
+The BDD domain has:
+
+- *Order*: $b_1 lle b_2$ iff $b_1 => b_2$ (logical implication)
+- *Join*: $b_1 ljoin b_2 = b_1 or b_2$
+- *Meet*: $b_1 lmeet b_2 = b_1 and b_2$
+- *Bottom*: False (no paths)
+- *Top*: True (all paths)
+#definition(title: "BDD Control Lattice")[
+  The lattice of BDD formulas $(cal(B), =>, "False", "True", or, and)$ forms a complete boolean algebra.
+  Each element represents a set of program execution traces.
+]
+
+The combined domain $(cal(B) times D, lle, (F, bot_D), (T, top_D))$ uses standard product ordering.
+Reduction propagates constraints: when path condition becomes unsatisfiable, the entire state becomes bottom.
+
+=== Partition Representation
+
+Instead of a single pair $(b, rho)$, we maintain a set ${(b_1, rho_1), ..., (b_n, rho_n)}$ with disjoint path conditions.
+This is equivalent to the disjunction:
+
+$ (b_1 and rho_1) or ... or (b_n and rho_n) $
+
+#definition(title: "Partitioned Abstract State")[
+  A partitioned state $S = {(b_i, rho_i)}_(i=1)^n$ represents the union of states where execution satisfying $b_i$ has environment $rho_i$.
+  The concretization is $gamma(S) = union.big_(i=1)^n gamma(b_i) times gamma(rho_i)$.
+]
+
+#theorem(title: "Partition Equivalence")[
+  Let $S_1 = {(b_i, rho_i)}$ and $S_2 = {(c_j, sigma_j)}$ be partitioned states.
+  $S_1 equiv S_2$ iff $gamma(S_1) = gamma(S_2)$.
+]
+
+#proof[
+  *Forward direction:* If partitions differ only in syntactic representation (e.g., BDD variable order) but denote the same boolean function and abstract values, concretizations match.
+
+  *Reverse direction:* Two distinct concretizations imply existence of distinguishing concrete state.
+]
+
+== Reduction Algorithms <sec-reduction-algorithms>
+ BDD tracks control predicates (boolean).
+ Relational domain tracks numeric relations.
+ Reduction extracts numeric bounds from BDD (when possible) and injects into polyhedron.
+
+Maintaining disjoint partitions with optimal abstraction requires reduction passes.
+
+=== Path Condition Simplification
+
+After operations, path conditions may become redundant or contradictory.
+We apply BDD simplification and feasibility checks.
+
+#algorithm(title: "Partition Reduction")[
+  *Input:* Partition set ${(b_i, rho_i) | i = 1..n}$.
+
+  *Output:* Reduced partition set.
+
+  + *for each* $(b_i, rho_i)$ *in* partitions *do*
+    + *if* $b_i equiv bot$ *then* + *remove* partition $i$ $quad slash.double$ Infeasible guard.
+    + *for each* $(b_j, rho_j)$ *where* $j != i$ *do*
+      + *if* $rho_i = rho_j$ *then* + *merge* $b_i or b_j$, *remove* $j$ $quad slash.double$ Identical states.
+      + *if* $rho_i lle rho_j$ *and* $b_i => b_j$ *then* + *remove* $i$ $quad slash.double$ Subsumed partition.
+    + *end for*
+  + *end for*
+  + *return* reduced partitions
+]
+
+Complexity depends on BDD operations and domain equality checks.
+Heuristic: limit partition count to bound $k$ (k-limiting) forcing merge when exceeded.
+
+=== Cross Domain Constraints
+
+When BDD path condition encodes arithmetic constraints (e.g., `x > 0` mapped to BDD variable), we can extract these and refine the data domain.
+
+#implementation-box[
+  Implement `extract_constraints(b: Ref) -> Vec<Constraint>` parsing BDD structure to recover arithmetic bounds.
+  Feed these to domain refinement methods.
+  This closes the loop between control and data.
+]
+
+=== Partition Explosion Control
+
+Unconstrained partitioning leads to exponential state counts.
+Mitigation strategies include:
+
+- *k-Limiting*: Cap partition count at $k$, force merge least similar states when exceeded.
+- *Similarity Heuristic*: Measure distance between abstract environments using domain metrics.
+- *Lazy Partitioning*: Delay partition splits until domain precision would genuinely improve.
+
+#pitfall-box[
+  Aggressive partitioning without limits can exhaust memory quickly.
+  Always instrument partition counts and trigger warnings when thresholds approach.
+]
+
+#exercise-box(difficulty: "Medium")[
+  Implement k-limiting with $k=5$.
+  On overflow, merge the two partitions whose abstract environments have smallest lattice height difference.
+  Measure precision loss on branching programs.
+]
+
+== Concrete Example: Temperature Controller <sec-temperature-example>
+
+Consider an embedded temperature controller with safety bounds:
+
+```rust
+fn control_temp(sensor: i32) -> i32 {
+  let mut heater_power = 0;
+  if sensor < 15 {
+    heater_power = 100;  // Full power
+  } else if sensor < 20 {
+    heater_power = 50;   // Half power
+  } else {
+    heater_power = 0;    // Off
+  }
+  heater_power
+}
+```
+
+*Goal*: Prove `heater_power` is always in $[0, 100]$.
+
+=== Path-Insensitive Interval Analysis
+
+- Initial: `sensor` $= top = (-oo, +oo)$
+- After all branches merge: `heater_power` $= [0, 100] ljoin [0, 50] ljoin [0, 0] = [0, 100]$
+- Result: Correct but provides no insight into correlations
+
+=== Path-Sensitive BDD Analysis
+
+- Partition 1: $("sensor" < 15, "heater\_power" = 100)$
+- Partition 2: $(15 <= "sensor" < 20, "heater\_power" = 50)$
+- Partition 3: $("sensor" >= 20, "heater\_power" = 0)$
+
+Each partition maintains exact value correlation with input range.
+We can query: "Under what input conditions is heater at full power?"
+Answer: BDD for $"sensor" < 15$.
+
+#insight-box[
+  Path-sensitivity transforms "what are possible values" into "under which conditions do these values occur".
+  This enables conditional verification queries.
+]
+
+== Combining Multiple Data Domains <sec-multiple-domains>
+
+Beyond BDD control, we can combine multiple data abstractions in a reduced product.
+
+*Sign × Interval*:
+- Signs detect zero division, intervals track bounds.
+- Reduction: If sign = Zero, refine interval to $[0, 0]$.
+- If interval = $[5, 10]$, refine sign to Positive.
+
+*Interval × Congruence*:
+- Intervals for bounds, congruences for divisibility.
+- Reduction: Interval $[8, 12]$ with congruence $equiv 0 mod 4$ refines to ${8, 12}$ (only 8 and 12 satisfy both).
+
+*Polyhedra × Interval*:
+- Polyhedra capture linear relations, intervals provide quick bounds.
+- Reduction: Project polyhedron onto single variable to tighten interval.
+
+#example-reference(
+  "domains",
+  "combined.rs",
+  "combined_domain",
+  [Implements a reduced product of sign and interval domains with bidirectional constraint propagation.],
+)
+
+#exercise-box(difficulty: "Hard")[
+  Design a reduced product of interval and parity (even/odd) domains.
+  Implement reduction: interval $[2, 5]$ with parity Even refines to ${2, 4}$.
+  Measure overhead versus precision gain.
+]
+
+== Relational Domains and BDD Synergy <sec-relational-domains>
+
+Relational domains like octagons or polyhedra track constraints between variables (e.g., $x - y <= 5$).
+BDD path-sensitivity adds *conditional* relations: "$x - y <= 5$ holds when $z > 0$".
+
+Combining them requires careful coordination:
+
++ BDD tracks control predicates (boolean).
++ Relational domain tracks numeric relations.
++ Reduction extracts numeric bounds from BDD (when possible) and injects into polyhedron.
+
+#warning-box[
+  Relational domains have cubic complexity in variable count.
+  Partition explosion with relational domains can become intractable quickly.
+  Consider simpler domains (intervals) for control-heavy code and relational domains for data-heavy loops.
+]
+
+#exercise-box(difficulty: "Hard")[
+  Sketch integration of octagon domain with BDD control.
+  Propose reduction operator extracting difference bounds from path predicates.
+  Discuss complexity trade offs.
+]
+
+
+== Research Spotlight: Trace Partitioning vs Powerset <sec-trace-partitioning-spotlight>
+
+Trace partitioning maintains disjoint path sets with separate abstract values.
+The *powerset* domain represents arbitrary sets of abstract elements without disjointness.
+Trace partitioning is a restricted powerset: partitions correspond to control flow divergence points.
+
+#historical-note(person: "Mauborgne and Rival", year: 2005, title: "Trace Partitioning")[
+  Formalized trace partitioning as a systematic framework for path-sensitive analysis distinguishing syntactic control predicates from semantic abstract values.
+]
+
+Recent work explores:
+
+- *Dynamic Partitioning*: Adjust partition granularity based on precision needs.
+- *Predicate Abstraction*: Choose relevant predicates via counterexample-guided refinement (CEGAR).
+- *Hybrid Partitioning*: Combine trace partitioning with relational domains for specific variable clusters.
+
+#exercise-box(difficulty: "Hard")[
+  Compare trace partitioning (our approach) with full powerset on a loop with nested conditionals.
+  Measure state count, analysis time, and precision (count false alarms).
+]
+
+
+== Implementation Trade-offs <sec-implementation-tradeoffs>
+
+Practical path-sensitive analyzers balance precision with performance.
+
+- *Eager Merge*: Join states at every merge point, losing path-sensitivity early but bounding states.
+- *Lazy Merge*: Maintain partitions as long as possible, only merging when forced (loop convergence, state limit).
+- *Selective Sensitivity*: Partition only on predicates likely to improve precision (e.g., null checks, array bounds).
+- *Predicate Sampling*: Allocate BDD variables for a subset of program conditions, merging others.
+
+#implementation-box[
+  Expose a configuration parameter `sensitivity_mode: Enum { Full, Limited(k), Selective }`.
+  Profile analysis runs measuring partition counts, memory usage, and precision metrics.
+]
+
+#exercise-box(number: 5, difficulty: "Medium")[
+  Implement selective sensitivity: partition only on predicates marked `@sensitive` in annotations.
+  Compare precision and performance versus full partitioning on annotated programs.
+]
+
+
 == Summary
 
 Combining BDDs with abstract domains gives path-sensitive analysis:
@@ -341,6 +604,7 @@ Trade-offs:
 - Heuristics balance precision and performance
 
 Generic design allows any abstract domain with BDD control.
+
 Let's see how these concepts come together in a working path-sensitive analyzer:
 
 #example-reference(
@@ -358,6 +622,7 @@ Let's see how these concepts come together in a working path-sensitive analyzer:
   The reduced product construction maintains relationships between domains.
   See #inline-example("domains", "combined.rs", "combined_domain") for an example combining sign and interval domains.
 ]
+
 
 In the next chapter, we build a complete symbolic executor using these techniques.
 

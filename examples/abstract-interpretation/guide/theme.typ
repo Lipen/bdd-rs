@@ -94,8 +94,8 @@
 #let lmeet = sym.inter.sq       // ⊓ meet
 #let widen = rel($nabla$)       // ∇ widening
 #let narrow = rel($triangle$)   // △ narrowing
-#let lle = $subset.eq.sq$       // ⊑ less-or-equal
-#let lge = $supset.eq.sq$       // ⊒ greater-or-equal
+#let lle = $scripts(subset.eq.sq)$       // ⊑ less-or-equal
+#let lge = $scripts(supset.eq.sq)$       // ⊒ greater-or-equal
 #let llb = $bracket.l.stroked$  // ⟦ left semantic bracket
 #let rrb = $bracket.r.stroked$  // ⟧ right semantic bracket
 

@@ -153,6 +153,7 @@ While best transformers are most precise, computing them may be expensive or imp
 
 Product domains (@ch-combining-domains) combine multiple abstractions.
 The *reduced product* refines this by exploiting relationships between component domains.
+For a conceptual implementation-oriented overview see @ch-combining-domains; this chapter gives the formal lattice treatment and proofs.
 
 #definition(title: "Direct Product")[
   Given domains $(C, alpha_1, gamma_1, A_1)$ and $(C, alpha_2, gamma_2, A_2)$ over the same concrete domain, the *direct product* is:
