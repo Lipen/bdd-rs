@@ -44,7 +44,7 @@ This communication is called *Reduction*.
   - Detective B thinks 15 is possible.
 
   But if they talk to each other ("Reduce"), they realize their information is contradictory.
-  The intersection of $[20, 30]$ and $\{13..19, 65..\}$ is empty.
+  The intersection of $[20, 30]$ and ${13..19, 65..}$ is empty.
   The set of suspects is empty ($bot$).
   They have proven the scenario is impossible.
 ]

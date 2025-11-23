@@ -30,7 +30,7 @@ Analyses may be:
 #definition(title: "Abstract Store and Strong/Weak Updates")[
   The abstract store $hat(sigma): "Site" -> V_A$ maps allocation sites to abstract values in some domain $V_A$ (e.g., intervals, products).
   A load `x = *p` computes $ljoin.big_(s in "PT"(p)) hat(sigma)(s)$.
-  A store `*p = v` performs a strong update if $"PT"(p) = \{s\}$ (singleton), otherwise a weak update (join into all $s in "PT"(p)$).
+  A store `*p = v` performs a strong update if $"PT"(p) = {s}$ (singleton), otherwise a weak update (join into all $s in "PT"(p)$).
 ]
 
 #example-box(title: "Allocation-Site Sensitivity")[
@@ -57,7 +57,7 @@ Branches refine types:
 
 == Sound Transfer Functions
 
-- Allocation: `p = new C()` adds the current site $s$ to $"PT"(p)$ and sets $"Type"(p) supset.eq \{"Obj"[C]\}$.
+- Allocation: `p = new C()` adds the current site $s$ to $"PT"(p)$ and sets $"Type"(p) supset.eq {"Obj"[C]}$.
 - Copy: `q = p` yields $"PT"(q) supset.eq "PT"(p)$ and $"Type"(q) supset.eq "Type"(p)$.
 - Field read: `x = p.f` loads $ljoin.big_(s in "PT"(p)) "Store"(s).f$ (use a product domain for field maps).
 - Field write: `p.f = v` performs strong/weak updates across $"PT"(p)$ at field `f`.

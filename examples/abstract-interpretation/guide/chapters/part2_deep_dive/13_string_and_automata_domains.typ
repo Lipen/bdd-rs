@@ -57,7 +57,7 @@ Represent sets of strings with a deterministic finite automaton (DFA) $A = (Q, q
 
 == Transformers for Common Operations
 
-- Concatenation: $L(A_x dot A_y) = \{ x y mid(|) x in L(A_x), y in L(A_y) \}$ via epsilon-bridge construction with determinization.
+- Concatenation: $L(A_x dot A_y) = { x y mid(|) x in L(A_x), y in L(A_y) }$ via epsilon-bridge construction with determinization.
 - Prefix/Suffix: $"prefix"_k(L)$ and $"suffix"_k(L)$ realized by state annotation up to bound $k$; widen by increasing $k$ lazily.
 - Replace: Over-approximate $"replace"(s, "re", r)$ by composing with a transducer; when unavailable, approximate by charset and length effects plus inclusion checks.
 - Substring: Restrict by positions using length bounds; refine with automata if indices are narrow.

@@ -126,7 +126,7 @@ The standard recipe for analyzing loops with infinite domains is:
 Good widening operators are domain-specific.
 
 - *Intervals:* If a bound changes, set it to $+infinity$ (or $-infinity$).
-- *Thresholds:* Instead of jumping to infinity, jump to the next value in a fixed set $T = \{0, 1, 2, 4, 8, ...\}$.
+- *Thresholds:* Instead of jumping to infinity, jump to the next value in a fixed set $T = {0, 1, 2, 4, 8, ...}$.
 - *Delayed Widening:* Perform $N$ normal joins before applying widening.
   This handles short loops precisely without over-approximation.
 
