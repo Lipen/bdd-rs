@@ -15,10 +15,10 @@ We want to secure a system with three roles:
 - *Admin:* System administrators (ID 200-255).
 
 *Policy Requirements:*
-1.  Allow Login (Action 1) for Guest.
-2.  Allow Read (Action 2) for User.
-3.  *Implicit Deny:* Block everything else.
-4.  *Safety Property:* Guest must *never* be able to perform Admin actions.
++ Allow Login (Action 1) for Guest.
++ Allow Read (Action 2) for User.
++ *Implicit Deny:* Block everything else.
++ *Safety Property:* Guest must *never* be able to perform Admin actions.
 
 == BDD Encoding
 
@@ -69,6 +69,40 @@ $ "Violation" = P and F $
 
 If `Violation` is `bdd.zero` (False), the policy is safe.
 If not, the BDD `Violation` contains *all* counter-examples (requests that violate the policy).
+
+#figure(
+  caption: [Verifying Policy Safety],
+
+  cetz.canvas({
+    import cetz: draw
+
+    // Policy Set
+    draw.circle(
+      (-1, 0),
+      radius: 1.5,
+      name: "policy",
+      stroke: colors.success + 1pt,
+      fill: colors.success.transparentize(90%),
+    )
+    draw.content((-1.5, 0), [Allowed\ (Policy)])
+
+    // Forbidden Set
+    draw.circle(
+      (1, 0),
+      radius: 1.5,
+      name: "forbidden",
+      stroke: colors.error + 1pt,
+      fill: colors.error.transparentize(90%),
+    )
+    draw.content((1.5, 0), [Forbidden\ (Property)])
+
+    // Intersection (Violation)
+    draw.content((0, 0), rotate(300deg, text(weight: "bold", fill: colors.error)[Violation!]))
+
+    // Annotation
+    draw.content((0, -2), text(size: 9pt)[Intersection must be empty])
+  }),
+)
 
 == Detecting Misconfigurations
 
@@ -125,6 +159,3 @@ if violation == bdd.zero {
     print_example(violation);
 }
 ```
-
-This demonstrates the power of BDDs: verification is reduced to simple boolean operations (`and`, `== zero`).
-
