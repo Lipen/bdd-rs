@@ -11,12 +11,6 @@ Each possibility is guarded by a BDD representing which execution paths lead to 
 
 This combination is called *path-sensitive abstract interpretation*.
 
-#info-box(title: "Guide Roadmap")[
-  This chapter introduces the *intuition* and *basic architecture* of path sensitivity using a simple example.
-
-  For the rigorous mathematical formalization (Trace Partitioning, Reduced Products) and advanced techniques (Relational Domains), see @part-ii, specifically @ch-domain-combinations.
-]
-
 == The Core Idea: Trace Partitioning
 
 When analysis ignores which path was taken, it loses precision.
@@ -145,10 +139,10 @@ This technique is called *Trace Partitioning*.
 
 == Architecture
 
-Our design has three layers.
+Our design has three layers:
 + *BDD Path Tracker*: Uses BDD operations to track which execution paths are feasible.
 + *Abstract Environment*: Maps each variable to an abstract value (sign, interval, etc.).
-+ *Combined Domain*: Pairs a BDD path condition with an abstract environment.
++ *Combined State*: Pairs a BDD path condition with an abstract environment.
 
 #definition(title: "BDD-based Path-Sensitive Abstract State")[
   A state is a pair $(b, rho)$ where:
@@ -158,41 +152,193 @@ Our design has three layers.
   The state represents: "For inputs satisfying $b$, the variables have values given by $rho$."
 ]
 
-== Upgrading the AnalysisManager
+== Implementation: PathSensitiveState
 
-Recall from @ch-bdd-programming that `AnalysisManager` maps program conditions to BDD variables.
-We need one enhancement: *smart negation handling*.
-
-=== The Negation Recognition Problem
-
-When we see `x > 0` followed later by `x <= 0`, these are opposite conditions.
-Naive allocation would create two independent BDD variables:
-- Variable $v_1$ for `x > 0`
-- Variable $v_2$ for `x <= 0`
-
-But this misses a crucial optimization: $v_2 equiv not v_1$.
-By recognizing this relationship, we:
-+ Save BDD variables (halve the variable count for negation pairs)
-+ Let BDD operations automatically detect contradictions ($v_1 and not v_1 = F$)
-+ Enable path merging when branches rejoin ($v_1 or not v_1 = T$)
-
-=== Enhanced Implementation
-
-We extend the `AnalysisManager` with three key components:
-
-+ *Condition representation*: Capture program predicates in a uniform way
-+ *Negation computation*: Detect opposite conditions syntactically
-+ *Smart BDD allocation*: Reuse variables for negated predicates
-
-The implementation builds on the basic manager from @ch-bdd-programming, adding negation awareness.
-
-*Condition Enumeration:*
-
-First, define a type for program conditions:
+Here's the complete structure:
 
 ```rust
 use std::collections::HashMap;
+use std::rc::Rc;
+use bdd_rs::bdd::Bdd;
+use bdd_rs::reference::Ref;
 
+struct PathSensitiveState {
+    bdd: Rc<Bdd>,
+    path: Ref,                  // BDD representing path condition
+    env: HashMap<String, Sign>, // Variable → Sign mapping
+    next_var: u32,              // Next BDD variable to allocate
+}
+```
+
+Each state tracks:
++ `path`: BDD formula describing which paths reach this state
++ `env`: Abstract environment mapping variables to values
++ `next_var`: Counter for fresh BDD variable allocation
+
+=== Core Operations
+
+Creating initial state:
+
+```rust
+impl PathSensitiveState {
+    fn new(bdd: Rc<Bdd>) -> Self {
+        Self {
+            bdd: bdd.clone(),
+            path: bdd.mk_true(), // Initially: all paths feasible
+            env: HashMap::new(),
+            next_var: 1,
+        }
+    }
+}
+```
+
+Checking feasibility:
+
+```rust
+fn is_feasible(&self) -> bool {
+    !self.bdd.is_zero(self.path)
+}
+```
+
+When a path's BDD becomes False, that path is impossible.
+
+=== Branching: Splitting Paths
+
+At a branch point, we create two states with refined path conditions:
+
+```rust
+fn branch(&self) -> (Self, Self) {
+    // Allocate fresh BDD variable for this condition
+    let cond_var = self.next_var;
+    let cond_bdd = self.bdd.mk_var(cond_var);
+
+    // True branch: path ∧ condition
+    let true_path = self.bdd.apply_and(self.path, cond_bdd);
+
+    // False branch: path ∧ ¬condition
+    let not_cond = self.bdd.apply_not(cond_bdd);
+    let false_path = self.bdd.apply_and(self.path, not_cond);
+
+    // Return both states (details omitted)
+    (true_state, false_state)
+}
+```
+
+Each branch gets a copy of the environment with a refined path condition.
+
+Example usage:
+
+```rust
+let (mut true_state, mut false_state) = state.branch();
+
+// True branch: x = 5
+true_state.assign("x", Sign::Pos);
+
+// False branch: x = -3
+false_state.assign("x", Sign::Neg);
+```
+
+=== Joining: Merging Paths
+
+When paths reconverge, we join them:
+
+```rust
+fn join(&self, other: &Self) -> Self {
+    // Merge path conditions: path₁ ∨ path₂
+    let merged_path = self.bdd.apply_or(self.path, other.path);
+
+    // Join data environments
+    let mut merged_env = HashMap::new();
+    for var in all_variables {
+        let val1 = self.get(var);
+        let val2 = other.get(var);
+        merged_env.insert(var, val1.join(&val2));
+    }
+    // ... return merged state
+}
+```
+
+The join operation combines path conditions with OR and abstract values with domain join ($ljoin$).
+
+== Concrete Example: Temperature Controller <sec-temperature-example>
+
+Let's analyze a realistic embedded system:
+
+```rust
+fn control_temp(sensor: i32) -> i32 {
+    let mut heater_power = 0;
+    if sensor < 15 {
+        heater_power = 100;  // Full power when cold
+    } else if sensor < 20 {
+        heater_power = 50;   // Half power
+    }
+    heater_power
+}
+```
+
+Safety property: `heater_power` $in [0, 100]$ (hardware constraint).
+
+=== Path-Insensitive Interval Analysis
+
+Using a single interval per variable merges all paths:
+
++ Entry: `sensor` $= top$, `heater_power` $= bot$
++ After `heater_power = 0`: `heater_power` $= [0, 0]$
++ First branch (`sensor < 15`):
+  - True: `heater_power` $= [100, 100]$
+  - False: `heater_power` $= [0, 0]$
++ Merge: `heater_power` $= [0, 100]$
++ Second branch (`sensor < 20`):
+  - True: `heater_power` $= [50, 50]$
+  - False: unchanged
++ Final: `heater_power` $= [0, 100]$ ✓
+
+Property holds, but precision is lost. Cannot answer "when is heater at full power?"
+
+=== Path-Sensitive BDD Analysis
+
+Maintains separate states for each path. Using `PathSensitiveState`:
+
+```rust
+let bdd = Rc::new(Bdd::default());
+let mut state = PathSensitiveState::new(bdd.clone());
+
+// heater_power = 0
+state.env.insert("heater_power", Interval::constant(0));
+
+// First branch: sensor < 15
+let (mut branch1, mut state) = state.branch();
+branch1.env.insert("heater_power", Interval::constant(100));
+
+// Second branch: sensor < 20
+let (mut branch2, mut branch3) = state.branch();
+branch2.env.insert("heater_power", Interval::constant(50));
+
+// Final: three states
+// State 1: (v₁, {heater_power ↦ [100, 100]})        -- sensor < 15
+// State 2: (¬v₁ ∧ v₂, {heater_power ↦ [50, 50]})    -- 15 ≤ sensor < 20
+// State 3: (¬v₁ ∧ ¬v₂, {heater_power ↦ [0, 0]})     -- sensor ≥ 20
+```
+
+Each partition preserves exact correlation between sensor reading and heater power:
+- $100 in [0, 100]$ #YES
+- $50 in [0, 100]$ #YES
+- $0 in [0, 100]$ #YES
+
+Path-sensitivity enables queries:
+- "When is heater at full power?" $=>$ `sensor < 15`
+- "Is heater_power = 75 possible?" $=>$ No
+- "What triggers half power?" $=>$ `15 ≤ sensor < 20`
+
+== Advanced: Condition Management
+
+Production analyzers optimize BDD variable allocation by recognizing negated predicates.
+
+=== Condition Representation
+
+Define an enum for program predicates:
+
+```rust
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 enum Condition {
     Greater(String, i32),    // x > c
@@ -204,11 +350,6 @@ enum Condition {
 }
 
 impl Condition {
-    /// Compute the logical negation of this condition
-    ///
-    /// Returns the opposite predicate such that:
-    /// c.negate().negate() == c  (involution)
-    /// c AND c.negate() == False (contradiction)
     fn negate(&self) -> Self {
         match self {
             Condition::Greater(var, val) => Condition::LessEq(var.clone(), *val),
@@ -222,52 +363,32 @@ impl Condition {
 }
 ```
 
-The `negate` method implements DeMorgan's laws for numeric comparisons.
-This is purely syntactic --- no semantic reasoning about variable ranges needed.
+=== Negation-Aware BDD Allocation
 
-*Manager with Negation Cache:*
-
-Now extend `AnalysisManager` to recognize negations:
+The `AnalysisManager` caches conditions and reuses BDD variables for negations:
 
 ```rust
 struct AnalysisManager {
     bdd: Bdd,
-    /// Map: Condition -> BDD variable ID
-    mapping: HashMap<Condition, usize>,
+    mapping: HashMap<Condition, usize>,  // Condition -> BDD variable ID
     next_var_id: usize,
 }
 
 impl AnalysisManager {
-    fn new(bdd: Bdd) -> Self {
-        Self {
-            bdd,
-            mapping: HashMap::new(),
-            next_var_id: 1,  // BDD variables start at 1
-        }
-    }
-
-    /// Get or allocate BDD variable for a condition
-    ///
-    /// Three-step lookup strategy:
-    /// 1. Check if condition already has a variable (exact match)
-    /// 2. Check if negation has a variable (reuse with NOT)
-    /// 3. Allocate new variable (both failed)
     pub fn get_bdd(&mut self, c: &Condition) -> Ref {
-        // STEP 1: Check exact match (cache hit)
+        // 1. Check if condition already has a variable
         if let Some(&id) = self.mapping.get(c) {
             return self.bdd.mk_var(id as u32);
         }
 
-        // STEP 2: Check if we have the negation already
+        // 2. Check if negation has a variable (reuse with NOT)
         let neg_c = c.negate();
         if let Some(&id) = self.mapping.get(&neg_c) {
-            // Negation exists: return NOT of that variable
-            // This ensures: get_bdd(c) == NOT(get_bdd(c.negate()))
             let var = self.bdd.mk_var(id as u32);
             return self.bdd.mk_not(var);
         }
 
-        // STEP 3: Allocate new variable (cache miss for both)
+        // 3. Allocate new variable
         let id = self.next_var_id;
         self.next_var_id += 1;
         self.mapping.insert(c.clone(), id);
@@ -276,12 +397,11 @@ impl AnalysisManager {
 }
 ```
 
-*Key insight:* Step 2 avoids allocating a new BDD variable when we already have the opposite condition.
-This halves the variable space for predicate pairs and enables automatic contradiction detection.
+Step 2 halves variable usage for predicate pairs like `x > 0` and `x <= 0`.
 
-=== Benefits in Action
+=== Automatic Contradiction Detection
 
-Consider this program:
+Consider sequential branches:
 
 ```rust
 if x > 0 {        // Allocates BDD variable v1
@@ -298,48 +418,28 @@ $ v_1 and not v_1 = F $
 
 The BDD library detects this contradiction immediately, pruning the impossible path.
 
-== The Power of Partitioning
+== Alternative Design: Partitioning
 
-If we merge all paths immediately, we lose the correlation between control flow and data values.
-The solution: maintain multiple abstract environments in parallel.
-Each environment is guarded by a BDD representing the paths that reach it.
-This is *Trace Partitioning*.
+The `PathSensitiveState` shown earlier clones states at each branch.
+An alternative design maintains *all* path-environment pairs in a single structure.
+This section sketches this approach to illustrate the design space.
+
+Instead of cloning, we store multiple $"path", "data"$ pairs in one container.
+Each pair represents a partition of the program's execution space.
 
 === Partitioned State Representation
 
-The core data structure maintains multiple $("path", "data")$ pairs:
+The core data structure:
 
 ```rust
-use std::rc::Rc;
-use std::cell::RefCell;
-
-#[derive(Clone)]
 struct PartitionedState<D: AbstractDomain> {
-    /// List of (path_condition, abstract_environment) pairs
-    ///
-    /// INVARIANT: Path conditions should be mutually disjoint for efficiency.
-    /// That is, for i ≠ j: path_i ∧ path_j = False
-    ///
-    /// This ensures each concrete execution matches at most one partition.
-    partitions: Vec<(Ref, D)>,
-
-    /// Shared reference to BDD manager and condition mapping
-    /// Wrapped in Rc<RefCell<>> for shared mutable access across cloned states
+    partitions: Vec<(Ref, D)>,  // List of (path, environment) pairs
     control: Rc<RefCell<AnalysisManager>>,
 }
-
-impl<D: AbstractDomain> PartitionedState<D> {
-    /// Create initial state: universal path with bottom environment
-    fn new(control: Rc<RefCell<AnalysisManager>>) -> Self {
-        let bdd = control.borrow().bdd.clone();
-        Self {
-            // Start with: "all paths are possible, but no variables have been assigned"
-            partitions: vec![(bdd.mk_true(), D::bottom())],
-            control,
-        }
-    }
-}
 ```
+
+Invariant: path conditions should be mutually disjoint.
+That is, for $i eq.not j$: $"path"_i and "path"_j = F$.
 
 === Semantic Interpretation
 
@@ -378,13 +478,9 @@ When two control flow paths converge, we must join their states.
 Naive approach: create a single partition with joined environments.
 Smart approach: preserve distinctions when possible.
 
-*Optimization 1: Environment-Based Merging*
-
 When two partitions have *identical* abstract environments, merge their path conditions:
 
 $ (b_1, rho) ljoin (b_2, rho) = (b_1 or b_2, rho) $
-
-This exploits a key insight: if the data abstraction is the same, we only need to track *which* paths lead here, not maintain separate representations.
 
 #example-box(title: "Merge Opportunity")[
   Two branches assign the same value:
@@ -393,95 +489,34 @@ This exploits a key insight: if the data abstraction is the same, we only need t
   else { y = 5; }          // Partition: (x <= 0, {y ↦ [5,5]})
   ```
 
-  After join: single partition $(T, {y arrow.bar [5,5]})$ because:
-  - Environments are identical: ${y arrow.bar [5,5]}$
-  - Path conditions merge: $(x > 0) or (x lt.eq 0) = T$
+  After join: single partition $(T, {y arrow.bar [5,5]})$ because environments are identical.
 ]
 
-*Full Implementation with Complexity Analysis:*
-
+Join algorithm:
 ```rust
-impl<D: AbstractDomain + PartialEq + Clone> PartitionedState<D> {
-    /// Join two partitioned states at control flow merge points
-    ///
-    /// Complexity: O(k1 × k2 × (C_eq + C_or))
-    /// where k1, k2 are partition counts, C_eq is environment equality cost,
-    /// C_or is BDD OR operation cost (usually O(|BDD1| × |BDD2|))
-    fn join(&self, other: &Self) -> Self {
-        let mut new_partitions = self.partitions.clone();
-        let bdd = &self.control.borrow().bdd;
+fn join(&self, other: &Self) -> Self {
+    let mut result = self.partitions.clone();
 
-        // For each partition from 'other', try to merge with existing
-        for (path2, env2) in &other.partitions {
-            let mut merged = false;
-
-            // Scan existing partitions for environment match
-            for (path1, env1) in &mut new_partitions {
-                if env1 == env2 {  // O(C_eq) - depends on domain
-                    // Same data abstraction: merge path conditions
-                    *path1 = bdd.apply_or(*path1, *path2);  // O(|path1| × |path2|)
-                    merged = true;
-                    break;
-                }
-            }
-
-            if !merged {
-                // Different environment: keep as separate partition
-                new_partitions.push((*path2, env2.clone()));
-            }
-        }
-
-        // Optional: Enforce partition count limit
-        const MAX_PARTITIONS: usize = 10;
-        if new_partitions.len() > MAX_PARTITIONS {
-            self.force_merge(&mut new_partitions, MAX_PARTITIONS);
-        }
-
-        Self {
-            partitions: new_partitions,
-            control: self.control.clone()
+    for (path2, env2) in &other.partitions {
+        // Try to find matching environment
+        if let Some((path1, _)) = result.iter_mut().find(|(_, e)| e == env2) {
+            *path1 = bdd.apply_or(*path1, *path2);  // Merge paths
+        } else {
+            result.push((*path2, env2.clone()));     // Add new partition
         }
     }
-
-    /// Force merge partitions when count exceeds limit (k-limiting)
-    fn force_merge(&self, partitions: &mut Vec<(Ref, D)>, max_k: usize) {
-        while partitions.len() > max_k {
-            // Find two "most similar" partitions to merge
-            // Heuristic: smallest BDD size product, or smallest lattice distance
-            let (i, j) = self.find_best_merge_candidates(partitions);
-
-            let bdd = &self.control.borrow().bdd;
-            let (path_i, env_i) = &partitions[i];
-            let (path_j, env_j) = &partitions[j];
-
-            // Merge paths with OR, environments with domain join
-            let merged_path = bdd.apply_or(*path_i, *path_j);
-            let merged_env = env_i.join(env_j);
-
-            partitions[i] = (merged_path, merged_env);
-            partitions.swap_remove(j);  // Remove j (order doesn't matter)
-        }
-    }
+    // ...
 }
 ```
 
-*Why This Matters:*
+Without smart joining: $n$ branches $arrow.r.double$ $2^n$ partitions.
+With smart joining: common case $O(k)$ partitions where $k lt.double 2^n$.
 
-Without smart joining:
-- Every branch doubles partition count
-- $n$ branches $arrow.r.double$ $2^n$ partitions
-- Memory exhaustion inevitable
-
-With smart joining:
-- Partitions merge when data converges
-- Common case: $O(k)$ partitions where $k lt.double 2^n$
-- $k$-limiting provides hard bound: $k lt.eq K$ for constant $K$
-
-== Refining Abstract Values: Bidirectional Constraint Flow
+== Refining Abstract Values: Bidirectional Flow
 
 BDDs track control flow predicates.
 Abstract domains track data value properties.
-The key insight: these two components can *inform each other*.
+Key insight: these two components can *inform each other*.
 
 === The Refinement Problem
 
@@ -499,35 +534,19 @@ After the branch, the BDD path condition records $x < 10$, but the interval doma
 
 === Generic Refinement Interface
 
-To keep domains independent of program syntax, we define a `Refineable` trait:
+Define a trait for domains that support constraint-based refinement:
 
 ```rust
-/// Domains that support constraint-based refinement
 trait Refineable {
-    /// Refine abstract state by assuming a constraint holds
-    ///
-    /// For interval domain: `x < 10` narrows interval upper bound
-    /// For sign domain: `x > 0` restricts to Positive
     fn refine(&mut self, constraint: &Condition);
 }
 
-// Example: Interval domain implementation
 impl Refineable for IntervalDomain {
     fn refine(&mut self, constraint: &Condition) {
         match constraint {
-            Condition::Less(var, value) => {
-                // x < value: tighten upper bound
-                if let Some(interval) = self.env.get_mut(var) {
-                    interval.upper = interval.upper.min(value - 1);
-                }
-            }
-            Condition::Greater(var, value) => {
-                // x > value: tighten lower bound
-                if let Some(interval) = self.env.get_mut(var) {
-                    interval.lower = interval.lower.max(value + 1);
-                }
-            }
-            // ... other constraint types
+            Condition::Less(var, val) => /* tighten upper bound */,
+            Condition::Greater(var, val) => /* tighten lower bound */,
+            // ...
         }
     }
 }
@@ -538,36 +557,16 @@ impl Refineable for IntervalDomain {
 The `assume` operation updates both control (BDD) and data (domain) components:
 
 ```rust
-impl<D: AbstractDomain + Refineable> PartitionedState<D> {
-    /// Assume a condition holds: update both path and environment
-    fn assume(&mut self, c: &Condition) {
-        let mut new_partitions = Vec::new();
+fn assume(&mut self, c: &Condition) {
+    let bdd_cond = self.control.get_bdd(c);
 
-        // Get BDD representation of condition
-        let bdd_cond = self.control.borrow_mut().get_bdd(c);
-        let bdd = &self.control.borrow().bdd;
-
-        for (path, mut env) in self.partitions.drain(..) {
-            // STEP 1: Update CONTROL layer
-            // Add condition to path: path' = path ∧ condition
-            let new_path = bdd.apply_and(path, bdd_cond);
-
-            // Check feasibility: if path becomes False, this partition is unreachable
-            if !bdd.is_zero(new_path) {
-                // STEP 2: Update DATA layer
-                // Refine abstract environment using the constraint
-                env.refine(c);
-
-                // Keep refined partition
-                new_partitions.push((new_path, env));
-            } else {
-                // Infeasible path: drop this partition
-                // (represents unreachable code)
-            }
-        }
-
-        self.partitions = new_partitions;
+    for (path, env) in &mut self.partitions {
+        *path = bdd.apply_and(*path, bdd_cond);  // Update control
+        env.refine(c);                            // Update data
     }
+
+    // Remove infeasible partitions (path = False)
+    self.partitions.retain(|(p, _)| !bdd.is_zero(*p));
 }
 ```
 
@@ -596,278 +595,110 @@ The interval domain automatically tightens bounds based on branch conditions, ev
   Refinement creates a *feedback loop* between control and data:
   - BDD operations determine path feasibility
   - Constraints extracted from paths refine data abstractions
-  - Refined data can rule out additional paths (via reduction, see @sec-reduction-algorithms)
+  - Refined data can rule out additional paths
 ]
 
-== The Interpreter Loop: Putting It All Together
+== The Interpreter Loop
 
-Now we connect everything in the main analysis loop.
-The abstract interpreter walks through program statements, maintaining partitioned state.
-
-=== Core Statement Handling
+The abstract interpreter walks through program statements:
 
 ```rust
-fn eval_stmt<D: AbstractDomain + Refineable + Clone>(stmt: &Stmt, state: &mut PartitionedState<D>) {
+fn eval_stmt(stmt: &Stmt, state: &mut State) {
     match stmt {
         Stmt::Assign(var, expr) => {
-            // Assignment: update data layer, control unchanged
-            // For each partition (b, ρ): keep b, update ρ with new value
             state.assign(var, expr);
         }
-
         Stmt::If(cond, then_block, else_block) => {
-            // Branching: split state, analyze both paths, merge results
-
-            // STEP 1: Clone state for independent analysis
             let mut true_state = state.clone();
             let mut false_state = state.clone();
 
-            // STEP 2: Refine each branch with its condition
-            true_state.assume(cond);           // path ∧ cond, refine data
-            false_state.assume(&cond.negate()); // path ∧ ¬cond, refine data
+            true_state.assume(cond);
+            false_state.assume(&cond.negate());
 
-            // STEP 3: Analyze each branch independently
             eval_block(then_block, &mut true_state);
             eval_block(else_block, &mut false_state);
 
-            // STEP 4: Join results at merge point
             *state = true_state.join(&false_state);
         }
-
         Stmt::While(cond, body) => {
-            // Loop: iterate until fixpoint (state stops changing)
-            eval_loop(cond, body, state);
+            // Fixpoint iteration (see Chapter 10)
         }
-
-        Stmt::Assert(cond) => {
-            // Assertion: verify condition holds on all paths
-            // If any partition violates it, report potential bug
-            state.check_assertion(cond);
-        }
-    }
-}
-
-/// Helper: analyze a block (sequence of statements)
-fn eval_block<D: AbstractDomain + Refineable + Clone>(block: &[Stmt], state: &mut PartitionedState<D>) {
-    for stmt in block {
-        eval_stmt(stmt, state);
     }
 }
 ```
 
-=== Loop Handling: Fixpoint Iteration
+Key operations:
+- *Assignment*: update environment, preserve path
+- *Branch*: split state, refine both branches, join results
+- *Loop*: iterate until fixpoint with widening
 
-Loops require special treatment: we iterate until the state stabilizes.
+== How BDDs and Domains Cooperate
 
-```rust
-fn eval_loop<D: AbstractDomain + Refineable + Clone>(
-    cond: &Condition,
-    body: &[Stmt],
-    state: &mut PartitionedState<D>,
-) {
-    // Save state at loop header
-    let mut header_state = state.clone();
+The key insight: BDDs and abstract domains form a *feedback loop*.
 
-    loop {
-        // Assume condition holds (enter loop)
-        let mut body_state = header_state.clone();
-        body_state.assume(cond);
+Each state $(b, rho)$ combines:
+- $b$: BDD tracking which paths are feasible
+- $rho$: abstract environment with variable values
 
-        // Analyze loop body
-        eval_block(body, &mut body_state);
+These two components inform each other.
+This is an instance of *product domain* construction (formal definition in @ch-advanced-galois).
 
-        // Join back to header (loop-back edge)
-        let new_header = header_state.join(&body_state);
-
-        // Check fixpoint: has state changed?
-        if new_header.equivalent_to(&header_state) {
-            break;  // Fixpoint reached!
-        }
-
-        // State changed: iterate again with wider state
-        header_state = new_header;
-    }
-
-    // Exit loop: assume condition false
-    state.assume(&cond.negate());
-}
-```
-
-#warning-box[
-  Loop analysis can diverge if the abstract domain has infinite chains.
-  Use widening (Chapter 10) to force convergence:
-  ```rust
-  if iteration_count > WIDENING_THRESHOLD {
-      new_header = header_state.widen(&body_state);
-  }
-  ```
-]
-
-=== Example: Nested Conditionals
-
-Consider:
+*Control constrains data:*
 ```rust
 if x > 0 {
-    if x > 10 {
-        y = 1;
-    } else {
-        y = 2;
-    }
-} else {
-    y = 3;
+    // BDD records: path ∧ (x > 0)
+    // Domain refines: x ∈ [1, +∞]
 }
 ```
+The branch condition tightens the interval for `x`.
 
-State evolution:
-+ *Initial:* ${ (T, bot) }$
+*Data prunes paths:*
+```rust
+x = 5;              // Domain: x ∈ [5, 5]
+if x < 0 {          // BDD would add: path ∧ (x < 0)
+    // Unreachable!  // But [5,5] ∩ (-∞,0) = ∅
+}                    // Drop this partition
+```
+When data contradicts control, that path is impossible.
 
-+ *Outer split:*
-  - True: ${ (x > 0, bot) }$
-  - False: ${ (not (x > 0), bot) }$
-
-+ *Inner split (true branch):*
-  - True-True: ${ ((x > 0) and (x > 10), {y arrow.bar 1}) }$
-  - True-False: ${ ((x > 0) and not (x > 10), {y arrow.bar 2}) }$
-  - False: ${ (not (x > 0), {y arrow.bar 3}) }$
-
-+ *After merges:*
-  $
-    { ((x > 0) and (x > 10), {y arrow.bar 1}),
-      ((x > 0) and (x lt.eq 10), {y arrow.bar 2}),
-      (x lt.eq 0, {y arrow.bar 3}) }
-  $
-
-The recursive structure automatically builds correct BDD formulas for nested branches.
-
-== Product Construction Theory <sec-product-theory>
-
-A combined abstract state carries two kinds of information.
-Control records which execution traces reach the program point.
-Data records abstract values of variables along those traces.
-The pair $(b, rho)$ behaves like a product ordered componentwise.
-Precision improves when constraints flow in both directions.
-
-#info-box(title: "Where Formal Theory Lives")[
-  Formal lattice definitions (standard product, reduced product, multi-domain reduction) live in @ch-advanced-galois.
-  This section focuses on *design intuition* only; refer there for proofs and algebraic detail.
-]
-
-- *Control restricts data*: Branch predicate `x > 0` rules out negative interval bounds.
-- *Data refutes control*: Interval $[5,5]$ makes predicate `x < 0` infeasible.
-- *Reduction*: Propagate constraints until no component tightens further.
-- *Contradiction*: Empty path or impossible data collapses state to bottom.
-- *Local fixpoint*: Stabilization after a propagation round means reduction reached equilibrium.
+This bidirectional refinement is called *reduction*.
+The process continues until neither component can tighten further.
+For formal reduction operators with soundness proofs, see @ch-advanced-galois.
 
 #insight-box[
-  Partitioning and product address different axes.
-  Partitioning decides *how many* $(b_i, rho_i)$ pairs we keep.
-  Product interaction explains *inside each pair* how control and data cooperate via reduction.
+  Constraints flow between domains until stabilization.
+  When neither the BDD control layer nor the data domain can further refine the other, the system has reached a stable reduced state.
 ]
 
-=== BDD Control as Product Component
+== Managing Partition Growth
 
-BDD path conditions form a lattice.
-This lets us treat them as one component of a product domain.
+As programs execute, partitions multiply.
+Without management, memory exhausts quickly.
 
-- *Order*: $b_1 lle b_2$ iff $b_1 => b_2$ (logical implication)
-- *Join*: $b_1 ljoin b_2 = b_1 or b_2$
-- *Meet*: $b_1 lmeet b_2 = b_1 and b_2$
-- *Bottom*: False (no paths)
-- *Top*: True (all paths)
-#definition(title: "BDD Control Lattice")[
-  The lattice of BDD formulas $(cal(B), =>, "False", "True", or, and)$ forms a complete boolean algebra.
-  Each element represents a set of program execution traces.
-]
+Three practical strategies:
 
-The combined domain $(cal(B) times D, lle, (F, bot_D), (T, top_D))$ uses standard product ordering.
-Reduction propagates constraints: when path condition becomes unsatisfiable, the entire state becomes bottom.
+*Remove infeasible partitions:*
+When BDD becomes False, drop that partition.
+```rust
+partitions.retain(|(path, _)| !bdd.is_zero(*path));
+```
 
-=== Partition Representation
+*Merge identical environments:*
+If two partitions have the same abstract values, combine their paths.
+```rust
+// (x > 0, {y ↦ 5}) and (x < 10, {y ↦ 5})
+// → ((x > 0) ∨ (x < 10), {y ↦ 5})
+```
 
-A single pair $(b, rho)$ represents one possible program state.
-To handle multiple paths, we maintain a set ${(b_1, rho_1), ..., (b_n, rho_n)}$ where the path conditions are disjoint.
-This set represents a disjunction:
-
-$ (b_1 and rho_1) or ... or (b_n and rho_n) $
-
-#definition(title: "Partitioned Abstract State")[
-  A partitioned state $S = {(b_i, rho_i)}_(i=1)^n$ represents the union of states where execution satisfying $b_i$ has environment $rho_i$.
-  The concretization is $gamma(S) = union.big_(i=1)^n gamma(b_i) times gamma(rho_i)$.
-]
-
-#theorem(title: "Partition Equivalence")[
-  Let $S_1 = {(b_i, rho_i)}$ and $S_2 = {(c_j, sigma_j)}$ be partitioned states.
-  $S_1 equiv S_2$ iff $gamma(S_1) = gamma(S_2)$.
-]
-
-#proof[
-  *Forward direction:* If partitions differ only in syntactic representation (e.g., BDD variable order) but denote the same boolean function and abstract values, concretizations match.
-
-  *Reverse direction:* Two distinct concretizations imply existence of distinguishing concrete state.
-]
-
-== Reduction Algorithms <sec-reduction-algorithms>
-
-BDDs track control flow (which branches were taken).
-Abstract domains track data properties (variable values).
-Reduction connects them: extract constraints from one and feed them to the other.
-
-As partitions accumulate, we need cleanup passes to stay efficient.
-
-=== Path Condition Simplification
-
-After several operations, some path conditions become redundant or contradictory.
-We apply BDD simplification and check feasibility.
-
-#algorithm(title: "Partition Reduction")[
-  *Input:* Partition set ${(b_i, rho_i) | i = 1..n}$.
-
-  *Output:* Reduced partition set.
-
-  + *for each* $(b_i, rho_i)$ *in* partitions *do*
-    + *if* $b_i equiv bot$ *then* + *remove* partition $i$ $quad slash.double$ Infeasible guard.
-    + *for each* $(b_j, rho_j)$ *where* $j != i$ *do*
-      + *if* $rho_i = rho_j$ *then*
-        + *merge* $b_i or b_j$, *remove* $j$ $quad slash.double$ Identical states.
-      + *if* $rho_i lle rho_j$ *and* $b_i => b_j$ *then*
-        + *remove* $i$ $quad slash.double$ Subsumed partition.
-  + *return* reduced partitions
-]
-
-Complexity depends on BDD operations and abstract domain equality checks.
-Practical heuristic: cap partition count at $k$ and force merges when this limit is exceeded ($k$-limiting).
-
-=== Cross Domain Constraints
-
-Sometimes BDD path conditions encode numeric facts.
-Example: if we map `x > 0` to a BDD variable, we can extract this constraint and feed it to the interval domain.
-This closes the loop between control and data.
-
-#implementation-box[
-  Implement `extract_constraints(b: Ref) -> Vec<Constraint>` parsing BDD structure to recover arithmetic bounds.
-  Feed these to domain refinement methods.
-  This closes the loop between control and data.
-]
-
-=== Partition Explosion Control
-
-Without limits, partition counts grow exponentially.
-Three common mitigation strategies:
-
-- *$k$-Limiting*: Cap partition count at $k$, force merge least similar states when exceeded.
-- *Similarity Heuristic*: Measure distance between abstract environments using domain metrics.
-- *Lazy Partitioning*: Delay partition splits until domain precision would genuinely improve.
-
-#pitfall-box[
-  Aggressive partitioning without limits can exhaust memory quickly.
-  Always instrument partition counts and trigger warnings when thresholds approach.
-]
-
-#exercise-box(difficulty: "Medium")[
-  Implement $k$-limiting with $k=5$.
-  On overflow, merge the two partitions whose abstract environments have smallest lattice height difference.
-  Measure precision loss on branching programs.
-]
+*Cap partition count ($k$-limiting):*
+Set a maximum (e.g., $k = 10$).
+When exceeded, force-merge the most similar partitions.
+```rust
+const MAX_PARTITIONS: usize = 10;
+if partitions.len() > MAX_PARTITIONS {
+    merge_most_similar(&mut partitions);
+}
+```
 
 == Concrete Example: Temperature Controller <sec-temperature-example>
 
@@ -892,9 +723,9 @@ fn control_temp(sensor: i32) -> i32 {
 
 === Path-Insensitive Interval Analysis
 
-Uses a single interval per variable, merging all paths:
+Uses a single interval per variable, merging all paths.
 
-*Step-by-step:*
+Analysis trace:
 + Entry: `sensor` $= top$ (unknown), `heater_power` $= bot$
 
 + After `heater_power = 0`:
@@ -921,9 +752,9 @@ Uses a single interval per variable, merging all paths:
 
 === Path-Sensitive BDD Analysis
 
-Maintains separate partitions for each control flow path:
+Maintains separate partitions for each control flow path.
 
-*Step-by-step:*
+Analysis trace:
 
 + *Entry:*
   $ { (T, {"heater_power" arrow.bar bot, "sensor" arrow.bar top}) } $
@@ -956,38 +787,18 @@ Property holds on all paths!
 
 === Advanced Queries Enabled by Path-Sensitivity
 
-*Query 1:* "When is heater at full power?"
-```rust
-// Find partitions where heater_power = 100
-let full_power_condition = find_partition_bdd(|env| env["heater_power"] == 100);
-// Answer: sensor < 15
-```
+Path-sensitivity enables queries about the relationship between inputs and outputs:
 
-*Query 2:* "Is `heater_power = 75` possible?"
-```rust
-// Check if any partition allows heater_power = 75
-let is_possible = partitions.iter().any(|(_, env)| env["heater_power"].contains(75));
-// Answer: No (only 0, 50, 100 are possible)
-```
+- "When is heater at full power?" → `sensor < 15`
+- "Is `heater_power = 75` possible?" → No (only 0, 50, 100)
+- "What sensor values cause half power?" → `sensor` $in$ [15, 19]
 
-*Query 3:* "What sensor values cause half power?"
-```rust
-// Extract interval from partition where heater_power = 50
-let half_power_range = find_partition_data(|env| env["heater_power"] == 50, "sensor");
-// Answer: sensor ∈ [15, 19]
-```
-
-#insight-box[
-  Path-sensitivity transforms static analysis from "what values are possible" into "under which conditions do these values occur".
-  This enables:
-  - *Conditional verification*: properties that depend on input constraints
-  - *Root cause analysis*: tracing bugs back to specific input conditions
-  - *Test generation*: extracting concrete inputs that trigger each path
-]
+This transforms analysis from "what values are possible" into "under which conditions do these values occur".
 
 == Combining Multiple Data Domains <sec-multiple-domains>
 
 Beyond pairing BDDs with one abstract domain, we can combine *multiple* data abstractions.
+See #inline-example("domains", "combined.rs", "combined") for runnable examples.
 Each domain contributes different information.
 Reduction lets them refine each other.
 
@@ -1008,7 +819,7 @@ Reduction lets them refine each other.
   "domains",
   "combined.rs",
   "combined_domain",
-  [Implements a reduced product of sign and interval domains with bidirectional constraint propagation.],
+  [Implements a reduced product of sign and parity domains, demonstrating how reduction eliminates impossible combinations like (Zero, Odd).],
 )
 
 #exercise-box(difficulty: "Hard")[
@@ -1018,6 +829,11 @@ Reduction lets them refine each other.
 ]
 
 == Relational Domains and BDD Synergy <sec-relational-domains>
+
+#warning-box[
+  *Advanced Content*: Relational domains are covered in detail in Part II, Chapter 14.
+  This section is optional for introductory readers.
+]
 
 Relational domains (octagons, polyhedra) track relationships between variables, like $x - y <= 5$.
 Combining them with BDDs enables *conditional* relations: "$x - y <= 5$ when $z > 0$".
@@ -1043,6 +859,11 @@ This requires careful design:
 
 == Research Spotlight: Trace Partitioning vs Powerset <sec-trace-partitioning-spotlight>
 
+#info-box(title: "Research Context")[
+  This section discusses research literature on trace partitioning strategies.
+  Useful for readers interested in the theoretical foundations, but not essential for practical implementation.
+]
+
 Trace partitioning maintains disjoint path sets, each with its own abstract value.
 The *powerset* domain allows arbitrary sets of abstract elements without disjointness constraints.
 Trace partitioning is a restricted powerset where partitions align with control flow splits.
@@ -1065,6 +886,11 @@ Recent work explores:
 
 == Implementation Trade-offs <sec-implementation-tradeoffs>
 
+#info-box(title: "Engineering Considerations")[
+  This section discusses practical trade-offs in production analyzers.
+  Part III (Performance) covers these topics in depth with benchmarks.
+]
+
 Real path-sensitive analyzers balance precision against performance.
 Four common strategies:
 
@@ -1086,71 +912,63 @@ Four common strategies:
 
 == Summary
 
-Path-sensitive analysis combines BDDs with abstract domains:
-- BDDs represent sets of execution paths compactly
-- Abstract domains track variable properties
-- States are pairs $(b, rho)$: path condition + abstract environment
+Path-sensitive analysis combines BDDs with abstract domains to track precise program state.
+
+Core concepts:
+- States are pairs $(b, rho)$: BDD path condition + abstract environment
+- BDDs compactly represent exponentially many paths
+- Abstract domains track variable properties on each path
 
 Key operations:
-- *Assume*: Strengthen BDD path condition when branching
-- *Assign*: Update abstract environment, keep path condition unchanged
-- *Join*: Merge BDD conditions with OR, join abstract values with domain operations
+- *Branch*: Split state, refine path conditions ($"path" and "cond"$, $"path" and not "cond"$)
+- *Assign*: Update environment, preserve path condition
+- *Join*: Merge paths with OR, join data with domain operations ($ljoin$)
+- *Feasibility*: Prune when BDD becomes False
+
+Implementation patterns:
+```rust
+// Basic: PathSensitiveState (code-examples/integration/sign_with_bdd.rs)
+struct PathSensitiveState {
+    path: Ref,                  // BDD path condition
+    env: HashMap<String, Sign>, // Variable → abstract value
+}
+
+// Advanced: PartitionedState (production)
+struct PartitionedState {
+    partitions: Vec<(Ref, Domain)>, // Multiple (path, env) pairs
+}
+```
 
 Trade-offs:
-- Join early: fast but loses precision
-- Join late: precise but risks exponential blowup
-- Use heuristics ($k$-limiting, similarity metrics) to balance both
-
-The design is generic: swap any abstract domain into the framework.
-BDD control layer works independently of data domain choice.
-
-Let's see how these concepts come together in a working path-sensitive analyzer:
+- Join early: fast, loses precision
+- Join late: precise, exponential blowup
+- $k$-limiting: cap partitions, balance both
 
 #example-reference(
   "integration",
   "sign_with_bdd.rs",
   "sign_with_bdd",
-  [
-    Complete implementation of path-sensitive analysis combining sign domain with BDD control.
-    Shows branching, path feasibility checking, and precision gains over path-insensitive analysis.
-  ],
+  [Complete working implementation of basic path-sensitive analysis.],
 )
 
-#info-box(title: "Combining Multiple Domains")[
-  You can also combine multiple *data* domains (not just control+data).
-  The reduced product construction maintains relationships between domains.
-  See #inline-example("domains", "combined.rs", "combined_domain") for an example combining sign and interval domains.
-]
-
-
-In the next chapter, we build a complete symbolic executor using these techniques.
+In the next chapter, we build a symbolic executor using these techniques.
 
 #chapter-summary[
-  - *Combined state: $(b, rho)$ where $b$ is BDD path condition, $rho$ is abstract environment.*
-    BDD tracks which paths are feasible, domain tracks variable values.
+  - *BDDs enable path-sensitive abstract interpretation without explicit path enumeration.*
+    Represent $2^n$ paths symbolically, manipulate in polynomial time.
 
-  - *BDD control domain allocates variables for program conditions.*
-    Each boolean condition (e.g., `x > 0`) gets a unique BDD variable.
+  - *Combined state $(b, rho)$: control layer + data layer.*
+    BDD tracks feasible paths, domain tracks variable values.
 
-  - *Branching creates two states with updated path conditions.*
-    True branch: $"path" and "cond"$.
-    False branch: $"path" and not "cond"$.
+  - *Branching refines path conditions.*
+    True branch: $"path" and "cond"$. False branch: $"path" and not "cond"$.
 
-  - *Assignment updates data domain, keeps path unchanged.*
-    Only variable properties change on assignment, not control flow.
-
-  - *Joining merges paths with OR, joins data with domain operations.*
-    Necessary at merge points but loses path-sensitivity.
-
-  - *Trade-off between precision and state explosion.*
-    Joining early: fast but imprecise. Joining late: precise but exponential states.
+  - *Automatic infeasible path pruning.*
+    When BDD becomes False, that path is impossible.
 
   - *Generic design works with any abstract domain.*
-    Swap intervals for signs or constants.
-    BDD control layer is orthogonal.
+    Sign, interval, congruence, polyhedra --- BDD layer is orthogonal.
 
-  - *Path-sensitivity alone doesn't guarantee precision.*
-    Need sufficiently precise data domains (intervals better than signs).
-
-  - *Main insight:* BDDs provide compact representation of path conditions, enabling path-sensitive abstract interpretation without explicit path enumeration.
+  - *Precision-performance trade-off.*
+    Partitioning strategies balance path sensitivity against state explosion.
 ]
