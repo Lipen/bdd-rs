@@ -103,8 +103,8 @@ Alternatively, "$x$ approximates fewer concrete behaviors than $y$".
     draw-edge("lan2", "top")
 
     // Annotations
-    draw.content((9, 6), text(size: 9pt, fill: colors.text-light)[Least precise], anchor:"west", padding:0.2)
-    draw.content((9, 0), text(size: 9pt, fill: colors.text-light)[Most precise], anchor:"west", padding:0.2)
+    draw.content((9, 6), text(size: 9pt, fill: colors.text-light)[Least precise], anchor: "west", padding: 0.2)
+    draw.content((9, 0), text(size: 9pt, fill: colors.text-light)[Most precise], anchor: "west", padding: 0.2)
     draw.line((9, 6), (9, 0), stroke: colors.text-light + 0.5pt, mark: (end: ">", fill: colors.text-light))
     draw.content((9.2, 3), rotate(270deg, text(size: 9pt, fill: colors.text-light)[Precision]))
   }),
@@ -165,7 +165,8 @@ The meet finds the most precise common refinement.
     [$top$], [$top$], [$top$], [$top$], [$top$],
   ))
 
-    Note that $"TCP" ljoin "UDP" = top$ because there's no single protocol that is both TCP and UDP (except the generic "IP packet" which we model as $top$).
+  Note that $"TCP" ljoin "UDP" = top$ because there's no single protocol that is both TCP and UDP (except the generic "IP packet" which we model as $top$).
+]
 
 #definition(title: "Complete Lattice")[
   A lattice $(L, <=, ljoin, lmeet)$ is *complete* if every subset $S subset.eq L$ (including infinite subsets) has both:
@@ -269,7 +270,6 @@ If an analysis loses precision when given more precise inputs, something is wron
 
   But consider a *non-monotone* function that returns $80$ for $bot, "TCP"$ and $top$ otherwise.
   Then $"TCP" <= top$ but $f("TCP") = 80 gt.eq.not top = f(top)$, violating monotonicity.
-]
 ]
 
 #definition(title: "Complete Lattice")[
