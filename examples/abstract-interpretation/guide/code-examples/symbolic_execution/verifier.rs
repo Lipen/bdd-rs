@@ -167,7 +167,6 @@ pub enum Stmt {
 pub struct AbstractState {
     env: HashMap<String, Interval>,
     path_condition: Ref,
-    bdd: Rc<Bdd>,
 }
 
 impl AbstractState {
@@ -175,7 +174,6 @@ impl AbstractState {
         Self {
             env: HashMap::new(),
             path_condition: bdd.mk_true(),
-            bdd,
         }
     }
 
