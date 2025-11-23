@@ -284,19 +284,17 @@
   }
 
   show raw.where(block: false): it => {
-    box(
+    highlight(
       fill: colors.bg-code,
-      inset: (x: 3pt),
-      outset: (x: -1pt, y: 3pt),
       radius: 3pt,
-    )[
-      #text(
+      extent: 2pt,
+      text(
         font: fonts.mono,
         size: 0.95em,
         fill: colors.primary,
         it,
-      )
-    ]
+      ),
+    )
   }
 
   // Lists
@@ -592,7 +590,7 @@
         )
         v(spacing.tiny)
         body
-      }
+      },
     )
   ]
 }
@@ -620,7 +618,7 @@
         )
         v(spacing.tiny)
         body
-      }
+      },
     )
   ]
 }
@@ -648,7 +646,7 @@
         )
         v(spacing.tiny)
         body
-      }
+      },
     )
   ]
 }
