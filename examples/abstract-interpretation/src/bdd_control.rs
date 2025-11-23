@@ -108,9 +108,12 @@ impl ControlState {
     }
 
     /// Create a control state with a description.
-    pub fn with_description(mut self, desc: String) -> Self {
-        self.description = Some(desc);
-        self
+    pub fn new_with_description(phi: Ref, manager: Rc<Bdd>, desc: String) -> Self {
+        Self {
+            phi,
+            manager,
+            description: Some(desc),
+        }
     }
 
     /// Get the BDD reference (Boolean formula φ).
@@ -308,7 +311,7 @@ impl BddControlDomain {
     pub fn mk_var_true(&self, var: &str) -> ControlState {
         let var_id = self.allocate_var(var);
         let phi = self.manager.mk_var(var_id);
-        ControlState::new(phi, Rc::clone(&self.manager)).with_description(format!("{} = true", var))
+        ControlState::new_with_description(phi, Rc::clone(&self.manager), format!("{} = true", var))
     }
 
     /// Create a control state where the variable is false.
@@ -327,7 +330,7 @@ impl BddControlDomain {
         let var_id = self.allocate_var(var);
         let var_phi = self.manager.mk_var(var_id);
         let phi = self.manager.apply_not(var_phi);
-        ControlState::new(phi, Rc::clone(&self.manager)).with_description(format!("{} = false", var))
+        ControlState::new_with_description(phi, Rc::clone(&self.manager), format!("{} = false", var))
     }
 
     /// Conjunction: `φ₁ ∧ φ₂`
@@ -380,6 +383,21 @@ impl BddControlDomain {
         // `φ₁ ≡ φ₂` iff they have the same canonical BDD representation
         s1.phi == s2.phi
     }
+
+    /// Create a tautology (⊤) control state.
+    pub fn mk_true(&self) -> ControlState {
+        ControlState::new(self.manager.one, Rc::clone(&self.manager))
+    }
+
+    /// Create a contradiction (⊥) control state.
+    pub fn mk_false(&self) -> ControlState {
+        ControlState::new(self.manager.zero, Rc::clone(&self.manager))
+    }
+
+    /// Get all allocated variable names.
+    pub fn get_all_vars(&self) -> Vec<String> {
+        self.var_map.borrow().keys().cloned().collect()
+    }
 }
 
 impl Default for BddControlDomain {
@@ -426,7 +444,7 @@ impl AbstractDomain for BddControlDomain {
     /// assert!(!bottom.is_sat()); // No satisfying assignments
     /// ```
     fn bottom(&self) -> Self::Element {
-        ControlState::new(self.manager.zero, Rc::clone(&self.manager)).with_description("⊥".to_string())
+        ControlState::new_with_description(self.manager.zero, Rc::clone(&self.manager), "⊥".to_string())
     }
 
     /// Create the top element (all paths reachable/true).
@@ -451,7 +469,7 @@ impl AbstractDomain for BddControlDomain {
     /// assert!(top.is_tautology()); // Always true
     /// ```
     fn top(&self) -> Self::Element {
-        ControlState::new(self.manager.one, Rc::clone(&self.manager)).with_description("⊤".to_string())
+        ControlState::new_with_description(self.manager.one, Rc::clone(&self.manager), "⊤".to_string())
     }
 
     /// Check if an element is bottom (unreachable).
@@ -1319,7 +1337,7 @@ mod tests {
 /// - Uses `HashMap` for partition storage (BDD comparison via node equality)
 /// - Automatic partition merging when control states become equivalent
 /// - Lazy partition splitting on control variable assignments
-
+///
 /// Wrapper for ControlState that implements Hash and Eq via node pointer comparison
 #[derive(Clone, Debug)]
 struct HashableControlState(ControlState);
@@ -1377,6 +1395,15 @@ impl<N: NumericDomain> PartialEq for ControlSensitiveElement<N> {
 impl<N: NumericDomain> Eq for ControlSensitiveElement<N> {}
 
 impl<N: NumericDomain> ControlSensitiveElement<N> {
+    /// Create a new empty element (bottom)
+    pub fn new_empty(control_domain: Rc<BddControlDomain>, numeric_domain: Rc<N>) -> Self {
+        Self {
+            partitions: HashMap::new(),
+            control_domain,
+            numeric_domain,
+        }
+    }
+
     /// Check if this element represents bottom (empty map)
     pub fn is_empty(&self) -> bool {
         self.partitions.is_empty()
@@ -1395,6 +1422,16 @@ impl<N: NumericDomain> ControlSensitiveElement<N> {
     /// Get numeric element for a specific control state (if exists)
     pub fn get(&self, control_state: &ControlState) -> Option<&N::Element> {
         self.partitions.get(&HashableControlState(control_state.clone()))
+    }
+
+    /// Check if a specific control state exists in partitions
+    pub fn contains_path(&self, control_state: &ControlState) -> bool {
+        self.partitions.contains_key(&HashableControlState(control_state.clone()))
+    }
+
+    /// Get all control states from partitions
+    pub fn control_states(&self) -> Vec<&ControlState> {
+        self.partitions.keys().map(|hcs| &hcs.0).collect()
     }
 }
 
@@ -1458,22 +1495,25 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
         elem.clone()
     }
 
-    /// Split a partition based on a control condition
+    /// Filter partitions by a control condition (assume condition holds)
     ///
-    /// When we have `assume(condition)`, we want to split each partition into:
-    /// - Partition where condition is true: control_state ∧ condition
-    /// - Partition where condition is false: control_state ∧ ¬condition
+    /// Refines each partition's control state with the given condition.
+    /// Only keeps partitions where `control_state ∧ condition` is satisfiable.
     pub fn split_on_condition(&self, elem: &ControlSensitiveElement<N>, condition: &ControlState) -> ControlSensitiveElement<N> {
+        self.filter_partitions(elem, |cs| self.control_domain.and(cs, condition))
+    }
+
+    /// Apply a control transformation to each partition and filter out infeasible ones
+    fn filter_partitions<F>(&self, elem: &ControlSensitiveElement<N>, transform: F) -> ControlSensitiveElement<N>
+    where
+        F: Fn(&ControlState) -> ControlState,
+    {
         let mut new_partitions = HashMap::new();
 
         for (hcs, numeric_elem) in &elem.partitions {
-            let control_state = &hcs.0;
-
-            // Refine control state with condition
-            let refined = self.control_domain.and(control_state, condition);
-
-            if !self.control_domain.is_bottom(&refined) {
-                new_partitions.insert(HashableControlState(refined), numeric_elem.clone());
+            let transformed = transform(&hcs.0);
+            if !self.control_domain.is_bottom(&transformed) {
+                new_partitions.insert(HashableControlState(transformed), numeric_elem.clone());
             }
         }
 
