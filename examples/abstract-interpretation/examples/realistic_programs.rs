@@ -184,9 +184,11 @@ fn example_combined_analysis() {
 
     println!("Initial state:");
     println!("  Constant: n={:?}, sum={:?}", const_state.get("n"), const_state.get("sum"));
-    println!("  Interval: n={:?}, sum={:?}",
+    println!(
+        "  Interval: n={:?}, sum={:?}",
         interval_domain.get_bounds(&interval_state, &"n".to_string()),
-        interval_domain.get_bounds(&interval_state, &"sum".to_string()));
+        interval_domain.get_bounds(&interval_state, &"sum".to_string())
+    );
     println!("  Sign: n={:?}, sum={:?}", sign_state.get("n"), sign_state.get("sum"));
 
     // Loop: i in [0, 9]
