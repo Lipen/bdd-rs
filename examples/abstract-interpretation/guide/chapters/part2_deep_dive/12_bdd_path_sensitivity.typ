@@ -141,11 +141,14 @@ fn process(buf: &mut [i32], size: usize) {
 
 *Analysis Trace:*
 
-+ *Loop Entry*: `i < size`. BDD adds variable $v_1$ (`i < size`).
-+ *Branch*: `i < buf.len()`. BDD adds variable $v_2$ (`i < buf.len()`).
++ *Loop Entry*: `i < size`.
+  BDD adds variable $v_1$ (`i < size`).
++ *Branch*: `i < buf.len()`.
+  BDD adds variable $v_2$ (`i < buf.len()`).
 + *Access `buf[i]`*:
   - The analyzer asks: "Is `i` within bounds?"
-  - Data domain (Intervals) might say: `i` is $[0, infinity]$. Unsafe!
+  - Data domain (Intervals) might say: `i` is $[0, infinity]$.
+    Unsafe!
   - *But* we are in a state where BDD control is $v_1 and v_2$.
   - This implies `i < buf.len()` is true.
   - The analyzer proves safety using the path condition.

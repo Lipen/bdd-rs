@@ -16,7 +16,8 @@ Hospitals cancel surgeries.
 Emergency services go offline.
 The "Blue Screen of Death" appears on 8.5 million devices.
 
-The cause? A logic error in the CrowdStrike Falcon sensor.
+The cause?
+A logic error in the CrowdStrike Falcon sensor.
 The software attempted to read memory from an invalid address (0x9c).
 The C++ runtime, enforcing memory safety, triggered an access violation.
 At the kernel level, this violation is fatal.
@@ -32,14 +33,16 @@ History is littered with expensive and deadly software failures that testing mis
 
 *Ariane 5 (1996):*
 Thirty-seven seconds after launch, the European Space Agency's Ariane 5 rocket disintegrated.
-The cause? A 64-bit floating-point number was converted to a 16-bit signed integer.
+The cause?
+A 64-bit floating-point number was converted to a 16-bit signed integer.
 The value was too large to fit, causing an overflow exception.
 The backup computer, running the same software, failed in the exact same way.
 *Cost: \$370 million and a decade of research.*
 
 *Therac-25 (1985-1987):*
 A radiation therapy machine killed or seriously injured six patients due to massive radiation overdoses.
-The cause? A race condition in the control software.
+The cause?
+A race condition in the control software.
 If a skilled operator typed commands too quickly, the software would configure the beam for high-power X-ray mode but deploy the target for low-power electron mode.
 *Cost: Human lives.*
 

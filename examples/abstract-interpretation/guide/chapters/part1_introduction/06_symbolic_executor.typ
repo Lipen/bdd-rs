@@ -263,7 +263,8 @@ impl SymbolicState {
 }
 ```
 
-By using the `ConditionManager`, we ensure that if the program checks `if x > 0` twice (and `x` hasn't changed), we use the same BDD variable. This allows the BDD to automatically deduce that the second check is redundant!
+By using the `ConditionManager`, we ensure that if the program checks `if x > 0` twice (and `x` hasn't changed), we use the same BDD variable.
+This allows the BDD to automatically deduce that the second check is redundant!
 
 #figure(
   caption: [Path forking at conditional branches. Starting from an initial state, each `if` condition allocates a fresh BDD variable and splits into two states. The true branch updates the path with $(p and c)$, the false branch with $(p and not c)$ where $p$ is the current path condition. Both branches inherit the symbolic environment, which may be refined based on the learned condition.],

@@ -3,14 +3,17 @@
 = Binary Decision Diagrams <ch-bdds>
 
 In @ch-control-flow, we saw that tracking every execution path individually leads to the *path explosion problem*.
+
 To build a scalable verifier, we need a mechanism to represent *sets* of paths efficiently.
 
 This chapter introduces the *Binary Decision Diagram (BDD)*, the core data structure powering our MiniVerifier.
+
 Instead of enumerating paths as a list, we represent them as a *Boolean function*.
 
 == From Sets to Functions
 
 A fundamental insight in symbolic execution is the correspondence between sets and functions.
+
 We can represent any subset $S$ of a universe $U$ using a *characteristic function* $f_S : U -> {0, 1}$:
 
 $ f_S (x) = cases(1 &"if" x in S, 0 &"if" x in.not S) $
@@ -20,6 +23,7 @@ If we can represent $f_S$ compactly, we effectively represent the set $S$ compac
 === Paths as Boolean Formulas
 
 In a Control Flow Graph, a path is determined by the sequence of decisions made at branching points.
+
 By assigning a Boolean variable to each decision, we can encode paths as logical formulas.
 
 Consider the following code snippet:
@@ -36,6 +40,7 @@ if y < 5 {  // Decision B
 ```
 
 Let $A$ represent the condition `x > 0` and $B$ represent `y < 5`.
+
 Each path corresponds to a conjunction of these variables:
 
 - *Path 1* (True, True): $A and B$
@@ -44,8 +49,10 @@ Each path corresponds to a conjunction of these variables:
 - *Path 4* (False, False): $not A and not B$
 
 The set of *all* valid paths is the disjunction of these formulas.
+
 To represent the set of paths where `z = 3` (i.e., where decision $B$ is true), we write:
 $ (A and B) or (not A and B) $
+
 Using Boolean algebra, this simplifies to just $B$.
 
 #info-box(title: "Key Insight")[
@@ -59,6 +66,7 @@ Using Boolean algebra, this simplifies to just $B$.
 == Formal Definition of BDDs
 
 A *Binary Decision Diagram (BDD)* is a graph-based data structure representing a Boolean function $f: {0, 1}^n -> {0, 1}$.
+
 Its construction relies on the *Shannon Expansion*.
 
 #definition(title: "Shannon Expansion")[
@@ -70,23 +78,28 @@ Its construction relies on the *Shannon Expansion*.
 ]
 
 Recursively applying this expansion yields a *Decision Tree*.
+
 Since trees grow exponentially with the number of variables ($2^n$ leaves), we transform the tree into a *Directed Acyclic Graph (DAG)* to achieve compactness.
 
 === Ordered Binary Decision Diagrams (OBDD)
 
 A BDD is *Ordered* (OBDD) if the variables appear in the same fixed order on all paths from the root to the terminals.
+
 For instance, given the natural ordering $A < B < C$, every path tests $A$ before $B$, and $B$ before $C$.
 
 === Reduced BDDs
 
 A BDD is *Reduced* (ROBDD) if it contains no redundant information.
+
 We achieve this by repeatedly applying two reduction rules until the graph is minimal:
 
 + *Merge Isomorphic Nodes*:
   If two nodes $u$ and $v$ represent the same variable and have identical high and low children, they are equivalent.
+
   We keep one and redirect all edges pointing to the other.
 + *Eliminate Redundant Tests*:
   If a node $u$ has identical high and low children ($"high"(u) = "low"(u)$), the decision at $u$ does not affect the outcome.
+
   We remove $u$ and redirect incoming edges directly to its child.
 
 #info-box(title: "Canonicity Property")[
@@ -96,6 +109,7 @@ We achieve this by repeatedly applying two reduction rules until the graph is mi
 ]
 
 Before diving deeper into BDD theory, it's worth getting hands-on experience with basic BDD operations.
+
 The following example demonstrates variable creation, boolean operations, and the canonicity property in action:
 
 #example-reference(
@@ -273,6 +287,7 @@ This guarantees that the *same* logical condition is always represented by the *
 As discussed in @ch-control-flow, a sequence of $N$ branches can create $2^N$ paths.
 
 BDDs mitigate this explosion by exploiting structure and independence.
+
 If paths do not interact (e.g., independent branches), the BDD size grows *linearly* with the number of variables, rather than exponentially.
 
 For example, consider 100 independent `if` statements:
@@ -280,6 +295,7 @@ For example, consider 100 independent `if` statements:
 - *BDD Nodes*: $2 times 100 = 200$ nodes (trivial to store).
 
 The BDD automatically "factors out" the independence.
+
 Explosion typically occurs only when variables are heavily correlated in complex ways (e.g., cryptographic functions or multipliers), which is less common in typical control flow logic.
 
 == Summary

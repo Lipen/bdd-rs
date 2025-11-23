@@ -1,7 +1,5 @@
 #import "../../theme.typ": *
 
-#import "../../theme.typ": *
-
 = Case Study: N-Queens <ch-case-studies>
 
 #reading-path(path: "advanced")

@@ -115,8 +115,8 @@ The standard recipe for analyzing loops with infinite domains is:
 
   *Narrowing Phase:*
   - Start: $[0, +infinity]$
-  - Apply $f$: $f([0, +infinity]) = [0, 40]$ (effect of loop guard `x < 40`)
-  - Narrow: $[0, +infinity] narrow [0, 40] = [0, 40]$
+  - Apply $f$: $f([0, +infinity]) = [0, 40]$ (effect of loop guard `x < 40`).
+  - Narrow: $[0, +infinity] narrow [0, 40] = [0, 40]$.
   - Result: $[0, 40]$. Perfect precision!
 ]
 

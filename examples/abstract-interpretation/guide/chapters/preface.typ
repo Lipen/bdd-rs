@@ -23,7 +23,7 @@ This guide serves multiple audiences, each with different backgrounds and goals:
 *Complete Beginners:*
 If you're new to program verification and formal methods, start with @part-i.
 The guide builds intuition through concrete examples before introducing mathematical formalism.
-No prior knowledge of abstract interpretation or BDDs is assumed—just basic programming experience and curiosity.
+No prior knowledge of abstract interpretation or BDDs is assumed --- just basic programming experience and curiosity.
 
 #reading-path(path: "implementation")
 *Practitioners:*
@@ -41,15 +41,15 @@ This guide is structured to support a one-semester course on program analysis, w
 Unlike traditional academic papers or reference manuals, this guide:
 
 - *Tells a story*:
-  Concepts build progressively, motivating each idea before formalizing it
+  Concepts build progressively, motivating each idea before formalizing it.
 - *Shows real code*:
-  Every concept is backed by working Rust implementations
+  Every concept is backed by working Rust implementations.
 - *Balances rigor and intuition*:
-  Mathematical precision is maintained while providing accessible explanations
+  Mathematical precision is maintained while providing accessible explanations.
 - *Connects to practice*:
-  Real-world applications and case studies demonstrate where these techniques shine
+  Real-world applications and case studies demonstrate where these techniques shine.
 - *Provides multiple paths*:
-  Skip sections that don't match your goals, or deep-dive where interested
+  Skip sections that don't match your goals, or deep-dive where interested.
 
 == Structure of This Guide
 
@@ -68,18 +68,18 @@ This part enables readers to understand the mathematics deeply and implement the
 
 === For Learning (First Time Through)
 
-+ Start with the *Prologue* to understand the motivation
-+ Work through *@part-i* sequentially, trying the examples
-+ When you encounter formalism in @part-ii, don't panic—we build intuition first
-+ Use the *exercises* to test your understanding
-+ Refer to *appendices* when you need background material
++ Start with the *Prologue* to understand the motivation.
++ Work through *@part-i* sequentially, trying the examples.
++ When you encounter formalism in @part-ii, don't panic --- we build intuition first.
++ Use the *exercises* to test your understanding.
++ Refer to *appendices* when you need background material.
 
 === For Reference (Coming Back)
 
-- Use the *table of contents* and *index* to find specific topics
-- *Margin notes* provide quick refreshers on key concepts
-- *Cross-references* link related sections
-- The *glossary* defines all technical terms
+- Use the *table of contents* and *index* to find specific topics.
+- *Margin notes* provide quick refreshers on key concepts.
+- *Cross-references* link related sections.
+- The *glossary* defines all technical terms.
 
 === Reading Paths
 
@@ -102,14 +102,14 @@ We've marked sections with icons to help you navigate:
 == Prerequisites
 
 *Assumed knowledge:*
-- Basic programming experience (any language)
-- Undergraduate-level discrete mathematics (sets, functions, logic)
-- Familiarity with graphs and trees
+- Basic programming experience (any language).
+- Undergraduate-level discrete mathematics (sets, functions, logic).
+- Familiarity with graphs and trees.
 
 *Helpful but not required:*
-- Experience with Rust or functional programming
-- Previous exposure to program analysis or compilers
-- Basic understanding of logic and Boolean algebra
+- Experience with Rust or functional programming.
+- Previous exposure to program analysis or compilers.
+- Basic understanding of logic and Boolean algebra.
 
 If you're missing background in any area, Appendix A provides concise summaries of mathematical prerequisites.
 
@@ -117,10 +117,10 @@ If you're missing background in any area, Appendix A provides concise summaries 
 
 This guide is part of a larger ecosystem:
 
-- *bdd-rs library*: Open-source Rust implementation at #link("https://github.com/Lipen/bdd-rs")
-- *Code examples*: All examples from this guide are in the repository
-- *Research paper*: A concise academic paper presents the core contributions
-- *Benchmarks*: Complete benchmark suite for reproducing results
+- *bdd-rs library*: Open-source Rust implementation at #link("https://github.com/Lipen/bdd-rs").
+- *Code examples*: All examples from this guide are in the repository.
+- *Research paper*: A concise academic paper presents the core contributions.
+- *Benchmarks*: Complete benchmark suite for reproducing results.
 
 == Acknowledgments
 

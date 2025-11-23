@@ -4,8 +4,7 @@
 
 #reading-path(path: "advanced") #h(0.7em) #reading-path(path: "implementation")
 
-String-heavy programs require reasoning about concatenation, length, prefixes/suffixes, and membership in regular sets (e.g., input validation, sanitization).
-This chapter develops abstract domains for strings, from lightweight numeric properties to regular-language abstractions via finite automata, and discusses widenings and reduced products.
+String-heavy programs require reasoning about concatenation, length, prefixes/suffixes, and membership in regular sets (e.g., input validation, sanitization). This chapter develops abstract domains for strings, from lightweight numeric properties to regular-language abstractions via finite automata, and discusses widenings and reduced products.
 
 == Motivation and Threat Model
 

@@ -155,7 +155,8 @@ pub enum Cond {
 == Designing the `ConditionManager`
 
 Now, let's build our bridge.
-The BDD engine doesn't understand arithmetic or variables like~`x`. It only understands boolean variables $1, 2, 3, dots$.
+The BDD engine doesn't understand arithmetic or variables like~`x`.
+It only understands boolean variables $1, 2, 3, dots$.
 We need a component that maps our rich AST conditions (like `x < 5`) to these simple BDD variables.
 
 We need a struct that holds:
@@ -225,11 +226,13 @@ impl ConditionManager {
   Fixing this requires a more sophisticated mapping strategy (e.g., canonicalizing negations) or an SMT solver, but for now, we accept this precision loss.
 ]
 
-This simple logic guarantees that `x > 0` always maps to the same BDD variable, ensuring consistency across the entire analysis. This is crucial: if we mapped `x > 0` to variable `1` in one place and variable `2` in another, the BDD would treat them as independent facts!
+This simple logic guarantees that `x > 0` always maps to the same BDD variable, ensuring consistency across the entire analysis.
+This is crucial: if we mapped `x > 0` to variable `1` in one place and variable `2` in another, the BDD would treat them as independent facts!
 
 == Exposing BDD Operations
 
-We also need to expose the BDD operations (AND, OR, NOT) so the rest of the engine can use them without touching the raw `Bdd` field directly. This encapsulates the BDD logic.
+We also need to expose the BDD operations (AND, OR, NOT) so the rest of the engine can use them without touching the raw `Bdd` field directly.
+This encapsulates the BDD logic.
 
 ```rust
 impl ConditionManager {
@@ -263,7 +266,8 @@ impl ConditionManager {
 == Debugging with Graphviz
 
 BDDs are graphs, so the best way to debug them is to look at them!
-We exposed a `to_dot` method in our manager. Here is how to use it:
+We exposed a `to_dot` method in our manager.
+Here is how to use it:
 
 ```rust
 // Inside main()
@@ -278,7 +282,8 @@ dot -Tpng output.dot -o output.png
 ```
 
 #insight-box[
-  Visualizing the BDD is the fastest way to spot if your variable ordering is inefficient or if your logic is incorrect. If the graph looks like a tangled mess for a simple formula, check your variable ordering!
+  Visualizing the BDD is the fastest way to spot if your variable ordering is inefficient or if your logic is incorrect.
+  If the graph looks like a tangled mess for a simple formula, check your variable ordering!
 ]
 
 == Putting It Together
@@ -345,4 +350,5 @@ In the next chapter, we will use it to "execute" our Control Flow Graph.
 - We ensured that identical conditions map to identical variables (canonicalization).
 - We exposed basic Boolean operations.
 
-Next: *Symbolic Execution*. We will write the code that walks the CFG and builds these BDDs automatically.
+Next: *Symbolic Execution*.
+We will write the code that walks the CFG and builds these BDDs automatically.
