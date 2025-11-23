@@ -9,6 +9,7 @@
 //! - **Loop Invariants**: Proving that a loop counter `i` remains non-negative.
 //! - **Overflow Safety**: Reasoning about the sign of results even when exact values are unknown.
 
+use abstract_interpretation::domain::AbstractDomain;
 use abstract_interpretation::expr::{NumExpr, NumPred};
 use abstract_interpretation::numeric::NumericDomain;
 use abstract_interpretation::sign::{Sign, SignDomain, SignElement};
@@ -140,12 +141,17 @@ fn example_loop_analysis() {
     elem = domain.assign(&elem, &"i".to_string(), &expr);
     println!("After i = i + 1: i = {}", elem.get("i"));
 
-    // Second iteration: i = NonNeg + 1
+    // Second iteration: Pos + 1
     elem = domain.assign(&elem, &"i".to_string(), &expr);
     println!("After i = i + 1: i = {}", elem.get("i"));
 
+    // Simulate fixpoint with join: Zero ⊔ Pos = NonNeg
+    let initial = domain.constant(&"i".to_string(), 0);
+    elem = domain.join(&initial, &elem);
+    println!("After join with initial (fixpoint): i = {}", elem.get("i"));
+
     // Fixpoint reached
-    println!("\n✓ Fixpoint: i remains {} (non-negative)", elem.get("i"));
+    println!("\n✓ Fixpoint: i is {} (includes both 0 and positive values)", elem.get("i"));
     println!("  This guarantees i is always non-negative in the loop");
 
     assert_eq!(elem.get("i"), Sign::NonNeg);
@@ -188,11 +194,8 @@ fn example_overflow_detection() {
 
     println!("  z = x + y: {}", result.get("z"));
 
-    if result.get("z") == Sign::NonNeg {
-        println!("\n✓ Sign analysis: z is non-negative (even if overflow occurs)");
-        println!("  (Note: Sign domain abstracts away actual overflow)");
-    }
-    assert_eq!(result.get("z"), Sign::Pos); // Actually, Pos + Pos = Pos
+    assert_eq!(result.get("z"), Sign::Pos); // Pos + Pos = Pos
 
-    println!("\n");
+    println!("\n✓ Sign analysis: z is strictly positive");
+    println!("  (Note: Overflow is abstracted away; we track sign properties only)");
 }

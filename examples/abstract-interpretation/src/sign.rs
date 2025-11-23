@@ -597,9 +597,15 @@ impl Sign {
             // Zero is identity
             (Zero, s) | (s, Zero) => s,
 
-            // Same sign
-            (Pos, Pos) | (Pos, NonNeg) | (NonNeg, Pos) | (NonNeg, NonNeg) => NonNeg,
-            (Neg, Neg) | (Neg, NonPos) | (NonPos, Neg) | (NonPos, NonPos) => NonPos,
+            // Same sign - strictly positive/negative preserved
+            (Pos, Pos) => Pos,
+            (Neg, Neg) => Neg,
+
+            // Positive combinations
+            (Pos, NonNeg) | (NonNeg, Pos) | (NonNeg, NonNeg) => NonNeg,
+
+            // Negative combinations
+            (Neg, NonPos) | (NonPos, Neg) | (NonPos, NonPos) => NonPos,
 
             // Opposite signs - uncertain
             (Pos, Neg) | (Neg, Pos) | (Pos, NonPos) | (NonPos, Pos) | (Neg, NonNeg) | (NonNeg, Neg) => Top,
