@@ -319,7 +319,7 @@ We define "simplest" using a cost function:
 This corresponds to finding the *shortest path* to the `true` terminal in the BDD, where edge weights are determined by the "complexity" of the variable assignment.
 
 #algorithm(title: "Shortest Path Counterexample")[
-  *Input:* BDD Node $root$, Cost Function $"cost"("var", "val")$.
+  *Input:* BDD Node $"root"$, Cost Function $"cost"("var", "val")$.
 
   *Output:* Minimal cost assignment $A$.
 
@@ -335,11 +335,11 @@ This corresponds to finding the *shortest path* to the `true` terminal in the BD
   + *end for*
 
   + $A <- emptyset$ $quad slash.double$ Reconstruct path top-down.
-  + $curr <- root$
-  + *while* $curr != #true$ *and* $curr != #false$ *do*
-    + $val <- "choice"[curr]$
-    + $A <- A union {( "var"(curr), val )}$
-    + $curr <- (val == 0 ? "low"(curr) : "high"(curr))$
+  + $"curr" <- "root"$
+  + *while* $"curr" != #true$ *and* $"curr" != #false$ *do*
+    + $"val" <- "choice"["curr"]$
+    + $A <- A union {( "var"("curr"), "val" )}$
+    + $"curr" <- ("val" == 0 ? "low"("curr") : "high"("curr"))$
   + *end while*
   + *return* $A$
 ]
