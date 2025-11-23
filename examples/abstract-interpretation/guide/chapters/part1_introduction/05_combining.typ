@@ -331,9 +331,9 @@ This recursive structure naturally handles nested blocks, while the `Partitioned
  The pair $(b, rho)$ behaves like a product ordered componentwise.
  Precision improves when constraints flow in both directions.
 
- #info-box(title: "Conceptual Placement")[
- Formal lattice definitions (standard product, reduced product, multi domain reduction) live in @ch-advanced-galois.
- Here we keep the *design intuition* only to avoid duplication.
+ #info-box(title: "Where Formal Theory Lives")[
+ Formal lattice definitions (standard product, reduced product, multi-domain reduction) live in @ch-advanced-galois.
+ This section focuses on *design intuition* only; refer there for proofs and algebraic detail.
 ]
 
  - *Control restricts data*: Branch predicate `x > 0` rules out negative interval bounds.
