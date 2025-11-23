@@ -31,6 +31,55 @@ Now, imagine shining a light on the object to cast a shadow on the wall.
   - If the rectangular shadow has a height of 20cm, we know the object is no taller than 20cm.
 ]
 
+#figure(
+  caption: [Abstraction as Projection. The concrete object (cylinder) is complex. Its shadows (circle, rectangle) are simple abstractions. Each shadow captures some truth but loses other details.],
+  cetz.canvas({
+    import cetz.draw: *
+
+    // --- Constants & Styles ---
+    let c-pos = (0, 0)
+    let p1-pos = (-4, 0)
+    let p2-pos = (4, 0)
+    let r-cyl = (1, 0.3) // radius x, y
+    let h-cyl = 2
+
+    let style-concrete = (stroke: colors.primary + 1pt)
+    let style-abstract-1 = (fill: colors.secondary.lighten(80%), stroke: colors.secondary + 1pt)
+    let style-abstract-2 = (fill: colors.accent.lighten(80%), stroke: colors.accent + 1pt)
+    let style-proj = (dash: "dotted", paint: colors.text-light)
+
+    // --- Concrete Object (Cylinder) ---
+    let (cx, cy) = c-pos
+    let (rx, ry) = r-cyl
+    let h = h-cyl / 2
+
+    // Top
+    circle((cx, cy + h), radius: r-cyl, fill: colors.primary.lighten(60%), ..style-concrete, name: "c_top")
+    // Body lines
+    line((cx - rx, cy + h), (cx - rx, cy - h), ..style-concrete, name: "c_left")
+    line((cx + rx, cy + h), (cx + rx, cy - h), ..style-concrete, name: "c_right")
+    // Bottom
+    arc((cx - rx, cy - h), start: 180deg, stop: 360deg, radius: r-cyl, mode: "OPEN", ..style-concrete, name: "c_bot")
+
+    content((cx, cy - h - 1), text(weight: "bold")[Concrete Object])
+
+    // --- Projection 1: Circle (Top View) ---
+    let (p1x, p1y) = p1-pos
+    circle(p1-pos, radius: rx, ..style-abstract-1, name: "p1")
+    content((p1x, p1y - 2), [Abstract 1: \ Shape (Circle)])
+
+    // --- Projection 2: Rectangle (Side View) ---
+    let (p2x, p2y) = p2-pos
+    rect((p2x - rx, p2y - h), (p2x + rx, p2y + h), ..style-abstract-2, name: "p2")
+    content((p2x, p2y - 2), [Abstract 2: \ Height (Rect)])
+
+    // --- Projection Lines ---
+    // Connect from near the cylinder to the projections
+    line((cx - rx - 0.2, cy), "p1.east", ..style-proj)
+    line((cx + rx + 0.2, cy), "p2.west", ..style-proj)
+  }),
+)
+
 Abstract Interpretation is the art of choosing the right "projection" (abstraction) for the property we want to prove.
 - If we want to prove a packet is HTTP, we project it to its *Dst Port* field.
 - If we want to prove a packet is TCP, we project it to its *Protocol* field.
@@ -40,7 +89,7 @@ Abstract Interpretation is the art of choosing the right "projection" (abstracti
 
 To make this rigorous, we define two functions connecting the concrete world (actual packets) and the abstract world (properties).
 
-#definition(title: "Concretization Function ($gamma$)")[
+#definition(title: "Concretization Function")[
   The concretization function $gamma$ maps an abstract value to the set of concrete packets it represents.
   For example, in the Protocol domain:
   - $gamma("TCP") = {"All TCP packets"}$
@@ -171,23 +220,31 @@ The smallest value covering both TCP and UDP is $top$.
     import cetz.draw: *
 
     let style-state = (fill: colors.bg-code, stroke: colors.primary + 1pt, radius: 0.2)
+    let style-arrow = (mark: (end: ">"), stroke: colors.text-light + 0.8pt)
 
-    // Branch
-    rect((-2, 2), (-0.5, 3), ..style-state, name: "s1")
-    content("s1", [proto = TCP])
+    let draw-state(pos, name, body, width: 2.5, height: 1) = {
+      let (x, y) = pos
+      let w = width / 2
+      let h = height / 2
+      rect((x - w, y - h), (x + w, y + h), name: name, ..style-state)
+      content(pos, body)
+    }
 
-    rect((0.5, 2), (2, 3), ..style-state, name: "s2")
-    content("s2", [proto = UDP])
+    // Layout
+    let y-branch = 2.5
+    let y-merge = 0.5
+    let x-sep = 2
 
-    // Merge
-    rect((-0.75, 0), (0.75, 1), ..style-state, name: "merge")
-    content("merge", [proto = ? \ ($top$)])
+    // Nodes
+    draw-state((-x-sep, y-branch), "s1", [proto = TCP])
+    draw-state((x-sep, y-branch), "s2", [proto = UDP])
+    draw-state((0, y-merge), "merge", [proto = ? ($top$)])
 
     // Edges
-    line("s1.south", "merge.north", mark: (end: ">"))
-    line("s2.south", "merge.north", mark: (end: ">"))
+    line("s1", "merge", ..style-arrow)
+    line("s2", "merge", ..style-arrow)
 
-    content((2.5, 0.5), text(size: 0.8em, fill: colors.error)[Precision Loss!], anchor: "west")
+    content((2, y-merge), text(size: 0.8em, fill: colors.error)[Precision Loss!], anchor: "west")
   }),
 )
 
