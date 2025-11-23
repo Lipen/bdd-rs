@@ -6,7 +6,7 @@ on:
     branches:
       - master
     paths-ignore:
-      - 'README.adoc'
+      - "README.adoc"
   pull_request:
 
 jobs:
