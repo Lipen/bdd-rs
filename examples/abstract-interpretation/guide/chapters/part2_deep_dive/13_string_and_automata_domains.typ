@@ -129,7 +129,7 @@ We model pipelines `validate; normalize; use`:
     draw.content((3.75, 3.3), [a])
 
     // After widening: Loop
-    draw.content((0, 1), text(weight: "bold")[Widened (Merged)])
+    draw.content((0, 1.2), text(weight: "bold")[Widened (Merged)])
     draw.circle((0, 0), radius: 0.3, name: "w0", stroke: colors.accent + 1pt)
     draw.content("w0", [0])
     draw.circle((2, 0), radius: 0.3, name: "w1", stroke: colors.accent + 1pt)
@@ -139,12 +139,12 @@ We model pipelines `validate; normalize; use`:
     draw.content((1, 0.3), [a])
 
     // Self-loop
-    draw.bezier("w1.north-east", "w1.north-west", (2.8, 0.8), (1.2, 0.8), stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+    draw.bezier("w1.north-east", "w1.north-west", (2.8, 1), (1.2, 1), stroke: colors.text-light + 0.8pt, mark: (end: ">"))
     draw.content((2, 1), [a])
 
     // Arrow
     draw.line((2, 2.5), (2, 1.5), stroke: (paint: colors.warning, thickness: 2pt), mark: (end: ">"))
-    draw.content((2.8, 2), text(size: 9pt, fill: colors.warning)[Merge states > 0])
+    draw.content((2, 2), text(size: 9pt, fill: colors.warning)[Merge states > 0], anchor: "west", padding: 0.2)
   }),
 )
 
