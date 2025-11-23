@@ -490,9 +490,9 @@ fn control_temp(sensor: i32) -> i32 {
 
 Keep three partitions:
 
-- Partition 1: $"sensor" < 15 => "heater\_power" = 100$
-- Partition 2: $15 <= "sensor" < 20 => "heater\_power" = 50$
-- Partition 3: $"sensor" >= 20 => "heater\_power" = 0$
+- Partition 1: $"sensor" < 15 => "heater_power" = 100$
+- Partition 2: $15 <= "sensor" < 20 => "heater_power" = 50$
+- Partition 3: $"sensor" >= 20 => "heater_power" = 0$
 
 Each partition preserves the exact correlation between input and output.
 Query: "When is heater at full power?"
