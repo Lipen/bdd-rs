@@ -17,7 +17,7 @@ The core concept is *taint tracking*.
 
 #definition(title: "Taint Domain")[
   The taint domain is a simple two-point lattice:
-  $ D = \{ lbot, "Clean", "Tainted", ltop \} $
+  $ D = { bot, "Clean", "Tainted", top } $
   where $"Clean" < "Tainted"$.
 ]
 

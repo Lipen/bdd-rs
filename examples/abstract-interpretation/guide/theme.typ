@@ -96,8 +96,6 @@
 #let narrow = rel($triangle$)   // △ narrowing
 #let lle = $subset.eq.sq$       // ⊑ less-or-equal
 #let lge = $supset.eq.sq$       // ⊒ greater-or-equal
-#let lbot = $bot$               // ⊥ bottom
-#let ltop = $top$               // ⊤ top
 #let llb = $bracket.l.stroked$  // ⟦ left semantic bracket
 #let rrb = $bracket.r.stroked$  // ⟧ right semantic bracket
 
