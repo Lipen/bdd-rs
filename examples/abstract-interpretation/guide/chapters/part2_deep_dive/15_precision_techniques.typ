@@ -302,23 +302,132 @@ This is a "Fail-Open" or "Fail-Safe" strategy depending on the application.
 
 A verification tool is only as good as its error messages.
 Telling a user "Assertion Failed" is useless.
+We need to provide a concrete packet that triggers the failure, and explain *why* it triggers it.
 
 === Minimal Counterexamples
 
-Because we use BDDs, we have the set of *all* failing packets.
-We should present the *simplest* one to the user.
-- Prefer IPv4 over IPv6.
-- Prefer zero flags over set flags.
-- Prefer standard ports over random high ports.
+Because we use BDDs, we have the set of *all* failing packets (the set of valuations that satisfy the negation of the property).
+However, showing a BDD to a user is not helpful.
+We want to present the *simplest* counterexample.
+
+We define "simplest" using a cost function:
++ *IPv4* is simpler than IPv6.
++ *Zero flags* are simpler than set flags.
++ *Standard ports* (80, 443) are simpler than random high ports.
++ *Unconstrained variables* should be ignored (don't care).
 
 This corresponds to finding the *shortest path* to the `true` terminal in the BDD, where edge weights are determined by the "complexity" of the variable assignment.
+
+#algorithm(title: "Shortest Path Counterexample")[
+  *Input:* BDD Node $root$, Cost Function $"cost"("var", "val")$.
+
+  *Output:* Minimal cost assignment $A$.
+
+  + $"dist" <- lambda u . infinity$ $quad slash.double$ Initialize all distances.
+  + $"dist"[#true] <- 0$
+  + *for each* node $u$ in topological order (bottom-up) *do*
+    + $x <- "var"(u)$
+    + $l, h <- "low"(u), "high"(u)$
+    + $"cost"_l <- "dist"[l] + "cost"(x, 0)$
+    + $"cost"_h <- "dist"[h] + "cost"(x, 1)$
+    + $"dist"[u] <- min("cost"_l, "cost"_h)$
+    + $"choice"[u] <- ("cost"_l <= "cost"_h ? 0 : 1)$ $quad slash.double$ Store optimal branch.
+  + *end for*
+
+  + $A <- emptyset$ $quad slash.double$ Reconstruct path top-down.
+  + $curr <- root$
+  + *while* $curr != #true$ *and* $curr != #false$ *do*
+    + $val <- "choice"[curr]$
+    + $A <- A union {( "var"(curr), val )}$
+    + $curr <- (val == 0 ? "low"(curr) : "high"(curr))$
+  + *end while*
+  + *return* $A$
+]
+
+```rust
+fn find_minimal_counterexample(bdd: &Bdd, root: Ref) -> Option<Packet> {
+    if bdd.is_zero(root) {
+        return None; // No counterexample exists (property holds)
+    }
+
+    // 1. Compute costs bottom-up
+    let mut costs = HashMap::new();
+    costs.insert(bdd.one, 0);
+    costs.insert(bdd.zero, usize::MAX);
+
+    // We need to traverse nodes. Since BDDs are DAGs, we can use a recursive helper with memoization
+    // or iterate if we have a topological sort. Here we use a simple recursive approach.
+    fn compute_cost(bdd: &Bdd, u: Ref, costs: &mut HashMap<Ref, usize>) -> usize {
+        if let Some(&c) = costs.get(&u) { return c; }
+
+        let low = bdd.low_node(u);
+        let high = bdd.high_node(u);
+        let var = bdd.variable(u.index());
+
+        let cost_low = compute_cost(bdd, low, costs).saturating_add(cost(var, 0));
+        let cost_high = compute_cost(bdd, high, costs).saturating_add(cost(var, 1));
+
+        let res = min(cost_low, cost_high);
+        costs.insert(u, res);
+        res
+    }
+
+    compute_cost(bdd, root, &mut costs);
+
+    // 2. Construct path top-down
+    let mut packet = Packet::default();
+    let mut current = root;
+
+    while !bdd.is_one(current) {
+        let low = bdd.low_node(current);
+        let high = bdd.high_node(current);
+        let var = bdd.variable(current.index());
+
+        let cost_low = costs[&low].saturating_add(cost(var, 0));
+        let cost_high = costs[&high].saturating_add(cost(var, 1));
+
+        if cost_low <= cost_high {
+            packet.set(var, false);
+            current = low;
+        } else {
+            packet.set(var, true);
+            current = high;
+        }
+    }
+    Some(packet)
+}
+```
 
 === Trace Slicing
 
 If a packet is dropped, the user wants to know *why*.
 A trace slice removes all rules that did not contribute to the decision.
 If a packet was dropped because of its Port, the slice should hide the IP checks.
+
 This requires tracking *provenance* or *dependencies* during the analysis.
+We can augment our abstract state to track the set of "active rules".
+
+#example-box(title: "Trace Slicing Example")[
+  *Original Policy*:
+  + `allow tcp port 80`
+  + `allow tcp port 443`
+  + `deny ip 10.0.0.0/8 any`
+  + `allow ip any any`
+
+  *Counterexample*: Packet `src=10.0.0.5, port=22`.
+
+  *Full Trace*:
+  - Rule 1: No match (port 22 $!=$ 80)
+  - Rule 2: No match (port 22 $!=$ 443)
+  - Rule 3: Match! Action: Deny.
+
+  *Sliced Trace*:
+  - Rule 3: Deny `src=10.0.0.5` (Matches `10.0.0.0/8`)
+
+  Rules 1 and 2 are irrelevant because even if they matched, Rule 3 (being a deny) might still take precedence depending on the chain logic.
+  However, in a "First Match" chain, Rules 1 and 2 *are* relevant because they *failed* to match.
+  The slice explains: "It didn't match the allow rules, and then it hit this deny rule."
+]
 
 #chapter-summary[
   - *Reduced Products* allow different domains to share information, proving properties neither could prove alone.
