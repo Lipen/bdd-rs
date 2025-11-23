@@ -45,6 +45,46 @@ BDDs allow us to track *under what conditions* an input is tainted.
   A path-insensitive analysis would merge the branches, concluding that `data` might be tainted at the writing step.
 ]
 
+#figure(
+  caption: [Path-sensitive taint analysis],
+
+  cetz.canvas({
+    import cetz: draw
+
+    // Nodes
+    draw.circle((0, 4), radius: 0.5, name: "start", stroke: colors.primary + 1pt)
+    draw.content("start", [Start])
+    draw.content((0, 4.6), text(size: 9pt)[data: Tainted])
+
+    draw.rect((-2, 2), (-1, 3), name: "valid", stroke: colors.success + 1pt)
+    draw.content("valid", [Valid])
+    draw.content("valid.west", text(size: 9pt, fill: colors.success)[data: Clean], anchor: "east", padding: 0.2)
+
+    draw.rect((1, 2), (2, 3), name: "invalid", stroke: colors.error + 1pt)
+    draw.content("invalid", [Invalid])
+    draw.content("invalid.east", text(size: 9pt, fill: colors.error)[data: Tainted], anchor: "west", padding: 0.2)
+
+    draw.circle((-1.5, 0), radius: 0.5, name: "sink", stroke: colors.primary + 1pt)
+    draw.content("sink", [Sink])
+
+    draw.circle((1.5, 0), radius: 0.5, name: "log", stroke: colors.primary + 1pt)
+    draw.content("log", [Log])
+
+    // Edges
+    draw.line("start", "valid.north", stroke: colors.text-light + 0.8pt, mark: (end: ">"), name: "start-valid")
+    draw.content("start-valid", [check ok], anchor: "south-east", padding: 0.1)
+
+    draw.line("start", "invalid.north", stroke: colors.text-light + 0.8pt, mark: (end: ">"), name: "start-invalid")
+    draw.content("start-invalid", [check fail], anchor: "south-west", padding: 0.1)
+
+    draw.line("valid", "sink", stroke: colors.success + 1pt, mark: (end: ">"), name: "valid-sink")
+    draw.content("valid-sink", text(fill: colors.success)[Safe], anchor: "east", padding: 0.2)
+
+    draw.line("invalid", "log", stroke: colors.text-light + 0.8pt, mark: (end: ">"), name: "invalid-log")
+    draw.content("invalid-log", [log tainted], anchor: "west", padding: 0.2)
+  }),
+)
+
 In our BDD-based framework, the abstract state maps `Var -> (Bdd -> Taint)`.
 Effectively, we track the *path condition* under which the variable is tainted.
 
