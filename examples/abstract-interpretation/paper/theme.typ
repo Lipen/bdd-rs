@@ -329,9 +329,9 @@
 }
 
 // Theorem-like environments with auto-numbering
-#let theorem(title: none, body) = context {
+#let theorem(title: none, body) = {
   theorem-counter.step()
-  let number = theorem-counter.display()
+  let number = context theorem-counter.display()
   let display-title = if title != none {
     [Theorem #number (#title)]
   } else {
@@ -359,9 +359,9 @@
 }
 
 // Definition box with auto-numbering
-#let definition(title: none, body) = context {
+#let definition(title: none, body) = {
   definition-counter.step()
-  let number = definition-counter.display()
+  let number = context definition-counter.display()
   let display-title = if title != none {
     [Definition #number (#title)]
   } else {
@@ -389,9 +389,9 @@
 }
 
 // Property box with auto-numbering
-#let property(title: none, body) = context {
+#let property(title: none, body) = {
   property-counter.step()
-  let number = property-counter.display()
+  let number = context property-counter.display()
   let display-title = if title != none {
     [Property #number (#title)]
   } else {
