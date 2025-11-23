@@ -54,6 +54,48 @@ This communication is called *Reduction*.
   The reduction operator $rho$ exchanges information between $A$ and $B$ to refine both, such that $rho(a, b) lle (a, b)$.
 ]
 
+=== Implementation Pattern
+
+In Rust, we implement this by composing structs.
+The `reduce` method is the key addition to the `AbstractDomain` trait.
+
+```rust
+struct ProductDomain<A, B> {
+    dom_a: A,
+    dom_b: B,
+}
+
+impl<A: AbstractDomain, B: AbstractDomain> AbstractDomain for ProductDomain<A, B> {
+    fn meet(&self, other: &Self) -> Self {
+        let mut res = ProductDomain {
+            dom_a: self.dom_a.meet(&other.dom_a),
+            dom_b: self.dom_b.meet(&other.dom_b),
+        };
+        res.reduce(); // Critical step!
+        res
+    }
+
+    fn reduce(&mut self) {
+        // Loop until fixpoint or budget exceeded
+        loop {
+            let old_state = self.clone();
+
+            // 1. Transfer info A -> B
+            if let Some(range) = self.dom_a.get_range("src_ip") {
+                self.dom_b.constrain_variable("src_ip", range);
+            }
+
+            // 2. Transfer info B -> A
+            if self.dom_b.is_constant("len", 0) {
+                self.dom_a.set_constant("len", 0);
+            }
+
+            if *self == old_state { break; }
+        }
+    }
+}
+```
+
 === Example: Mutual Refinement in Firewalls
 
 Consider a rule that drops private IP addresses, but only for short packets:
@@ -91,6 +133,12 @@ The solution is *Partitioning*: keeping distinct states separate based on some c
 Instead of one monolithic abstract state, we maintain a map:
 `Map<PartitionKey, AbstractState>`.
 
+#definition(title: "Partitioned Domain")[
+  Let $K$ be a set of partition keys (e.g., protocol types, call sites).
+  The partitioned domain $D_K$ maps each key to an abstract state: $D_K = K -> D$.
+  The concretization is the union of all partitions: $gamma(f) = union_(k in K) gamma(f(k))$.
+]
+
 #example-box(title: "Partitioning by Protocol")[
   In our FirewallChecker, the most effective partition key is often the *Protocol* (TCP vs. UDP vs. ICMP).
 
@@ -100,6 +148,30 @@ Instead of one monolithic abstract state, we maintain a map:
 
   This prevents "pollution" where UDP packets are flagged for missing TCP flags.
 ]
+
+=== Implementation Strategy
+
+We can implement this using a `HashMap`.
+The `join` operation becomes complex: we only join states with matching keys.
+
+```rust
+struct PartitionedDomain<D> {
+    partitions: HashMap<Protocol, D>,
+}
+
+impl<D: AbstractDomain> AbstractDomain for PartitionedDomain<D> {
+    fn join(&self, other: &Self) -> Self {
+        let mut new_map = self.partitions.clone();
+        for (key, state) in &other.partitions {
+            new_map
+                .entry(key.clone())
+                .and_modify(|s| *s = s.join(state))
+                .or_insert(state.clone());
+        }
+        PartitionedDomain { partitions: new_map }
+    }
+}
+```
 
 This technique is also known as *Disjunctive Completion*.
 We effectively delay the merge until the end of the analysis, or until the number of partitions grows too large.
@@ -127,6 +199,12 @@ Widening is an operator that extrapolates the growth of an abstract value.
 It observes the trend between two iterations and jumps to a safe upper bound.
 If we see a value growing from `[0, 1]` to `[0, 2]`, widening might guess `[0, infinity]`.
 
+#definition(title: "Widening Operator")[
+  The widening operator $widen$ must satisfy:
+  + *Soundness*: $x lle (x widen y)$ and $y lle (x widen y)$.
+  + *Termination*: For any sequence $x_0, x_1, ...$, the sequence $y_0 = x_0, y_(i+1) = y_i widen x_(i+1)$ eventually stabilizes.
+]
+
 #warning-box(title: "The Risk of Widening")[
   Widening guarantees termination, but it is *imprecise*.
   It often over-approximates too much, including states that are not actually reachable (like infinite packet sizes).
@@ -146,6 +224,22 @@ In networking, interesting values for packet sizes include:
 
 If the packet size grows past 1500, we widen to 9000, not infinity.
 This keeps the analysis precise enough to prove properties like "packets never exceed Jumbo Frame size".
+
+```rust
+fn widen_threshold(old: &Interval, new: &Interval, thresholds: &[u32]) -> Interval {
+    let min = if new.min < old.min {
+        // Growing downwards: jump to next lower threshold
+        thresholds.iter().rev().find(|&&t| t <= new.min).copied().unwrap_or(0)
+    } else { old.min };
+
+    let max = if new.max > old.max {
+        // Growing upwards: jump to next higher threshold
+        thresholds.iter().find(|&&t| t >= new.max).copied().unwrap_or(u32::MAX)
+    } else { old.max };
+
+    Interval { min, max }
+}
+```
 
 === Narrowing ($narrow$)
 
@@ -174,12 +268,32 @@ A bad order can lead to exponential blowup.
   + Transport Header (Ports, Flags)
 ]
 
+*Why does this matter?*
+Consider the function $(a_1 and b_1) or (a_2 and b_2) or ... or (a_n and b_n)$.
+- If ordered $a_1, b_1, a_2, b_2, ...$, the BDD size is linear $O(n)$.
+- If ordered $a_1, ..., a_n, b_1, ..., b_n$, the BDD size is exponential $O(2^n)$.
+
 === Resource Budgets
 
-To prevent the analyzer from hanging on complex inputs, we enforce budgets:
-- *Partition Budget*: Max 50 partitions per control location. If exceeded, force a merge.
-- *BDD Node Budget*: Abort if a BDD exceeds 1 million nodes.
-- *Time Budget*: Soft timeout for the solver (e.g., 5 seconds per rule).
+To prevent the analyzer from hanging on complex inputs, we enforce budgets.
+We pass a `Context` object through the analysis that tracks consumption.
+
+```rust
+struct AnalysisContext {
+    bdd_node_limit: usize,
+    partition_limit: usize,
+    start_time: Instant,
+}
+
+impl AnalysisContext {
+    fn check_budget(&self) -> Result<(), Error> {
+        if self.start_time.elapsed() > Duration::from_secs(5) {
+            return Err(Error::Timeout);
+        }
+        Ok(())
+    }
+}
+```
 
 When a budget is hit, we force a merge (loss of precision) rather than crashing (loss of availability).
 This is a "Fail-Open" or "Fail-Safe" strategy depending on the application.
@@ -196,6 +310,8 @@ We should present the *simplest* one to the user.
 - Prefer IPv4 over IPv6.
 - Prefer zero flags over set flags.
 - Prefer standard ports over random high ports.
+
+This corresponds to finding the *shortest path* to the `true` terminal in the BDD, where edge weights are determined by the "complexity" of the variable assignment.
 
 === Trace Slicing
 
