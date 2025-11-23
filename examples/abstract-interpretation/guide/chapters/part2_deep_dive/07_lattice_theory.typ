@@ -21,9 +21,9 @@ These are the essential tools for understanding program analysis rigorously.
 
   Think of it as:
   - $bot$ (Bottom): "Impossible" (Perfect information, but contradictory).
-  - $x$: "Packet is TCP port 80" (Very precise).
-  - $y$: "Packet is TCP" (Less precise).
-  - $top$ (Top): "Packet is anything" (No information).
+  - $x$: "`x` is 5" (Very precise).
+  - $y$: "`x` is positive" (Less precise).
+  - $top$ (Top): "`x` is any integer" (No information).
 ]
 
 #definition(title: "Partial Order")[
@@ -42,22 +42,22 @@ $x <= y$ means "$x$ is more precise than $y$".
 Alternatively, "$x$ approximates fewer concrete behaviors than $y$".
 
 #example-box[
-  *Real-World Example: IP Address Blocks (CIDR)*
+  *Real-World Example: Integer Intervals*
 
-  Consider the set of IP address blocks (CIDR notation).
+  Consider the set of integer intervals.
   The ordering is subset inclusion (reversed for precision):
-  $A <= B$ if the set of IPs in $A$ is a subset of $B$.
+  $A <= B$ if the set of integers in $A$ is a subset of $B$.
 
-  - $192.168.1.5$ (Single IP) is very precise.
-  - $192.168.1.0/24$ (Local LAN) is less precise.
-  - $0.0.0.0/0$ (The Internet) is the least precise ($top$).
-  - $emptyset$ (No IP) is the most precise ($bot$).
+  - $[5, 5]$ (Single value) is very precise.
+  - $[0, 10]$ (Small range) is less precise.
+  - $[-infinity, +infinity]$ (All integers) is the least precise ($top$).
+  - $emptyset$ (No value) is the most precise ($bot$).
 
-  $ emptyset <= 192.168.1.5 <= 192.168.1.0"/"24 <= 0.0.0.0"/"0 $
+  $ emptyset <= [5, 5] <= [0, 10] <= [-infinity, +infinity] $
 ]
 
 #figure(
-  caption: [Lattice of IP Address Blocks (CIDR)],
+  caption: [Lattice of Integer Intervals],
 
   cetz.canvas({
     import cetz: draw
@@ -65,11 +65,11 @@ Alternatively, "$x$ approximates fewer concrete behaviors than $y$".
     // Helper function for lattice nodes
     let draw-node(name, pos, label, style: "internal") = {
       if style == "bottom" {
-        draw.rect(pos, (rel: (2.5, 0.6)), name: name, stroke: colors.primary + 1pt)
+        draw.rect(pos, (rel: (2, .8)), name: name, stroke: colors.primary + 1pt)
       } else if style == "top" {
-        draw.rect(pos, (rel: (2.5, 0.6)), name: name, stroke: colors.primary + 1pt)
+        draw.rect(pos, (rel: (3, .8)), name: name, stroke: colors.primary + 1pt)
       } else {
-        draw.rect(pos, (rel: (2.5, 0.6)), name: name, stroke: colors.primary + 1pt, fill: colors.bg-code)
+        draw.rect(pos, (rel: (2.5, .8)), name: name, stroke: colors.primary + 1pt, fill: colors.bg-code)
       }
       draw.content(name, label)
     }
@@ -79,14 +79,14 @@ Alternatively, "$x$ approximates fewer concrete behaviors than $y$".
     }
 
     // Layout
-    draw-node("top", (3, 6), [0.0.0.0/0 ($top$)], style: "top")
+    draw-node("top", (3, 6), [$[-infinity, +infinity]$ ($top$)], style: "top")
 
-    draw-node("lan1", (0, 4), [10.0.0.0/8])
-    draw-node("lan2", (6, 4), [192.168.0.0/16])
+    draw-node("pos", (0, 4), [$[0, +infinity]$])
+    draw-node("neg", (6, 4), [$[-infinity, 0]$])
 
-    draw-node("sub1", (-1, 2), [10.1.1.0/24])
-    draw-node("sub2", (2, 2), [10.2.0.0/16])
-    draw-node("sub3", (6, 2), [192.168.1.5/32])
+    draw-node("sub1", (-1, 2), [$[0, 10]$])
+    draw-node("sub2", (2, 2), [$[100, 200]$])
+    draw-node("sub3", (6, 2), [$[-10, -1]$])
 
     draw-node("bot", (3, 0), [$emptyset$ ($bot$)], style: "bottom")
 
@@ -95,12 +95,12 @@ Alternatively, "$x$ approximates fewer concrete behaviors than $y$".
     draw-edge("bot", "sub2")
     draw-edge("bot", "sub3")
 
-    draw-edge("sub1", "lan1")
-    draw-edge("sub2", "lan1")
-    draw-edge("sub3", "lan2")
+    draw-edge("sub1", "pos")
+    draw-edge("sub2", "pos")
+    draw-edge("sub3", "neg")
 
-    draw-edge("lan1", "top")
-    draw-edge("lan2", "top")
+    draw-edge("pos", "top")
+    draw-edge("neg", "top")
 
     // Annotations
     draw.content((9, 6), text(size: 9pt, fill: colors.text-light)[Least precise], anchor: "west", padding: 0.2)
@@ -151,23 +151,23 @@ The meet finds the most precise common refinement.
 ]
 
 #example-box[
-  *Protocol Hierarchy as a Lattice:*
+  *Sign Lattice:*
 
-  Consider a simplified protocol lattice:
+  Consider the Sign lattice:
 
   #align(center, grid(
     columns: 5,
     stroke: colors.text-light + 0.5pt,
     inset: 5pt,
     fill: (x, y) => if x == 0 or y == 0 { colors.box-info },
-    [*$ljoin$*], [*$bot$*], [*TCP*], [*UDP*], [*$top$*],
-    [*$bot$*], [$bot$], [TCP], [UDP], [$top$],
-    [*TCP*], [TCP], [TCP], [$top$], [$top$],
-    [*UDP*], [UDP], [$top$], [UDP], [$top$],
+    [*$ljoin$*], [*$bot$*], [*Pos*], [*Neg*], [*$top$*],
+    [*$bot$*], [$bot$], [Pos], [Neg], [$top$],
+    [*Pos*], [Pos], [Pos], [$top$], [$top$],
+    [*Neg*], [Neg], [$top$], [Neg], [$top$],
     [*$top$*], [$top$], [$top$], [$top$], [$top$],
   ))
 
-  Note that $"TCP" ljoin "UDP" = top$ because there's no single protocol that is both TCP and UDP (except the generic "IP packet" which we model as $top$).
+  Note that $"Pos" ljoin "Neg" = top$ because there's no single sign that is both Positive and Negative (except $top$ which covers both).
 ]
 
 #definition(title: "Complete Lattice")[
@@ -231,7 +231,7 @@ We refine approximations until reaching a fixpoint.
 #example-box[
   *Heights of common lattices:*
 
-  - Protocol lattice: $"height" = 2$ (chain: $bot < "TCP" < top$).
+  - Sign lattice: $"height" = 2$ (chain: $bot < "Pos" < top$).
   - Boolean lattice: $"height"({bot, top}) = 1$.
   - Powerset lattice: $"height"(cal(P)(S)) = |S|$ for finite set $S$.
   - Interval lattice over $ZZ$: $"height"("Interval") = infinity$ (unbounded chains).
@@ -264,118 +264,14 @@ All abstract operations in program analysis must be monotone to ensure sound app
 If an analysis loses precision when given more precise inputs, something is wrong.
 
 #example-box[
-  *Monotone functions on Protocols:*
+  *Monotone functions on Intervals:*
 
-  Abstract "get port" is monotone:
-  - If $x_1 <= x_2$ (e.g., $"TCP" <= top$), then $"port"(x_1) <= "port"(x_2)$.
-  - Example: $"port"("TCP") = [0, 65535] <= "port"(top) = [0, 65535]$.
+  Abstract "absolute value" is monotone:
+  - If $x_1 <= x_2$ (e.g., $[0, 5] <= [0, 10]$), then $"abs"(x_1) <= "abs"(x_2)$.
+  - Example: $"abs"([0, 5]) = [0, 5] <= "abs"([0, 10]) = [0, 10]$.
 
-  But consider a *non-monotone* function that returns $80$ for $bot, "TCP"$ and $top$ otherwise.
-  Then $"TCP" <= top$ but $f("TCP") = 80 gt.eq.not top = f(top)$, violating monotonicity.
-]
-
-#definition(title: "Complete Lattice")[
-  A lattice $(L, <=, ljoin, lmeet)$ is *complete* if every subset $S subset.eq L$ (including infinite subsets) has both:
-
-  - A least upper bound: $ljoin.big_(x in S) x$
-  - A greatest lower bound: $lmeet.big_(x in S) x$
-
-  In particular, a complete lattice has:
-  - A *least element* $bot = lmeet.big_(x in L) x$ (bottom).
-  - A *greatest element* $top = ljoin.big_(x in L) x$ (top).
-]
-
-Complete lattices are the fundamental structure for abstract interpretation.
-Program analysis must handle unbounded sets of states and infinite chains during iteration.
-
-#theorem(title: "Properties of Complete Lattices")[
-  Let $(L, <=, ljoin, lmeet, bot, top)$ be a complete lattice.
-
-  + *Idempotence*: $x ljoin x = x$ and $x lmeet x = x$.
-  + *Commutativity*: $x ljoin y = y ljoin x$ and $x lmeet y = y lmeet x$.
-  + *Associativity*: $(x ljoin y) ljoin z = x ljoin (y ljoin z)$.
-  + *Absorption*: $x ljoin (x lmeet y) = x$ and $x lmeet (x ljoin y) = x$.
-  + *Identity*: $x ljoin bot = x$ and $x lmeet top = x$.
-  + *Annihilation*: $x ljoin top = top$ and $x lmeet bot = bot$.
-]
-
-#proof[
-  We prove a representative subset.
-
-  *Idempotence of $ljoin$:*
-  Since $x <= x$, we have $x$ is an upper bound of ${x, x}$.
-  For any other upper bound $u$ with $x <= u$, we have $x <= u$.
-  Thus $x$ is the least upper bound, so $x ljoin x = x$.
-
-  *Absorption of $ljoin$:*
-  Since $x lmeet y <= x$, we have $x$ is an upper bound of ${x, x lmeet y}$.
-  For any upper bound $u$ with $x <= u$ and $x lmeet y <= u$, we have $x <= u$.
-  Thus $x ljoin (x lmeet y) = x$.
-
-  Other properties follow similarly from the definitions.
-]
-
-== Height and Chains
-
-#definition(title: "Chain")[
-  A subset $C subset.eq L$ is a *chain* if every two elements are comparable:
-  $ forall x, y in C: x <= y or y <= x $
-
-  The *length* of a finite chain $x_0 < x_1 < dots < x_n$ is $n$ (number of strict comparisons).
-]
-
-Chains are important because program analysis iterates along chains in the lattice.
-We refine approximations until reaching a fixpoint.
-
-#definition(title: "Height")[
-  The *height* of a poset $(L, <=)$, denoted $"height"(L)$, is the length of the longest chain in $L$.
-  If arbitrarily long chains exist, the height is infinite.
-]
-
-#example-box[
-  *Heights of common lattices:*
-
-  - Protocol lattice: $"height" = 2$ (chain: $bot < "TCP" < top$).
-  - Boolean lattice: $"height"({bot, top}) = 1$.
-  - Powerset lattice: $"height"(cal(P)(S)) = |S|$ for finite set $S$.
-  - Interval lattice over $ZZ$: $"height"("Interval") = infinity$ (unbounded chains).
-]
-
-#theorem(title: "Ascending Chain Condition")[
-  A poset $(L, <=)$ satisfies the *ascending chain condition* (ACC) if every increasing chain
-  $ x_0 <= x_1 <= x_2 <= dots $
-  eventually stabilizes.
-  There exists $N$ such that $x_N = x_(N+1) = x_(N+2) = dots$.
-]
-
-#info-box(title: "Why ACC Matters")[
-  The ascending chain condition ensures that fixpoint iteration terminates.
-  Without ACC, analysis might iterate forever, refining approximations without converging.
-
-  When ACC doesn't hold (infinite-height lattices), we need *widening* operators to enforce convergence.
-]
-
-== Monotone Functions
-
-#definition(title: "Monotone Function")[
-  A function $f: L -> M$ between posets is *monotone* (or *order-preserving*) if:
-  $ forall x, y in L: x <= y => f(x) <= f(y) $
-
-  Intuitively, increasing precision in the input increases precision in the output.
-]
-
-All abstract operations in program analysis must be monotone to ensure sound approximation.
-If an analysis loses precision when given more precise inputs, something is wrong.
-
-#example-box[
-  *Monotone functions on Protocols:*
-
-  Abstract "get port" is monotone:
-  - If $x_1 <= x_2$ (e.g., $"TCP" <= top$), then $"port"(x_1) <= "port"(x_2)$.
-  - Example: $"port"("TCP") = [0, 65535] <= "port"(top) = [0, 65535]$.
-
-  But consider a *non-monotone* function that returns $80$ for $bot, "TCP"$ and $top$ otherwise.
-  Then $"TCP" <= top$ but $f("TCP") = 80 gt.eq.not top = f(top)$, violating monotonicity.
+  But consider a *non-monotone* function that returns $0$ for $bot$ and $[0, 5]$, but $100$ for $[0, 10]$.
+  Then $[0, 5] <= [0, 10]$ but $f([0, 5]) = 0 gt.eq.not 100 = f([0, 10])$, violating monotonicity.
 ]
 
 #theorem(title: "Composition Preserves Monotonicity")[
@@ -542,16 +438,16 @@ This gives us the standard fixpoint iteration algorithm used in dataflow analysi
 )
 
 #example-box[
-  *Computing reachable packet states:*
+  *Computing reachable program states:*
 
-  Consider a packet processing pipeline with states ${"Ingress", "Filter", "Egress"}$.
-  Let $f(S)$ = $S union "next_stage"(S)$.
+  Consider a program with states ${"Init", "Loop", "Exit"}$.
+  Let $f(S)$ = $S union "next_state"(S)$.
 
-  Starting from $S_0 = {"Ingress"}$:
-  - $f^0({"Ingress"}) = {"Ingress"}$.
-  - $f^1({"Ingress"}) = {"Ingress", "Filter"}$.
-  - $f^2({"Ingress"}) = {"Ingress", "Filter", "Egress"}$.
-  - $f^3({"Ingress"}) = {"Ingress", "Filter", "Egress"}$ (no new states).
+  Starting from $S_0 = {"Init"}$:
+  - $f^0({"Init"}) = {"Init"}$.
+  - $f^1({"Init"}) = {"Init", "Loop"}$.
+  - $f^2({"Init"}) = {"Init", "Loop", "Exit"}$.
+  - $f^3({"Init"}) = {"Init", "Loop", "Exit"}$ (no new states).
 
   Fixpoint reached after 3 iterations!
 ]

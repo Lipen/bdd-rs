@@ -1,77 +1,77 @@
 #import "../../theme.typ": *
 
-= Inter-Chain Analysis <ch-interprocedural>
+= Inter-Procedural Analysis <ch-interprocedural>
 
 #reading-path(path: "advanced")
 
-Real-world firewall policies are rarely a single flat list of rules.
-They are organized into *chains* (e.g., in `iptables` or `nftables`) or *modules* that jump to one another.
-Inter-chain analysis reasons across these boundaries, treating chains like functions in a program.
+Real-world programs are rarely a single flat list of instructions.
+They are organized into *functions* or *modules* that call one another.
+Inter-procedural analysis reasons across these boundaries, treating functions as modular units.
 
-== Chain Graph and Summaries
+== Call Graph and Summaries
 
-We assume a "Chain Jump Graph" $G_c$ where nodes are chains and edges are jumps.
+We assume a "Call Graph" $G_c$ where nodes are functions and edges are calls.
 
-#definition(title: "Chain Summary")[
-  A summary $S_C: A -> A$ maps an abstract input packet state to an abstract output state (or verdict) for chain $C$.
-  This allows us to analyze a chain once and reuse the result whenever it is "called" (jumped to).
+#definition(title: "Function Summary")[
+  A summary $S_F: A -> A$ maps an abstract input state to an abstract output state (or return value) for function $F$.
+  This allows us to analyze a function once and reuse the result whenever it is "called".
 ]
 
-- *Context-insensitive*: One summary per chain. Fast, but may lose precision if the chain behaves differently based on who called it.
-- *Context-sensitive*: Summarize per calling context (e.g., "Called from Ingress" vs "Called from VPN").
+- *Context-insensitive*: One summary per function. Fast, but may lose precision if the function behaves differently based on who called it.
+- *Context-sensitive*: Summarize per calling context (e.g., "Called from Main" vs "Called from Test").
 
 == The Challenge of Summaries with BDDs
 
 When using BDDs, a unique challenge arises: *Variable Remapping*.
-A reusable chain `check_subnet(ip)` might be called with `src_ip` in one place and `dst_ip` in another.
-The BDD for `check_subnet` is built using a formal parameter `ip`.
+A reusable function `check_range(val)` might be called with `x` in one place and `y` in another.
+The BDD for `check_range` is built using a formal parameter `val`.
 To apply the summary, we must:
-+ *Rename:* Substitute the formal parameter (`ip`) with the actual argument (`src_ip`) in the BDD.
-+ *Project:* Existentially quantify out local variables of the chain to keep the summary clean.
++ *Rename:* Substitute the formal parameter (`val`) with the actual argument (`x`) in the BDD.
++ *Project:* Existentially quantify out local variables of the function to keep the summary clean.
 
-#example-box(title: "Applying a Chain Summary")[
-  Summary for `check_whitelist(addr)`:
-  $ R = ("addr" in "Whitelist" and "verdict" = "Accept") or ("addr" in.not "Whitelist" and "verdict" = "Drop") $
+#example-box(title: "Applying a Function Summary")[
+  Summary for `check_valid(val)`:
+  $ R = ("val" in "ValidSet" and "return" = "True") or ("val" in.not "ValidSet" and "return" = "False") $
 
-  Call site: `jump check_whitelist(src_ip)`
+  Call site: `call check_valid(x)`
 
-  + *Rename:* Replace `"addr" -> "src_ip"`.
+  + *Rename:* Replace `"val" -> "x"`.
   + *Instantiate:*
-    $ R' = ("src_ip" in "Whitelist" and "verdict" = "Accept") or ("src_ip" in.not "Whitelist" and "verdict" = "Drop") $
+    $ R' = ("x" in "ValidSet" and "return" = "True") or ("x" in.not "ValidSet" and "return" = "False") $
   + *Join:* Combine $R'$ with the current state at the call site.
 ]
 
 == Call-Strings (k-limited)
 
-In packet filtering, "recursion" is rare, but "shared chains" are common.
-A `log_and_drop` chain might be called from 50 different places.
+In program analysis, "recursion" is rare in some domains (like embedded systems), but "shared functions" are common.
+A `log_error` function might be called from 50 different places.
 
 #definition(title: "k-Call-String Sensitivity")[
-  A context is the sequence of the last $k$ chains visited.
-  Summaries are memoized by `(chain, context_k)`.
+  A context is the sequence of the last $k$ functions called.
+  Summaries are memoized by `(function, context_k)`.
 ]
 
-This is useful if `log_and_drop` needs to know *which* chain called it to provide a precise error analysis (e.g., "Dropped by SQL Filter" vs "Dropped by Rate Limiter").
+This is useful if `log_error` needs to know *which* function called it to provide a precise error analysis (e.g., "Error in SQL Module" vs "Error in Rate Limiter").
 
 == Handling Loops and Recursion
 
-Most firewall configurations (like `iptables`) form a Directed Acyclic Graph (DAG).
-However, some advanced SDN controllers or complex routing policies might introduce loops.
-In these cases, we compute the *Least Fixpoint* of the chain summaries.
+Most simple programs form a Directed Acyclic Graph (DAG).
+However, recursive algorithms introduce loops.
+In these cases, we compute the *Least Fixpoint* of the function summaries.
 
 #algorithm(title: "SCC Worklist")[
-  + Compute Strongly Connected Components (SCCs) of the Chain Graph.
+  + Compute Strongly Connected Components (SCCs) of the Call Graph.
   + Process SCCs in topological order (leaves to root).
   + For a cyclic SCC, iterate summaries until convergence (using widening if domains are infinite).
   + Export stabilized summaries to callers.
 ]
 
-== Modular vs Whole-Policy Analysis
+== Modular vs Whole-Program Analysis
 
-- *Modular*: Analyze each chain in isolation with assumed contracts. Useful for incremental updates (e.g., adding a rule to one chain doesn't require re-analyzing the whole firewall).
-- *Whole-Policy*: Analyze the entire ruleset as one giant control flow graph. More precise but slower.
+- *Modular*: Analyze each function in isolation with assumed contracts. Useful for incremental updates (e.g., changing one function doesn't require re-analyzing the whole program).
+- *Whole-Program*: Analyze the entire codebase as one giant control flow graph. More precise but slower.
 
 #chapter-summary[
-  Inter-chain analysis treats firewall chains as functions.
-  By computing *summaries* and handling *variable remapping* with BDDs, we can efficiently analyze complex, modular policies without exploding the state space.
+  Inter-procedural analysis treats functions as modular units.
+  By computing *summaries* and handling *variable remapping* with BDDs, we can efficiently analyze complex, modular programs without exploding the state space.
 ]

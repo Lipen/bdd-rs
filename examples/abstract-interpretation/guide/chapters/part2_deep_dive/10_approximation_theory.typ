@@ -102,9 +102,9 @@ The standard recipe for analyzing loops with infinite domains is:
   Repeat for a fixed number of steps or until convergence.
   *Result:* $y_k$ is a more precise sound over-approximation.
 
-#example-box(title: "Real-World Example: Port Scan Analysis")[
-  Consider a loop scanning ports:
-  `port = 80; while port < 100 { scan(port); port++ }`
+#example-box(title: "Real-World Example: Loop Analysis")[
+  Consider a loop incrementing a counter:
+  `i = 80; while i < 100 { process(i); i++ }`
 
   *Widening Phase:*
   - Iter 0: $[80, 80]$
@@ -116,7 +116,7 @@ The standard recipe for analyzing loops with infinite domains is:
 
   *Narrowing Phase:*
   - Start: $[80, +infinity]$
-  - Apply $f$: $f([80, +infinity]) = [80, 100]$ (effect of loop guard `port < 100`).
+  - Apply $f$: $f([80, +infinity]) = [80, 100]$ (effect of loop guard `i < 100`).
   - Narrow: $[80, +infinity] narrow [80, 100] = [80, 100]$.
   - Result: $[80, 100]$. Perfect precision!
 ]

@@ -1,10 +1,10 @@
-// Chapter 2: Packet Flow and the Chain Graph
+// Chapter 2: Control Flow and the CFG
 
 #import "../../theme.typ": *
 
 = Control Flow and Program Structure <ch-control-flow>
 
-In the previous chapter, we defined the syntax of our Toy Language (PFL) using an Abstract Syntax Tree (AST).
+In the previous chapter, we defined the syntax of our Toy Language (IMP) using an Abstract Syntax Tree (AST).
 While ASTs are excellent for representing the *structure* of the code (how it is written), they are often awkward for analyzing its *behavior* (how it executes).
 
 To analyze a program, we need to view it not as a hierarchy of rules, but as a network of possible execution paths.
@@ -187,12 +187,12 @@ Why is program verification so hard?
 The answer lies in the structure of the CFG.
 Every time we encounter a branch, the number of possible execution paths multiplies.
 
-Consider a sequence of just 3 independent checks in PFL:
+Consider a sequence of just 3 independent checks in IMP:
 
 ```rust
-if proto == TCP { ... }
-if dst_port == 80 { ... }
-if src_ip == 10.0.0.1 { ... }
+if a > 0 { ... }
+if b > 0 { ... }
+if c > 0 { ... }
 ```
 
 This creates $|Pi| = 2 times 2 times 2 = 8$ paths.
@@ -227,14 +227,14 @@ This is *exponential growth*.
     draw-state-node((0, 0), "n0", [State: $emptyset$], "south")
 
     // Level 1
-    draw-state-node((-dx-l1, dy), "n1l", [${"TCP"}$], "east")
-    draw-state-node((dx-l1, dy), "n1r", [${!"TCP"}$], "west")
+    draw-state-node((-dx-l1, dy), "n1l", [${a > 0}$], "east")
+    draw-state-node((dx-l1, dy), "n1r", [${a <= 0}$], "west")
 
     // Level 2
-    draw-state-node((-dx-l1 - dx-l2, dy * 2), "n2ll", [${"TCP", 80}$], "north")
-    draw-state-node((-dx-l1 + dx-l2, dy * 2), "n2lr", [${"TCP", !80}$], "north")
-    draw-state-node((dx-l1 - dx-l2, dy * 2), "n2rl", [${!"TCP", 80}$], "north")
-    draw-state-node((dx-l1 + dx-l2, dy * 2), "n2rr", [${!"TCP", !80}$], "north")
+    draw-state-node((-dx-l1 - dx-l2, dy * 2), "n2ll", [${a > 0, b > 0}$], "north")
+    draw-state-node((-dx-l1 + dx-l2, dy * 2), "n2lr", [${a > 0, b <= 0}$], "north")
+    draw-state-node((dx-l1 - dx-l2, dy * 2), "n2rl", [${a <= 0, b > 0}$], "north")
+    draw-state-node((dx-l1 + dx-l2, dy * 2), "n2rr", [${a <= 0, b <= 0}$], "north")
 
     // Edges
     draw-edge("n0", "n1l")
@@ -277,14 +277,14 @@ We need a data structure that can represent *sets of states* compactly, without 
   There are two ways to define a set $S$ within a universe $cal(U)$:
 
   - *Extensional:* Listing every member explicitly.
-    $ S = \{s_1, s_2, dots, s_n\} $
+    $ S = {s_1, s_2, dots, s_n} $
     This is computationally infeasible when $|S|$ is large (e.g., $|cal(U)| approx 2^256$).
 
   - *Intensional:* Specifying a logical predicate $P$ that characterizes the set.
-    $ S = \{x in cal(U) mid(|) P(x)\} $
+    $ S = {x in cal(U) mid(|) P(x)} $
 
   Symbolic execution relies on the *intensional* approach.
-  A BDD encodes the *characteristic function* $chi_S: cal(U) -> \{0, 1\}$ defined as:
+  A BDD encodes the *characteristic function* $chi_S: cal(U) -> {0, 1}$ defined as:
   $ chi_S(x) = cases(1 &"if" P(x) "is true", 0 &"otherwise") $
   This allows us to manipulate the *logic* of the set (the function $chi_S$) rather than enumerating its elements.
 ]

@@ -1,41 +1,41 @@
 #import "../../theme.typ": *
 
-= A Complete Example: Symbolic Firewall Checker <ch-symbolic-executor>
+= A Complete Example: Symbolic Execution Engine <ch-symbolic-executor>
 
 Theory and fragments are valuable, but nothing beats a complete working example.
-This chapter implements a simple symbolic execution engine for firewall rules using BDDs.
+This chapter implements a simple symbolic execution engine for IMP programs using BDDs.
 
-This chapter will analyze real firewall chains, track packet flows symbolically, and detect configuration errors.
+This chapter will analyze real programs, track execution flows symbolically, and detect bugs like unreachable code.
 
 == What is Symbolic Execution?
 
-Symbolic execution runs programs (or policies) with _symbolic_ inputs instead of concrete values.
+Symbolic execution runs programs with _symbolic_ inputs instead of concrete values.
 
-Traditional packet filtering:
+Traditional execution:
 
 ```rust
-fn check(pkt: Packet) -> Action {
-    if pkt.proto == TCP { Accept } else { Drop }
+fn check(x: i32) -> Status {
+    if x > 0 { Safe } else { Error }
 }
 
-// Concrete: check(tcp_pkt) = Accept
+// Concrete: check(5) = Safe
 ```
 
 Symbolic execution:
 
 ```rust
-// Symbolic: pkt is symbol α
-// Path 1: α.proto == TCP → Action = Accept
-// Path 2: α.proto != TCP → Action = Drop
+// Symbolic: x is symbol α
+// Path 1: α > 0 → Status = Safe
+// Path 2: α <= 0 → Status = Error
 ```
 
-Symbolic execution generates path conditions (Boolean formulas) and symbolic states for packet headers.
+Symbolic execution generates path conditions (Boolean formulas) and symbolic states for variables.
 
-#definition(title: "Symbolic Packet Execution")[
-  Symbolic execution simulates packet flows with symbolic headers while maintaining three key elements.
-  + The *path condition* is a Boolean formula describing the constraints on the packet to reach this point.
-  + The *symbolic state* maps each header field to a symbolic expression or value set.
-  + During *flow exploration*, we fork at match rules to explore both matching and non-matching packets.
+#definition(title: "Symbolic Program Execution")[
+  Symbolic execution simulates program flows with symbolic variables while maintaining three key elements.
+  + The *path condition* is a Boolean formula describing the constraints on the inputs to reach this point.
+  + The *symbolic state* maps each variable to a symbolic expression or value set.
+  + During *flow exploration*, we fork at branches to explore both true and false paths.
 ]
 
 This implementation takes a hybrid approach.
@@ -47,10 +47,10 @@ This combines the precision of symbolic execution with the efficiency of BDD-bas
 
 Components:
 
-+ *Match Language:* Represent packet matching rules
-+ *Symbolic State:* Path condition (BDD) + header environment
-+ *Chain Walker:* Execute rules, update state
-+ *Flow Explorer:* Manage multiple paths, detect conflicts
++ *Condition Language:* Represent program conditions
++ *Symbolic State:* Path condition (BDD) + variable environment
++ *Program Walker:* Execute statements, update state
++ *Path Explorer:* Manage multiple paths, detect conflicts
 
 This chapter brings together everything we've learned --- abstract domains, BDDs, control flow, and path-sensitive analysis --- into a complete symbolic execution engine.
 Study this implementation to see all the pieces working in harmony:
@@ -60,13 +60,13 @@ Study this implementation to see all the pieces working in harmony:
   "executor.rs",
   "symbolic_executor",
   [
-    Complete symbolic execution engine implementation with rule evaluation, path branching, conflict checking, and bug detection.
+    Complete symbolic execution engine implementation with statement evaluation, path branching, conflict checking, and bug detection.
     This is the culmination of all concepts from previous chapters working together in a production-ready system.
   ],
 )
 
 #figure(
-  caption: [Symbolic executor architecture. The flow explorer manages a worklist of symbolic states, each containing a BDD path condition and symbolic header environment. The chain walker processes rules, forking states at matches. Conflict detectors check for shadowing or redundancy by querying path feasibility.],
+  caption: [Symbolic executor architecture. The path explorer manages a worklist of symbolic states, each containing a BDD path condition and symbolic variable environment. The program walker processes statements, forking states at branches. Conflict detectors check for unreachable code by querying path feasibility.],
 
   cetz.canvas({
     import cetz.draw: *
@@ -91,20 +91,20 @@ Study this implementation to see all the pieces working in harmony:
     }
 
     // Main components
-    draw-component((0, 3.2), 2.5, 0.8, [Flow Explorer], colors.primary)
-    draw-component((3.5, 3.2), 2.5, 0.8, [Chain Walker], colors.accent)
+    draw-component((0, 3.2), 2.5, 0.8, [Path Explorer], colors.primary)
+    draw-component((3.5, 3.2), 2.5, 0.8, [Program Walker], colors.accent)
     draw-component((6.5, 3.2), 2, 0.8, [Conflict Detector], colors.error)
 
     // Worklist of states
     content((1.25, 2.5), text(size: 0.75em, fill: colors.text-light)[Worklist:], anchor: "north")
-    draw-data-box((0.2, 1.5), 2.1, 0.8, [Flow 1])
-    draw-data-box((0.2, 0.5), 2.1, 0.8, [Flow 2])
+    draw-data-box((0.2, 1.5), 2.1, 0.8, [Path 1])
+    draw-data-box((0.2, 0.5), 2.1, 0.8, [Path 2])
     content((1.25, -0.1), text(size: 0.7em, fill: colors.text-light)[...], anchor: "north")
 
     // Symbolic state details
     content((4.75, 2.5), text(size: 0.75em, fill: colors.text-light)[Symbolic State:], anchor: "north")
     draw-data-box((3.5, 1.8), 2.5, 0.5, [Path: BDD])
-    draw-data-box((3.5, 1.1), 2.5, 0.5, [Env: Field $->$ Val])
+    draw-data-box((3.5, 1.1), 2.5, 0.5, [Env: Var $->$ Val])
 
     // Connections
     draw-connection((1.25, 3.2), (4.75, 3.2))
@@ -112,33 +112,33 @@ Study this implementation to see all the pieces working in harmony:
     draw-connection((2.3, 2.0), (3.5, 2.0))
 
     // Labels on connections
-    content((2.5, 3.4), text(size: 0.65em, fill: colors.text-light)[pop flow], anchor: "south")
+    content((2.5, 3.4), text(size: 0.65em, fill: colors.text-light)[pop path], anchor: "south")
     content((5.75, 3.4), text(size: 0.65em, fill: colors.text-light)[check], anchor: "south")
     content((2.5, 2.2), text(size: 0.65em, fill: colors.text-light)[current], anchor: "south")
   }),
 ) <fig:symbolic-executor-architecture>
 
-== Match Language
+== Condition Language
 
 We use the AST defined in @ch-abstraction.
 
 ```rust
 // Recall from Chapter 1:
-// pub enum HeaderField { SrcIp, DstPort, ... }
-// pub enum Match { Exact(HeaderField, u32), ... }
+// pub enum Var { X, Y, ... }
+// pub struct Condition { var: Var, op: Op, val: i32 }
 ```
 
 Example:
 
 ```rust
-// tcp.dst_port == 80
-let m = Match::Exact(HeaderField::DstPort, 80);
+// x > 0
+let c = Condition { var: Var::X, op: Op::Gt, val: 0 };
 ```
 
 == Symbolic State
 
-We reuse the `FilterManager` we built in @ch-combining-domains to manage our BDD variables.
-This ensures that if we encounter `tcp` in different parts of the policy, they map to the same BDD variable.
+We reuse the `AnalysisManager` we built in @ch-combining-domains to manage our BDD variables.
+This ensures that if we encounter `x > 0` in different parts of the program, they map to the same BDD variable.
 
 ```rust
 use bdd_rs::{Bdd, Ref};
@@ -146,15 +146,15 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-// Recall FilterManager from Chapter 5
+// Recall AnalysisManager from Chapter 5
 struct SymbolicState {
-    ctx: Rc<RefCell<FilterManager>>,
+    ctx: Rc<RefCell<AnalysisManager>>,
     path: Ref,                           // Path condition (BDD)
-    env: HashMap<HeaderField, u32>,      // Field → Symbolic Value (simplified)
+    env: HashMap<Var, i32>,              // Var → Symbolic Value (simplified)
 }
 
 impl SymbolicState {
-    fn new(ctx: Rc<RefCell<FilterManager>>) -> Self {
+    fn new(ctx: Rc<RefCell<AnalysisManager>>) -> Self {
         let true_path = ctx.borrow().bdd.mk_true();
         Self {
             ctx,
@@ -172,13 +172,13 @@ impl SymbolicState {
 
 == Modifications and Actions
 
-Evaluate modifications symbolically (e.g., NAT):
+Evaluate modifications symbolically (e.g., assignments):
 
 ```rust
 impl SymbolicState {
-    fn modify(&mut self, field: HeaderField, value: u32) {
+    fn assign(&mut self, var: Var, value: i32) {
         // In a real symbolic executor, value would be an expression
-        self.env.insert(field, value);
+        self.env.insert(var, value);
     }
 }
 ```
@@ -188,30 +188,30 @@ Example:
 ```rust
 let mut state = SymbolicState::new(Rc::new(Bdd::default()));
 
-// NAT: Set DstIp to 10.0.0.1
-state.modify(HeaderField::DstIp, 0x0A000001);
+// x = 10
+state.assign(Var::X, 10);
 ```
 
 == Branching
 
-When encountering a `Match` rule, we must split execution.
-Crucially, we first *evaluate* the match to its symbolic form, then check if we've seen it before.
+When encountering an `If` statement, we must split execution.
+Crucially, we first *evaluate* the condition to its symbolic form, then check if we've seen it before.
 
 ```rust
 impl SymbolicState {
-    fn branch(&mut self, m: &Match) -> SymbolicState {
+    fn branch(&mut self, c: &Condition) -> SymbolicState {
         // 1. Get canonical BDD from manager
-        // The manager ensures that identical matches map to the same BDD node
-        let match_bdd = self.ctx.borrow_mut().get_bdd(m);
+        // The manager ensures that identical conditions map to the same BDD node
+        let cond_bdd = self.ctx.borrow_mut().get_bdd(c);
         let bdd = &self.ctx.borrow().bdd;
 
-        // True path: path ∧ match
-        let true_path = bdd.apply_and(self.path, match_bdd);
+        // True path: path ∧ cond
+        let true_path = bdd.apply_and(self.path, cond_bdd);
         let mut true_state = self.clone();
         true_state.path = true_path;
 
-        // False path: path ∧ ¬match
-        let false_path = bdd.apply_and(self.path, bdd.apply_not(match_bdd));
+        // False path: path ∧ ¬cond
+        let false_path = bdd.apply_and(self.path, bdd.apply_not(cond_bdd));
         let mut false_state = self.clone();
         false_state.path = false_path;
 
@@ -222,11 +222,11 @@ impl SymbolicState {
 }
 ```
 
-By using the `FilterManager`, we ensure that if the policy checks `if tcp` twice, we use the same BDD variable.
+By using the `AnalysisManager`, we ensure that if the program checks `if x > 0` twice, we use the same BDD variable.
 This allows the BDD to automatically deduce that the second check is redundant!
 
 #figure(
-  caption: [Flow forking at match rules. Starting from an initial state, each `Match` allocates a fresh BDD variable and splits into two states. The true branch updates the path with $(p and m)$, the false branch with $(p and not m)$ where $p$ is the current path condition. Both branches inherit the symbolic environment.],
+  caption: [Flow forking at branches. Starting from an initial state, each `Condition` allocates a fresh BDD variable and splits into two states. The true branch updates the path with $(p and c)$, the false branch with $(p and not c)$ where $p$ is the current path condition. Both branches inherit the symbolic environment.],
 
   cetz.canvas({
     import cetz.draw: *
@@ -255,35 +255,35 @@ This allows the BDD to automatically deduce that the second check is redundant!
     }
 
     // Initial state
-    draw-exec-state((0, 3), [Path: $top$], [ip: $alpha$])
+    draw-exec-state((0, 3), [Path: $top$], [x: $alpha$])
     content((-1.5, 3), text(size: 0.7em, fill: colors.text-light)[Initial], anchor: "east")
 
     // First condition
-    draw-condition((0, 1.8), $m_1$)
+    draw-condition((0, 1.8), $c_1$)
     line((0, 2.5), (0, 2.1), stroke: colors.primary + 1pt, mark: (end: ">"))
 
     // First fork
-    draw-exec-state((-2.5, 0.5), [Path: $m_1$], [ip: $alpha$])
-    draw-exec-state((2.5, 0.5), [Path: $not m_1$], [ip: $alpha$])
+    draw-exec-state((-2.5, 0.5), [Path: $c_1$], [x: $alpha$])
+    draw-exec-state((2.5, 0.5), [Path: $not c_1$], [x: $alpha$])
 
     draw-fork-edge((0, 1.5), (-2.5, 1.0), is-true: true)
     draw-fork-edge((0, 1.5), (2.5, 1.0), is-true: false)
 
-    content((-1, 1.2), text(size: 0.6em, fill: colors.success)[match], anchor: "south")
-    content((1, 1.2), text(size: 0.6em, fill: colors.error)[next], anchor: "south")
+    content((-1, 1.2), text(size: 0.6em, fill: colors.success)[true], anchor: "south")
+    content((1, 1.2), text(size: 0.6em, fill: colors.error)[false], anchor: "south")
 
     // Second conditions on branches
-    draw-condition((-2.5, -0.7), $m_2$)
+    draw-condition((-2.5, -0.7), $c_2$)
     line((-2.5, 0), (-2.5, -0.4), stroke: colors.primary + 1pt, mark: (end: ">"))
 
-    draw-condition((2.5, -0.7), $m_3$)
+    draw-condition((2.5, -0.7), $c_3$)
     line((2.5, 0), (2.5, -0.4), stroke: colors.primary + 1pt, mark: (end: ">"))
 
     // Final states
-    draw-exec-state((-4, -2), [Path: $m_1 and m_2$], [ip: $alpha$])
-    draw-exec-state((-1, -2), [Path: $m_1 and not m_2$], [ip: $alpha$])
-    draw-exec-state((1.5, -2), [Path: $not m_1 and m_3$], [ip: $alpha$])
-    draw-exec-state((4, -2), [Path: $not m_1 and not m_3$], [ip: $alpha$])
+    draw-exec-state((-4, -2), [Path: $c_1 and c_2$], [x: $alpha$])
+    draw-exec-state((-1, -2), [Path: $c_1 and not c_2$], [x: $alpha$])
+    draw-exec-state((1.5, -2), [Path: $not c_1 and c_3$], [x: $alpha$])
+    draw-exec-state((4, -2), [Path: $not c_1 and not c_3$], [x: $alpha$])
 
     // Fork edges to final states
     draw-fork-edge((-2.5, -1.0), (-4, -1.5), is-true: true)
@@ -294,81 +294,74 @@ This allows the BDD to automatically deduce that the second check is redundant!
     // Annotation
     content(
       (0, -2.8),
-      text(size: 0.7em, fill: colors.text-light, style: "italic")[4 flows explored],
+      text(size: 0.7em, fill: colors.text-light, style: "italic")[4 paths explored],
       anchor: "north",
     )
   }),
 ) <fig:path-forking>
 
-== Policy Representation
+== Program Representation
 
-We use the `Rule` enum from @ch-abstraction.
+We use the `Stmt` enum from @ch-abstraction.
 
 ```rust
 // Recall from Chapter 1:
-// pub enum Rule {
-//     Match(Match, Box<Rule>, Box<Rule>), // if match then ... else ...
-//     ModField(HeaderField, u32),
-//     Accept,
-//     Drop,
-//     Seq(Box<Rule>, Box<Rule>),
+// pub enum Stmt {
+//     If(Condition, Box<Stmt>, Box<Stmt>), // if cond then ... else ...
+//     Assign(Var, i32),
+//     Seq(Box<Stmt>, Box<Stmt>),
 //     ...
 // }
 ```
 
-== Chain Walker
+== Program Walker
 
-Execute rules, tracking symbolic state:
+Execute statements, tracking symbolic state:
 
 ```rust
-struct ChainWalker {
-    ctx: Rc<RefCell<FilterManager>>,
+struct ProgramWalker {
+    ctx: Rc<RefCell<AnalysisManager>>,
 }
 
-impl ChainWalker {
+impl ProgramWalker {
     fn new() -> Self {
         Self {
-            ctx: Rc::new(RefCell::new(FilterManager::new())),
+            ctx: Rc::new(RefCell::new(AnalysisManager::new())),
         }
     }
 
-    fn execute(&self, rule: &Rule) -> Vec<SymbolicState> {
+    fn execute(&self, stmt: &Stmt) -> Vec<SymbolicState> {
         let initial = SymbolicState::new(self.ctx.clone());
-        self.execute_rule(rule, initial)
+        self.execute_stmt(stmt, initial)
     }
 
-    fn execute_rule(&self, rule: &Rule, mut state: SymbolicState) -> Vec<SymbolicState> {
+    fn execute_stmt(&self, stmt: &Stmt, mut state: SymbolicState) -> Vec<SymbolicState> {
         if !state.is_feasible() {
             return vec![];  // Dead path
         }
 
-        match rule {
-            Rule::ModField(field, val) => {
-                state.modify(*field, *val);
+        match stmt {
+            Stmt::Assign(var, val) => {
+                state.assign(*var, *val);
                 vec![state]
             }
 
-            Rule::Seq(r1, r2) => {
-                let states = self.execute_rule(r1, state);
+            Stmt::Seq(s1, s2) => {
+                let states = self.execute_stmt(s1, state);
                 states.into_iter()
-                    .flat_map(|s| self.execute_rule(r2, s))
+                    .flat_map(|s| self.execute_stmt(s2, s))
                     .collect()
             }
 
-            Rule::Match(m, then_branch, else_branch) => {
-                let false_state = state.branch(m);
+            Stmt::If(c, then_branch, else_branch) => {
+                let false_state = state.branch(c);
 
                 // Execute both branches
-                let mut then_states = self.execute_rule(then_branch, state);
-                let mut else_states = self.execute_rule(else_branch, false_state);
+                let mut then_states = self.execute_stmt(then_branch, state);
+                let mut else_states = self.execute_stmt(else_branch, false_state);
 
                 then_states.append(&mut else_states);
                 then_states
-            }
-
-            Rule::Accept | Rule::Drop => {
-                // Terminal states
-                vec![state]
             }
         }
     }
@@ -377,15 +370,15 @@ impl ChainWalker {
 
 == Conflict Detection
 
-To detect bugs, we check for *Shadowing* or *Redundancy*.
-If a rule is unreachable (its path condition is False), it is shadowed.
+To detect bugs, we check for *Unreachable Code*.
+If a statement is unreachable (its path condition is False), it is dead code.
 
 ```rust
-impl ChainWalker {
-    // In a real implementation, this would be part of execute_rule
+impl ProgramWalker {
+    // In a real implementation, this would be part of execute_stmt
     fn check_reachability(&self, state: &SymbolicState) -> Option<String> {
         if !state.is_feasible() {
-             Some("Rule is unreachable (Shadowed)".to_string())
+             Some("Code is unreachable (Dead Code)".to_string())
         } else {
             None
         }
@@ -393,56 +386,56 @@ impl ChainWalker {
 }
 ```
 
-#example-box(number: "6.1", title: "Shadowing Detection")[
+#example-box(number: "6.1", title: "Dead Code Detection")[
   ```rust
-  // Buggy chain: Rule 1 shadows Rule 2
-  let buggy_chain = Rule::Seq(
-      Box::new(Rule::Match(
-          Match::Exact(HeaderField::Proto, 6), // TCP
-          Box::new(Rule::Accept),
-          Box::new(Rule::Skip),
+  // Buggy program: Second check is redundant/dead
+  let buggy_prog = Stmt::Seq(
+      Box::new(Stmt::If(
+          Condition { var: Var::X, op: Op::Gt, val: 0 }, // x > 0
+          Box::new(Stmt::Skip),
+          Box::new(Stmt::Skip),
       )),
-      Box::new(Rule::Match(
-          Match::Exact(HeaderField::Proto, 6), // TCP again!
-          Box::new(Rule::Drop), // Unreachable!
-          Box::new(Rule::Skip),
+      Box::new(Stmt::If(
+          Condition { var: Var::X, op: Op::Gt, val: 0 }, // x > 0 again!
+          Box::new(Stmt::Error), // Unreachable in else branch of first check!
+          Box::new(Stmt::Skip),
       )),
   );
 
-  // The walker would find that the path to the second TCP match is False (because we already handled TCP in the first rule's true branch, or if we are in the else branch, it's NOT TCP).
+  // The walker would find that the path to the second check's branches is constrained by the first check.
   ```
 ]
 
-== Complete Example: Simple Firewall
+== Complete Example: Simple Program
 
-Let's analyze a simple firewall chain end-to-end.
+Let's analyze a simple program end-to-end.
 
 ```rust
-fn firewall_example() {
-    // Policy:
-    // if tcp {
-    //     accept;
+fn program_example() {
+    // Program:
+    // if x > 0 {
+    //     y = 1;
     // } else {
-    //     drop;
+    //     y = 2;
     // }
 
-    let policy = Rule::Match(
-        Match::Exact(HeaderField::Proto, 6),
-        Box::new(Rule::Accept),
-        Box::new(Rule::Drop),
+    let prog = Stmt::If(
+        Condition { var: Var::X, op: Op::Gt, val: 0 },
+        Box::new(Stmt::Assign(Var::Y, 1)),
+        Box::new(Stmt::Assign(Var::Y, 2)),
     );
 
-    let walker = ChainWalker::new();
-    let final_states = walker.execute(&policy);
+    let walker = ProgramWalker::new();
+    let final_states = walker.execute(&prog);
 
-    println!("Number of final flows: {}", final_states.len());
+    println!("Number of final paths: {}", final_states.len());
 
     for (i, state) in final_states.iter().enumerate() {
-        println!("\nFlow {}:", i);
-        println!("  Path: {:?}", state.path);
-        println!("  Headers:");
-        for (field, val) in &state.env {
-            println!("    {:?} = {}", field, val);
+        println!("\nPath {}:", i);
+        println!("  Condition: {:?}", state.path);
+        println!("  Variables:");
+        for (var, val) in &state.env {
+            println!("    {:?} = {}", var, val);
         }
     }
 }
@@ -451,27 +444,27 @@ fn firewall_example() {
 Output:
 
 ```
-Number of final flows: 2
+Number of final paths: 2
 
-Flow 0:
-  Path: [BDD node representing proto == TCP]
-  Headers: {} (Accept)
+Path 0:
+  Condition: [BDD node representing x > 0]
+  Variables: {Y: 1}
 
-Flow 1:
-  Path: [BDD node representing proto != TCP]
-  Headers: {} (Drop)
+Path 1:
+  Condition: [BDD node representing x <= 0]
+  Variables: {Y: 2}
 ```
 
-Two flows, both feasible, covering the entire packet space.
+Two paths, both feasible, covering the entire input space.
 
 == Enhancements for Real Systems
 
 This toy executor lacks several features needed for production use.
-It needs *Header Space Analysis* (HSA) to handle IP ranges and bitmasks efficiently.
-*Abstract domain integration* would let us use intervals or prefix trees to refine paths.
-*SMT solver integration* is essential for checking complex arithmetic constraints (e.g., packet length).
-*Loop handling* (for routing loops) requires fixpoint iteration.
-*Jump chains* demand inter-procedural analysis.
+It needs *Interval Analysis* to handle ranges efficiently.
+*Abstract domain integration* would let us use intervals or signs to refine paths.
+*SMT solver integration* is essential for checking complex arithmetic constraints (e.g., `x + y > 10`).
+*Loop handling* requires fixpoint iteration.
+*Function calls* demand inter-procedural analysis.
 
 For production:
 
@@ -479,28 +472,28 @@ For production:
 // Integration with abstract domain
 struct RefinedState<D: AbstractDomain> {
     path: Ref,
-    symbolic_env: HashMap<HeaderField, Expr>,
-    abstract_env: HashMap<HeaderField, D>,
+    symbolic_env: HashMap<Var, Expr>,
+    abstract_env: HashMap<Var, D>,
 }
 ```
 
 #info-box(title: "Symbolic Execution vs Abstract Interpretation")[
 
   *Symbolic Execution:*
-  - Explores flows explicitly (or with BDDs)
-  - Maintains precise symbolic headers
+  - Explores paths explicitly (or with BDDs)
+  - Maintains precise symbolic variables
   - Uses SMT solvers for feasibility
-  - Goal: Find specific packet that violates policy
+  - Goal: Find specific input that crashes program
 
   *Abstract Interpretation:*
-  - Over-approximates all flows
-  - Uses abstract domains (CIDR blocks, Port Ranges)
+  - Over-approximates all paths
+  - Uses abstract domains (Intervals, Signs)
   - Guaranteed termination
-  - Goal: Prove policy correctness for *all* packets
+  - Goal: Prove program correctness for *all* inputs
 
   *Hybrid approach:*
-  - BDDs for control (ACLs)
-  - Abstract domains for headers
+  - BDDs for control flow
+  - Abstract domains for data
   - Best of both worlds
 ]
 
@@ -508,21 +501,21 @@ struct RefinedState<D: AbstractDomain> {
 
 === Path Explosion
 
-Even with BDDs, deeply nested chains create explosion.
+Even with BDDs, deeply nested branches create explosion.
 
 Mitigation strategies:
 - Bound exploration depth
-- Prioritize flows (heuristics)
-- Merge similar flows aggressively (e.g., merge all TCP flows if they have same action)
+- Prioritize paths (heuristics)
+- Merge similar paths aggressively (e.g., merge all error paths)
 
 === Variable Ordering
 
-BDD size depends critically on the ordering of match variables.
+BDD size depends critically on the ordering of condition variables.
 
 Strategies:
-- Allocate variables in chain order
-- Group related fields (IPs together, Ports together)
-- Use heuristics based on protocol hierarchy
+- Allocate variables in execution order
+- Group related variables
+- Use heuristics based on dependency graph
 
 === Performance
 
@@ -531,34 +524,33 @@ Symbolic execution is inherently expensive.
 Optimization tips:
 - Cache BDD operations (built-in)
 - Prune infeasible paths early
-- Use abstract domains to eliminate paths (e.g., if range analysis proves `port > 1024`, don't explore `port == 80` branch)
+- Use abstract domains to eliminate paths (e.g., if range analysis proves `x > 10`, don't explore `x < 5` branch)
 
 == Real-World Applications
 
-Symbolic execution sees widespread use in network verification.
+Symbolic execution sees widespread use in software verification.
 
-Tools like *Batfish* and *Hassel* (Header Space Analysis) use symbolic techniques to verify network configurations before deployment.
-They can detect reachability holes, routing loops, and ACL shadowing.
-*Veriflow* checks network invariants in real-time as rules change.
-*P4* program verification often uses symbolic execution to ensure packet processing logic is correct.
+Tools like *KLEE* and *Angr* use symbolic techniques to verify C/C++ binaries.
+They can detect buffer overflows, null pointer dereferences, and dead code.
+*Infer* uses abstract interpretation to find bugs in Java/C++ codebases at scale.
 
 == Summary
 
-The chapter built a simple symbolic firewall checker:
-- Match and Rule language
+The chapter built a simple symbolic execution engine:
+- Condition and Statement language
 - Symbolic state with BDD path conditions
-- Chain Walker exploring all flows
+- Program Walker exploring all paths
 - Basic conflict detection
 
 Key takeaways:
 - BDDs compactly represent path conditions
-- Symbolic values track header modifications
+- Symbolic values track variable modifications
 - Branching creates multiple states
 - Real systems integrate abstract domains and SMT solvers
 
 @part-i covered abstract interpretation, BDDs, and their combination.
 
-#info-box(title: "Flow Exploration Strategies")[
+#info-box(title: "Path Exploration Strategies")[
   The path explosion problem is fundamental.
   Different exploration strategies offer different trade-offs.
   See #inline-example("symbolic_execution", "path_exploration.rs", "path_exploration") for comparisons of DFS, BFS, and bounded depth strategies.
@@ -567,26 +559,26 @@ Key takeaways:
 @part-ii dives deeper into mathematical foundations and advanced techniques.
 
 #chapter-summary[
-  - *Symbolic execution simulates packet flows with symbolic headers.*
+  - *Symbolic execution simulates program flows with symbolic variables.*
     Maintains path conditions and symbolic environments.
 
-  - *Match language models firewall rules.*
-    Fields, values, exact matches, ranges.
+  - *Condition language models program logic.*
+    Variables, operators, values.
 
-  - *Symbolic state: path condition (BDD) + header environment.*
-    BDD tracks which packets are feasible, environment maps fields to values.
+  - *Symbolic state: path condition (BDD) + variable environment.*
+    BDD tracks which inputs are feasible, environment maps variables to values.
 
   - *Branching allocates BDD variable and splits state.*
-    True branch: path ∧ match. False branch: path ∧ ¬match.
+    True branch: path ∧ cond. False branch: path ∧ ¬cond.
 
-  - *Chain Walker executes rules, exploring all flows.*
-    Modifications update environment, matches split states.
+  - *Program Walker executes statements, exploring all paths.*
+    Assignments update environment, branches split states.
 
-  - *Conflict detection checks for unreachable rules.*
-    Find paths where rules are shadowed.
+  - *Conflict detection checks for unreachable code.*
+    Find paths where statements are dead.
 
   - *Enhancements for real systems:*
-    Header Space Analysis, abstract domain integration, SMT solvers, routing loops.
+    Interval Analysis, abstract domain integration, SMT solvers, loops.
 
   - *Practical challenges: path explosion, variable ordering, performance.*
     Mitigate with bounded exploration, heuristics, pruning.
@@ -595,5 +587,5 @@ Key takeaways:
     BDDs for control, abstract domains for data.
 
   - *Main insight:*
-    BDD-based symbolic execution provides practical path-sensitive analysis by compactly representing path conditions while exploring feasible packet flows.
+    BDD-based symbolic execution provides practical path-sensitive analysis by compactly representing path conditions while exploring feasible execution traces.
 ]

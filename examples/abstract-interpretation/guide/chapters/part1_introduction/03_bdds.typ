@@ -26,27 +26,27 @@ In a CFG, a path is determined by the sequence of decisions made at branching po
 
 By assigning a Boolean variable to each branch condition, we can encode paths as logical formulas.
 
-Consider the following code snippet:
+Consider the following IMP snippet:
 
 ```rust
 if x > 0 {  // Decision A
-    y = 1;
+    // ...
 } else {
-    y = 0;
+    // ...
 }
-if z == 5 { // Decision B
+if y == 5 { // Decision B
     valid = true;
 }
 ```
 
-Let $A$ represent the condition `x > 0` and $B$ represent `z == 5`.
+Let $A$ represent the condition `x > 0` and $B$ represent `y == 5`.
 
 Each path corresponds to a conjunction of these variables:
 
-- *Path 1* (x > 0, z == 5): $A and B$
-- *Path 2* (x > 0, z != 5): $A and not B$
-- *Path 3* (x <= 0, z == 5): $not A and B$
-- *Path 4* (x <= 0, z != 5): $not A and not B$
+- *Path 1* (x > 0, y == 5): $A and B$
+- *Path 2* (x > 0, y != 5): $A and not B$
+- *Path 3* (x <= 0, y == 5): $not A and B$
+- *Path 4* (x <= 0, y != 5): $not A and not B$
 
 The set of *all* valid paths is the disjunction of these formulas.
 
@@ -331,4 +331,4 @@ Explosion typically occurs only when variables are heavily correlated in complex
   To see boolean operations in action, run #run-example("bdd_boolean_ops") which demonstrates AND, OR, XOR, and their algebraic properties like De Morgan's laws and absorption.
 ]
 
-In the next chapter, we will implement the `FilterManager` and the core BDD interface in Rust.
+In the next chapter, we will implement the `AnalysisManager` and the core BDD interface in Rust.

@@ -127,7 +127,7 @@ When analyzing loops, we cannot unroll them infinitely.
 Instead, we iterate our analysis until the abstract facts stop changing.
 Because our lattices are finite (or have finite height), we are guaranteed to reach this stable state in finite time.
 
-In our geometric framework, this lens allows us to trade the discrete for the continuous:
+In our geometric framework, this approach allows us to trade the discrete for the continuous:
 + A *state* is a single point in a 256-dimensional hyperspace.
 + A *property* (like "no overflow") is a region in this space.
 + The *program* is a trajectory that moves points through this space.

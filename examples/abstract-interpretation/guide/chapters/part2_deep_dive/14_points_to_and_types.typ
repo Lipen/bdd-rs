@@ -96,24 +96,24 @@ Branches refine types:
   Summarize arrays/collections, collapse rarely-touched sites, and cap determinization in cooperating domains.
 ]
 
-== Worked Micro-Example: Packet vs Config Aliasing
+== Worked Micro-Example: Object Aliasing
 
 ```rust
-let pkt = new Packet();   // site s1
-let cfg = new Config();   // site s2
-let mut ptr = pkt;        // PT(ptr) = {s1}
+let d = new Data();       // site s1
+let m = new Meta();       // site s2
+let mut p = d;            // PT(p) = {s1}
 
 if condition {
-    ptr = cfg;            // PT(ptr) = {s2}
+    p = m;                // PT(p) = {s2}
 }
-// Join: PT(ptr) = {s1, s2}
+// Join: PT(p) = {s1, s2}
 
-ptr.field = 0;            // Weak update!
+p.field = 0;              // Weak update!
 ```
 
 - *Analysis*:
-  - `ptr` points to `{s1, s2}`.
-  - The write `ptr.field = 0` must update *both* `s1` and `s2` weakly.
+  - `p` points to `{s1, s2}`.
+  - The write `p.field = 0` must update *both* `s1` and `s2` weakly.
   - `Store(s1).field` becomes `Old(s1).field` $ljoin$ `0`.
   - `Store(s2).field` becomes `Old(s2).field` $ljoin$ `0`.
   - We lose precision: we don't know which object was modified, so we must assume both *might* have been.
@@ -126,12 +126,12 @@ ptr.field = 0;            // Weak update!
 
     // Variables
     draw.content((0, 4), text(weight: "bold")[Variables])
-    draw.circle((0, 3), radius: 0.3, name: "pkt", stroke: colors.primary + 1pt)
-    draw.content("pkt", [pkt])
-    draw.circle((0, 1), radius: 0.3, name: "cfg", stroke: colors.primary + 1pt)
-    draw.content("cfg", [cfg])
-    draw.circle((2, 2), radius: 0.3, name: "ptr", stroke: colors.accent + 1pt)
-    draw.content("ptr", [ptr])
+    draw.circle((0, 3), radius: 0.3, name: "d", stroke: colors.primary + 1pt)
+    draw.content("d", [d])
+    draw.circle((0, 1), radius: 0.3, name: "m", stroke: colors.primary + 1pt)
+    draw.content("m", [m])
+    draw.circle((2, 2), radius: 0.3, name: "p", stroke: colors.accent + 1pt)
+    draw.content("p", [p])
 
     // Allocation Sites
     draw.content((5, 4), text(weight: "bold")[Heap Sites])
@@ -141,12 +141,12 @@ ptr.field = 0;            // Weak update!
     draw.content("s2", [Site 2])
 
     // Edges
-    draw.line("pkt.east", "s1.west", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
-    draw.line("cfg.east", "s2.west", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+    draw.line("d.east", "s1.west", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+    draw.line("m.east", "s2.west", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
 
     // Aliasing edges
-    draw.line("ptr.north-east", "s1.south-west", stroke: (paint: colors.accent, dash: "dashed"), mark: (end: ">"))
-    draw.line("ptr.south-east", "s2.north-west", stroke: (paint: colors.accent, dash: "dashed"), mark: (end: ">"))
+    draw.line("p.north-east", "s1.south-west", stroke: (paint: colors.accent, dash: "dashed"), mark: (end: ">"))
+    draw.line("p.south-east", "s2.north-west", stroke: (paint: colors.accent, dash: "dashed"), mark: (end: ">"))
 
     draw.content((3.5, 2), text(size: 9pt, fill: colors.accent)[May-Alias])
   }),

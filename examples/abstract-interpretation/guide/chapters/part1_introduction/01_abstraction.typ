@@ -82,63 +82,62 @@ Now, imagine shining a light on the object to cast a shadow on the wall.
 
 Abstract Interpretation is the art of choosing the right "projection" (abstraction) for the property we want to prove.
 - If we want to prove a variable is positive, we project it to its *Sign*.
-- If we want to prove a packet is TCP, we project it to its *Protocol*.
-- If we want to prove a pointer is safe, we project it to its *Nullability*.
+- If we want to prove a variable is even, we project it to its *Parity*.
+- If we want to prove a variable is within a range, we project it to an *Interval*.
 
-== The Subject of Analysis: PFL
+== The Subject of Analysis: IMP
 
 To make our discussion concrete, we need a subject to analyze.
-Throughout this guide, we will build a *Static Analyzer* for a toy language called *PFL* (Packet Filter Language).
+Throughout this guide, we will build a *Static Analyzer* for a toy language called *IMP* (Minimal Imperative Language).
 
-PFL is a minimal language for defining network policies.
+IMP is a standard language used in verification textbooks.
 It supports:
-- *Header Matches*: Checking fields like `ip`, `port`, and `proto`.
-- *Actions*: `accept` or `drop`.
-- *Control Flow*: `if-else` branches.
+- *Variables*: Integers (`x`, `y`, `z`).
+- *Arithmetic*: `+`, `-`, `*`, `/`.
+- *Control Flow*: `if-else`, `while`.
+- *Assertions*: `assert(condition)`.
 
-Here is a simple PFL program:
+Here is a simple IMP program:
 
 ```rust
-// Example PFL policy
-if proto == TCP {
-    if dst_port == 80 {
-        accept;
-    } else {
-        drop;
-    }
+// Example IMP program
+x = input();
+if x > 0 {
+    y = x + 1;
 } else {
-    drop;
+    y = 0;
 }
+assert(y > 0);
 ```
 
-Our goal is to verify properties of such programs, such as "Is it possible for a non-TCP packet to be accepted?".
+Our goal is to verify properties of such programs, such as "Is the assertion always true?" or "Can `y` ever be negative?".
 
 == Designing an Abstract Domain
 
-To answer such questions, we cannot simulate every possible packet.
+To answer such questions, we cannot simulate every possible integer input.
 Instead, we design an *Abstract Domain* that captures the properties we care about.
 
-Let's focus on the `proto` field.
-Concrete packets have a specific protocol number (e.g., 6 for TCP, 17 for UDP).
-For our analysis, we don't care about every number; we only care about the protocols mentioned in our policy.
+Let's focus on the *sign* of variables.
+Concrete variables hold specific integers (e.g., `5`, `-42`, `0`).
+For our analysis, we often only care if a number is positive, negative, or zero.
 
 We define a set of abstract values $D$:
-$ D = {bot, "TCP", "UDP", "ICMP", top} $
+$ D = \{bot, "Neg", "Zero", "Pos", top\} $
 
-- $bot$ (Bottom): Represents the *empty set* (impossible / no packet).
-- "TCP": Represents the set of all TCP packets.
-- "UDP": Represents the set of all UDP packets.
-- "ICMP": Represents the set of all ICMP packets.
-- $top$ (Top): Represents the *universal set* (unknown / any protocol).
+- $bot$ (Bottom): Represents the *empty set* (impossible / dead code).
+- `Neg`: Represents the set of all negative integers.
+- `Zero`: Represents the singleton set $\{0\}$.
+- `Pos`: Represents the set of all positive integers.
+- $top$ (Top): Represents the *universal set* (unknown / any integer).
 
 We can implement this in Rust:
 
 #example-reference(
   "domains",
-  "protocol.rs",
-  "protocol_domain",
+  "sign.rs",
+  "sign_domain",
   [
-    Complete implementation of the protocol domain with lattice operations.
+    Complete implementation of the Sign domain with lattice operations.
     Shows how abstraction trades precision for tractability.
   ],
 )
@@ -149,44 +148,47 @@ Now that we have a domain, we can be rigorous.
 We define two functions connecting the concrete world (actual execution) and the abstract world (properties).
 
 #definition(title: "Concretization Function")[
-  The concretization function $gamma$ maps an abstract value to the set of concrete states it represents.
-  For our Protocol domain:
-  - $gamma("TCP") = {"All TCP packets"}$
-  - $gamma("UDP") = {"All UDP packets"}$
-  - $gamma(bot) = emptyset$
-  - $gamma(top) = {"All IP packets"}$
+  The concretization function $gamma: D -> cal(P)(ZZ)$ maps an abstract value to a set of concrete integers $ZZ$.
+  For our Sign domain:
+  $
+     gamma("Pos") & = \{z in ZZ mid(|) z > 0\} \
+     gamma("Neg") & = \{z in ZZ mid(|) z < 0\} \
+    gamma("Zero") & = \{0\} \
+       gamma(bot) & = emptyset \
+       gamma(top) & = ZZ
+  $
 ]
 
 An analysis is *sound* if the abstract result always covers the concrete result.
-If a concrete packet is actually TCP, our analysis must return either "TCP" or $top$. It cannot return "UDP".
+If a variable is actually `5`, our analysis must return either `Pos` or $top$. It cannot return `Neg`.
 
 == Interactive Reasoning
 
 Let's build intuition by playing a game using this domain.
-I have two hidden program states (packets), $A$ and $B$.
-I won't tell you their exact content, but I will tell you their *abstract values*.
+I have two hidden program states (variables), $A$ and $B$.
+I won't tell you their exact values, but I will tell you their *abstract signs*.
 
 *Round 1:*
-- Fact: $A$ is "TCP".
-- Fact: $B$ is "TCP".
-- Question: If I pick one at random, what is its protocol?
+- Fact: $A$ is `Pos`.
+- Fact: $B$ is `Pos`.
+- Question: If I pick one at random, what is its sign?
 
-*Answer:* "TCP".
-Reasoning: The union of TCP and TCP is still TCP.
+*Answer:* `Pos`.
+Reasoning: The union of positive and positive is still positive.
 
 *Round 2:*
-- Fact: $A$ is "TCP".
-- Fact: $B$ is "UDP".
-- Question: If I pick one at random, what is its protocol?
+- Fact: $A$ is `Pos`.
+- Fact: $B$ is `Neg`.
+- Question: If I pick one at random, what is its sign?
 
 *Answer:* $top$ (Unknown).
 Reasoning:
-- It could be TCP.
-- It could be UDP.
-- Our domain $D$ does not have a value for "TCP or UDP".
+- It could be positive.
+- It could be negative.
+- Our domain $D$ does not have a value for "Non-Zero".
 - The smallest value that covers both is $top$.
 
-Because the result depends on *which path* we took, we cannot give a precise single protocol.
+Because the result depends on *which path* we took, we cannot give a precise single sign.
 We must return $top$ to remain sound.
 
 === Abstract Semantics
@@ -195,15 +197,16 @@ We define *abstract transfer functions* to execute code in this domain.
 For merging two paths:
 
 ```rust
-impl AbstractDomain for Protocol {
+impl AbstractDomain for Sign {
     fn join(&self, other: &Self) -> Self {
         match (self, other) {
-            (Protocol::TCP, Protocol::TCP) => Protocol::TCP,
-            (Protocol::UDP, Protocol::UDP) => Protocol::UDP,
-            (Protocol::Bot, x) => x.clone(),
-            (x, Protocol::Bot) => x.clone(),
-            // ... merging different protocols returns Top
-            _ => Protocol::Top,
+            (Sign::Pos, Sign::Pos) => Sign::Pos,
+            (Sign::Neg, Sign::Neg) => Sign::Neg,
+            (Sign::Zero, Sign::Zero) => Sign::Zero,
+            (Sign::Bot, x) => x.clone(),
+            (x, Sign::Bot) => x.clone(),
+            // ... merging different signs returns Top
+            _ => Sign::Top,
         }
     }
 }
@@ -215,17 +218,17 @@ Straight-line code is easy.
 Branches are hard.
 
 ```rust
-if src_ip == 10.0.0.1 {
-    proto = TCP;
+if input > 0 {
+    x = 1;  // x is "Pos"
 } else {
-    proto = UDP;
+    x = -1; // x is "Neg"
 }
-// At this point, what is proto?
+// At this point, what is x?
 ```
 
-At the merge point, `proto` could be TCP OR UDP.
-In the Protocol domain, we must find a single value that covers *both* possibilities.
-The smallest value covering both TCP and UDP is $top$.
+At the merge point, `x` could be `1` OR `-1`.
+In the Sign domain, we must find a single value that covers *both* possibilities.
+The smallest value covering both `Pos` and `Neg` is $top$.
 
 #figure(
   caption: [The Merge Problem. Merging two precise paths often results in information loss ($top$).],
@@ -249,9 +252,9 @@ The smallest value covering both TCP and UDP is $top$.
     let x-sep = 2
 
     // Nodes
-    draw-state((-x-sep, y-branch), "s1", [proto = TCP])
-    draw-state((x-sep, y-branch), "s2", [proto = UDP])
-    draw-state((0, y-merge), "merge", [proto = ? ($top$)])
+    draw-state((-x-sep, y-branch), "s1", [$x = 1$ (`Pos`)])
+    draw-state((x-sep, y-branch), "s2", [$x = -1$ (`Neg`)])
+    draw-state((0, y-merge), "merge", [$x = ?$ ($top$)])
 
     // Edges
     line("s1", "merge", ..style-arrow)
@@ -261,14 +264,14 @@ The smallest value covering both TCP and UDP is $top$.
   }),
 )
 
-We lost the information that `proto` is either TCP or UDP (and definitely not ICMP)!
+We lost the information that `x` is non-zero!
 We know it's one of the two, but our abstraction forces us to say "It could be anything."
 
 This is where *BDDs* will come in.
 Instead of merging everything into a single abstract value (and getting $top$), we can use BDDs to track *which path* leads to which value.
 
-- Path 1 (`src_ip == 10.0.0.1`): `proto = TCP`
-- Path 2 (`src_ip != 10.0.0.1`): `proto = UDP`
+- Path 1 (`input > 0`): `x` is `Pos`
+- Path 2 (`input <= 0`): `x` is `Neg`
 
 This is called *Path Sensitivity*, and it is the main focus of this guide.
 
@@ -277,11 +280,11 @@ This is called *Path Sensitivity*, and it is the main focus of this guide.
     Like a shadow of a 3D object, an abstract domain captures some properties while ignoring others.
 
   - *Soundness is Key.*
-    If the abstraction says "Safe", the concrete packet must be safe.
-    If the abstraction says "Unknown", the packet might be safe or unsafe.
+    If the abstraction says "Safe", the concrete program must be safe.
+    If the abstraction says "Unknown", the program might be safe or unsafe.
 
   - *Precision vs. Speed.*
-    More complex domains (CIDR vs. Single IP) give better answers but cost more to compute.
+    More complex domains (Interval vs. Sign) give better answers but cost more to compute.
 
   - *The Merge Problem.*
     Control flow merges force us to combine conflicting information, often leading to precision loss ($top$).

@@ -19,13 +19,13 @@ These are essential tools for designing precise and efficient analyses.
 ]
 
 #example-box[
-  *Packet Header Modification:*
+  *Variable Modification:*
 
-  For `ttl := ttl - 1`, the concrete transformer is:
-  $ llb "ttl" := "ttl" - 1 rrb_C (c) = {sigma["ttl" |-> sigma("ttl") - 1] mid(|) sigma in c} $
+  For `x := x - 1`, the concrete transformer is:
+  $ llb "x" := "x" - 1 rrb_C (c) = {sigma["x" |-> sigma("x") - 1] mid(|) sigma in c} $
 
-  If $c = {("ttl"=64, "len"=100), ("ttl"=32, "len"=50)}$:
-  $ llb "ttl" := "ttl" - 1 rrb_C (c) = {("ttl"=63, "len"=100), ("ttl"=31, "len"=50)} $
+  If $c = {("x"=64, "y"=100), ("x"=32, "y"=50)}$:
+  $ llb "x" := "x" - 1 rrb_C (c) = {("x"=63, "y"=100), ("x"=31, "y"=50)} $
 ]
 
 #definition(title: "Abstract Transformer")[
@@ -82,13 +82,13 @@ The *best* (most precise) transformer exists when the Galois connection has cert
 ]
 
 #example-box[
-  *TTL Decrement in Sign Domain:*
+  *Variable Decrement in Sign Domain:*
 
-  For `ttl := ttl - 1` with sign domain, consider $a = "Pos"$ (positive TTL).
+  For `x := x - 1` with sign domain, consider $a = "Pos"$ (positive x).
 
   Concrete: $gamma("Pos") = ZZ^+ = {1, 2, ...}$.
 
-  After `ttl := ttl - 1`: $llb "ttl" := "ttl" - 1 rrb_C (ZZ^+) = {0, 1, ...}$.
+  After `x := x - 1`: $llb "x" := "x" - 1 rrb_C (ZZ^+) = {0, 1, ...}$.
 
   Best transformer:
   - In basic sign domain ${bot, "Neg", "Zero", "Pos", top}$, we get $alpha({0, 1, ...}) = "Zero" ljoin "Pos"$ (since the set spans both).
@@ -122,12 +122,12 @@ While best transformers are most precise, computing them may be expensive or imp
 ]
 
 #example-box[
-  *Packet Length Adjustment:*
+  *Variable Adjustment:*
 
-  Consider `len := len + 4` (adding 4-byte CRC) on intervals.
+  Consider `x := x + 4` on intervals.
 
   - Input: $a = [60, 1500]$.
-  - Concrete: $llb "len" := "len" + 4 rrb_C ({60, ..., 1500}) = {64, ..., 1504}$.
+  - Concrete: $llb "x" := "x" + 4 rrb_C ({60, ..., 1500}) = {64, ..., 1504}$.
   - Best: $alpha({64, ..., 1504}) = [64, 1504]$.
 
   A practical interval addition: $[60, 1500] + 4 = [64, 1504]$ --- complete!
@@ -172,17 +172,17 @@ The direct product is sound but may contain *unrealizable* elements.
 These are pairs $(a_1, a_2)$ where $gamma_1(a_1) inter gamma_2(a_2) = emptyset$.
 
 #example-box[
-  *Real-World Example: Protocol × Port*
+  *Real-World Example: Type × Value*
 
-  Consider analyzing network traffic with two domains:
-  - *Protocol*: ${bot, "TCP", "UDP", "ICMP", top}$.
-  - *Port*: Interval domain $[0, 65535]$.
+  Consider analyzing variables with two domains:
+  - *Type*: ${bot, "Int", "Float", "Bool", top}$.
+  - *Value*: Interval domain $[0, 100]$.
 
-  Product element: $("TCP", [80, 80])$ represents TCP traffic on port 80 --- realizable.
+  Product element: $("Int", [5, 5])$ represents integer 5 --- realizable.
 
-  Product element: $("ICMP", [80, 80])$ --- *unrealizable*!
-  ICMP packets do not have source/destination ports in the same way TCP/UDP do.
-  The concrete meaning is $gamma("ICMP") inter gamma("Port"[80]) = emptyset$.
+  Product element: $("Bool", [5, 5])$ --- *unrealizable*!
+  Booleans are 0 or 1. The value 5 contradicts the type Bool.
+  The concrete meaning is $gamma("Bool") inter gamma("Value"[5]) = emptyset$.
 ]
 
 #definition(title: "Reduced Product")[
@@ -196,27 +196,29 @@ These are pairs $(a_1, a_2)$ where $gamma_1(a_1) inter gamma_2(a_2) = emptyset$.
 ]
 
 #example-box[
-  *Protocol × Port reduction:*
+  *Type × Value reduction:*
 
   ```rust
-  fn reduce(proto: Protocol, port: Interval) -> (Protocol, Interval) {
-      match proto {
-          Protocol::ICMP => {
-              // ICMP implies no ports (or specific types/codes)
-              // If port range implies existence of ports, it's a contradiction
-              if !port.is_bottom() {
-                  (Protocol::Bottom, Interval::bottom())
+  fn reduce(ty: Type, val: Interval) -> (Type, Interval) {
+      match ty {
+          Type::Bool => {
+              // Bool implies value is 0 or 1
+              // If value range is outside [0, 1], it's a contradiction
+              let bool_range = Interval::new(0, 1);
+              let refined = val.intersect(bool_range);
+              if refined.is_bottom() {
+                  (Type::Bottom, Interval::bottom())
               } else {
-                  (proto, port)
+                  (ty, refined)
               }
           },
-          Protocol::TCP | Protocol::UDP => (proto, port),
-          _ => (proto, port),
+          Type::Int | Type::Float => (ty, val),
+          _ => (ty, val),
       }
   }
   ```
 
-  After reduction, $("ICMP", [80, 80])$ becomes $(bot, bot)$, making the inconsistency explicit.
+  After reduction, $("Bool", [5, 5])$ becomes $(bot, bot)$, making the inconsistency explicit.
 ]
 
 #figure(
@@ -225,21 +227,21 @@ These are pairs $(a_1, a_2)$ where $gamma_1(a_1) inter gamma_2(a_2) = emptyset$.
   cetz.canvas({
     import cetz: draw
 
-    // Domain 1: Protocol
+    // Domain 1: Type
     let d1-x = 0
-    draw.content((d1-x, 4), [Protocol])
-    draw.circle((d1-x, 3), radius: 0.3, name: "tcp", fill: colors.bg-code, stroke: colors.primary + 1pt)
-    draw.content("tcp", [TCP])
-    draw.circle((d1-x, 1), radius: 0.3, name: "icmp", fill: colors.bg-code, stroke: colors.primary + 1pt)
-    draw.content("icmp", [ICMP])
+    draw.content((d1-x, 4), [Type])
+    draw.circle((d1-x, 3), radius: 0.3, name: "int", fill: colors.bg-code, stroke: colors.primary + 1pt)
+    draw.content("int", [Int])
+    draw.circle((d1-x, 1), radius: 0.3, name: "bool", fill: colors.bg-code, stroke: colors.primary + 1pt)
+    draw.content("bool", [Bool])
 
-    // Domain 2: Port
+    // Domain 2: Value
     let d2-x = 3
-    draw.content((d2-x, 4), [Port])
-    draw.rect((d2-x - 0.4, 2.6), (d2-x + 0.4, 3.4), name: "p80", fill: colors.bg-code, stroke: colors.accent + 1pt)
-    draw.content("p80", [80])
-    draw.rect((d2-x - 0.4, 0.6), (d2-x + 0.4, 1.4), name: "pNone", fill: colors.bg-code, stroke: colors.accent + 1pt)
-    draw.content("pNone", [$bot$])
+    draw.content((d2-x, 4), [Value])
+    draw.rect((d2-x - 0.4, 2.6), (d2-x + 0.4, 3.4), name: "v5", fill: colors.bg-code, stroke: colors.accent + 1pt)
+    draw.content("v5", [5])
+    draw.rect((d2-x - 0.4, 0.6), (d2-x + 0.4, 1.4), name: "vNone", fill: colors.bg-code, stroke: colors.accent + 1pt)
+    draw.content("vNone", [$bot$])
 
     // Product
     let p-x = 7
@@ -247,11 +249,11 @@ These are pairs $(a_1, a_2)$ where $gamma_1(a_1) inter gamma_2(a_2) = emptyset$.
 
     // Realizable
     draw.rect((p-x - 0.8, 2.6), (p-x + 0.8, 3.4), name: "valid", fill: colors.success.lighten(70%), stroke: colors.success + 1pt)
-    draw.content("valid", [(TCP, 80)])
+    draw.content("valid", [(Int, 5)])
 
     // Unrealizable
     draw.rect((p-x - 0.8, 0.6), (p-x + 0.8, 1.4), name: "invalid", fill: colors.error.lighten(70%), stroke: colors.error + 1pt)
-    draw.content("invalid", [(ICMP, 80)])
+    draw.content("invalid", [(Bool, 5)])
 
     // Reduction arrow
     draw.line("invalid.east", (p-x + 2, 1), stroke: (paint: colors.text-light, thickness: 1pt, dash: "dashed"), mark: (end: ">"))
@@ -259,11 +261,11 @@ These are pairs $(a_1, a_2)$ where $gamma_1(a_1) inter gamma_2(a_2) = emptyset$.
     draw.content((p-x + 2.5, 1.5), text(size: 8pt)[Reduce])
 
     // Connections
-    draw.line("tcp.east", "valid.west", stroke: colors.text-light + 0.5pt)
-    draw.line("p80.east", "valid.west", stroke: colors.text-light + 0.5pt)
+    draw.line("int.east", "valid.west", stroke: colors.text-light + 0.5pt)
+    draw.line("v5.east", "valid.west", stroke: colors.text-light + 0.5pt)
 
-    draw.line("icmp.east", "invalid.west", stroke: colors.text-light + 0.5pt)
-    draw.line("p80.east", "invalid.west", stroke: colors.text-light + 0.5pt)
+    draw.line("bool.east", "invalid.west", stroke: colors.text-light + 0.5pt)
+    draw.line("v5.east", "invalid.west", stroke: colors.text-light + 0.5pt)
   }),
 )
 
@@ -324,29 +326,29 @@ Effective reduction operators exploit *domain-specific relationships*.
 ]
 
 #example-box[
-  *Jumbo Flag × Length reduction:*
+  *Mode × Value reduction:*
 
   ```rust
-  fn reduce(flag: Flag, len: Interval) -> (Flag, Interval) {
-      match flag {
-          Flag::Jumbo => {
-              // Jumbo frame: length must be > 1500
-              let refined = len.intersect(Interval::new(1501, 9000));
-              (flag, refined)
+  fn reduce(mode: Mode, val: Interval) -> (Mode, Interval) {
+      match mode {
+          Mode::Fast => {
+              // Fast mode: value must be > 100
+              let refined = val.intersect(Interval::new(101, 1000));
+              (mode, refined)
           }
-          Flag::Standard => {
-              // Standard frame: length must be <= 1500
-              let refined = len.intersect(Interval::new(0, 1500));
-              (flag, refined)
+          Mode::Safe => {
+              // Safe mode: value must be <= 100
+              let refined = val.intersect(Interval::new(0, 100));
+              (mode, refined)
           }
-          _ => (flag, len),
+          _ => (mode, val),
       }
   }
   ```
 
-  Input: $("Jumbo", [0, 2000])$.
+  Input: $("Fast", [0, 200])$.
 
-  After reduction: $("Jumbo", [1501, 2000])$ --- standard frames eliminated!
+  After reduction: $("Fast", [101, 200])$ --- safe values eliminated!
 ]
 
 #warning-box(title: "Reduction Cost")[
@@ -375,19 +377,19 @@ For more than two domains, reduced products generalize.
 ]
 
 #example-box[
-  *Protocol × Flag × Length:*
+  *Type × Mode × Value:*
 
-  For packet `p`:
-  - Protocol: $"TCP"$
-  - Flag: $"SYN"$
-  - Length: $[0, 100]$
+  For variable `v`:
+  - Type: $"Int"$
+  - Mode: $"Const"$
+  - Value: $[0, 100]$
 
   Reduction:
-  + Protocol refines Length: TCP header is min 20 bytes. $[0, 100] inter [20, infinity] = [20, 100]$.
-  + Flag refines Length: SYN packet usually has no payload (len = header len).
-  + Result: $("TCP", "SYN", [20, 60])$ (assuming max header size).
+  + Type refines Value: Int implies integer values.
+  + Mode refines Value: Const implies singleton value (if we knew it).
+  + Result: $("Int", "Const", [0, 100])$.
 
-  Much more precise!
+  If Mode was "Positive", we could refine Value to $[1, 100]$.
 ]
 
 == Abstract Transformers for Products

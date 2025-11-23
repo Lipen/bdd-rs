@@ -23,17 +23,17 @@ This is *chaotic iteration*.
 ]
 
 #example-box[
-  *Real-World Example: Packet Filter Reachability*
+  *Real-World Example: Basic Block Reachability*
 
-  Consider a firewall with rules linked in a graph (e.g., `iptables` chains).
-  For each chain $C$, let $"Allowed"[C]$ be the set of IP addresses that can reach it.
+  Consider a Control Flow Graph (CFG) with basic blocks.
+  For each block $B$, let $"Reachable"[B]$ be the set of program states that can reach it.
 
-  $ "Allowed"[C] = union.big_(P in "pred"(C)) ("Allowed"[P] inter "Rule"[P->C]) $
+  $ "Reachable"[B] = union.big_(P in "pred"(B)) ("Reachable"[P] inter "Edge"[P->B]) $
 
-  This gives one equation per chain.
-  - Kleene iteration updates all chains in lockstep.
-  - Chaotic iteration updates chains as soon as their predecessors change.
-  - If Chain A feeds Chain B, updating A then B is faster than updating B then A.
+  This gives one equation per block.
+  - Kleene iteration updates all blocks in lockstep.
+  - Chaotic iteration updates blocks as soon as their predecessors change.
+  - If Block A feeds Block B, updating A then B is faster than updating B then A.
 ]
 
 #theorem(title: "Chaotic Iteration Convergence")[
@@ -344,21 +344,21 @@ impl AbstractDomain for Interval {
 Typical threshold: 2-3 iterations before widening kicks in.
 
 #example-box[
-  *TTL Analysis with Widening:*
+  *Loop Counter Analysis with Widening:*
 
-  Consider a packet loop where TTL is decremented:
-  `ttl = 64; while (ttl > 0) { ttl = ttl - 1; }`
+  Consider a loop where a counter is decremented:
+  `i = 64; while (i > 0) { i = i - 1; }`
 
-  Abstract domain: Intervals for TTL values.
+  Abstract domain: Intervals for `i`.
   Without widening:
-  - Iteration 1: $"ttl" in [64, 64]$
-  - Iteration 2: $"ttl" in [63, 64]$
-  - Iteration 3: $"ttl" in [62, 64]$
+  - Iteration 1: $i in [64, 64]$
+  - Iteration 2: $i in [63, 64]$
+  - Iteration 3: $i in [62, 64]$
   - ... (64 iterations)
 
   With widening (threshold = 2):
-  - Iteration 1: $"ttl" in [64, 64]$
-  - Iteration 2: $"ttl" in [63, 64]$
+  - Iteration 1: $i in [64, 64]$
+  - Iteration 2: $i in [63, 64]$
   - Iteration 3: $[63, 64] widen [62, 64] = [-infinity, 64]$ (stabilized!)
 ]
 
@@ -460,12 +460,12 @@ Applying widening too early loses precision unnecessarily.
 ]
 
 #example-box[
-  *Bounded Loop Packet Processing:*
+  *Bounded Loop Processing:*
 
   ```rust
-  // Process up to 10 headers
+  // Process up to 10 items
   for i in 0..10 {
-      process_header(packet, i);
+      process_item(data, i);
   }
   ```
 

@@ -254,23 +254,23 @@ Common relational domains:
   Very precise, but exponential complexity.
 - *Equalities*: $x = y + c$.
 
-#example-box(title: "Real-World Example: Spoofing Check")[
-  Consider a packet filter rule checking for IP spoofing:
+#example-box(title: "Real-World Example: Consistency Check")[
+  Consider a security check for user roles:
 
   ```rust
-  // Packet from internal network?
-  if src_ip == internal_ip {
-      // Must be on internal interface
-      if interface != "eth0" {
-          drop();
+  // User is admin?
+  if user_id == admin_id {
+      // Must have admin role
+      if role != "Admin" {
+          error();
       }
   }
   ```
 
-  - *Intervals*: Tracks range of `src_ip` and `interface` independently.
-    Cannot capture the correlation "if src is internal, interface must be eth0".
-  - *Relational*: Tracks `src_ip == internal_ip => interface == "eth0"`.
-    Can prove that the `drop()` is unreachable for legitimate traffic.
+  - *Intervals*: Tracks range of `user_id` and `role` independently.
+    Cannot capture the correlation "if user is admin, role must be Admin".
+  - *Relational*: Tracks `user_id == admin_id => role == "Admin"`.
+    Can prove that the `error()` is unreachable for consistent states.
 ]
 
 == Widening in Product Domains

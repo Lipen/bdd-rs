@@ -1,12 +1,12 @@
 #import "../../theme.typ": *
 
-= The Abstract Packet State <ch-combining-domains>
+= The Abstract Program State <ch-combining-domains>
 
 We have the engine (BDDs) and the fuel (Abstract Domains).
 Now we build the vehicle.
 
-In this chapter, we define the *Abstract Packet State* of our Firewall Checker.
-Instead of a single value for each header field, our state will be a *collection* of possibilities, each guarded by a BDD path condition.
+In this chapter, we define the *Abstract Program State* of our IMP Analyzer.
+Instead of a single value for each variable, our state will be a *collection* of possibilities, each guarded by a BDD path condition.
 
 This combination yields *path-sensitive abstract interpretation*.
 
@@ -21,27 +21,27 @@ This combination yields *path-sensitive abstract interpretation*.
 Path-insensitive analysis loses precision by merging all paths:
 
 ```rust
-let mut mark = 0;
-if proto == TCP {
-    mark = 1;      // mark = 1
+let mut y = 0;
+if x > 0 {
+    y = 1;      // y = 1
 } else {
-    mark = 2;      // mark = 2
+    y = 2;      // y = 2
 }
-// Path-insensitive: mark = 1 ⊔ 2 = [1, 2] (or Top)
-// We lost the correlation that (TCP => 1) and (UDP => 2).
+// Path-insensitive: y = 1 ⊔ 2 = [1, 2] (or Top)
+// We lost the correlation that (x > 0 => y=1) and (x <= 0 => y=2).
 ```
 
 Path-sensitive analysis maintains separate states:
 
 ```rust
-// State 1: proto=TCP, mark=1
-// State 2: proto!=TCP, mark=2
+// State 1: x > 0, y = 1
+// State 2: x <= 0, y = 2
 ```
 
 But with $n$ conditions, we get $2^n$ explicit states.
 
 *Solution:* Represent path conditions _symbolically_ with BDDs.
-We maintain a set of pairs $(b_i, rho_i)$, where $b_i$ is a BDD representing a set of paths (packet flows), and $rho_i$ is the abstract state of the headers on those paths.
+We maintain a set of pairs $(b_i, rho_i)$, where $b_i$ is a BDD representing a set of paths (execution traces), and $rho_i$ is the abstract state of the variables on those paths.
 
 This technique is called *Trace Partitioning*.
 
@@ -82,11 +82,11 @@ This technique is called *Trace Partitioning*.
     draw-state((x-left, y-start), "l_init", [$top$], width: 2)
 
     // Branches
-    draw-state((x-left - dx-branch, y-branch), "l_b1", [$"mark"=1$], width: 2)
-    draw-state((x-left + dx-branch, y-branch), "l_b2", [$"mark"=2$], width: 2)
+    draw-state((x-left - dx-branch, y-branch), "l_b1", [$y=1$], width: 2)
+    draw-state((x-left + dx-branch, y-branch), "l_b2", [$y=2$], width: 2)
 
     // Merge
-    draw-state((x-left, y-merge), "l_merge", [$"mark" in {1,2}$], fill: colors.warning.lighten(80%), width: 3)
+    draw-state((x-left, y-merge), "l_merge", [$y in {1,2}$], fill: colors.warning.lighten(80%), width: 3)
     content((x-left, y-merge - 1), text(size: 0.8em, fill: colors.error)[Relation Lost!])
 
     // Edges
@@ -102,14 +102,14 @@ This technique is called *Trace Partitioning*.
     draw-state((x-right, y-start), "r_init", [${(#true, top)}$], width: 4)
 
     // Partitions
-    draw-state((x-right - dx-branch-wide, y-branch), "r_p1", [${("TCP", "mark"=1)}$], width: 4.2)
-    draw-state((x-right + dx-branch-wide, y-branch), "r_p2", [${(not "TCP", "mark"=2)}$], width: 4.2)
+    draw-state((x-right - dx-branch-wide, y-branch), "r_p1", [${(x > 0, y=1)}$], width: 4.2)
+    draw-state((x-right + dx-branch-wide, y-branch), "r_p2", [${(x <= 0, y=2)}$], width: 4.2)
 
     // Result (No Merge)
     draw-state(
       (x-right, y-merge),
       "r_res",
-      [${("TCP", 1), (not "TCP", 2)}$],
+      [${(x > 0, 1), (x <= 0, 2)}$],
       fill: colors.success.lighten(80%),
       width: 6,
     )
@@ -128,49 +128,49 @@ This technique is called *Trace Partitioning*.
 
 The architecture has three components working together.
 + The *BDD Path Tracker* tracks feasible paths using BDD operations.
-+ The *Abstract Header Domain* tracks header field properties like IP ranges or port sets.
-+ The *Combined Domain* pairs the BDD control state with the abstract header state to give us the full picture.
++ The *Abstract Environment* tracks variable properties like signs or intervals.
++ The *Combined Domain* pairs the BDD control state with the abstract environment to give us the full picture.
 
 #definition(title: "BDD-based Path-Sensitive Abstract State")[
   A state is a pair $(b, rho)$ where:
-  - $b$ is a BDD representing the path condition (which packets reach here)
-  - $rho$ is an abstract environment mapping header fields to abstract values
+  - $b$ is a BDD representing the path condition (which inputs reach here)
+  - $rho$ is an abstract environment mapping variables to abstract values
 
-  The state represents: "For packets satisfying $b$, the headers have values given by $rho$."
+  The state represents: "For inputs satisfying $b$, the variables have values given by $rho$."
 ]
 
-== Upgrading the FilterManager
+== Upgrading the AnalysisManager
 
-In @ch-bdd-programming, we built a `FilterManager` that maps `Match` AST nodes to BDD variables.
+In @ch-bdd-programming, we built an `AnalysisManager` that maps `Condition` AST nodes to BDD variables.
 This structure is perfect for our needs.
 
 We also need to handle *negation* intelligently.
-If we have allocated a variable for `src_ip == 10.0.0.1`, and we encounter `src_ip != 10.0.0.1`, we shouldn't allocate a new variable.
+If we have allocated a variable for `x > 0`, and we encounter `x <= 0` (which is `!(x > 0)`), we shouldn't allocate a new variable.
 We should just return the *negation* of the existing one.
 
 ```rust
-impl FilterManager {
-    pub fn get_bdd(&mut self, m: &Match) -> Ref {
+impl AnalysisManager {
+    pub fn get_bdd(&mut self, c: &Condition) -> Ref {
         // 1. Check exact match
-        if let Some(&id) = self.mapping.get(m) {
+        if let Some(&id) = self.mapping.get(c) {
             return self.bdd.mk_var(id as u32);
         }
 
         // 2. Check negation (simplified for this guide)
-        // In a full implementation, we would check if we have the "opposite" rule.
-        // e.g. if m is "src != A", check if we have "src == A" and return !var.
+        // In a full implementation, we would check if we have the "opposite" condition.
+        // e.g. if c is "x <= 0", check if we have "x > 0" and return !var.
 
         // 3. Allocate new
         let id = self.next_var_id;
         self.next_var_id += 1;
-        self.mapping.insert(m.clone(), id);
+        self.mapping.insert(c.clone(), id);
         self.bdd.mk_var(id as u32)
     }
 }
 ```
 
-Now, the analysis automatically correlates related branches across the firewall chains.
-If the chain matches on `tcp` twice, the BDD will recognize it's the same condition.
+Now, the analysis automatically correlates related branches across the program.
+If the program checks `x > 0` twice, the BDD will recognize it's the same condition.
 
 == The Power of Partitioning
 
@@ -187,11 +187,11 @@ struct PartitionedState<D: AbstractDomain> {
     // Invariant: Path conditions are disjoint
     partitions: Vec<(Ref, D)>,
     // We use Rc<RefCell> for shared mutable access to the manager
-    control: Rc<RefCell<FilterManager>>,
+    control: Rc<RefCell<AnalysisManager>>,
 }
 
 impl<D: AbstractDomain> PartitionedState<D> {
-    fn new(control: Rc<RefCell<FilterManager>>) -> Self {
+    fn new(control: Rc<RefCell<AnalysisManager>>) -> Self {
         let bdd = control.borrow().bdd.clone();
         Self {
             partitions: vec![(bdd.mk_true(), D::bottom())], // Start with true path
@@ -201,15 +201,15 @@ impl<D: AbstractDomain> PartitionedState<D> {
 }
 ```
 
-The state is a disjunction: "Either the packet matches $b_1$ with headers $rho_1$, OR it matches $b_2$ with headers $rho_2$, ...".
+The state is a disjunction: "Either the execution matches $b_1$ with values $rho_1$, OR it matches $b_2$ with values $rho_2$, ...".
 
 === Smart Joining
 
 When we join two states, we don't blindly merge everything.
 We use BDDs to compress the representation.
-If two paths lead to the *same* (or similar) header state, we can merge their path conditions!
+If two paths lead to the *same* (or similar) data state, we can merge their path conditions!
 
-$(b_1, rho) ljoin (b_2, rho) = (b_1 or b_2, rho)$
+$ (b_1, rho) ljoin (b_2, rho) = (b_1 or b_2, rho) $
 
 ```rust
 impl<D: AbstractDomain + PartialEq + Clone> PartitionedState<D> {
@@ -248,26 +248,26 @@ impl<D: AbstractDomain + PartialEq + Clone> PartitionedState<D> {
 }
 ```
 
-This approach allows the analysis to distinguish `mark = 1` from `mark = 2` indefinitely, only merging them if they converge to the same value later.
+This approach allows the analysis to distinguish `y = 1` from `y = 2` indefinitely, only merging them if they converge to the same value later.
 
 == Refining Abstract Values
 
 The BDD tells us *which* paths we are on.
 We can use this to refine our data knowledge.
-When we branch on a condition like `port < 1024`, we should update the abstract value of `port` in the true branch!
+When we branch on a condition like `x < 10`, we should update the abstract value of `x` in the true branch!
 
 To decouple the Abstract Domain from the AST, we introduce a `Refineable` trait.
 
 ```rust
 trait Refineable {
     // Refine the abstract state based on a constraint
-    fn refine(&mut self, constraint: &Match);
+    fn refine(&mut self, constraint: &Condition);
 }
 
 impl<D: AbstractDomain + Refineable> PartitionedState<D> {
-    fn assume(&mut self, m: &Match) {
+    fn assume(&mut self, c: &Condition) {
         let mut new_partitions = Vec::new();
-        let bdd_cond = self.control.borrow_mut().get_bdd(m);
+        let bdd_cond = self.control.borrow_mut().get_bdd(c);
         let bdd = &self.control.borrow().bdd;
 
         for (path, mut env) in self.partitions.drain(..) {
@@ -277,7 +277,7 @@ impl<D: AbstractDomain + Refineable> PartitionedState<D> {
             if !bdd.is_zero(new_path) {
                 // 2. Update Data: Refine environment
                 // The domain interprets the constraint to tighten values
-                env.refine(m);
+                env.refine(c);
                 new_partitions.push((new_path, env));
             }
         }
@@ -286,54 +286,54 @@ impl<D: AbstractDomain + Refineable> PartitionedState<D> {
 }
 ```
 
-Now, when the analysis sees `if port < 1024`, it automatically learns that `port` is privileged in the true branch, even if the interval domain didn't know it before.
+Now, when the analysis sees `if x < 10`, it automatically learns that `x` is small in the true branch, even if the interval domain didn't know it before.
 
 == The Interpreter Loop
 
 Finally, let's see how this fits into the main analysis loop.
-The `eval_rule` function takes a rule and updates the current state.
+The `eval_stmt` function takes a statement and updates the current state.
 
 ```rust
-fn eval_rule<D: AbstractDomain>(rule: &Rule, state: &mut PartitionedState<D>) {
-    match rule {
-        Rule::ModField(field, val) => {
-            // Update header state in all partitions
-            state.assign(field, val);
+fn eval_stmt<D: AbstractDomain>(stmt: &Stmt, state: &mut PartitionedState<D>) {
+    match stmt {
+        Stmt::Assign(var, expr) => {
+            // Update variable state in all partitions
+            state.assign(var, expr);
         }
-        Rule::Match(m, then_chain, else_chain) => {
+        Stmt::If(cond, then_block, else_block) => {
             // 1. Clone state for branches
             let mut true_state = state.clone();
             let mut false_state = state.clone();
 
             // 2. Assume conditions
-            true_state.assume(m);
-            false_state.assume(&m.negate());
+            true_state.assume(cond);
+            false_state.assume(&cond.negate());
 
             // 3. Recurse
-            eval_chain(then_chain, &mut true_state);
-            eval_chain(else_chain, &mut false_state);
+            eval_block(then_block, &mut true_state);
+            eval_block(else_block, &mut false_state);
 
             // 4. Join results
             *state = true_state.join(&false_state);
         }
-        // ... handle jumps ...
+        // ... handle loops ...
     }
 }
 ```
 
-This recursive structure naturally handles nested chains, while the `PartitionedState` manages the complexity of path conditions under the hood.
+This recursive structure naturally handles nested blocks, while the `PartitionedState` manages the complexity of path conditions under the hood.
 
 == Summary
 
 Combining BDDs with abstract domains gives path-sensitive analysis:
 - BDDs track feasible paths compactly
-- Abstract domains track header field properties
-- States are pairs $(b, rho)$: path condition + header environment
+- Abstract domains track variable properties
+- States are pairs $(b, rho)$: path condition + variable environment
 
 Operations:
-- *Match:* Split state, update BDD path condition
-- *Modify:* Update header environment, keep path condition
-- *Join:* Merge BDDs with OR, join header domains
+- *Assume:* Split state, update BDD path condition
+- *Assign:* Update variable environment, keep path condition
+- *Join:* Merge BDDs with OR, join data domains
 
 Trade-offs:
 - Early join: loses precision, bounded states
@@ -363,17 +363,17 @@ In the next chapter, we build a complete symbolic executor using these technique
 
 #chapter-summary[
   - *Combined state: $(b, rho)$ where $b$ is BDD path condition, $rho$ is abstract environment.*
-    BDD tracks which paths are feasible, domain tracks header values.
+    BDD tracks which paths are feasible, domain tracks variable values.
 
-  - *BDD control domain allocates variables for packet matches.*
-    Each boolean match (e.g., `tcp`) gets a unique BDD variable.
+  - *BDD control domain allocates variables for program conditions.*
+    Each boolean condition (e.g., `x > 0`) gets a unique BDD variable.
 
   - *Branching creates two states with updated path conditions.*
-    True branch: $"path" and "match"$.
-    False branch: $"path" and not "match"$.
+    True branch: $"path" and "cond"$.
+    False branch: $"path" and not "cond"$.
 
-  - *Modification updates data domain, keeps path unchanged.*
-    Only header properties change on modification, not control flow.
+  - *Assignment updates data domain, keeps path unchanged.*
+    Only variable properties change on assignment, not control flow.
 
   - *Joining merges paths with OR, joins data with domain operations.*
     Necessary at merge points but loses path-sensitivity.
@@ -382,7 +382,7 @@ In the next chapter, we build a complete symbolic executor using these technique
     Joining early: fast but imprecise. Joining late: precise but exponential states.
 
   - *Generic design works with any abstract domain.*
-    Swap intervals for sets or prefix trees.
+    Swap intervals for signs or constants.
     BDD control layer is orthogonal.
 
   - *Path-sensitivity alone doesn't guarantee precision.*

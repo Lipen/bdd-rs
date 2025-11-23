@@ -87,15 +87,15 @@ We model pipelines `validate; normalize; use`:
 - Normalization: apply length/charset-preserving rewrites; ensure closure under rewrites remains in $L_"safe"$
 - Use: sinks (e.g., regex match, path join) proved safe by inclusion: $L("current") subset.eq L_"safe"$
 
-#example-box(title: "Real-World Example: Malicious Payload Detection")[
-  Consider a Deep Packet Inspection (DPI) rule:
-  `if payload.contains("attack") { drop() }`
+#example-box(title: "Real-World Example: Malicious Input Detection")[
+  Consider an Input Validation rule:
+  `if input.contains("attack") { reject() }`
 
-  - *String Domain*: Tracks the set of possible strings in `payload`.
+  - *String Domain*: Tracks the set of possible strings in `input`.
   - *Analysis*:
-    - If `payload` comes from a trusted source (e.g., internal config), the domain might prove it never contains "attack".
-    - If `payload` is user input, the domain tracks that after the `if`, the payload *must* contain "attack" (on the true branch) or *must not* (on the false branch).
-    - This allows proving that subsequent code is only reachable for safe payloads.
+    - If `input` comes from a trusted source (e.g., internal config), the domain might prove it never contains "attack".
+    - If `input` is user input, the domain tracks that after the `if`, the input *must* contain "attack" (on the true branch) or *must not* (on the false branch).
+    - This allows proving that subsequent code is only reachable for safe inputs.
 ]
 
 == Widening/Narrowing Patterns

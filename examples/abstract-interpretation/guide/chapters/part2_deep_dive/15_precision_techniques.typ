@@ -7,12 +7,12 @@
 In the previous chapters, we built a functional analyzer.
 It is sound, meaning it will never miss a bug.
 However, a sound analyzer is not necessarily a *useful* one.
-If it reports a potential violation for every single packet, it provides no value.
+If it reports a potential violation for every single input, it provides no value.
 This is the "False Positive" problem.
 
 The central craft of Abstract Interpretation is balancing three competing goals:
 + *Precision*: Minimizing false alarms by tracking more detail.
-+ *Performance*: Analyzing large policies quickly (seconds, not hours).
++ *Performance*: Analyzing large programs quickly (seconds, not hours).
 + *Termination*: Ensuring the analysis always finishes, even with loops.
 
 This chapter catalogs the advanced techniques required to turn a toy analyzer into a production-grade tool.
@@ -20,8 +20,8 @@ We will move beyond simple domains and explore how to combine them, split them, 
 
 == The Power of Combination: Reduced Products
 
-Real-world policies are complex.
-They involve boolean logic ("allow if TCP and port 80"), arithmetic ("packet length > 64"), and set membership ("src ip in 10.0.0.0/8").
+Real-world programs are complex.
+They involve boolean logic ("allow if Admin and id > 100"), arithmetic ("buffer size > 64"), and set membership ("value in [0, 100]").
 No single abstract domain is good at all of these.
 
 - *BDDs* are excellent for boolean logic and sets of discrete values, but they explode when tracking arithmetic ranges.
@@ -81,13 +81,13 @@ impl<A: AbstractDomain, B: AbstractDomain> AbstractDomain for ProductDomain<A, B
             let old_state = self.clone();
 
             // 1. Transfer info A -> B
-            if let Some(range) = self.dom_a.get_range("src_ip") {
-                self.dom_b.constrain_variable("src_ip", range);
+            if let Some(range) = self.dom_a.get_range("x") {
+                self.dom_b.constrain_variable("x", range);
             }
 
             // 2. Transfer info B -> A
-            if self.dom_b.is_constant("len", 0) {
-                self.dom_a.set_constant("len", 0);
+            if self.dom_b.is_constant("y", 0) {
+                self.dom_a.set_constant("y", 0);
             }
 
             if *self == old_state { break; }
@@ -96,26 +96,26 @@ impl<A: AbstractDomain, B: AbstractDomain> AbstractDomain for ProductDomain<A, B
 }
 ```
 
-=== Example: Mutual Refinement in Firewalls
+=== Example: Mutual Refinement in Safety Checks
 
-Consider a rule that drops private IP addresses, but only for short packets:
+Consider a rule that flags unsafe values, but only for small buffers:
 
 ```rust
-if src_ip >= 10.0.0.0 && src_ip <= 10.255.255.255 {
-    if len < 64 {
-        drop;
+if x >= 100 && x <= 200 {
+    if y < 10 {
+        error;
     }
 }
 ```
 
-+ The *Interval Domain* analyzes the condition and restricts `src_ip` to `[10.0.0.0, 10.255.255.255]` and `len` to `[0, 63]`.
-+ The *BDD Domain* tracks the boolean flags `is_private` and `is_short`.
++ The *Interval Domain* analyzes the condition and restricts `x` to `[100, 200]` and `y` to `[0, 9]`.
++ The *BDD Domain* tracks the boolean flags `in_range` and `is_small`.
 + *Reduction Cycle*:
-  - Interval $->$ BDD: "The `src_ip` range implies `is_private` is TRUE."
-  - Interval $->$ BDD: "The `len` range implies `is_short` is TRUE."
-  - BDD $->$ Interval: "Since `is_private` is TRUE, prune any paths where `src_ip` is outside 10/8." (Redundant here, but useful if the BDD learned it from elsewhere).
+  - Interval $->$ BDD: "The `x` range implies `in_range` is TRUE."
+  - Interval $->$ BDD: "The `y` range implies `is_small` is TRUE."
+  - BDD $->$ Interval: "Since `in_range` is TRUE, prune any paths where `x` is outside [100, 200]." (Redundant here, but useful if the BDD learned it from elsewhere).
 
-Without reduction, the BDD might think `!is_private` is still possible if the control flow was complex.
+Without reduction, the BDD might think `!in_range` is still possible if the control flow was complex.
 
 == Divide and Conquer: State Partitioning
 
@@ -123,9 +123,9 @@ One of the biggest sources of imprecision is the *Merge* operation ($ljoin$).
 When control flow paths join (e.g., after an `if/else`), we merge their abstract states to keep the analysis tractable.
 However, merging destroys relationships (relational information).
 
-If one path has `{proto: TCP, port: 80}` and another has `{proto: UDP, port: 53}`, merging them in a non-relational domain gives:
-`{proto: {TCP, UDP}, port: {80, 53}}`.
-This now includes the spurious state `{proto: UDP, port: 80}`, which might trigger a false alarm (e.g., "UDP traffic on port 80 is blocked").
+If one path has `{type: A, val: 10}` and another has `{type: B, val: 20}`, merging them in a non-relational domain gives:
+`{type: {A, B}, val: {10, 20}}`.
+This now includes the spurious state `{type: B, val: 10}`, which might trigger a false alarm (e.g., "Type B with val 10 is invalid").
 
 === Trace Partitioning
 
@@ -134,19 +134,19 @@ Instead of one monolithic abstract state, we maintain a map:
 `Map<PartitionKey, AbstractState>`.
 
 #definition(title: "Partitioned Domain")[
-  Let $K$ be a set of partition keys (e.g., protocol types, call sites).
+  Let $K$ be a set of partition keys (e.g., request types, call sites).
   The partitioned domain $D_K$ maps each key to an abstract state: $D_K = K -> D$.
   The concretization is the union of all partitions: $gamma(f) = union_(k in K) gamma(f(k))$.
 ]
 
-#example-box(title: "Partitioning by Protocol")[
-  In our FirewallChecker, the most effective partition key is often the *Protocol* (TCP vs. UDP vs. ICMP).
+#example-box(title: "Partitioning by Request Type")[
+  In our Analyzer, the most effective partition key is often the *Request Type* (GET vs. POST vs. PUT).
 
-  We maintain separate invariants for TCP flows and UDP flows.
-  - The TCP partition tracks sequence numbers and flags.
-  - The UDP partition tracks lengths and checksums.
+  We maintain separate invariants for GET requests and POST requests.
+  - The GET partition tracks query parameters.
+  - The POST partition tracks body size and content type.
 
-  This prevents "pollution" where UDP packets are flagged for missing TCP flags.
+  This prevents "pollution" where POST requests are flagged for missing query parameters.
 ]
 
 === Implementation Strategy
@@ -156,7 +156,7 @@ The `join` operation becomes complex: we only join states with matching keys.
 
 ```rust
 struct PartitionedDomain<D> {
-    partitions: HashMap<Protocol, D>,
+    partitions: HashMap<RequestType, D>,
 }
 
 impl<D: AbstractDomain> AbstractDomain for PartitionedDomain<D> {
@@ -178,14 +178,14 @@ We effectively delay the merge until the end of the analysis, or until the numbe
 
 === Context Sensitivity (Inter-procedural)
 
-When analyzing functions (e.g., named ACLs or sub-routines), merging the state from all call sites leads to imprecision.
-If `check_access()` is called from a trusted interface and an untrusted interface, merging the states blurs the distinction.
+When analyzing functions (e.g., helper methods or sub-routines), merging the state from all call sites leads to imprecision.
+If `validate_input()` is called from a trusted module and an untrusted module, merging the states blurs the distinction.
 
 *Context Sensitivity* partitions the state by the *Call String* (the stack of function calls).
-- `check_access` called from `main -> trusted_zone`
-- `check_access` called from `main -> internet_zone`
+- `validate_input` called from `main -> admin_module`
+- `validate_input` called from `main -> user_module`
 
-This allows the analyzer to verify that `check_access` behaves correctly for *each* context independently.
+This allows the analyzer to verify that `validate_input` behaves correctly for *each* context independently.
 
 == Accelerating Convergence: Widening and Narrowing
 
@@ -207,7 +207,7 @@ If we see a value growing from `[0, 1]` to `[0, 2]`, widening might guess `[0, i
 
 #warning-box(title: "The Risk of Widening")[
   Widening guarantees termination, but it is *imprecise*.
-  It often over-approximates too much, including states that are not actually reachable (like infinite packet sizes).
+  It often over-approximates too much, including states that are not actually reachable (like infinite buffer sizes).
   This can lead to false positives.
 ]
 
@@ -216,14 +216,14 @@ If we see a value growing from `[0, 1]` to `[0, 2]`, widening might guess `[0, i
 To tame the widening, we use *Thresholds* (also called *Landmarks*).
 Instead of jumping to infinity, we jump to known "interesting" values.
 
-In networking, interesting values for packet sizes include:
-- 64 bytes (Minimum Ethernet)
-- 1500 bytes (Standard MTU)
-- 9000 bytes (Jumbo Frames)
-- 65535 bytes (Max IP)
+In systems programming, interesting values for buffer sizes include:
+- 64 bytes (Cache Line)
+- 4096 bytes (Page Size)
+- 65536 bytes (Max Segment)
+- Max Int
 
-If the packet size grows past 1500, we widen to 9000, not infinity.
-This keeps the analysis precise enough to prove properties like "packets never exceed Jumbo Frame size".
+If the buffer size grows past 4096, we widen to 65536, not infinity.
+This keeps the analysis precise enough to prove properties like "buffers never exceed Max Segment size".
 
 ```rust
 fn widen_threshold(old: &Interval, new: &Interval, thresholds: &[u32]) -> Interval {
@@ -262,10 +262,10 @@ A bad order can lead to exponential blowup.
 
 #insight-box[
   *Heuristic:* Place variables that are tested together close together in the order.
-  For firewalls, we typically order variables by protocol layer:
-  + Ethernet Header (Type)
-  + IP Header (Src, Dst, Proto)
-  + Transport Header (Ports, Flags)
+  For programs, we typically order variables by scope or usage:
+  + Global Flags
+  + Control Flow Variables
+  + Data Variables
 ]
 
 *Why does this matter?*
@@ -302,18 +302,18 @@ This is a "Fail-Open" or "Fail-Safe" strategy depending on the application.
 
 A verification tool is only as good as its error messages.
 Telling a user "Assertion Failed" is useless.
-We need to provide a concrete packet that triggers the failure, and explain *why* it triggers it.
+We need to provide a concrete input that triggers the failure, and explain *why* it triggers it.
 
 === Minimal Counterexamples
 
-Because we use BDDs, we have the set of *all* failing packets (the set of valuations that satisfy the negation of the property).
+Because we use BDDs, we have the set of *all* failing inputs (the set of valuations that satisfy the negation of the property).
 However, showing a BDD to a user is not helpful.
 We want to present the *simplest* counterexample.
 
 We define "simplest" using a cost function:
-+ *IPv4* is simpler than IPv6.
-+ *Zero flags* are simpler than set flags.
-+ *Standard ports* (80, 443) are simpler than random high ports.
++ *Small integers* are simpler than large ones.
++ *False flags* are simpler than true flags.
++ *Standard values* (0, 1) are simpler than random large values.
 + *Unconstrained variables* should be ignored (don't care).
 
 This corresponds to finding the *shortest path* to the `true` terminal in the BDD, where edge weights are determined by the "complexity" of the variable assignment.
@@ -345,7 +345,7 @@ This corresponds to finding the *shortest path* to the `true` terminal in the BD
 ]
 
 ```rust
-fn find_minimal_counterexample(bdd: &Bdd, root: Ref) -> Option<Packet> {
+fn find_minimal_counterexample(bdd: &Bdd, root: Ref) -> Option<Input> {
     if bdd.is_zero(root) {
         return None; // No counterexample exists (property holds)
     }
@@ -375,7 +375,7 @@ fn find_minimal_counterexample(bdd: &Bdd, root: Ref) -> Option<Packet> {
     compute_cost(bdd, root, &mut costs);
 
     // 2. Construct path top-down
-    let mut packet = Packet::default();
+    let mut input = Input::default();
     let mut current = root;
 
     while !bdd.is_one(current) {
@@ -387,42 +387,42 @@ fn find_minimal_counterexample(bdd: &Bdd, root: Ref) -> Option<Packet> {
         let cost_high = costs[&high].saturating_add(cost(var, 1));
 
         if cost_low <= cost_high {
-            packet.set(var, false);
+            input.set(var, false);
             current = low;
         } else {
-            packet.set(var, true);
+            input.set(var, true);
             current = high;
         }
     }
-    Some(packet)
+    Some(input)
 }
 ```
 
 === Trace Slicing
 
-If a packet is dropped, the user wants to know *why*.
+If an input is rejected, the user wants to know *why*.
 A trace slice removes all rules that did not contribute to the decision.
-If a packet was dropped because of its Port, the slice should hide the IP checks.
+If an input was rejected because of its ID, the slice should hide the Value checks.
 
 This requires tracking *provenance* or *dependencies* during the analysis.
 We can augment our abstract state to track the set of "active rules".
 
 #example-box(title: "Trace Slicing Example")[
   *Original Policy*:
-  + `allow tcp port 80`
-  + `allow tcp port 443`
-  + `deny ip 10.0.0.0/8 any`
-  + `allow ip any any`
+  + `allow type=A, id=1`
+  + `allow type=A, id=2`
+  + `deny value in [100, 200]`
+  + `allow any`
 
-  *Counterexample*: Packet `src=10.0.0.5, port=22`.
+  *Counterexample*: Input `value=105, id=3`.
 
   *Full Trace*:
-  - Rule 1: No match (port 22 $!=$ 80)
-  - Rule 2: No match (port 22 $!=$ 443)
+  - Rule 1: No match (id 3 $!=$ 1)
+  - Rule 2: No match (id 3 $!=$ 2)
   - Rule 3: Match! Action: Deny.
 
   *Sliced Trace*:
-  - Rule 3: Deny `src=10.0.0.5` (Matches `10.0.0.0/8`)
+  - Rule 3: Deny `value=105` (Matches `[100, 200]`)
 
   Rules 1 and 2 are irrelevant because even if they matched, Rule 3 (being a deny) might still take precedence depending on the chain logic.
   However, in a "First Match" chain, Rules 1 and 2 *are* relevant because they *failed* to match.
@@ -431,7 +431,7 @@ We can augment our abstract state to track the set of "active rules".
 
 #chapter-summary[
   - *Reduced Products* allow different domains to share information, proving properties neither could prove alone.
-  - *Partitioning* prevents precision loss at merge points by keeping incompatible states separate (e.g., TCP vs UDP).
-  - *Widening with Thresholds* ensures loops terminate quickly while respecting domain-specific boundaries (like MTU).
-  - *Engineering Heuristics* like variable ordering and resource budgets are critical for scaling to real-world networks.
+  - *Partitioning* prevents precision loss at merge points by keeping incompatible states separate (e.g., GET vs POST).
+  - *Widening with Thresholds* ensures loops terminate quickly while respecting domain-specific boundaries (like Page Size).
+  - *Engineering Heuristics* like variable ordering and resource budgets are critical for scaling to real-world programs.
 ]
