@@ -76,6 +76,16 @@ pub enum Terminator {
 }
 ```
 
+#example-reference(
+  "control_flow",
+  "cfg_builder.rs",
+  "cfg_builder",
+  [
+    Implementation of a CFG builder that transforms a linear sequence of instructions into a graph of basic blocks.
+    Shows how to handle labels, jumps, and branches.
+  ],
+)
+
 == Translating AST to CFG
 
 The translation process involves breaking down complex AST nodes (like `if-else` trees) into simple blocks and edges.

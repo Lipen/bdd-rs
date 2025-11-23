@@ -13,23 +13,24 @@ This design makes the codebase resilient to guide restructuring while maintainin
 ```
 code-examples/
 ├── domains/              # Abstract domain implementations
-│   ├── sign.rs          # Sign abstraction domain
-│   ├── interval.rs      # Interval domain with arithmetic
-│   └── combined.rs      # Reduced product of multiple domains
+│   ├── sign.rs           # Sign abstraction domain
+│   ├── interval.rs       # Interval domain with arithmetic
+│   └── combined.rs       # Reduced product of multiple domains
 ├── control_flow/         # Control flow analysis
-│   └── cfg_builder.rs   # Building control flow graphs
+│   └── cfg_builder.rs    # Building control flow graphs
 ├── bdd_fundamentals/     # Core BDD operations
-│   ├── basics.rs        # Creating and manipulating BDDs
-│   ├── boolean_ops.rs   # AND, OR, NOT, XOR operations
-│   └── manager_demo.rs  # BDD manager and hash consing
+│   ├── basics.rs         # Creating and manipulating BDDs
+│   ├── boolean_ops.rs    # AND, OR, NOT, XOR operations
+│   └── manager_demo.rs   # BDD manager and hash consing
 ├── bdd_advanced/         # Advanced BDD techniques
-│   ├── quantification.rs      # Existential/universal quantification
-│   └── variable_ordering.rs   # Impact of variable ordering on size
+│   ├── quantification.rs  # Existential/universal quantification
+│   └── variable_ordering.rs  # Impact of variable ordering on size
 ├── integration/          # Combining BDDs with abstract domains
-│   └── sign_with_bdd.rs # Sign domain with BDD-based control
+│   └── sign_with_bdd.rs  # Sign domain with BDD-based control
 └── symbolic_execution/   # Complete symbolic execution engines
-    ├── executor.rs      # Full symbolic executor implementation
-    └── path_exploration.rs  # Path-sensitive analysis with BDDs
+    ├── executor.rs       # Full symbolic executor implementation
+    ├── path_exploration.rs  # Path-sensitive analysis with BDDs
+    └── verifier.rs       # Complete verifier with Interval domain
 ```
 
 ## Running Examples
@@ -60,6 +61,7 @@ cargo run --example sign_with_bdd
 # Symbolic execution
 cargo run --example symbolic_executor
 cargo run --example path_exploration
+cargo run --example verifier
 ```
 
 ## Example Features
@@ -163,7 +165,7 @@ cargo test
 # Run all examples (useful for verification)
 for example in sign_domain interval_domain cfg_builder bdd_basics bdd_boolean_ops \
                bdd_manager bdd_quantification bdd_variable_ordering combined_domain \
-               sign_with_bdd symbolic_executor path_exploration; do
+               sign_with_bdd symbolic_executor path_exploration verifier; do
     echo "Running $example..."
     cargo run --example $example
 done

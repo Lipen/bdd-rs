@@ -477,6 +477,16 @@ struct RefinedState<D: AbstractDomain> {
 }
 ```
 
+#example-reference(
+  "symbolic_execution",
+  "verifier.rs",
+  "verifier",
+  [
+    A complete verifier implementation that integrates the Interval abstract domain with BDD-based path sensitivity.
+    This example demonstrates how to prove numeric properties (like bounds and safety) that the basic symbolic executor cannot handle.
+  ],
+)
+
 #info-box(title: "Symbolic Execution vs Abstract Interpretation")[
 
   *Symbolic Execution:*

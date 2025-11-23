@@ -328,7 +328,17 @@ Explosion typically occurs only when variables are heavily correlated in complex
 - The *`SymbolicManager`* maps program conditions to BDD variables, ensuring consistency.
 
 #info-box(title: "Explore BDD Operations")[
-  To see boolean operations in action, run #run-example("bdd_boolean_ops") which demonstrates AND, OR, XOR, and their algebraic properties like De Morgan's laws and absorption.
+  To see boolean operations in action, check out the example below which demonstrates AND, OR, XOR, and their algebraic properties like De Morgan's laws and absorption.
 ]
+
+#example-reference(
+  "bdd_fundamentals",
+  "boolean_ops.rs",
+  "bdd_boolean_ops",
+  [
+    Demonstration of standard boolean operations on BDDs.
+    Includes verification of De Morgan's laws and other identities.
+  ],
+)
 
 In the next chapter, we will implement the `AnalysisManager` and the core BDD interface in Rust.

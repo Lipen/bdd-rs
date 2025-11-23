@@ -2,9 +2,11 @@
 //!
 //! **Guide Reference:** Part I, Chapter 6 - "Building a Symbolic Executor"
 //!
-//! This example implements a **complete symbolic execution engine** that combines
-//! all the concepts from previous chapters: abstract domains, BDDs for control flow,
-//! and path-sensitive analysis.
+//! This example implements a **basic symbolic execution engine** that combines
+//! concepts from previous chapters: BDDs for control flow and path-sensitive analysis.
+//!
+//! > **Note:** For a more advanced version that integrates Abstract Interpretation
+//! > (Interval Domain) to prove numeric properties, see `verifier.rs`.
 //!
 //! ## What is Symbolic Execution?
 //!
@@ -39,6 +41,7 @@
 //! - **Path explosion**: Exponential number of paths
 //! - **Constraint solving**: This example simplified (no SMT solver)
 //! - **Loops**: Needs bounds or widening to terminate
+//! - **Abstract Domains**: Does not use Interval/Sign domains (see `verifier.rs`)
 //!
 //! ## Real-World Applications
 //!

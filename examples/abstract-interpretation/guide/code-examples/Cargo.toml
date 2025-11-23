@@ -81,4 +81,8 @@ path = "symbolic_execution/executor.rs"
 name = "path_exploration"
 path = "symbolic_execution/path_exploration.rs"
 
+[[example]]
+name = "verifier"
+path = "symbolic_execution/verifier.rs"
+
 [dev-dependencies]
