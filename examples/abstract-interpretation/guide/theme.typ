@@ -286,9 +286,8 @@
   show raw.where(block: false): it => {
     box(
       fill: colors.bg-code,
-      baseline: 3pt,
-      inset: (x: 3pt, y: 3pt),
-      outset: (x: -1pt),
+      inset: (x: 3pt),
+      outset: (x: -1pt, y: 3pt),
       radius: 3pt,
     )[
       #text(
