@@ -137,15 +137,6 @@ The architecture has three components working together.
 In @ch-bdd-programming, we built a `ConditionManager` that maps `Cond` AST nodes to BDD variables.
 This structure is perfect for our needs.
 
-```rust
-// Recall from Chapter 1 and 4:
-// pub enum Cond {
-//     Lt(Expr, Expr),
-//     Eq(Expr, Expr),
-//     ...
-// }
-```
-
 We also need to handle *negation* intelligently.
 If we have allocated a variable for `x > 0`, and we encounter `x <= 0`, we shouldn't allocate a new variable.
 We should just return the *negation* of the existing one.
@@ -155,7 +146,7 @@ impl ConditionManager {
     pub fn get_bdd(&mut self, cond: &Cond) -> Ref {
         // 1. Check exact match
         if let Some(&id) = self.mapping.get(cond) {
-            return self.bdd.mk_var(id);
+            return self.bdd.mk_var(id as u32);
         }
 
         // 2. Check negation (simplified for this guide)
@@ -166,7 +157,7 @@ impl ConditionManager {
         let id = self.next_var_id;
         self.next_var_id += 1;
         self.mapping.insert(cond.clone(), id);
-        self.bdd.mk_var(id)
+        self.bdd.mk_var(id as u32)
     }
 }
 ```
@@ -188,6 +179,7 @@ This is often called *Trace Partitioning*.
 struct PartitionedState<D: AbstractDomain> {
     // Invariant: Path conditions are disjoint
     partitions: Vec<(Ref, D)>,
+    // We use Rc<RefCell> for shared mutable access to the manager
     control: Rc<RefCell<ConditionManager>>,
 }
 
@@ -234,8 +226,8 @@ impl<D: AbstractDomain + PartialEq + Clone> PartitionedState<D> {
             }
         }
 
-        // Optional: If too many partitions, force a merge of similar states
-        // to prevent exponential blowup.
+        // Note: In a real implementation, we would also merge "similar" states
+        // (e.g., using widening) to prevent the number of partitions from growing indefinitely.
 
         Self {
             partitions: new_partitions,
@@ -265,7 +257,7 @@ impl<D: AbstractDomain + Refineable> PartitionedState<D> {
             let new_path = bdd.apply_and(path, bdd_cond);
 
             if !bdd.is_false(new_path) {
-                // 2. Update Data: Refine environment
+                // 2. Update Data: Refine environment (if supported)
                 // e.g., if cond is "x > 0", refine x to Positive
                 env.refine(cond);
                 new_partitions.push((new_path, env));
@@ -278,138 +270,40 @@ impl<D: AbstractDomain + Refineable> PartitionedState<D> {
 
 Now, when the analysis sees `if x > 0`, it automatically learns that `x` is positive in the true branch, even if the interval domain didn't know it before.
 
-== Complete Example: Path-Sensitive Analysis
+== The Interpreter Loop
 
-Analyze this function:
+Finally, let's see how this fits into the main analysis loop.
+The `eval_stmt` function takes a statement and updates the current state.
 
 ```rust
-fn analyze(x: i32) -> i32 {
-    let mut result = 0;
-    if x > 0 {
-        result = x;     // result = +
-    } else {
-        result = -x;    // result = ?
+fn eval_stmt<D: AbstractDomain>(stmt: &Stmt, state: &mut PartitionedState<D>) {
+    match stmt {
+        Stmt::Assign(var, expr) => {
+            // Update data state in all partitions
+            state.assign(var, expr);
+        }
+        Stmt::If(cond, then_branch, else_branch) => {
+            // 1. Clone state for branches
+            let mut true_state = state.clone();
+            let mut false_state = state.clone();
+
+            // 2. Assume conditions
+            true_state.assume(cond);
+            false_state.assume(&cond.negate());
+
+            // 3. Recurse
+            eval_stmt(then_branch, &mut true_state);
+            eval_stmt(else_branch, &mut false_state);
+
+            // 4. Join results
+            *state = true_state.join(&false_state);
+        }
+        // ... handle loops ...
     }
-    result
 }
 ```
 
-With our new architecture:
-
-```rust
-fn analyze_function() {
-    let control = Rc::new(RefCell::new(ConditionManager::new()));
-    let mut state = PartitionedState::<Sign>::new(control.clone());
-
-    // Initial: result = 0
-    state.assign("result", Sign::Zero);
-
-    // Branch on x > 0
-    let cond = Cond::Lt(Expr::Const(0), Expr::Var("x".into())); // 0 < x
-
-    // True branch: assume(x > 0)
-    let mut true_state = state.clone();
-    true_state.assume(&cond);
-    // Refinement automatically sets x to Pos!
-    true_state.assign_var("result", "x"); // result = Pos
-
-    // False branch: assume(!(x > 0)) -> assume(x <= 0)
-    let mut false_state = state.clone();
-    let not_cond = Cond::Not(Box::new(cond.clone())); // Negation
-    false_state.assume(&not_cond);
-    // Refinement sets x to NonPos (Zero | Neg)
-
-    // result = -x
-    // -(Zero | Neg) = Zero | Pos
-    false_state.assign_neg("result", "x");
-
-    // Merge at end of function
-    let final_state = true_state.join(&false_state);
-
-    // Result:
-    // Partition 1 (x>0): result = Pos
-    // Partition 2 (x<=0): result = Zero | Pos
-    //
-    // If we query "result", we get the join of all partitions:
-    // Pos ⊔ (Zero ⊔ Pos) = NonNeg
-    println!("Result: {:?}", final_state.get("result"));
-}
-```
-
-We achieved better precision!
-And crucially, if we had a later check `if x > 0`, the BDD would know that Partition 2 is impossible, automatically pruning the path.
-
-#insight-box[
-  The combination of *Partitioning* (keeping states separate) and *Refinement* (learning from path conditions) is what makes BDD-based analysis powerful.
-]
-
-== Integration with Abstract Domains
-
-Recall the `AbstractDomain` trait (from @ch-abstraction):
-
-```rust
-trait AbstractDomain: Clone + PartialEq + Debug {
-    fn bottom() -> Self;
-    fn top() -> Self;
-    fn join(&self, other: &Self) -> Self;
-    fn meet(&self, other: &Self) -> Self;
-    fn widen(&self, other: &Self) -> Self;
-    fn le(&self, other: &Self) -> bool;
-}
-```
-
-Our `PartitionedState<D>` is already generic!
-We can plug in *any* abstract domain `D` that implements this trait.
-
-```rust
-// The structure we defined earlier is already generic:
-struct PartitionedState<D: AbstractDomain> {
-    partitions: Vec<(Ref, D)>, // List of (Path Condition, Data State)
-    control: Rc<RefCell<ConditionManager>>,
-}
-```
-
-This allows us to easily swap the underlying data analysis.
-If we want to track ranges of values instead of just signs, we simply use `PartitionedState<Interval>`.
-The BDD logic for path partitioning remains exactly the same.
-
-#info-box(title: "Going Deeper")[
-  This generic structure is formally known as a *Disjunctive Completion* or *Trace Partitioning Domain*.
-
-  In @ch-domain-combinations, we will enhance this with:
-  - *Reduction*: Allowing the BDD and Data domain to exchange information (refining data based on path conditions).
-  - *Widening*: Handling loops correctly to ensure termination.
-  - *Relational Domains*: Tracking correlations between variables.
-]
-
-#example-box(number: "5.2", title: "Interval Domain")[
-  Replace signs with intervals:
-
-  ```rust
-  #[derive(Debug, Clone, PartialEq)]
-  struct Interval {
-      low: i64,
-      high: i64,
-  }
-
-  impl AbstractDomain for Interval {
-      fn join(&self, other: &Self) -> Self {
-          Interval {
-              low: self.low.min(other.low),
-              high: self.high.max(other.high),
-          }
-      }
-      // ... other methods
-  }
-  ```
-
-  With intervals, our earlier example gives better precision:
-  - True branch: `result ∈ [1, ∞)`
-  - False branch: `result ∈ [0, ∞)` (since $-x >= 0$ when $x <= 0$)
-  - Join: `result ∈ [0, ∞)` (non-negative)
-
-  Much more precise than sign analysis!
-]
+This recursive structure naturally handles nested branches, while the `PartitionedState` manages the complexity of path conditions under the hood.
 
 == Summary
 

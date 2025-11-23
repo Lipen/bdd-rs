@@ -33,12 +33,10 @@ The fundamental unit of a CFG is the *Basic Block*.
 
 #definition(title: "Basic Block")[
   A *Basic Block* is a maximal sequence of instructions with:
-  + *Single Entry*: Control can only enter at the first instruction.
-  + *Single Exit*: Control can only leave from the last instruction.
+  + *Single Entry*: Control can only enter at the first instruction (the "leader").
+  + *Single Exit*: Control can only leave from the last instruction (the "terminator").
+  + *Atomic Execution*: If the first instruction executes, all subsequent instructions in the block are guaranteed to execute.
 ]
-
-Inside a basic block, execution is simple: if the first instruction executes, the second one *must* execute next, and so on, until the end.
-There are no jumps *into* the middle or *out* of the middle of a block.
 
 === The MiniVerifier CFG Structure
 
@@ -58,9 +56,9 @@ pub struct BasicBlock {
 pub enum Terminator {
     // Unconditional jump to another block
     Goto(BlockId),
-    // Conditional jump based on an expression
+    // Conditional jump based on a condition
     Branch {
-        condition: Expr,
+        condition: Cond, // Uses the Cond type from our AST
         true_target: BlockId,
         false_target: BlockId,
     },
@@ -140,9 +138,6 @@ We need a "Header" block to evaluate the condition every time the loop repeats.
     let style-block = (fill: colors.bg-subtle, stroke: colors.primary + 1pt)
 
     // Nodes
-    rect((0, 2), (3, 3.5), ..style-block, name: "pre")
-    content("pre", [*Predecessor*])
-
     rect((0, -1), (3, 0.5), ..style-block, name: "header")
     content("header", [*Header* \ `Branch(c)`])
 
@@ -153,7 +148,7 @@ We need a "Header" block to evaluate the condition every time the loop repeats.
     content("exit", [*Exit Block*])
 
     // Edges
-    line("pre.south", "header.north", mark: (end: ">"))
+    line((1.5, 1.5), "header.north", mark: (end: ">")) // Entry
 
     line("header.south", "body.north", mark: (end: ">"), name: "loop-edge")
     content("loop-edge.mid", text(size: 0.8em, fill: colors.success)[True], anchor: "west", padding: 0.2)
@@ -173,80 +168,6 @@ We need a "Header" block to evaluate the condition every time the loop repeats.
     )
     content("back-edge.mid", text(size: 0.8em, fill: colors.text-light)[Back Edge], anchor: "east", padding: 0.2)
   }),
-)
-
-=== Concrete Example
-
-Let's trace the translation of a simple program:
-
-```rust
-x = 0;
-while x < 10 {
-    x = x + 1;
-}
-return;
-```
-
-This program produces the following CFG:
-
-#figure(
-  caption: [CFG for the simple counting loop.],
-  cetz.canvas({
-    import cetz.draw: *
-
-    let style-start = (fill: colors.box-example, stroke: colors.success + 1.5pt)
-    let style-norm = (fill: white, stroke: colors.primary + 1.5pt)
-    let style-end = (fill: colors.box-warning, stroke: colors.warning + 1.5pt)
-
-    // Entry Block
-    rect((0.5, 4), (2.5, 6), ..style-start, name: "b0")
-    content("b0", [*Block 0* \ `x = 0` \ `goto B1`])
-
-    // Header Block
-    rect((-0.5, 0), (3.5, 2.5), ..style-norm, name: "b1")
-    content("b1", [*Block 1 (Header)* \ `Branch(x < 10)` \ `True -> B2` \ `False -> B3`])
-
-    // Body Block
-    rect((-5.5, 0.25), (-2, 2.25), ..style-norm, name: "b2")
-    content("b2", [*Block 2 (Body)* \ `x = x + 1` \ `goto B1`])
-
-    // Exit Block
-    rect((0, -3), (3, -1.5), ..style-end, name: "b3")
-    content("b3", [*Block 3 (Exit)* \ `return`])
-
-    // Edges
-    line("b0.south", "b1.north", mark: (end: ">"))
-
-    // Loop edges
-    line("b1.west", "b2.east", mark: (end: ">"), name: "true-edge")
-    content("true-edge.mid", text(size: 0.8em, fill: colors.success)[True], anchor: "south", padding: 0.2)
-
-    line(
-      "b2.north",
-      (rel: (0, 1)),
-      (
-        horizontal: (rel: (-1, 0), to: "b1.north"),
-        vertical: (rel: (0, 1), to: "b2.north"),
-      ),
-      (rel: (-1, 0), to: "b1.north"),
-      mark: (end: ">"),
-    )
-
-    // Exit edge
-    line("b1.south", "b3.north", mark: (end: ">"), name: "false-edge")
-    content("false-edge.mid", text(size: 0.8em, fill: colors.error)[False], anchor: "east", padding: 0.2)
-  }),
-)
-
-#example-reference(
-  "control_flow",
-  "cfg_builder.rs",
-  "cfg_builder",
-  [
-    *Hands-on Implementation:*
-    Explore the `CfgBuilder` struct to see exactly how AST nodes are recursively visited and wired into a graph.
-    The code handles the "current block" state and generates fresh block IDs.
-  ],
 )
 
 == The Path Explosion Problem
@@ -270,24 +191,35 @@ For $N$ conditions, we have $2^N$ paths.
 This is *exponential growth*.
 
 #figure(
-  caption: [Visualizing Path Explosion. Just a few levels of branching create many paths.],
+  caption: [Visualizing Path Explosion. As paths branch, the number of distinct program states we must track doubles at each step.],
   cetz.canvas({
     import cetz.draw: *
 
     let style-node = (fill: colors.primary, radius: 0.15)
+    let style-state = (fill: colors.bg-code, stroke: colors.text-light + 0.5pt, radius: 0.1)
 
     // Level 0
     circle((0, 0), ..style-node, name: "n0")
+    content((0, 0.5), text(size: 0.7em)[State: {}])
 
     // Level 1
     circle((-2, -1.5), ..style-node, name: "n1l")
+    content((-2.5, -1.5), text(size: 0.7em)[{A}], anchor: "east")
     circle((2, -1.5), ..style-node, name: "n1r")
+    content((2.5, -1.5), text(size: 0.7em)[{!A}], anchor: "west")
 
     // Level 2
     circle((-3, -3), ..style-node, name: "n2ll")
+    content((-3, -3.5), text(size: 0.7em)[{A, B}])
+
     circle((-1, -3), ..style-node, name: "n2lr")
+    content((-1, -3.5), text(size: 0.7em)[{A, !B}])
+
     circle((1, -3), ..style-node, name: "n2rl")
+    content((1, -3.5), text(size: 0.7em)[{!A, B}])
+
     circle((3, -3), ..style-node, name: "n2rr")
+    content((3, -3.5), text(size: 0.7em)[{!A, !B}])
 
     // Edges
     line("n0", "n1l", stroke: 0.5pt + colors.text-light)
@@ -299,11 +231,11 @@ This is *exponential growth*.
     line("n1r", "n2rr", stroke: 0.5pt + colors.text-light)
 
     // Ellipsis for further explosion
-    content((0, -3.8), text(size: 1.5em)[$dots$])
+    content((0, -4.5), text(size: 1.2em, fill: colors.error)[$2^N$ States!])
   }),
 )
 
-If we have a loop that iterates 100 times, it is conceptually similar to 100 nested `if` statements.
+If we have a loop that iterates 100 times, it is conceptually similar to 100 nested `if` statements (if we unroll the loop).
 The number of paths becomes astronomical.
 If the loop bound is unknown (e.g., `while input > 0`), the number of paths is *infinite*.
 
@@ -316,8 +248,9 @@ This means distinguishing between different execution histories.
 - *Path Sensitive*: "If we came from the true branch, `x` is 5. If we came from false, `x`~is~0." (Precise, but expensive)
 
 #warning-box(title: "The Dilemma")[
-  We cannot simply enumerate all paths --- there are too many.
-  But we cannot simply merge all paths --- we lose too much precision.
+  We want the precision of path sensitivity without the cost of enumerating exponential paths.
+  Naive enumeration is impossible.
+  Naive merging is imprecise.
 ]
 
 == The Solution: Symbolic Representation
@@ -325,9 +258,15 @@ This means distinguishing between different execution histories.
 We need a "Third Way."
 We need a data structure that can represent *sets of paths* compactly, without listing them one by one.
 
-Imagine representing the set of all even numbers.
-You don't list them: ${2, 4, 6, dots}$.
-You use a symbolic rule: ${x | x mod 2 = 0}$.
+#intuition-box[
+  *Analogy: 20 Questions*
+  Imagine trying to identify a number between 1 and 1,000,000.
+  - *Enumeration:* "Is it 1? Is it 2? Is it 3? ..." (Takes 500,000 guesses on average).
+  - *Symbolic (Binary Search):* "Is it greater than 500,000?" (Takes 20 guesses).
+
+  BDDs work like the "20 Questions" game.
+  Instead of listing every path, they ask a series of Yes/No questions (decisions) to efficiently narrow down the set of valid paths.
+]
 
 In this guide, we will use *Binary Decision Diagrams (BDDs)* as our symbolic representation.
 BDDs will allow us to:

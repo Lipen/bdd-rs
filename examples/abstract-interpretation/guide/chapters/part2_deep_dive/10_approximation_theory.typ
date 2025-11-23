@@ -34,26 +34,26 @@ The chain $[0, 1], [0, 2], [0, 3], ...$ never stabilizes.
 A widening operator might observe the growth and jump to infinity.
 
 #figure(
-  caption: [Widening accelerates convergence by jumping over the limit.],
+  caption: [Widening accelerates convergence by jumping over the limit],
   cetz.canvas({
     import cetz.draw: *
 
     // Draw axes
-    line((0, 0), (6, 0), mark: (end: ">"), name: "x")
-    line((0, 0), (0, 4), mark: (end: ">"), name: "y")
+    line((0, 0), (6, 0), mark: (end: ">"), name: "x", stroke: colors.text-light + 1pt)
+    line((0, 0), (0, 4), mark: (end: ">"), name: "y", stroke: colors.text-light + 1pt)
     content("x.end", anchor: "west", padding: 0.1)[Iterations]
     content("y.end", anchor: "south", padding: 0.1)[Value]
 
     // Draw the "staircase" (concrete iteration)
     set-style(stroke: (paint: colors.secondary, dash: "dashed"))
     line((0, 0), (1, 1), (2, 1.5), (3, 1.75), (4, 1.875), (5, 1.9))
-    content((5, 1.9), anchor: "west", padding: 0.1)[Exact Sequence]
+    content((5, 1.9), anchor: "west", padding: 0.1, text(fill: colors.secondary)[Exact Sequence])
 
     // Draw the "widening" (jump)
     set-style(stroke: (paint: colors.primary, thickness: 2pt, dash: "solid"))
     line((0, 0), (1, 1), (2, 3))
     line((2, 3), (5, 3))
-    content((5, 3), anchor: "west", padding: 0.1)[Widened Sequence]
+    content((5, 3), anchor: "west", padding: 0.1, text(fill: colors.primary)[Widened Sequence])
 
     // Limit line
     set-style(stroke: (paint: colors.text-light, dash: "dotted"))
@@ -102,22 +102,23 @@ The standard recipe for analyzing loops with infinite domains is:
   Repeat for a fixed number of steps or until convergence.
   *Result:* $y_k$ is a more precise sound over-approximation.
 
-#example-box(title: "Interval Analysis Trace")[
-  Loop: `x = 0; while x < 40 { x += 1 }`
+#example-box(title: "Real-World Example: Port Scan Analysis")[
+  Consider a loop scanning ports:
+  `port = 80; while port < 100 { scan(port); port++ }`
 
   *Widening Phase:*
-  - Iter 0: $[0, 0]$
-  - Iter 1: $[0, 0] widen ([0, 0] ljoin [1, 1]) = [0, 0] widen [0, 1]$
+  - Iter 0: $[80, 80]$
+  - Iter 1: $[80, 80] widen ([80, 80] ljoin [81, 81]) = [80, 80] widen [80, 81]$
     - Standard widening jumps to $+infinity$ if bound is unstable.
-    - Result: $[0, +infinity]$
-  - Iter 2: Check stability. $f([0, +infinity]) = [0, 40]$.
-    - $[0, +infinity]$ is a post-fixpoint (since $[0, 40] subset.eq [0, +infinity]$).
+    - Result: $[80, +infinity]$
+  - Iter 2: Check stability. $f([80, +infinity]) = [80, 100]$.
+    - $[80, +infinity]$ is a post-fixpoint (since $[80, 100] subset.eq [80, +infinity]$).
 
   *Narrowing Phase:*
-  - Start: $[0, +infinity]$
-  - Apply $f$: $f([0, +infinity]) = [0, 40]$ (effect of loop guard `x < 40`).
-  - Narrow: $[0, +infinity] narrow [0, 40] = [0, 40]$.
-  - Result: $[0, 40]$. Perfect precision!
+  - Start: $[80, +infinity]$
+  - Apply $f$: $f([80, +infinity]) = [80, 100]$ (effect of loop guard `port < 100`).
+  - Narrow: $[80, +infinity] narrow [80, 100] = [80, 100]$.
+  - Result: $[80, 100]$. Perfect precision!
 ]
 
 == Designing Widening Operators

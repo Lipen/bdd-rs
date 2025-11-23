@@ -23,15 +23,17 @@ This is *chaotic iteration*.
 ]
 
 #example-box[
-  *Reaching definitions dataflow equations:*
+  *Real-World Example: Packet Filter Reachability*
 
-  For each program point $p$, let $"RD"[p]$ be the set of reaching definitions.
+  Consider a firewall with rules linked in a graph (e.g., `iptables` chains).
+  For each chain $C$, let $"Allowed"[C]$ be the set of IP addresses that can reach it.
 
-  $ "RD"[p] = union.big_(q in "pred"(p)) ("RD"[q] - "kill"[p]) union "gen"[p] $
+  $ "Allowed"[C] = union.big_(P in "pred"(C)) ("Allowed"[P] inter "Rule"[P->C]) $
 
-  This gives one equation per program point.
-  Kleene iteration would update all points together.
-  Chaotic iteration can update them in any order.
+  This gives one equation per chain.
+  - Kleene iteration updates all chains in lockstep.
+  - Chaotic iteration updates chains as soon as their predecessors change.
+  - If Chain A feeds Chain B, updating A then B is faster than updating B then A.
 ]
 
 #theorem(title: "Chaotic Iteration Convergence")[
@@ -342,20 +344,22 @@ impl AbstractDomain for Interval {
 Typical threshold: 2-3 iterations before widening kicks in.
 
 #example-box[
-  *Interval analysis with widening:*
+  *TTL Analysis with Widening:*
 
-  Loop: `x = 0; while (x < 100) { x = x + 1; }`
+  Consider a packet loop where TTL is decremented:
+  `ttl = 64; while (ttl > 0) { ttl = ttl - 1; }`
 
+  Abstract domain: Intervals for TTL values.
   Without widening:
-  - Iteration 1: $x in [0, 0]$
-  - Iteration 2: $x in [0, 1]$
-  - Iteration 3: $x in [0, 2]$
-  - ... (100 iterations)
+  - Iteration 1: $"ttl" in [64, 64]$
+  - Iteration 2: $"ttl" in [63, 64]$
+  - Iteration 3: $"ttl" in [62, 64]$
+  - ... (64 iterations)
 
   With widening (threshold = 2):
-  - Iteration 1: $x in [0, 0]$
-  - Iteration 2: $x in [0, 1]$
-  - Iteration 3: $x in [0, 1] widen [0, 2] = [0, +infinity]$ (stabilized!)
+  - Iteration 1: $"ttl" in [64, 64]$
+  - Iteration 2: $"ttl" in [63, 64]$
+  - Iteration 3: $[63, 64] widen [62, 64] = [-infinity, 64]$ (stabilized!)
 ]
 
 == Narrowing Iterations
@@ -451,17 +455,18 @@ Applying widening too early loses precision unnecessarily.
 ]
 
 #example-box[
-  *Loop with bounded iterations:*
+  *Bounded Loop Packet Processing:*
 
   ```rust
+  // Process up to 10 headers
   for i in 0..10 {
-      x = x + 1;
+      process_header(packet, i);
   }
   ```
 
-  Without delay: After 2 iterations, widen to $[0, +infinity]$, losing bound information.
+  Without delay: After 2 iterations, widen $i$ to $[0, +infinity]$, losing the bound information ($i < 10$).
 
-  With delay (threshold = 5): Natural convergence to $[0, 10]$ before widening triggers.
+  With delay (threshold = 5): Natural convergence to $[0, 10]$ before widening triggers, preserving the precise bound.
 ]
 
 == Chapter Summary

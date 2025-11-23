@@ -36,6 +36,22 @@ Abstract Interpretation is the art of choosing the right "projection" (abstracti
 - If we want to prove a variable never exceeds 100, we project it to an *Interval*.
 - If we want to prove a pointer is never null, we project it to a *Nullability* state.
 
+== Formalizing Abstraction
+
+To make this rigorous, we define two functions connecting the concrete world (actual values) and the abstract world (properties).
+
+#definition(title: "Concretization Function ($gamma$)")[
+  The concretization function $gamma$ maps an abstract value to the set of concrete values it represents.
+  For example, in the Sign domain:
+  - $gamma(+) = {1, 2, 3, dots}$
+  - $gamma(-) = {-1, -2, -3, dots}$
+  - $gamma(0) = {0}$
+  - $gamma(top) = ZZ$ (All integers)
+]
+
+An analysis is *sound* if the abstract result always covers the concrete result.
+If we compute $a + b = c$ in the abstract, then for every concrete $x in gamma(a)$ and $y in gamma(b)$, the real sum $x+y$ must be in $gamma(c)$.
+
 == Interactive Reasoning
 
 Before we write code, let's build intuition by playing a game.
@@ -56,25 +72,14 @@ We didn't need to know the values to know the result.
 - Fact: $y$ is positive.
 - Question: What is the sign of $x - y$?
 
-*Answer:* Unknown.
+*Answer:* Unknown ($top$).
 Reasoning:
 - If $x = 5, y = 2$, then $x - y = 3$ (Positive).
 - If $x = 2, y = 5$, then $x - y = -3$ (Negative).
 - If $x = 5, y = 5$, then $x - y = 0$ (Zero).
 
 Because the result depends on the *concrete values* which we have abstracted away, we cannot give a precise answer.
-In Abstract Interpretation, we call this state *Top* ($top$) --- representing "Any value is possible."
-
-*Round 3:*
-- Fact: $x$ is positive.
-- Fact: $y$ is negative.
-- Question: What is the sign of $x * y$?
-
-*Answer:* Negative.
-Reasoning: A positive times a negative is always negative.
-
-This game demonstrates the core mechanism:
-We replace *concrete operations* (arithmetic on numbers) with *abstract operations* (arithmetic on properties).
+We must return $top$ ("Any value is possible") to remain sound.
 
 == The IMP Language
 
@@ -99,41 +104,7 @@ while x < 10 {
 }
 ```
 
-=== The AST (Abstract Syntax Tree)
-
-In our Rust `MiniVerifier`, we represent IMP programs using this AST.
-This will be the input to our analysis engine.
-
-```rust
-#[derive(Clone, Debug, PartialEq)]
-pub enum Expr {
-    Var(String),
-    Const(i32),
-    Add(Box<Expr>, Box<Expr>),
-    Sub(Box<Expr>, Box<Expr>),
-    // ... other operations
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Cond {
-    Eq(Expr, Expr),
-    Lt(Expr, Expr),
-    Le(Expr, Expr),
-    And(Box<Cond>, Box<Cond>),
-    Or(Box<Cond>, Box<Cond>),
-    Not(Box<Cond>),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Stmt {
-    Assign(String, Expr),
-    Seq(Box<Stmt>, Box<Stmt>),
-    If(Cond, Box<Stmt>, Box<Stmt>),
-    While(Cond, Box<Stmt>),
-    Assert(Cond),
-    Skip,
-}
-```
+(We will define the full Rust AST in later chapters when we start implementing the parser.)
 
 == The Sign Domain
 
@@ -170,33 +141,16 @@ impl std::ops::Add for Sign {
 
     fn add(self, rhs: Sign) -> Sign {
         match (self, rhs) {
-            // Precise cases
             (Sign::Pos, Sign::Pos) => Sign::Pos,
             (Sign::Neg, Sign::Neg) => Sign::Neg,
             (Sign::Zero, x) => x,
             (x, Sign::Zero) => x,
-
-            // Imprecise cases (Loss of information)
-            (Sign::Pos, Sign::Neg) => Sign::Top,
-            (Sign::Neg, Sign::Pos) => Sign::Top,
-
-            // Propagation of uncertainty
-            (Sign::Top, _) => Sign::Top,
-            (_, Sign::Top) => Sign::Top,
-
-            // Propagation of impossibility
-            (Sign::Bot, _) => Sign::Bot,
-            (_, Sign::Bot) => Sign::Bot,
+            // ... other cases return Top
+            _ => Sign::Top,
         }
     }
 }
 ```
-
-#info-box(title: "More Precise Domains")[
-  Signs are simple but imprecise.
-  For more precision, we can use *intervals* like `[0, 10]` to track numeric bounds.
-  See #inline-example("domains", "interval.rs", "interval_domain") for interval arithmetic, widening operators, and loop analysis.
-]
 
 == The Challenge of Control Flow
 
@@ -215,6 +169,32 @@ if x > 0 {
 At the merge point, `y` could be 1 (Positive) OR -1 (Negative).
 In the Sign domain, we must find a single value that covers *both* possibilities.
 The smallest value covering both $+$ and $-$ is $top$.
+
+#figure(
+  caption: [The Merge Problem. Merging two precise paths often results in information loss ($top$).],
+  cetz.canvas({
+    import cetz.draw: *
+
+    let style-state = (fill: colors.bg-code, stroke: colors.primary + 1pt, radius: 0.2)
+
+    // Branch
+    rect((-2, 2), (-0.5, 3), ..style-state, name: "s1")
+    content("s1", [y = 1 \ (+)])
+
+    rect((0.5, 2), (2, 3), ..style-state, name: "s2")
+    content("s2", [y = -1 \ (-)])
+
+    // Merge
+    rect((-0.75, 0), (0.75, 1), ..style-state, name: "merge")
+    content("merge", [y = ? \ ($top$)])
+
+    // Edges
+    line("s1.south", "merge.north", mark: (end: ">"))
+    line("s2.south", "merge.north", mark: (end: ">"))
+
+    content((2.5, 0.5), text(size: 0.8em, fill: colors.error)[Precision Loss!], anchor: "west")
+  }),
+)
 
 We lost the information that `y` is non-zero!
 We know `y` is either 1 or -1, but our abstraction forces us to say "It could be anything."

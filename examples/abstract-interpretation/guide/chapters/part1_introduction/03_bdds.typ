@@ -73,8 +73,8 @@ Its construction relies on the *Shannon Expansion*.
   Any Boolean function $f(x_1, ..., x_n)$ can be decomposed with respect to a variable $x_i$:
   $ f = (x_i and f_(x_i=1)) or (not x_i and f_(x_i=0)) $
   where:
-  - $f_(x_i=1)$ is the *positive cofactor* of $f$ (the function when $x_i$ is true).
-  - $f_(x_i=0)$ is the *negative cofactor* of $f$ (the function when $x_i$ is false).
+  - $f_(x_i=1)$ is the function $f$ with $x_i$ set to True (Positive Cofactor).
+  - $f_(x_i=0)$ is the function $f$ with $x_i$ set to False (Negative Cofactor).
 ]
 
 Recursively applying this expansion yields a *Decision Tree*.
@@ -86,6 +86,14 @@ Since trees grow exponentially with the number of variables ($2^n$ leaves), we t
 A BDD is *Ordered* (OBDD) if the variables appear in the same fixed order on all paths from the root to the terminals.
 
 For instance, given the natural ordering $A < B < C$, every path tests $A$ before $B$, and $B$ before $C$.
+
+#pitfall-box[
+  *Variable Ordering Matters!*
+  The size of a BDD depends heavily on the variable order.
+  A good order keeps related variables close together.
+  A bad order can cause exponential blowup.
+  For example, for the function $(a_1 and b_1) or (a_2 and b_2) or ...$, the order $a_1, b_1, a_2, b_2...$ is linear, while $a_1, a_2, ..., b_1, b_2...$ is exponential.
+]
 
 === Reduced BDDs
 
@@ -255,6 +263,12 @@ We implement a `ConditionManager` to handle this translation and ensure consiste
 The structure is defined as follows:
 
 ```rust
+// Ensure Cond derives Hash and Eq!
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Cond {
+    // ... variants ...
+}
+
 pub struct ConditionManager {
     bdd: Bdd,
     mapping: HashMap<Cond, usize>, // Maps AST conditions to BDD variable IDs
@@ -265,16 +279,24 @@ impl ConditionManager {
     /// Get or create the BDD variable for a condition
     pub fn get_condition(&mut self, cond: &Cond) -> Ref {
         if let Some(&id) = self.mapping.get(cond) {
-            return self.bdd.mk_var(id);
+            return self.bdd.mk_var(id as u32);
         }
 
         let id = self.next_var_id;
         self.next_var_id += 1;
         self.mapping.insert(cond.clone(), id);
-        self.bdd.mk_var(id)
+        self.bdd.mk_var(id as u32)
     }
 }
 ```
+
+#intuition-box[
+  *What is a `Ref`?*
+  A `Ref` is just a lightweight integer handle (like a pointer or an ID).
+  It has no meaning on its own.
+  You must always pass it back to the `Bdd` manager to perform operations.
+  Think of it like a "file descriptor" --- you need the OS (Manager) to read the file.
+]
 
 The workflow is:
 + When the analyzer encounters a condition (e.g., `x > 0`) for the first time, the manager allocates a new BDD variable (e.g., index 1) and stores the mapping.

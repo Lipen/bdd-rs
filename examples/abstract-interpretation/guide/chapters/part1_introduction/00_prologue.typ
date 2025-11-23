@@ -18,13 +18,15 @@ The "Blue Screen of Death" appears on 8.5 million devices.
 
 The cause?
 A logic error in the CrowdStrike Falcon sensor.
-The software attempted to read memory from an invalid address (0x9c).
+Specifically, the software attempted to read memory from an invalid address (0x9c).
+This was an *out-of-bounds read*.
 The C++ runtime, enforcing memory safety, triggered an access violation.
 At the kernel level, this violation is fatal.
 
 This was not a malicious attack.
 It was not a hardware failure.
 It was a failure of *verification*.
+A static analysis tool capable of tracking value ranges could have proven that the offset `0x9c` was invalid for the given buffer.
 
 But this story is not unique.
 History is littered with expensive and deadly software failures that testing missed.
@@ -36,20 +38,17 @@ Thirty-seven seconds after launch, the European Space Agency's Ariane 5 rocket d
 The cause?
 A 64-bit floating-point number was converted to a 16-bit signed integer.
 The value was too large to fit, causing an overflow exception.
-The backup computer, running the same software, failed in the exact same way.
 *Cost: \$370 million and a decade of research.*
 
 *Therac-25 (1985-1987):*
 A radiation therapy machine killed or seriously injured six patients due to massive radiation overdoses.
 The cause?
 A race condition in the control software.
-If a skilled operator typed commands too quickly, the software would configure the beam for high-power X-ray mode but deploy the target for low-power electron mode.
 *Cost: Human lives.*
 
 These disasters share a common thread:
 The code passed standard testing pipelines.
 It worked in the test environment.
-It worked in the staging environment.
 But the *input space* --- the combination of all possible variables, timings, and configurations --- was not fully explored.
 
 #v(1em)
@@ -63,6 +62,40 @@ Testing is the process of checking specific points in the input space.
 If we test inputs $x_1, x_2, ..., x_n$, we know the program works for those $n$ inputs.
 We know *nothing* about input $x_(n+1)$.
 
+#figure(
+  caption: [Testing vs. Verification. Testing checks individual points (green dots). Verification proves properties about the entire input space (blue region).],
+  cetz.canvas({
+    import cetz.draw: *
+
+    let style-space = (fill: colors.bg-subtle, stroke: colors.text-light + 1pt)
+    let style-test = (fill: colors.success, stroke: none, radius: 0.08)
+    let style-verify = (fill: colors.primary.lighten(80%), stroke: colors.primary + 1pt)
+
+    // Input Space
+    rect((0, 0), (6, 4), ..style-space, name: "space")
+    content((3, 4.3), text(weight: "bold")[Input Space ($2^{128}$ states)])
+
+    // Testing (Scattered points)
+    for i in range(15) {
+      let x = calc.rem(i * 7 + 3, 55) / 10.0 + 0.2
+      let y = calc.rem(i * 3 + 2, 35) / 10.0 + 0.2
+      circle((x, y), ..style-test)
+    }
+    content((1, 0.5), text(size: 0.8em, fill: colors.success)[Tests])
+
+    // Verification (Covered region)
+    rect((3.5, 1.5), (5.5, 3.5), ..style-verify)
+    content((4.5, 2.5), text(size: 0.8em, fill: colors.primary)[Verified Region])
+
+    // Bug (Uncovered)
+    circle((5.2, 0.8), radius: 0.1, fill: colors.error, stroke: none)
+    content((5.2, 0.4), text(size: 0.8em, fill: colors.error)[Bug])
+
+    // Arrow from verified to bug (showing it missed? No, verification covers regions)
+    // Let's show that testing missed the bug
+  }),
+)
+
 Consider a simple function taking two 64-bit integers:
 
 ```rust
@@ -71,24 +104,13 @@ fn critical_logic(a: u64, b: u64) -> u64 { ... }
 
 The input space size is $2^128 approx 3.4 times 10^38$.
 If we could run one trillion tests per second, covering this space would take $10^19$ years.
-The universe is only $1.38 times 10^10$ years old.
-
 We cannot test our way to correctness.
-We are searching for a needle in a haystack the size of the galaxy, and we are doing it by picking up one straw at a time.
 
 == What is Verification?
 
 If testing is "checking some inputs," then *verification* is "proving properties about *all* inputs."
 
-Imagine you are designing a bridge.
-- *Testing approach:* Drive a 10-ton truck over it.
-  If it doesn't collapse, drive a 20-ton truck.
-  Then a 30-ton truck.
-- *Verification approach:* Use physics and mathematics to calculate the load-bearing capacity of the materials and the geometry of the structure.
-  Prove that *for any load* up to 100 tons, the bridge will hold.
-
-In software, we replace physics with logic.
-We want to prove statements like:
+In software, we use logic and mathematics to prove statements like:
 - "This variable `index` is *always* within the bounds of array `buffer`."
 - "This lock is *never* held by two threads simultaneously."
 - "This function *always* returns a value greater than zero."
@@ -98,14 +120,9 @@ We want to prove statements like:
 We can view software quality assurance as a spectrum:
 
 + *Unit Testing:* Checks specific, manually chosen inputs.
-  (Low assurance, low cost)
 + *Fuzzing:* Checks millions of random inputs.
-  Finds crashes, but cannot prove absence of bugs.
-  (Medium assurance, medium cost)
-+ *Static Analysis:* Checks for patterns of bugs (e.g., "use after free") without running the code.
-  (High assurance, low cost, but often noisy)
++ *Static Analysis:* Checks for patterns of bugs without running the code.
 + *Formal Verification:* Mathematically proves that the code satisfies a specification for *all* possible inputs.
-  (Highest assurance, high cost)
 
 This guide focuses on a sweet spot in this spectrum: *Abstract Interpretation*.
 
@@ -120,21 +137,25 @@ For example, instead of knowing `x = 5`, we might know `x is Positive`.
 If we know `x` is Positive and `y` is Positive, we know `x + y` is Positive.
 We don't need to know the exact values to prove that the result is not negative.
 
-We ask questions like:
-- "Is it possible for *any* execution to result in a null pointer dereference?"
-- "Does *every* path through this controller maintain the safety invariant?"
-- "Can *any* combination of user inputs cause a buffer overflow?"
+== The Challenge: Combinatorial Explosion
 
-To answer these questions efficiently, we need powerful tools.
-We need a way to represent the complex branching logic of modern software without succumbing to the combinatorial explosion of paths.
+However, abstract interpretation faces a massive hurdle: *Control Flow*.
+Every `if` statement splits the execution path.
+Every loop multiplies the number of paths.
+A program with just 100 branches can have $2^100$ execution paths.
+
+Naive analysis either:
+1.  *Explodes*: Tries to track every path and runs out of memory.
+2.  *Gives Up*: Merges all paths together, losing precision (e.g., concluding "x could be anything").
 
 == Enter the BDD
 
 This guide focuses on a specific, powerful synergy:
 *Abstract Interpretation* combined with *Binary Decision Diagrams (BDDs)*.
 
-- *Abstract Interpretation* gives us the mathematical framework to approximate data (e.g., knowing a variable is "positive" without knowing its exact value).
-- *BDDs* give us the algorithmic power to handle control flow (e.g., representing millions of execution paths in a compact graph).
+*BDDs* are the secret weapon against combinatorial explosion.
+They allow us to represent and manipulate *sets of paths* implicitly.
+Instead of listing $2^100$ paths, a BDD might represent them with a graph of just a few hundred nodes.
 
 Together, they enable *Path-Sensitive Analysis*: verification that understands how data values change depending on the path taken through the code, yet scales to real-world problems.
 

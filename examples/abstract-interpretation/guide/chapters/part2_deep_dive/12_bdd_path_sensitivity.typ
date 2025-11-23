@@ -111,6 +111,47 @@ More advanced reduction can extract facts from the BDD to refine the data.
   If `control` implies `x > 0` (because we are on the true branch of an earlier check), we can tell the Interval domain to clip negative values of `x`.
 ]
 
+#figure(
+  caption: [BDD Product State: Control + Data],
+
+  cetz.canvas({
+    import cetz: draw
+
+    // BDD Component
+    draw.content((0, 4), text(weight: "bold")[Control (BDD)])
+    draw.circle((0, 3), radius: 0.3, name: "root", fill: colors.bg-code, stroke: colors.primary + 1pt)
+    draw.content("root", [$x_1$])
+
+    draw.circle((-1, 1.5), radius: 0.3, name: "left", fill: colors.bg-code, stroke: colors.primary + 1pt)
+    draw.content("left", [$x_2$])
+
+    draw.rect((0.7, 1.2), (1.3, 1.8), name: "zero", fill: colors.error.lighten(70%), stroke: colors.error + 1pt)
+    draw.content("zero", [0])
+
+    draw.rect((-1.3, -0.3), (-0.7, 0.3), name: "one", fill: colors.success.lighten(70%), stroke: colors.success + 1pt)
+    draw.content("one", [1])
+
+    // Edges
+    draw.line("root.south-west", "left.north", stroke: (paint: colors.text-light, dash: "dashed"), mark: (end: ">")) // Low
+    draw.line("root.south-east", "zero.north", stroke: colors.text-light + 0.8pt, mark: (end: ">")) // High
+
+    draw.line("left.south", "one.north", stroke: colors.text-light + 0.8pt, mark: (end: ">")) // High
+    draw.line("left.south-east", "zero.west", stroke: (paint: colors.text-light, dash: "dashed"), mark: (end: ">")) // Low
+
+    // Data Component
+    draw.content((5, 4), text(weight: "bold")[Data (Intervals)])
+    draw.rect((3.5, 1), (6.5, 3), name: "data", fill: colors.secondary.lighten(80%), stroke: colors.secondary + 1pt)
+    draw.content("data", align(center)[
+      $x in [0, 100]$ \
+      $y in [10, 20]$
+    ])
+
+    // Product Link
+    draw.line((1.5, 2), (3.5, 2), stroke: (paint: colors.accent, thickness: 2pt), mark: (end: ">", start: ">"))
+    draw.content((2.5, 2.3), text(size: 9pt, fill: colors.accent)[Linked])
+  }),
+)
+
 == Variable Ordering and Performance
 
 BDD performance is sensitive to variable ordering.
@@ -123,34 +164,30 @@ For path sensitivity, a good heuristic is to order variables by their appearance
   Use a canonical mapping: `Map<Condition, BddVar>`.
 ]
 
-== Case Study: Buffer Overflow Detection
+== Case Study: Packet Filter Safety
 
-Let's see this in action on a buffer access loop.
+Let's see this in action on a packet filter rule.
 
 ```rust
-fn process(buf: &mut [i32], size: usize) {
-    let mut i = 0;
-    while i < size {
-        if i < buf.len() {
-            buf[i] = 0;   // Safe access
-        }
-        i += 1;
+fn filter(packet: &Packet) {
+    if packet.proto == TCP {
+        // Safe access to TCP header?
+        let port = packet.tcp.dst_port;
     }
 }
 ```
 
 *Analysis Trace:*
 
-+ *Loop Entry*: `i < size`.
-  BDD adds variable $v_1$ (`i < size`).
-+ *Branch*: `i < buf.len()`.
-  BDD adds variable $v_2$ (`i < buf.len()`).
-+ *Access `buf[i]`*:
-  - The analyzer asks: "Is `i` within bounds?"
-  - Data domain (Intervals) might say: `i` is $[0, infinity]$.
-    Unsafe!
-  - *But* we are in a state where BDD control is $v_1 and v_2$.
-  - This implies `i < buf.len()` is true.
++ *Entry*: `packet` is generic.
++ *Branch*: `packet.proto == TCP`.
+  - BDD adds variable $v_1$ (`proto == TCP`).
+  - Control state becomes $v_1$ (true branch).
++ *Access `packet.tcp`*:
+  - The analyzer asks: "Is it safe to access the TCP union field?"
+  - Data domain might not track union tags precisely.
+  - *But* the BDD control state is $v_1$.
+  - This implies `proto == TCP` is true.
   - The analyzer proves safety using the path condition.
 
 == Performance Considerations
@@ -166,5 +203,5 @@ fn process(buf: &mut [i32], size: usize) {
 
   - `assume` updates both the path condition (BDD) and the data facts.
 
-  - This architecture enables precise, path-sensitive analysis that can verify properties dependent on control flow, like buffer bounds in guarded loops.
+  - This architecture enables precise, path-sensitive analysis that can verify properties dependent on control flow, like union access in guarded blocks.
 ]

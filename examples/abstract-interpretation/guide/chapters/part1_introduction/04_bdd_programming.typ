@@ -16,6 +16,9 @@ First, let's create a new Rust project for our MiniVerifier.
 ```bash
 cargo new miniverifier
 cd miniverifier
+# If using the local workspace:
+# cargo add --path ../../bdd-rs
+# If using crates.io (once published):
 cargo add bdd-rs
 ```
 
@@ -115,6 +118,7 @@ fn main() {
   You never operate on `Ref` directly (e.g., `x.and(y)` is wrong).
   You always ask the manager to do it: `bdd.apply_and(x, y)`.
   The `Ref` is just a lightweight handle (a number); the Manager holds the actual graph.
+  `Ref` implements `Copy`, so you can pass it around freely without worrying about ownership.
 ]
 
 Understanding why this manager-centric design is essential requires looking at the internal mechanisms of hash consing and computed caches.
@@ -149,6 +153,7 @@ pub enum Expr {
 pub enum Cond {
     Lt(Expr, Expr), // e.g., x < 5
     Eq(Expr, Expr), // e.g., x == 5
+    // ... other variants
 }
 ```
 
@@ -337,7 +342,7 @@ In the next chapter, we will use it to "execute" our Control Flow Graph.
 
 #exercise-box(number: 1, difficulty: "Medium")[
   *Derived Operations*:
-  + Implement `implies(&self, a: Ref, b: Ref) -> Ref` *without* using `bdd.apply_imply`.
+  + Implement `implies(&self, a: Ref, b: Ref) -> Ref` using `apply_not` and `apply_or`.
     Use the logical equivalence $A => B equiv not A or B$.
   + Implement `are_mutually_exclusive(&self, a: Ref, b: Ref) -> bool`.
     This should return `true` if $a$ and $b$ cannot both be true simultaneously (i.e., their conjunction is `false`).

@@ -19,13 +19,13 @@ These are essential tools for designing precise and efficient analyses.
 ]
 
 #example-box[
-  *Assignment transformer:*
+  *Packet Header Modification:*
 
-  For `x := e`, the concrete transformer is:
-  $ llb x := e rrb_C (c) = {sigma[x |-> llb e rrb sigma] mid(|) sigma in c} $
+  For `ttl := ttl - 1`, the concrete transformer is:
+  $ llb "ttl" := "ttl" - 1 rrb_C (c) = {sigma["ttl" |-> sigma("ttl") - 1] mid(|) sigma in c} $
 
-  If $c = {(x=2, y=3), (x=5, y=1)}$ and the statement is `x := x + y`:
-  $ llb x := x + y rrb_C (c) = {(x=5, y=3), (x=6, y=1)} $
+  If $c = {("ttl"=64, "len"=100), ("ttl"=32, "len"=50)}$:
+  $ llb "ttl" := "ttl" - 1 rrb_C (c) = {("ttl"=63, "len"=100), ("ttl"=31, "len"=50)} $
 ]
 
 #definition(title: "Abstract Transformer")[
@@ -82,20 +82,20 @@ The *best* (most precise) transformer exists when the Galois connection has cert
 ]
 
 #example-box[
-  *Sign domain assignment:*
+  *TTL Decrement in Sign Domain:*
 
-  For `x := x + 1` with sign domain, consider $a = "Neg"$ (negative values).
+  For `ttl := ttl - 1` with sign domain, consider $a = "Pos"$ (positive TTL).
 
-  Concrete: $gamma("Neg") = ZZ^- = {..., -2, -1}$.
+  Concrete: $gamma("Pos") = ZZ^+ = {1, 2, ...}$.
 
-  After `x := x + 1`: $llb x := x+1 rrb_C (ZZ^-) = {..., -1, 0}$.
+  After `ttl := ttl - 1`: $llb "ttl" := "ttl" - 1 rrb_C (ZZ^+) = {0, 1, ...}$.
 
   Best transformer:
-  - In basic sign domain ${bot, "Neg", "Zero", "Pos", top}$, we get $alpha({..., -1, 0}) = "Neg" ljoin "Zero"$ (since the set spans both).
-    Without a "NonPos" element, this join yields $top$.
-  - In extended sign domain with "NonPos", the best transformer would return $"NonPos"$ (more precise).
+  - In basic sign domain ${bot, "Neg", "Zero", "Pos", top}$, we get $alpha({0, 1, ...}) = "Zero" ljoin "Pos"$ (since the set spans both).
+    Without a "NonNeg" element, this join yields $top$.
+  - In extended sign domain with "NonNeg", the best transformer would return $"NonNeg"$ (more precise).
 
-  A sound but imprecise alternative: A conservative implementation might always return $top$ for any addition, sacrificing precision for simplicity.
+  A sound but imprecise alternative: A conservative implementation might always return $top$ for any subtraction, sacrificing precision for simplicity.
 ]
 
 == Completeness of Abstract Transformers
@@ -122,17 +122,17 @@ While best transformers are most precise, computing them may be expensive or imp
 ]
 
 #example-box[
-  *Interval domain for multiplication:*
+  *Packet Length Adjustment:*
 
-  Consider `x := x * 2` on intervals.
+  Consider `len := len + 4` (adding 4-byte CRC) on intervals.
 
-  - Input: $a = [1, 3]$.
-  - Concrete: $llb x := x times 2 rrb_C ({1,2,3}) = {2,4,6}$.
-  - Best: $alpha({2,4,6}) = [2, 6]$.
+  - Input: $a = [60, 1500]$.
+  - Concrete: $llb "len" := "len" + 4 rrb_C ({60, ..., 1500}) = {64, ..., 1504}$.
+  - Best: $alpha({64, ..., 1504}) = [64, 1504]$.
 
-  A practical interval multiplication: $[1,3] times 2 = [2, 6]$ --- complete!
+  A practical interval addition: $[60, 1500] + 4 = [64, 1504]$ --- complete!
 
-  However, for `x := x * x`:
+  However, for `x := x * x` (non-linear operation):
   - Input: $a = [-2, 2]$.
   - Concrete: $gamma([-2,2]) -> {0,1,4}$ after squaring.
   - Best: $alpha({0,1,4}) = [0,4]$.
@@ -172,16 +172,17 @@ The direct product is sound but may contain *unrealizable* elements.
 These are pairs $(a_1, a_2)$ where $gamma_1(a_1) inter gamma_2(a_2) = emptyset$.
 
 #example-box[
-  *Sign × Parity product:*
+  *Real-World Example: Protocol × Port*
 
-  - Sign: ${bot, "Neg", "Zero", "Pos", top}$.
-  - Parity: ${bot, "Even", "Odd", top}$.
+  Consider analyzing network traffic with two domains:
+  - *Protocol*: ${bot, "TCP", "UDP", "ICMP", top}$.
+  - *Port*: Interval domain $[0, 65535]$.
 
-  Product element: $("Neg", "Even")$ represents negative even numbers --- realizable.
+  Product element: $("TCP", [80, 80])$ represents TCP traffic on port 80 --- realizable.
 
-  Product element: $("Zero", "Odd")$ --- *unrealizable*!
-  Zero is always even, never odd.
-  The concrete meaning is $gamma("Zero") inter gamma("Odd") = emptyset$.
+  Product element: $("ICMP", [80, 80])$ --- *unrealizable*!
+  ICMP packets do not have source/destination ports in the same way TCP/UDP do.
+  The concrete meaning is $gamma("ICMP") inter gamma("Port"[80]) = emptyset$.
 ]
 
 #definition(title: "Reduced Product")[
@@ -195,21 +196,76 @@ These are pairs $(a_1, a_2)$ where $gamma_1(a_1) inter gamma_2(a_2) = emptyset$.
 ]
 
 #example-box[
-  *Sign × Parity reduction:*
+  *Protocol × Port reduction:*
 
   ```rust
-  fn reduce(sign: Sign, parity: Parity) -> (Sign, Parity) {
-      match (sign, parity) {
-          (Sign::Zero, Parity::Odd) => (Sign::Bottom, Parity::Bottom),
-          (Sign::Zero, _) => (Sign::Zero, Parity::Even),
-          // Negative/Positive can be even or odd
-          _ => (sign, parity),
+  fn reduce(proto: Protocol, port: Interval) -> (Protocol, Interval) {
+      match proto {
+          Protocol::ICMP => {
+              // ICMP implies no ports (or specific types/codes)
+              // If port range implies existence of ports, it's a contradiction
+              if !port.is_bottom() {
+                  (Protocol::Bottom, Interval::bottom())
+              } else {
+                  (proto, port)
+              }
+          },
+          Protocol::TCP | Protocol::UDP => (proto, port),
+          _ => (proto, port),
       }
   }
   ```
 
-  After reduction, $("Zero", "Odd")$ becomes $(bot, bot)$, making the inconsistency explicit.
+  After reduction, $("ICMP", [80, 80])$ becomes $(bot, bot)$, making the inconsistency explicit.
 ]
+
+#figure(
+  caption: [Reduced product eliminates unrealizable states],
+
+  cetz.canvas({
+    import cetz: draw
+
+    // Domain 1: Protocol
+    let d1-x = 0
+    draw.content((d1-x, 4), [Protocol])
+    draw.circle((d1-x, 3), radius: 0.3, name: "tcp", fill: colors.bg-code, stroke: colors.primary + 1pt)
+    draw.content("tcp", [TCP])
+    draw.circle((d1-x, 1), radius: 0.3, name: "icmp", fill: colors.bg-code, stroke: colors.primary + 1pt)
+    draw.content("icmp", [ICMP])
+
+    // Domain 2: Port
+    let d2-x = 3
+    draw.content((d2-x, 4), [Port])
+    draw.rect((d2-x - 0.4, 2.6), (d2-x + 0.4, 3.4), name: "p80", fill: colors.bg-code, stroke: colors.accent + 1pt)
+    draw.content("p80", [80])
+    draw.rect((d2-x - 0.4, 0.6), (d2-x + 0.4, 1.4), name: "pNone", fill: colors.bg-code, stroke: colors.accent + 1pt)
+    draw.content("pNone", [$bot$])
+
+    // Product
+    let p-x = 7
+    draw.content((p-x, 4), [Product State])
+
+    // Realizable
+    draw.rect((p-x - 0.8, 2.6), (p-x + 0.8, 3.4), name: "valid", fill: colors.success.lighten(70%), stroke: colors.success + 1pt)
+    draw.content("valid", [(TCP, 80)])
+
+    // Unrealizable
+    draw.rect((p-x - 0.8, 0.6), (p-x + 0.8, 1.4), name: "invalid", fill: colors.error.lighten(70%), stroke: colors.error + 1pt)
+    draw.content("invalid", [(ICMP, 80)])
+
+    // Reduction arrow
+    draw.line("invalid.east", (p-x + 2, 1), stroke: (paint: colors.text-light, thickness: 1pt, dash: "dashed"), mark: (end: ">"))
+    draw.content((p-x + 2.5, 1), text(fill: colors.error)[$bot$])
+    draw.content((p-x + 2.5, 1.5), text(size: 8pt)[Reduce])
+
+    // Connections
+    draw.line("tcp.east", "valid.west", stroke: colors.text-light + 0.5pt)
+    draw.line("p80.east", "valid.west", stroke: colors.text-light + 0.5pt)
+
+    draw.line("icmp.east", "invalid.west", stroke: colors.text-light + 0.5pt)
+    draw.line("p80.east", "invalid.west", stroke: colors.text-light + 0.5pt)
+  }),
+)
 
 #info-box(title: "Implementing the Reduction Loop")[
   In a multi-domain product, reduction can be iterative.
@@ -268,34 +324,29 @@ Effective reduction operators exploit *domain-specific relationships*.
 ]
 
 #example-box[
-  *Sign × Interval reduction:*
+  *Jumbo Flag × Length reduction:*
 
   ```rust
-  fn reduce(sign: Sign, interval: Interval) -> (Sign, Interval) {
-      match sign {
-          Sign::Pos => {
-              // Positive: interval lower bound must be > 0
-              let refined = interval.intersect(Interval::new(1, PosInf));
-              (sign, refined)
+  fn reduce(flag: Flag, len: Interval) -> (Flag, Interval) {
+      match flag {
+          Flag::Jumbo => {
+              // Jumbo frame: length must be > 1500
+              let refined = len.intersect(Interval::new(1501, 9000));
+              (flag, refined)
           }
-          Sign::Neg => {
-              // Negative: interval upper bound must be < 0
-              let refined = interval.intersect(Interval::new(NegInf, -1));
-              (sign, refined)
+          Flag::Standard => {
+              // Standard frame: length must be <= 1500
+              let refined = len.intersect(Interval::new(0, 1500));
+              (flag, refined)
           }
-          Sign::Zero => {
-              // Zero: interval must be [0, 0]
-              let refined = Interval::new(0, 0);
-              (sign, refined)
-          }
-          _ => (sign, interval), // Top or Bottom: no refinement
+          _ => (flag, len),
       }
   }
   ```
 
-  Input: $("Pos", [-5, 10])$.
+  Input: $("Jumbo", [0, 2000])$.
 
-  After reduction: $("Pos", [1, 10])$ --- negative part eliminated!
+  After reduction: $("Jumbo", [1501, 2000])$ --- standard frames eliminated!
 ]
 
 #warning-box(title: "Reduction Cost")[
@@ -324,19 +375,19 @@ For more than two domains, reduced products generalize.
 ]
 
 #example-box[
-  *Sign × Parity × Interval:*
+  *Protocol × Flag × Length:*
 
-  For variable `x`:
-  - Sign: $"Pos"$
-  - Parity: $"Even"$
-  - Interval: $[0, 10]$
+  For packet `p`:
+  - Protocol: $"TCP"$
+  - Flag: $"SYN"$
+  - Length: $[0, 100]$
 
   Reduction:
-  + Sign refines interval: $[0, 10] inter [1, infinity] = [1, 10]$.
-  + Parity refines interval: $[1, 10] inter {"even"} = {2, 4, 6, 8, 10}$.
-  + Result: $("Pos", "Even", [2, 10])$ with even parity constraint.
+  + Protocol refines Length: TCP header is min 20 bytes. $[0, 100] inter [20, infinity] = [20, 100]$.
+  + Flag refines Length: SYN packet usually has no payload (len = header len).
+  + Result: $("TCP", "SYN", [20, 60])$ (assuming max header size).
 
-  Possible values: ${2, 4, 6, 8, 10}$ (much more precise than any single domain!)
+  Much more precise!
 ]
 
 == Abstract Transformers for Products

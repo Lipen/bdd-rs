@@ -4,7 +4,8 @@
 
 #reading-path(path: "advanced") #h(0.7em) #reading-path(path: "implementation")
 
-String-heavy programs require reasoning about concatenation, length, prefixes/suffixes, and membership in regular sets (e.g., input validation, sanitization). This chapter develops abstract domains for strings, from lightweight numeric properties to regular-language abstractions via finite automata, and discusses widenings and reduced products.
+String-heavy programs require reasoning about concatenation, length, prefixes/suffixes, and membership in regular sets (e.g., input validation, sanitization).
+This chapter develops abstract domains for strings, from lightweight numeric properties to regular-language abstractions via finite automata, and discusses widenings and reduced products.
 
 == Motivation and Threat Model
 
@@ -86,10 +87,15 @@ We model pipelines `validate; normalize; use`:
 - Normalization: apply length/charset-preserving rewrites; ensure closure under rewrites remains in $L_"safe"$
 - Use: sinks (e.g., regex match, path join) proved safe by inclusion: $L("current") subset.eq L_"safe"$
 
-#example-box(title: "Path Sanitization")[
-  `normalize` collapses repeated slashes `//` and forbids `..`.
-  Prove: after normalization, every path is in $L_"nosneak"$ disallowing traversal.
-  Use length lower bounds and automata intersection; explain counterexamples via shortest witness in DFA.
+#example-box(title: "Real-World Example: Malicious Payload Detection")[
+  Consider a Deep Packet Inspection (DPI) rule:
+  `if payload.contains("attack") { drop() }`
+
+  - *String Domain*: Tracks the set of possible strings in `payload`.
+  - *Analysis*:
+    - If `payload` comes from a trusted source (e.g., internal config), the domain might prove it never contains "attack".
+    - If `payload` is user input, the domain tracks that after the `if`, the payload *must* contain "attack" (on the true branch) or *must not* (on the false branch).
+    - This allows proving that subsequent code is only reachable for safe payloads.
 ]
 
 == Widening/Narrowing Patterns
@@ -97,6 +103,50 @@ We model pipelines `validate; normalize; use`:
 - Automata quotienting by state partition; refine back (narrowing) with counterexample-guided splitting.
 - Length widening by bounds to $[0, +infinity]$; narrow with concrete constraints (e.g., bounded loops).
 - Charset widening by class coarsening (e.g., collapse to classes: alpha, digit, other).
+
+#figure(
+  caption: [Automata widening by merging states],
+
+  cetz.canvas({
+    import cetz: draw
+
+    // Before widening: Chain
+    draw.content((0, 4), text(weight: "bold")[Exact Sequence])
+    draw.circle((0, 3), radius: 0.3, name: "q0", stroke: colors.primary + 1pt)
+    draw.content("q0", [0])
+    draw.circle((1.5, 3), radius: 0.3, name: "q1", stroke: colors.primary + 1pt)
+    draw.content("q1", [1])
+    draw.circle((3, 3), radius: 0.3, name: "q2", stroke: colors.primary + 1pt)
+    draw.content("q2", [2])
+    draw.circle((4.5, 3), radius: 0.3, name: "q3", stroke: colors.primary + 1pt)
+    draw.content("q3", [3])
+
+    draw.line("q0.east", "q1.west", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+    draw.content((0.75, 3.3), [a])
+    draw.line("q1.east", "q2.west", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+    draw.content((2.25, 3.3), [a])
+    draw.line("q2.east", "q3.west", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+    draw.content((3.75, 3.3), [a])
+
+    // After widening: Loop
+    draw.content((0, 1), text(weight: "bold")[Widened (Merged)])
+    draw.circle((0, 0), radius: 0.3, name: "w0", stroke: colors.accent + 1pt)
+    draw.content("w0", [0])
+    draw.circle((2, 0), radius: 0.3, name: "w1", stroke: colors.accent + 1pt)
+    draw.content("w1", [1+])
+
+    draw.line("w0.east", "w1.west", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+    draw.content((1, 0.3), [a])
+
+    // Self-loop
+    draw.bezier("w1.north-east", "w1.north-west", (2.8, 0.8), (1.2, 0.8), stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+    draw.content((2, 1), [a])
+
+    // Arrow
+    draw.line((2, 2.5), (2, 1.5), stroke: (paint: colors.warning, thickness: 2pt), mark: (end: ">"))
+    draw.content((2.8, 2), text(size: 9pt, fill: colors.warning)[Merge states > 0])
+  }),
+)
 
 #chapter-summary[
   String analysis benefits from layered abstractions: scalar (length/charset) and language-level (automata).

@@ -96,19 +96,61 @@ Branches refine types:
   Summarize arrays/collections, collapse rarely-touched sites, and cap determinization in cooperating domains.
 ]
 
-== Worked Micro-Example
+== Worked Micro-Example: Packet vs Config Aliasing
 
 ```rust
-let p = new C();      // site s1: PT(p) = {s1}, Type(p) ⊇ {Obj[C]}
-let q = new C();      // site s2: PT(q) = {s2}
-p.f = 3;              // strong update at s1.f
-q.f = 5;              // strong update at s2.f
-let r = if cond { p } else { q }; // PT(r) = {s1, s2}
-let x = r.f;          // load: Store(s1).f ⊔ Store(s2).f ⇒ interval [3,5]
+let pkt = new Packet();   // site s1
+let cfg = new Config();   // site s2
+let mut ptr = pkt;        // PT(ptr) = {s1}
+
+if condition {
+    ptr = cfg;            // PT(ptr) = {s2}
+}
+// Join: PT(ptr) = {s1, s2}
+
+ptr.field = 0;            // Weak update!
 ```
 
-This load uses a weak join across two targets, remaining sound and flow-sensitive.
-If later the analysis learns `r == p` on some path, BDD control enables a strong update/load on that path only.
+- *Analysis*:
+  - `ptr` points to `{s1, s2}`.
+  - The write `ptr.field = 0` must update *both* `s1` and `s2` weakly.
+  - `Store(s1).field` becomes `Old(s1).field` $ljoin$ `0`.
+  - `Store(s2).field` becomes `Old(s2).field` $ljoin$ `0`.
+  - We lose precision: we don't know which object was modified, so we must assume both *might* have been.
+
+#figure(
+  caption: [Points-to graph with aliasing],
+
+  cetz.canvas({
+    import cetz: draw
+
+    // Variables
+    draw.content((0, 4), text(weight: "bold")[Variables])
+    draw.circle((0, 3), radius: 0.3, name: "pkt", stroke: colors.primary + 1pt)
+    draw.content("pkt", [pkt])
+    draw.circle((0, 1), radius: 0.3, name: "cfg", stroke: colors.primary + 1pt)
+    draw.content("cfg", [cfg])
+    draw.circle((2, 2), radius: 0.3, name: "ptr", stroke: colors.accent + 1pt)
+    draw.content("ptr", [ptr])
+
+    // Allocation Sites
+    draw.content((5, 4), text(weight: "bold")[Heap Sites])
+    draw.rect((4.5, 2.5), (5.5, 3.5), name: "s1", fill: colors.bg-code, stroke: colors.secondary + 1pt)
+    draw.content("s1", [Site 1])
+    draw.rect((4.5, 0.5), (5.5, 1.5), name: "s2", fill: colors.bg-code, stroke: colors.secondary + 1pt)
+    draw.content("s2", [Site 2])
+
+    // Edges
+    draw.line("pkt.east", "s1.west", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+    draw.line("cfg.east", "s2.west", stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+
+    // Aliasing edges
+    draw.line("ptr.north-east", "s1.south-west", stroke: (paint: colors.accent, dash: "dashed"), mark: (end: ">"))
+    draw.line("ptr.south-east", "s2.north-west", stroke: (paint: colors.accent, dash: "dashed"), mark: (end: ">"))
+
+    draw.content((3.5, 2), text(size: 9pt, fill: colors.accent)[May-Alias])
+  }),
+)
 
 == Related Sensitivities and Variants
 

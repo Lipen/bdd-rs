@@ -21,9 +21,9 @@ These are the essential tools for understanding program analysis rigorously.
 
   Think of it as:
   - $bot$ (Bottom): "Impossible" (Perfect information, but contradictory).
-  - $x$: "x is 5" (Very precise).
-  - $y$: "x is positive" (Less precise).
-  - $top$ (Top): "x is anything" (No information).
+  - $x$: "Packet is TCP port 80" (Very precise).
+  - $y$: "Packet is TCP" (Less precise).
+  - $top$ (Top): "Packet is anything" (No information).
 ]
 
 #definition(title: "Partial Order")[
@@ -42,62 +42,71 @@ $x <= y$ means "$x$ is more precise than $y$".
 Alternatively, "$x$ approximates fewer concrete behaviors than $y$".
 
 #example-box[
-  *Sign domain as a poset:*
+  *Real-World Example: IP Address Blocks (CIDR)*
 
-  Consider the sign lattice with elements ${bot, "Neg", "Zero", "Pos", top}$.
-  The ordering is:
+  Consider the set of IP address blocks (CIDR notation).
+  The ordering is subset inclusion (reversed for precision):
+  $A <= B$ if the set of IPs in $A$ is a subset of $B$.
 
-  $ bot <= "Neg" <= top, quad bot <= "Zero" <= top, quad bot <= "Pos" <= top $
+  - $192.168.1.5$ (Single IP) is very precise.
+  - $192.168.1.0/24$ (Local LAN) is less precise.
+  - $0.0.0.0/0$ (The Internet) is the least precise ($top$).
+  - $emptyset$ (No IP) is the most precise ($bot$).
 
-  This forms a partial order:
-  - $bot$ (unreachable) is the most precise element.
-  - $top$ (unknown sign) is the least precise element.
-  - $"Neg", "Zero", "Pos"$ are incomparable to each other (no ordering between them).
+  $ emptyset <= 192.168.1.5 <= 192.168.1.0"/"24 <= 0.0.0.0"/"0 $
 ]
 
 #figure(
-  caption: [Sign domain as a partially ordered set with precision ordering],
+  caption: [Lattice of IP Address Blocks (CIDR)],
 
   cetz.canvas({
     import cetz: draw
 
     // Helper function for lattice nodes
-    let draw-lattice-node(name, pos, label, style: "internal") = {
+    let draw-node(name, pos, label, style: "internal") = {
       if style == "bottom" {
-        draw.rect(pos, (rel: (1, 0.6)), name: name, stroke: colors.primary + 1pt)
+        draw.rect(pos, (rel: (2.5, 0.6)), name: name, stroke: colors.primary + 1pt)
       } else if style == "top" {
-        draw.rect(pos, (rel: (1, 0.6)), name: name, stroke: colors.primary + 1pt)
+        draw.rect(pos, (rel: (2.5, 0.6)), name: name, stroke: colors.primary + 1pt)
       } else {
-        draw.circle(pos, radius: 0.3, name: name, stroke: colors.primary + 1pt)
+        draw.rect(pos, (rel: (2.5, 0.6)), name: name, stroke: colors.primary + 1pt, fill: colors.bg-code)
       }
       draw.content(name, label)
     }
 
-    // Helper function for lattice edges
-    let draw-lattice-edge(from, to) = {
+    let draw-edge(from, to) = {
       draw.line(from, to, stroke: colors.text-light + 0.8pt, mark: (end: ">"))
     }
 
-    // Layout the sign lattice
-    draw-lattice-node("top", (3, 4), $top$, style: "top")
-    draw-lattice-node("neg", (1, 2), $-$)
-    draw-lattice-node("zero", (3, 2), $0$)
-    draw-lattice-node("pos", (5, 2), $+$)
-    draw-lattice-node("bot", (3, 0), $bot$, style: "bottom")
+    // Layout
+    draw-node("top", (3, 6), [0.0.0.0/0 ($top$)], style: "top")
 
-    // Draw edges (precision ordering: bot is most precise)
-    draw-lattice-edge("bot.north", "neg.south")
-    draw-lattice-edge("bot.north", "zero.south")
-    draw-lattice-edge("bot.north", "pos.south")
-    draw-lattice-edge("neg.north", "top.south-west")
-    draw-lattice-edge("zero.north", "top.south")
-    draw-lattice-edge("pos.north", "top.south-east")
+    draw-node("lan1", (0, 4), [10.0.0.0/8])
+    draw-node("lan2", (6, 4), [192.168.0.0/16])
+
+    draw-node("sub1", (-1, 2), [10.1.1.0/24])
+    draw-node("sub2", (2, 2), [10.2.0.0/16])
+    draw-node("sub3", (6, 2), [192.168.1.5/32])
+
+    draw-node("bot", (3, 0), [$emptyset$ ($bot$)], style: "bottom")
+
+    // Edges
+    draw-edge("bot", "sub1")
+    draw-edge("bot", "sub2")
+    draw-edge("bot", "sub3")
+
+    draw-edge("sub1", "lan1")
+    draw-edge("sub2", "lan1")
+    draw-edge("sub3", "lan2")
+
+    draw-edge("lan1", "top")
+    draw-edge("lan2", "top")
 
     // Annotations
-    draw.content((7, 4), text(size: 9pt, fill: colors.text-light)[Least precise])
-    draw.content((7, 0), text(size: 9pt, fill: colors.text-light)[Most precise])
-    draw.line((6.5, 4), (6.5, 0), stroke: colors.text-light + 0.5pt, mark: (end: ">"))
-    draw.content((7.5, 2), rotate(270deg, text(size: 9pt, fill: colors.text-light)[Precision]))
+    draw.content((9, 6), text(size: 9pt, fill: colors.text-light)[Least precise], anchor:"west", padding:0.2)
+    draw.content((9, 0), text(size: 9pt, fill: colors.text-light)[Most precise], anchor:"west", padding:0.2)
+    draw.line((9, 6), (9, 0), stroke: colors.text-light + 0.5pt, mark: (end: ">", fill: colors.text-light))
+    draw.content((9.2, 3), rotate(270deg, text(size: 9pt, fill: colors.text-light)[Precision]))
   }),
 )
 
@@ -142,22 +151,125 @@ The meet finds the most precise common refinement.
 ]
 
 #example-box[
-  *Sign domain is a lattice:*
+  *Protocol Hierarchy as a Lattice:*
 
-  For any two elements, we can compute join (least upper bound):
+  Consider a simplified protocol lattice:
 
   #align(center, table(
-    columns: 6,
+    columns: 5,
     stroke: colors.text-light + 0.5pt,
-    [$ljoin$], [$bot$], [$-$], [$0$], [$+$], [$top$],
-    [$bot$], [$bot$], [$-$], [$0$], [$+$], [$top$],
-    [$-$], [$-$], [$-$], [$top$], [$top$], [$top$],
-    [$0$], [$0$], [$top$], [$0$], [$+$], [$top$],
-    [$+$], [$+$], [$top$], [$+$], [$+$], [$top$],
-    [$top$], [$top$], [$top$], [$top$], [$top$], [$top$],
+    [$ljoin$], [$bot$], ["TCP"], ["UDP"], [$top$],
+    [$bot$], [$bot$], ["TCP"], ["UDP"], [$top$],
+    ["TCP"], ["TCP"], ["TCP"], [$top$], [$top$],
+    ["UDP"], ["UDP"], [$top$], ["UDP"], [$top$],
+    [$top$], [$top$], [$top$], [$top$], [$top$],
   ))
 
-  Note that $- ljoin 0 = top$ because there's no element that contains both negative and zero except $top$.
+    Note that $"TCP" ljoin "UDP" = top$ because there's no single protocol that is both TCP and UDP (except the generic "IP packet" which we model as $top$).
+
+#definition(title: "Complete Lattice")[
+  A lattice $(L, <=, ljoin, lmeet)$ is *complete* if every subset $S subset.eq L$ (including infinite subsets) has both:
+
+  - A least upper bound: $ljoin.big_(x in S) x$
+  - A greatest lower bound: $lmeet.big_(x in S) x$
+
+  In particular, a complete lattice has:
+  - A *least element* $bot = lmeet.big_(x in L) x$ (bottom).
+  - A *greatest element* $top = ljoin.big_(x in L) x$ (top).
+]
+
+Complete lattices are the fundamental structure for abstract interpretation.
+Program analysis must handle unbounded sets of states and infinite chains during iteration.
+
+#theorem(title: "Properties of Complete Lattices")[
+  Let $(L, <=, ljoin, lmeet, bot, top)$ be a complete lattice.
+
+  + *Idempotence*: $x ljoin x = x$ and $x lmeet x = x$.
+  + *Commutativity*: $x ljoin y = y ljoin x$ and $x lmeet y = y lmeet x$.
+  + *Associativity*: $(x ljoin y) ljoin z = x ljoin (y ljoin z)$.
+  + *Absorption*: $x ljoin (x lmeet y) = x$ and $x lmeet (x ljoin y) = x$.
+  + *Identity*: $x ljoin bot = x$ and $x lmeet top = x$.
+  + *Annihilation*: $x ljoin top = top$ and $x lmeet bot = bot$.
+]
+
+#proof[
+  We prove a representative subset.
+
+  *Idempotence of $ljoin$:*
+  Since $x <= x$, we have $x$ is an upper bound of ${x, x}$.
+  For any other upper bound $u$ with $x <= u$, we have $x <= u$.
+  Thus $x$ is the least upper bound, so $x ljoin x = x$.
+
+  *Absorption of $ljoin$:*
+  Since $x lmeet y <= x$, we have $x$ is an upper bound of ${x, x lmeet y}$.
+  For any upper bound $u$ with $x <= u$ and $x lmeet y <= u$, we have $x <= u$.
+  Thus $x ljoin (x lmeet y) = x$.
+
+  Other properties follow similarly from the definitions.
+]
+
+== Height and Chains
+
+#definition(title: "Chain")[
+  A subset $C subset.eq L$ is a *chain* if every two elements are comparable:
+  $ forall x, y in C: x <= y or y <= x $
+
+  The *length* of a finite chain $x_0 < x_1 < dots < x_n$ is $n$ (number of strict comparisons).
+]
+
+Chains are important because program analysis iterates along chains in the lattice.
+We refine approximations until reaching a fixpoint.
+
+#definition(title: "Height")[
+  The *height* of a poset $(L, <=)$, denoted $"height"(L)$, is the length of the longest chain in $L$.
+  If arbitrarily long chains exist, the height is infinite.
+]
+
+#example-box[
+  *Heights of common lattices:*
+
+  - Protocol lattice: $"height" = 2$ (chain: $bot < "TCP" < top$).
+  - Boolean lattice: $"height"({bot, top}) = 1$.
+  - Powerset lattice: $"height"(cal(P)(S)) = |S|$ for finite set $S$.
+  - Interval lattice over $ZZ$: $"height"("Interval") = infinity$ (unbounded chains).
+]
+
+#theorem(title: "Ascending Chain Condition")[
+  A poset $(L, <=)$ satisfies the *ascending chain condition* (ACC) if every increasing chain
+  $ x_0 <= x_1 <= x_2 <= dots $
+  eventually stabilizes.
+  There exists $N$ such that $x_N = x_(N+1) = x_(N+2) = dots$.
+]
+
+#info-box(title: "Why ACC Matters")[
+  The ascending chain condition ensures that fixpoint iteration terminates.
+  Without ACC, analysis might iterate forever, refining approximations without converging.
+
+  When ACC doesn't hold (infinite-height lattices), we need *widening* operators to enforce convergence.
+]
+
+== Monotone Functions
+
+#definition(title: "Monotone Function")[
+  A function $f: L -> M$ between posets is *monotone* (or *order-preserving*) if:
+  $ forall x, y in L: x <= y => f(x) <= f(y) $
+
+  Intuitively, increasing precision in the input increases precision in the output.
+]
+
+All abstract operations in program analysis must be monotone to ensure sound approximation.
+If an analysis loses precision when given more precise inputs, something is wrong.
+
+#example-box[
+  *Monotone functions on Protocols:*
+
+  Abstract "get port" is monotone:
+  - If $x_1 <= x_2$ (e.g., $"TCP" <= top$), then $"port"(x_1) <= "port"(x_2)$.
+  - Example: $"port"("TCP") = [0, 65535] <= "port"(top) = [0, 65535]$.
+
+  But consider a *non-monotone* function that returns $80$ for $bot, "TCP"$ and $top$ otherwise.
+  Then $"TCP" <= top$ but $f("TCP") = 80 gt.eq.not top = f(top)$, violating monotonicity.
+]
 ]
 
 #definition(title: "Complete Lattice")[
@@ -221,7 +333,7 @@ We refine approximations until reaching a fixpoint.
 #example-box[
   *Heights of common lattices:*
 
-  - Sign domain: $"height"("Sign") = 2$ (chain: $bot < - < top$).
+  - Protocol lattice: $"height" = 2$ (chain: $bot < "TCP" < top$).
   - Boolean lattice: $"height"({bot, top}) = 1$.
   - Powerset lattice: $"height"(cal(P)(S)) = |S|$ for finite set $S$.
   - Interval lattice over $ZZ$: $"height"("Interval") = infinity$ (unbounded chains).
@@ -254,14 +366,14 @@ All abstract operations in program analysis must be monotone to ensure sound app
 If an analysis loses precision when given more precise inputs, something is wrong.
 
 #example-box[
-  *Monotone functions on Sign:*
+  *Monotone functions on Protocols:*
 
-  Abstract addition is monotone:
-  - If $x_1 <= x_2$ and $y_1 <= y_2$, then $x_1 + y_1 <= x_2 + y_2$.
-  - Example: $0 + 0 = 0 <= top = 0 + top$.
+  Abstract "get port" is monotone:
+  - If $x_1 <= x_2$ (e.g., $"TCP" <= top$), then $"port"(x_1) <= "port"(x_2)$.
+  - Example: $"port"("TCP") = [0, 65535] <= "port"(top) = [0, 65535]$.
 
-  But consider a *non-monotone* function that returns $-$ for inputs $bot, -, 0$ and $top$ otherwise.
-  Then $- <= top$ but $f(-) = - gt.eq.not top = f(top)$, violating monotonicity.
+  But consider a *non-monotone* function that returns $80$ for $bot, "TCP"$ and $top$ otherwise.
+  Then $"TCP" <= top$ but $f("TCP") = 80 gt.eq.not top = f(top)$, violating monotonicity.
 ]
 
 #theorem(title: "Composition Preserves Monotonicity")[
@@ -428,16 +540,16 @@ This gives us the standard fixpoint iteration algorithm used in dataflow analysi
 )
 
 #example-box[
-  *Computing reachable states:*
+  *Computing reachable packet states:*
 
-  Consider a state transition system with states ${s_0, s_1, s_2}$ and transitions forming a graph.
-  Let $f(S)$ = $S union "successors"(S)$ compute one step of reachability.
+  Consider a packet processing pipeline with states ${"Ingress", "Filter", "Egress"}$.
+  Let $f(S)$ = $S union "next_stage"(S)$.
 
-  Starting from $S_0 = {s_0}$:
-  - $f^0({s_0}) = {s_0}$.
-  - $f^1({s_0}) = {s_0, s_1}$ (reached $s_1$).
-  - $f^2({s_0}) = {s_0, s_1, s_2}$ (reached $s_2$).
-  - $f^3({s_0}) = {s_0, s_1, s_2}$ (no new states).
+  Starting from $S_0 = {"Ingress"}$:
+  - $f^0({"Ingress"}) = {"Ingress"}$.
+  - $f^1({"Ingress"}) = {"Ingress", "Filter"}$.
+  - $f^2({"Ingress"}) = {"Ingress", "Filter", "Egress"}$.
+  - $f^3({"Ingress"}) = {"Ingress", "Filter", "Egress"}$ (no new states).
 
   Fixpoint reached after 3 iterations!
 ]
