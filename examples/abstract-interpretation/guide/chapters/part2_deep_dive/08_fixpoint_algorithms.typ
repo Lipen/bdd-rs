@@ -424,12 +424,29 @@ Narrowing is optional but often improves precision significantly.
       thickness: 0.5pt,
       dash: "dashed",
     ))
-    draw.content((phase1-end / 2, 0), text(size: 9pt, fill: colors.primary)[Phase 1: Widening], anchor: "north", padding: 0.2)
-    draw.content(((phase1-end + phase2-end) / 2, 0), text(size: 9pt, fill: colors.accent)[Phase 2: Narrowing], anchor: "north", padding: 0.2)
+    draw.content(
+      (phase1-end / 2, 0),
+      text(size: 9pt, fill: colors.primary)[Phase 1: Widening],
+      anchor: "north",
+      padding: 0.2,
+    )
+    draw.content(
+      ((phase1-end + phase2-end) / 2, 0),
+      text(size: 9pt, fill: colors.accent)[Phase 2: Narrowing],
+      anchor: "north",
+      padding: 0.2,
+    )
 
     // Precision levels
     draw.line((0, 0), (0, 4), stroke: colors.text-light + 0.5pt, mark: (end: ">"))
-    draw.content((0, 4), text(size: 8pt, fill: colors.text-light)[Precision], anchor: "north-east", padding: 0.2)
+    draw.content(
+      (0, 4),
+      text(size: 8pt, fill: colors.text-light)[Lattice Value ($lle$)],
+      anchor: "south-east",
+      padding: 0.2,
+    )
+    draw.content((0, 4), text(size: 7pt, fill: colors.text-light)[(Less Precise)], anchor: "north-east", padding: 0.2)
+    draw.content((0, 0), text(size: 7pt, fill: colors.text-light)[(More Precise)], anchor: "south-east", padding: 0.2)
 
     // Iteration trajectory
     let y-lfp = 2.5
