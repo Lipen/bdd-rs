@@ -87,7 +87,7 @@ We map infinite integers to finite abstract values:
     [$+$], [Positive integers], [1, 42, 5000],
     [$0$], [Zero], [0],
     [$-$], [Negative integers], [-1, -7, -100],
-    [$\top$], [Unknown], [Any integer],
+    [$top$], [Unknown], [Any integer],
   ),
   caption: [The Sign Abstract Domain],
 )

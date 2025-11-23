@@ -121,11 +121,11 @@ Concrete variables hold specific integers (e.g., `5`, `-42`, `0`).
 For analysis, we often only care if a number is positive, negative, or zero.
 
 We define a set of abstract values $D$:
-$ D = \{bot, "Neg", "Zero", "Pos", top\} $
+$ D = {bot, "Neg", "Zero", "Pos", top} $
 
 - $bot$ (Bottom): Represents the *empty set* (impossible / dead code).
 - `Neg`: Represents the set of all negative integers.
-- `Zero`: Represents the singleton set $\{0\}$.
+- `Zero`: Represents the singleton set ${0}$.
 - `Pos`: Represents the set of all positive integers.
 - $top$ (Top): Represents the *universal set* (unknown / any integer).
 
@@ -150,9 +150,9 @@ We define two functions connecting the concrete world (actual execution) and abs
   The concretization function $gamma: D -> cal(P)(ZZ)$ maps an abstract value to a set of concrete integers $ZZ$.
   For our Sign domain:
   $
-     gamma("Pos") & = \{z in ZZ mid(|) z > 0\} \
-     gamma("Neg") & = \{z in ZZ mid(|) z < 0\} \
-    gamma("Zero") & = \{0\} \
+     gamma("Pos") & = {z in ZZ mid(|) z > 0} \
+     gamma("Neg") & = {z in ZZ mid(|) z < 0} \
+    gamma("Zero") & = {0} \
        gamma(bot) & = emptyset \
        gamma(top) & = ZZ
   $
