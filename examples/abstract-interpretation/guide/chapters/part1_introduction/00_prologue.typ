@@ -25,7 +25,7 @@ A static analysis tool capable of analyzing network reachability could have prov
 But this story is not unique.
 History is littered with expensive and deadly failures where the system behaved exactly as configured, but the configuration was wrong.
 
-=== The High Cost of Misconfiguration
+== The High Cost of Misconfiguration
 
 *Facebook BGP Outage (2021):*
 A routine configuration change to the backbone routers disconnected Facebook's data centers from the internet.
@@ -58,13 +58,20 @@ We know *nothing* about packet $p_(n+1)$.
   cetz.canvas({
     import cetz.draw: *
 
+    // --- Styles & Helpers ---
     let style-space = (fill: colors.bg-subtle, stroke: colors.text-light + 1pt)
     let style-test = (fill: colors.success, stroke: none, radius: 0.08)
     let style-verify = (fill: colors.primary.lighten(80%), stroke: colors.primary + 1pt)
 
+    // --- Layout Constants ---
+    let w-space = 6
+    let h-space = 4
+    let x-verify = 4.5
+    let y-verify = 2.5
+
     // Input Space
-    rect((0, 0), (6, 4), ..style-space, name: "space")
-    content((3, 4.3), text(weight: "bold")[Header Space ($2^104$ bits)])
+    rect((0, 0), (w-space, h-space), ..style-space, name: "space")
+    content((w-space / 2, h-space + 0.3), text(weight: "bold")[Header Space ($2^104$ bits)])
 
     // Testing (Scattered points)
     for i in range(15) {
@@ -75,15 +82,12 @@ We know *nothing* about packet $p_(n+1)$.
     content((1, 0.5), text(size: 0.8em, fill: colors.success)[Tests])
 
     // Verification (Covered region)
-    rect((3.5, 1.5), (5.5, 3.5), ..style-verify)
-    content((4.5, 2.5), align(center, text(size: 0.8em, fill: colors.primary)[Verified \ Region]))
+    rect((x-verify - 1, y-verify - 1), (x-verify + 1, y-verify + 1), ..style-verify, name: "region")
+    content("region", align(center, text(size: 0.8em, fill: colors.primary)[Verified \ Region]))
 
     // Bug (Uncovered)
-    circle((5.2, 0.8), radius: 0.1, fill: colors.error, stroke: none)
+    circle((5.2, 0.8), radius: 0.1, fill: colors.error, stroke: none, name: "bug")
     content((5.2, 0.4), text(size: 0.8em, fill: colors.error)[Bug])
-
-    // Arrow from verified to bug (showing it missed? No, verification covers regions)
-    // Let's show that testing missed the bug
   }),
 )
 
@@ -106,7 +110,7 @@ In networking, we use logic and mathematics to prove statements like:
 - "All traffic from VPN users *must* pass through the Intrusion Detection System."
 - "No two rules in this firewall chain are *redundant*."
 
-=== The Spectrum of Assurance
+== The Spectrum of Assurance
 
 We can view network assurance as a spectrum:
 
