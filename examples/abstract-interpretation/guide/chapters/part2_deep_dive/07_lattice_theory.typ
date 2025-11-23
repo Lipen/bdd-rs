@@ -110,6 +110,17 @@ Alternatively, "$x$ approximates fewer concrete behaviors than $y$".
   }),
 )
 
+#example-box[
+  *Alternative Perspective: IP Subnets*
+
+  For readers with a networking background, IP address blocks (CIDR) provide another intuitive example.
+  The ordering is subset inclusion:
+  $ emptyset <= 192.168.1.5 <= 192.168.1.0"/"24 <= 0.0.0.0"/"0 $
+  - $192.168.1.5$ (Single IP) is very precise.
+  - $192.168.1.0/24$ (Subnet) is less precise.
+  - $0.0.0.0/0$ (The Internet) is the least precise ($top$).
+]
+
 #definition(title: "Upper and Lower Bounds")[
   Let $(L, <=)$ be a poset and $S subset.eq L$ be a subset.
 
@@ -168,6 +179,17 @@ The meet finds the most precise common refinement.
   ))
 
   Note that $"Pos" ljoin "Neg" = top$ because there's no single sign that is both Positive and Negative (except $top$ which covers both).
+]
+
+#example-box[
+  *Alternative: Protocol Lattice*
+
+  In network analysis, protocols form a similar flat lattice:
+  - $bot$ (No protocol)
+  - $"TCP", "UDP", "ICMP"$ (Concrete protocols)
+  - $top$ (Any protocol)
+
+  Since a packet cannot be both TCP and UDP simultaneously, $"TCP" ljoin "UDP" = top$.
 ]
 
 #definition(title: "Complete Lattice")[
