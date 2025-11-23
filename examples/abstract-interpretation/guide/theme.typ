@@ -345,7 +345,7 @@
           fill: colors.text-light,
           style: "italic",
         )
-        *Figure #it.counter.display(it.numbering):* #it.caption
+        #it.caption
       ]
     ]
   }
