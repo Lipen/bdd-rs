@@ -18,6 +18,51 @@ We cannot stress this enough: *Variable ordering is the single most important fa
 - *Data Structures:* Keep bits of the same variable adjacent (e.g., `x[0]`, `x[1]`, ...).
 - *Interleaving:* For relational properties (e.g., checking `x == y`), interleave the variables: `x[0], y[0], x[1], y[1], ...`.
 
+#figure(
+  caption: [Variable ordering impact on BDD size],
+
+  cetz.canvas({
+    import cetz: draw
+
+    // Good Order: Interleaved
+    draw.content((0, 4), text(weight: "bold")[Good Order])
+    draw.content((0, 3.5), text(size: 9pt)[$x_1, y_1, x_2, y_2$])
+
+    draw.circle((0, 2.5), radius: 0.3, name: "g1", stroke: colors.success + 1pt)
+    draw.circle((0, 1.5), radius: 0.3, name: "g2", stroke: colors.success + 1pt)
+    draw.circle((0, 0.5), radius: 0.3, name: "g3", stroke: colors.success + 1pt)
+
+    draw.line("g1.south", "g2.north", stroke: colors.text-light + 0.8pt)
+    draw.line("g2.south", "g3.north", stroke: colors.text-light + 0.8pt)
+
+    draw.content((0, -0.5), text(size: 9pt)[Linear Size])
+
+    // Bad Order: Blocked
+    draw.content((4, 4), text(weight: "bold")[Bad Order])
+    draw.content((4, 3.5), text(size: 9pt)[$x_1, x_2, y_1, y_2$])
+
+    draw.circle((4, 2.5), radius: 0.3, name: "b1", stroke: colors.error + 1pt)
+
+    draw.circle((3, 1.5), radius: 0.3, name: "b2l", stroke: colors.error + 1pt)
+    draw.circle((5, 1.5), radius: 0.3, name: "b2r", stroke: colors.error + 1pt)
+
+    draw.circle((2.5, 0.5), radius: 0.3, name: "b3ll", stroke: colors.error + 1pt)
+    draw.circle((3.5, 0.5), radius: 0.3, name: "b3lr", stroke: colors.error + 1pt)
+    draw.circle((4.5, 0.5), radius: 0.3, name: "b3rl", stroke: colors.error + 1pt)
+    draw.circle((5.5, 0.5), radius: 0.3, name: "b3rr", stroke: colors.error + 1pt)
+
+    draw.line("b1.south-west", "b2l.north", stroke: colors.text-light + 0.8pt)
+    draw.line("b1.south-east", "b2r.north", stroke: colors.text-light + 0.8pt)
+
+    draw.line("b2l.south-west", "b3ll.north", stroke: colors.text-light + 0.8pt)
+    draw.line("b2l.south-east", "b3lr.north", stroke: colors.text-light + 0.8pt)
+    draw.line("b2r.south-west", "b3rl.north", stroke: colors.text-light + 0.8pt)
+    draw.line("b2r.south-east", "b3rr.north", stroke: colors.text-light + 0.8pt)
+
+    draw.content((4, -0.5), text(size: 9pt)[Exponential Size])
+  }),
+)
+
 #warning-box(title: "The Symptom")[
   If your analysis hangs on a simple program or consumes gigabytes of RAM suddenly, it is almost always a variable ordering issue.
 ]
