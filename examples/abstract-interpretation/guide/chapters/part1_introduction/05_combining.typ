@@ -28,9 +28,9 @@ if x > 0 {
 // Lost information: (x > 0 <=> y = 1) and (x <= 0 <=> y = 2)
 ```
 
-*What went wrong?*
-Path-insensitive analysis merges all incoming states regardless of how they were reached.
+The problem is that path-insensitive analysis merges all incoming states regardless of how they were reached.
 The join operation $y = 1 ljoin y = 2$ produces $y in {1, 2}$, forgetting which value corresponds to which input condition.
+We lost the correlation between the condition and the value.
 
 Path-sensitive analysis maintains separate states:
 
@@ -41,8 +41,9 @@ Path-sensitive analysis maintains separate states:
 
 Now we preserve the correlation: for any concrete input $x$, we can determine the exact value of $y$.
 
-*The scaling problem:* With $n$ independent conditions, explicit enumeration requires $2^n$ states.
-A program with 30 boolean variables would need over a billion states.
+However, maintaining separate states for each path faces a scaling challenge.
+With $n$ independent conditions, explicit enumeration requires $2^n$ states.
+A program with 30 boolean variables would need over a billion states, making explicit enumeration impractical.
 
 === BDD-Based Solution
 
@@ -260,76 +261,6 @@ fn join(&self, other: &Self) -> Self {
 
 The join operation combines path conditions with OR and abstract values with domain join ($ljoin$).
 
-== Concrete Example: Temperature Controller <sec-temperature-example>
-
-Let's analyze a realistic embedded system:
-
-```rust
-fn control_temp(sensor: i32) -> i32 {
-    let mut heater_power = 0;
-    if sensor < 15 {
-        heater_power = 100;  // Full power when cold
-    } else if sensor < 20 {
-        heater_power = 50;   // Half power
-    }
-    heater_power
-}
-```
-
-Safety property: `heater_power` $in [0, 100]$ (hardware constraint).
-
-=== Path-Insensitive Interval Analysis
-
-Using a single interval per variable merges all paths:
-
-+ Entry: `sensor` $= top$, `heater_power` $= bot$
-+ After `heater_power = 0`: `heater_power` $= [0, 0]$
-+ First branch (`sensor < 15`):
-  - True: `heater_power` $= [100, 100]$
-  - False: `heater_power` $= [0, 0]$
-+ Merge: `heater_power` $= [0, 100]$
-+ Second branch (`sensor < 20`):
-  - True: `heater_power` $= [50, 50]$
-  - False: unchanged
-+ Final: `heater_power` $= [0, 100]$ ✓
-
-Property holds, but precision is lost. Cannot answer "when is heater at full power?"
-
-=== Path-Sensitive BDD Analysis
-
-Maintains separate states for each path. Using `PathSensitiveState`:
-
-```rust
-let bdd = Rc::new(Bdd::default());
-let mut state = PathSensitiveState::new(bdd.clone());
-
-// heater_power = 0
-state.env.insert("heater_power", Interval::constant(0));
-
-// First branch: sensor < 15
-let (mut branch1, mut state) = state.branch();
-branch1.env.insert("heater_power", Interval::constant(100));
-
-// Second branch: sensor < 20
-let (mut branch2, mut branch3) = state.branch();
-branch2.env.insert("heater_power", Interval::constant(50));
-
-// Final: three states
-// State 1: (v₁, {heater_power ↦ [100, 100]})        -- sensor < 15
-// State 2: (¬v₁ ∧ v₂, {heater_power ↦ [50, 50]})    -- 15 ≤ sensor < 20
-// State 3: (¬v₁ ∧ ¬v₂, {heater_power ↦ [0, 0]})     -- sensor ≥ 20
-```
-
-Each partition preserves exact correlation between sensor reading and heater power:
-- $100 in [0, 100]$ #YES
-- $50 in [0, 100]$ #YES
-- $0 in [0, 100]$ #YES
-
-Path-sensitivity enables queries:
-- "When is heater at full power?" $=>$ `sensor < 15`
-- "Is heater_power = 75 possible?" $=>$ No
-- "What triggers half power?" $=>$ `15 ≤ sensor < 20`
-
 == Advanced: Condition Management
 
 Production analyzers optimize BDD variable allocation by recognizing negated predicates.
@@ -530,7 +461,8 @@ if x < 10 {
 
 After the branch, the BDD path condition records $x < 10$, but the interval domain still has $x in [-oo, +oo]$ unless we explicitly communicate this constraint.
 
-*Solution:* Extract the numeric constraint from the branch condition and use it to *refine* the abstract environment.
+To solve this, we extract the numeric constraint from the branch condition and use it to *refine* the abstract environment.
+This ensures both components stay synchronized.
 
 === Generic Refinement Interface
 
@@ -598,9 +530,10 @@ The interval domain automatically tightens bounds based on branch conditions, ev
   - Refined data can rule out additional paths
 ]
 
-== The Interpreter Loop
+== Putting It Together: The Interpreter Loop
 
-The abstract interpreter walks through program statements:
+Now that we have all the pieces --- branching, joining, refinement --- let's see how they fit together.
+The abstract interpreter walks through program statements, applying these operations:
 
 ```rust
 fn eval_stmt(stmt: &Stmt, state: &mut State) {
@@ -630,10 +563,11 @@ fn eval_stmt(stmt: &Stmt, state: &mut State) {
 Key operations:
 - *Assignment*: update environment, preserve path
 - *Branch*: split state, refine both branches, join results
-- *Loop*: iterate until fixpoint with widening
+- *Loop*: iterate until fixpoint with widening (Chapter 10 covers fixpoint algorithms)
 
-== How BDDs and Domains Cooperate
+== Understanding the Product: How BDDs and Domains Cooperate
 
+Let's step back and understand the fundamental mechanism at work.
 The key insight: BDDs and abstract domains form a *feedback loop*.
 
 Each state $(b, rho)$ combines:
@@ -641,25 +575,38 @@ Each state $(b, rho)$ combines:
 - $rho$: abstract environment with variable values
 
 These two components inform each other.
-This is an instance of *product domain* construction (formal definition in @ch-advanced-galois).
+This is an instance of *product domain* construction (see formal definition in @ch-advanced-galois).
 
-*Control constrains data:*
+=== Control Flow Refines Data Values
+
+When we take a branch, the control flow condition provides information about variable values.
+Consider:
+
 ```rust
 if x > 0 {
     // BDD records: path ∧ (x > 0)
     // Domain refines: x ∈ [1, +∞]
 }
 ```
-The branch condition tightens the interval for `x`.
 
-*Data prunes paths:*
+The branch condition `x > 0` not only updates the BDD path condition, but also allows the interval domain to tighten its bounds.
+Inside the branch, we know $x > 0$, so the interval can be refined from $[-oo, +oo]$ to $[1, +oo]$.
+
+=== Data Values Eliminate Infeasible Paths
+
+Conversely, when the abstract domain has precise information, it can prove that certain paths are impossible.
+Consider:
+
 ```rust
 x = 5;              // Domain: x ∈ [5, 5]
 if x < 0 {          // BDD would add: path ∧ (x < 0)
     // Unreachable!  // But [5,5] ∩ (-∞,0) = ∅
 }                    // Drop this partition
 ```
-When data contradicts control, that path is impossible.
+
+Here, the interval domain knows $x in [5, 5]$.
+When we encounter the condition `x < 0`, the intersection $[5,5] inter (-oo, 0) = emptyset$ is empty.
+This proves the path is infeasible, so we can drop this partition entirely.
 
 This bidirectional refinement is called *reduction*.
 The process continues until neither component can tighten further.
@@ -674,25 +621,36 @@ For formal reduction operators with soundness proofs, see @ch-advanced-galois.
 
 As programs execute, partitions multiply.
 Without management, memory exhausts quickly.
+We need strategies to keep the number of partitions under control while preserving as much precision as possible.
 
-Three practical strategies:
+=== Strategy 1: Remove Infeasible Partitions
 
-*Remove infeasible partitions:*
-When BDD becomes False, drop that partition.
+The simplest strategy is to remove partitions whose BDD becomes False.
+These represent impossible execution paths and contribute nothing to the analysis.
+
 ```rust
 partitions.retain(|(path, _)| !bdd.is_zero(*path));
 ```
 
-*Merge identical environments:*
-If two partitions have the same abstract values, combine their paths.
+This is essentially free --- we're discarding partitions that are already proven unreachable.
+
+=== Strategy 2: Merge Partitions with Identical Environments
+
+When two partitions have the same abstract values for all variables, we can merge their path conditions.
+For example:
+
 ```rust
 // (x > 0, {y ↦ 5}) and (x < 10, {y ↦ 5})
 // → ((x > 0) ∨ (x < 10), {y ↦ 5})
 ```
 
-*Cap partition count ($k$-limiting):*
-Set a maximum (e.g., $k = 10$).
-When exceeded, force-merge the most similar partitions.
+This reduces the number of partitions without losing precision, since the abstract environments are identical.
+
+=== Strategy 3: Cap Partition Count (k-limiting)
+
+When all else fails, we can impose a hard limit on the number of partitions.
+For example, set a maximum of $k = 10$ partitions.
+
 ```rust
 const MAX_PARTITIONS: usize = 10;
 if partitions.len() > MAX_PARTITIONS {
@@ -700,9 +658,14 @@ if partitions.len() > MAX_PARTITIONS {
 }
 ```
 
-== Concrete Example: Temperature Controller <sec-temperature-example>
+When this limit is exceeded, we force-merge the most similar partitions (those with closest abstract values).
+This trades precision for performance, but ensures the analysis remains tractable.
 
-Let's analyze a realistic embedded system to see path-sensitivity in action.
+With these management strategies in place, let's see path-sensitive analysis in action.
+
+== Complete Example: Temperature Controller Analysis
+
+Let's apply everything we've learned to a realistic embedded system.
 Consider a temperature controller with safety-critical bounds:
 
 ```rust
@@ -743,12 +706,17 @@ Analysis trace:
   - False: `heater_power` $= [0, 0]$
 
 + Final merge:
-  - `heater_power` $= [0, 100] ljoin [50, 50] ljoin [0, 0] = [0, 100]$*Result*: $"heater_power" in [0, 100]$ ✓ (safety property holds)
+  - `heater_power` $= [0, 100] ljoin [50, 50] ljoin [0, 0] = [0, 100]$
 
-*Limitation*: Cannot answer:
+The analysis concludes that $"heater_power" in [0, 100]$, so the safety property holds.
+
+However, this path-insensitive analysis has lost significant information.
+It cannot answer important questions:
 - "Under what conditions is heater at full power?"
 - "Is `heater_power = 75` ever possible?"
 - "What sensor range triggers half power?"
+
+Path-sensitivity will let us answer these questions precisely.
 
 === Path-Sensitive BDD Analysis
 
@@ -778,12 +746,12 @@ Analysis trace:
         & (("sensor" gt.eq 15) and ("sensor" < 20), {"hp" arrow.bar 50, "sensor" arrow.bar [15, 19]}), \
         & ("sensor" gt.eq 20, {"hp" arrow.bar 0, "sensor" arrow.bar [20, +oo]}) } $
 
-*Verification:* Check each partition's `heater_power` value:
+Now we can verify the safety property on each partition separately:
 - Partition 1: $100 in [0, 100]$ ✓
 - Partition 2: $50 in [0, 100]$ ✓
 - Partition 3: $0 in [0, 100]$ ✓
 
-Property holds on all paths!
+The property holds on all paths, confirming the system is safe.
 
 === Advanced Queries Enabled by Path-Sensitivity
 
@@ -795,25 +763,38 @@ Path-sensitivity enables queries about the relationship between inputs and outpu
 
 This transforms analysis from "what values are possible" into "under which conditions do these values occur".
 
-== Combining Multiple Data Domains <sec-multiple-domains>
+== Beyond Single Domains: Combining Multiple Abstractions <sec-multiple-domains>
 
-Beyond pairing BDDs with one abstract domain, we can combine *multiple* data abstractions.
+So far we've paired BDDs with a single abstract domain (sign, interval, etc.).
+But we can go further: combine *multiple* data abstractions simultaneously.
+Each domain contributes different information, and reduction lets them refine each other.
 See #inline-example("domains", "combined.rs", "combined") for runnable examples.
-Each domain contributes different information.
-Reduction lets them refine each other.
 
-*Sign × Interval*:
-- Signs detect zero division, intervals track bounds.
-- Reduction: If sign = Zero, refine interval to $[0, 0]$.
-- If interval = $[5, 10]$, refine sign to Positive.
+=== Sign × Interval Product
 
-*Interval × Congruence*:
-- Intervals for bounds, congruences for divisibility.
-- Reduction: Interval $[8, 12]$ with congruence $equiv 0 mod 4$ refines to ${8, 12}$ (only 8 and 12 satisfy both).
+The sign domain detects zero division and distinguishes positive from negative values.
+The interval domain tracks numeric bounds.
+Together, they can refine each other:
 
-*Polyhedra × Interval*:
-- Polyhedra capture linear relations, intervals provide quick bounds.
-- Reduction: Project polyhedron onto single variable to tighten interval.
+- If the sign domain determines a value is Zero, the interval domain can refine its bounds to $[0, 0]$.
+- Conversely, if the interval domain has bounds $[5, 10]$, the sign domain can refine its value to Positive.
+
+=== Interval × Congruence Product
+
+Intervals provide bounds, while congruences track divisibility properties (e.g., "even" or "divisible by 4").
+When combined, they can significantly reduce the set of possible values:
+
+- Interval $[8, 12]$ with congruence $equiv 0 mod 4$ refines to ${8, 12}$.
+  Only 8 and 12 in this range satisfy the divisibility constraint.
+
+=== Polyhedra × Interval Product
+
+Polyhedra capture linear relations between variables (e.g., $x - y <= 5$).
+Intervals provide quick bounds for individual variables.
+Reduction works by projecting the polyhedron:
+
+- Project the polyhedron onto a single variable to extract tighter bounds.
+- Use interval bounds to simplify polyhedron constraints.
 
 #example-reference(
   "domains",
@@ -857,13 +838,14 @@ This requires careful design:
 ]
 
 
-== Research Spotlight: Trace Partitioning vs Powerset <sec-trace-partitioning-spotlight>
+== Research Spotlight: Trace Partitioning in Context <sec-trace-partitioning-spotlight>
 
 #info-box(title: "Research Context")[
-  This section discusses research literature on trace partitioning strategies.
-  Useful for readers interested in the theoretical foundations, but not essential for practical implementation.
+  This section discusses the theoretical foundations and research literature.
+  Useful for readers interested in the formal underpinnings, but not essential for practical implementation.
 ]
 
+The trace partitioning approach we've used throughout this chapter has deep theoretical roots.
 Trace partitioning maintains disjoint path sets, each with its own abstract value.
 The *powerset* domain allows arbitrary sets of abstract elements without disjointness constraints.
 Trace partitioning is a restricted powerset where partitions align with control flow splits.
@@ -884,20 +866,39 @@ Recent work explores:
 ]
 
 
-== Implementation Trade-offs <sec-implementation-tradeoffs>
+== Engineering Perspective: Implementation Trade-offs <sec-implementation-tradeoffs>
 
 #info-box(title: "Engineering Considerations")[
-  This section discusses practical trade-offs in production analyzers.
-  Part III (Performance) covers these topics in depth with benchmarks.
+  This section discusses practical engineering trade-offs in production analyzers.
+  Part III (Performance and Optimization) covers these topics in depth with benchmarks.
 ]
 
-Real path-sensitive analyzers balance precision against performance.
-Four common strategies:
+We've focused on correctness and precision, but production analyzers must also consider performance.
+Path-sensitive analysis can be expensive, so real systems balance precision against speed.
 
-- *Eager Merge*: Join states at every merge point, losing path-sensitivity early but bounding states.
-- *Lazy Merge*: Maintain partitions as long as possible, only merging when forced (loop convergence, state limit).
-- *Selective Sensitivity*: Partition only on predicates likely to improve precision (e.g., null checks, array bounds).
-- *Predicate Sampling*: Allocate BDD variables for a subset of program conditions, merging others.
+=== Eager Merge Strategy
+
+Join states at every merge point in the control flow graph.
+This loses path-sensitivity early but bounds the number of states.
+Suitable for programs where path-sensitivity provides little benefit.
+
+=== Lazy Merge Strategy
+
+Maintain partitions as long as possible, only merging when absolutely necessary.
+Merging is forced at loop convergence points or when hitting state limits.
+Provides maximum precision at the cost of potentially exponential state growth.
+
+=== Selective Sensitivity Strategy
+
+Partition only on predicates likely to improve precision.
+For example, track null checks and array bounds precisely, but merge on other conditions.
+Requires heuristics or annotations to identify important predicates.
+
+=== Predicate Sampling Strategy
+
+Allocate BDD variables for only a subset of program conditions.
+Other conditions are handled by merging their states.
+Balances precision and performance by focusing resources on critical predicates.
 
 #implementation-box[
   Expose a configuration parameter `sensitivity_mode: Enum { Full, Limited(k), Selective }`.
