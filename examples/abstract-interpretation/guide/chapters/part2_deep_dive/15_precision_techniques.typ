@@ -326,7 +326,6 @@ This corresponds to finding the *shortest path* to the `true` terminal in the BD
     + $"cost"_h <- "dist"[h] + "cost"(x, 1)$
     + $"dist"[u] <- min("cost"_l, "cost"_h)$
     + $"choice"[u] <- ("cost"_l <= "cost"_h ? 0 : 1)$ $quad slash.double$ Store optimal branch.
-  + *end for*
 
   + $A <- emptyset$ $quad slash.double$ Reconstruct path top-down.
   + $"curr" <- "root"$
@@ -334,7 +333,6 @@ This corresponds to finding the *shortest path* to the `true` terminal in the BD
     + $"val" <- "choice"["curr"]$
     + $A <- A union {( "var"("curr"), "val" )}$
     + $"curr" <- ("val" == 0 ? "low"("curr") : "high"("curr"))$
-  + *end while*
   + *return* $A$
 ]
 

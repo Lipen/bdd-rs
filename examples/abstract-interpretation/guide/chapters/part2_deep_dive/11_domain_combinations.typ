@@ -490,7 +490,6 @@ Transformers on product domains must maintain reduction.
 
   + *for* $i = 1$ *to* $n$ *do*
     + $a'_i <- llb s rrb^sharp_i (a_i)$ $quad slash.double$ Apply transformer in each domain.
-  + *end for*
   + $(a'_1, ..., a'_n) <- rho(a'_1, ..., a'_n)$ $quad slash.double$ Reduce result.
   + *return* $(a'_1, ..., a'_n)$
 ]

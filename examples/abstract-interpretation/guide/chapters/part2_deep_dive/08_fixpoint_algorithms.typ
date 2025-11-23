@@ -89,9 +89,6 @@ Chaotic iteration can be wasteful: updating a variable when its inputs haven't c
       + $sigma(x) <- "new"$ $quad slash.double$ Update solution.
       + *for each* $y$ *where* $x -> y in G$ *do*
         + *add*$(W, y)$ $quad slash.double$ Re-examine dependents.
-      + *end for*
-    + *end if*
-  + *end while*
   + *return* $sigma$
 ]
 
@@ -325,12 +322,9 @@ For infinite-height lattices, combine worklist with widening.
     + $"count"(x) <- "count"(x) + 1$
     + *if* $"count"(x) >$ threshold *then*
       + $"new" <- "old" widen "new"$ $quad slash.double$ Apply widening after threshold.
-    + *end if*
     + *if* $"new" != "old"$ *then*
       + $sigma(x) <- "new"$
       + add dependents to $W$
-    + *end if*
-  + *end while*
   + *return* $sigma$
 ]
 
@@ -396,8 +390,6 @@ After widening converges to a post-fixpoint, narrow to recover precision.
     + *if* $"narrow" != "old"$ *then*
       + $sigma(x) <- "narrow"$
       + add dependents to $W$
-    + *end if*
-  + *end while*
   + *return* $sigma$
 ]
 
