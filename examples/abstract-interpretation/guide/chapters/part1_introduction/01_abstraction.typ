@@ -85,84 +85,51 @@ Abstract Interpretation is the art of choosing the right "projection" (abstracti
 - If we want to prove a packet is TCP, we project it to its *Protocol*.
 - If we want to prove a pointer is safe, we project it to its *Nullability*.
 
-== Formalizing Abstraction
-
-To make this rigorous, we define two functions connecting the concrete world (actual execution) and the abstract world (properties).
-
-#definition(title: "Concretization Function")[
-  The concretization function $gamma$ maps an abstract value to the set of concrete states it represents.
-  For example, in the Protocol domain:
-  - $gamma("TCP") = {"All TCP packets"}$
-  - $gamma("UDP") = {"All UDP packets"}$
-  - $gamma(top) = {"All IP packets"}$
-]
-
-An analysis is *sound* if the abstract result always covers the concrete result.
-If we compute `packet.proto` in the abstract, the result must include the actual protocol of the concrete packet.
-
-== Interactive Reasoning
-
-Before we write code, let's build intuition by playing a game.
-I have two hidden program states, $A$ and $B$.
-I won't tell you their full memory, but I will tell you their *properties*.
-
-*Round 1:*
-- Fact: $A$ is a TCP packet.
-- Fact: $B$ is a TCP packet.
-- Question: If I pick one at random, what is its protocol?
-
-*Answer:* TCP.
-Reasoning: The union of TCP and TCP is still TCP.
-We didn't need to know the payloads to know the protocol.
-
-*Round 2:*
-- Fact: $A$ is a TCP packet.
-- Fact: $B$ is a UDP packet.
-- Question: If I pick one at random, what is its protocol?
-
-*Answer:* Unknown ($top$).
-Reasoning:
-- It could be TCP.
-- It could be UDP.
-
-Because the result depends on *which path* we took, we cannot give a precise single protocol.
-We must return $top$ ("Any Protocol") to remain sound.
-
 == The Subject of Analysis: PFL
 
-To make this concrete, we will build a *Static Analyzer* throughout this guide.
-We will analyze a simple toy language called *PFL* (Packet Filter Language).
+To make our discussion concrete, we need a subject to analyze.
+Throughout this guide, we will build a *Static Analyzer* for a toy language called *PFL* (Packet Filter Language).
 
-PFL is a minimal language with header matches (IP, Port, Proto), conditionals, and actions (drop/accept).
-It is simple enough to understand fully, yet complex enough to exhibit the challenges of verification (branching, state merging).
+PFL is a minimal language for defining network policies.
+It supports:
+- *Header Matches*: Checking fields like `ip`, `port`, and `proto`.
+- *Actions*: `accept` or `drop`.
+- *Control Flow*: `if-else` branches.
 
-=== Syntax
-
-PFL policies consist of checks and actions.
-Here is a simple example that drops traffic to a specific port:
+Here is a simple PFL program:
 
 ```rust
 // Example PFL policy
-if dst_port == 80 {
-    accept;
+if proto == TCP {
+    if dst_port == 80 {
+        accept;
+    } else {
+        drop;
+    }
 } else {
     drop;
 }
 ```
 
-(We will define the full Rust AST in later chapters when we start implementing the parser.)
+Our goal is to verify properties of such programs, such as "Is it possible for a non-TCP packet to be accepted?".
 
 == Designing an Abstract Domain
 
-Let's formalize our "TCP/UDP" game.
+To answer such questions, we cannot simulate every possible packet.
+Instead, we design an *Abstract Domain* that captures the properties we care about.
+
+Let's focus on the `proto` field.
+Concrete packets have a specific protocol number (e.g., 6 for TCP, 17 for UDP).
+For our analysis, we don't care about every number; we only care about the protocols mentioned in our policy.
+
 We define a set of abstract values $D$:
 $ D = {bot, "TCP", "UDP", "ICMP", top} $
 
-- $bot$ (Bottom): Impossible / No packet.
-- "TCP": Strictly TCP packets.
-- "UDP": Strictly UDP packets.
-- "ICMP": Strictly ICMP packets.
-- $top$ (Top): Unknown / Any protocol.
+- $bot$ (Bottom): Represents the *empty set* (impossible / no packet).
+- "TCP": Represents the set of all TCP packets.
+- "UDP": Represents the set of all UDP packets.
+- "ICMP": Represents the set of all ICMP packets.
+- $top$ (Top): Represents the *universal set* (unknown / any protocol).
 
 We can implement this in Rust:
 
@@ -175,6 +142,52 @@ We can implement this in Rust:
     Shows how abstraction trades precision for tractability.
   ],
 )
+
+== Formalizing Abstraction
+
+Now that we have a domain, we can be rigorous.
+We define two functions connecting the concrete world (actual execution) and the abstract world (properties).
+
+#definition(title: "Concretization Function")[
+  The concretization function $gamma$ maps an abstract value to the set of concrete states it represents.
+  For our Protocol domain:
+  - $gamma("TCP") = {"All TCP packets"}$
+  - $gamma("UDP") = {"All UDP packets"}$
+  - $gamma(bot) = emptyset$
+  - $gamma(top) = {"All IP packets"}$
+]
+
+An analysis is *sound* if the abstract result always covers the concrete result.
+If a concrete packet is actually TCP, our analysis must return either "TCP" or $top$. It cannot return "UDP".
+
+== Interactive Reasoning
+
+Let's build intuition by playing a game using this domain.
+I have two hidden program states (packets), $A$ and $B$.
+I won't tell you their exact content, but I will tell you their *abstract values*.
+
+*Round 1:*
+- Fact: $A$ is "TCP".
+- Fact: $B$ is "TCP".
+- Question: If I pick one at random, what is its protocol?
+
+*Answer:* "TCP".
+Reasoning: The union of TCP and TCP is still TCP.
+
+*Round 2:*
+- Fact: $A$ is "TCP".
+- Fact: $B$ is "UDP".
+- Question: If I pick one at random, what is its protocol?
+
+*Answer:* $top$ (Unknown).
+Reasoning:
+- It could be TCP.
+- It could be UDP.
+- Our domain $D$ does not have a value for "TCP or UDP".
+- The smallest value that covers both is $top$.
+
+Because the result depends on *which path* we took, we cannot give a precise single protocol.
+We must return $top$ to remain sound.
 
 === Abstract Semantics
 

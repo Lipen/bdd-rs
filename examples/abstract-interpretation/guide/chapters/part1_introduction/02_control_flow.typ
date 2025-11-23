@@ -22,9 +22,10 @@ Program execution, however, is sequential (instruction-by-instruction) and somet
 A CFG "flattens" the recursive structure into a graph.
 
 #definition(title: "Control Flow Graph")[
-  A *Control Flow Graph* $G = (V, E)$ consists of:
-  - *Nodes* $V$: Basic Blocks (sequences of straight-line instructions).
-  - *Edges* $E$: Flow transitions (jumps, branches) between blocks.
+  A *Control Flow Graph* is a directed graph $G = (V, E, v_"entry")$ where:
+  - $V$ is the set of *Basic Blocks* (nodes).
+  - $E subset.eq V times V$ is the set of control flow transitions (edges).
+  - $v_"entry" in V$ is the unique entry point of the program.
 ]
 
 === The Basic Block
@@ -186,16 +187,17 @@ Why is program verification so hard?
 The answer lies in the structure of the CFG.
 Every time we encounter a branch, the number of possible execution paths multiplies.
 
-Consider a sequence of just 3 independent checks:
+Consider a sequence of just 3 independent checks in PFL:
 
 ```rust
-if condition_A { ... }
-if condition_B { ... }
-if condition_C { ... }
+if proto == TCP { ... }
+if dst_port == 80 { ... }
+if src_ip == 10.0.0.1 { ... }
 ```
 
-This creates $2 times 2 times 2 = 8$ paths.
-For $N$ branches, we have $2^N$ paths.
+This creates $|Pi| = 2 times 2 times 2 = 8$ paths.
+For a sequence of $N$ branches, the size of the path set $Pi$ grows exponentially:
+$ |Pi| = 2^N $
 This is *exponential growth*.
 
 #figure(
@@ -203,43 +205,48 @@ This is *exponential growth*.
   cetz.canvas({
     import cetz.draw: *
 
+    // --- Styles & Constants ---
     let style-node = (fill: colors.primary, radius: 0.15)
-    let style-state = (fill: colors.bg-code, stroke: colors.text-light + 0.5pt, radius: 0.1)
+    let dy = -1.5
+    let dx-l1 = 2
+    let dx-l2 = 1
+
+    // --- Helper Functions ---
+    let draw-state-node(pos, name, label, anchor) = {
+      circle(pos, ..style-node, name: name)
+      content(pos, text(size: 0.7em)[#label], anchor: anchor, padding: 0.2)
+    }
+
+    let draw-edge(from, to) = {
+      line(from, to, stroke: 0.5pt + colors.text-light)
+    }
+
+    // --- Drawing ---
 
     // Level 0
-    circle((0, 0), ..style-node, name: "n0")
-    content((0, 0.5), text(size: 0.7em)[State: $emptyset$])
+    draw-state-node((0, 0), "n0", [State: $emptyset$], "south")
 
     // Level 1
-    circle((-2, -1.5), ..style-node, name: "n1l")
-    content((-2.5, -1.5), text(size: 0.7em)[${"A"}$], anchor: "east")
-    circle((2, -1.5), ..style-node, name: "n1r")
-    content((2.5, -1.5), text(size: 0.7em)[${not"A"}$], anchor: "west")
+    draw-state-node((-dx-l1, dy), "n1l", [${"TCP"}$], "east")
+    draw-state-node((dx-l1, dy), "n1r", [${!"TCP"}$], "west")
 
     // Level 2
-    circle((-3, -3), ..style-node, name: "n2ll")
-    content((-3, -3.5), text(size: 0.7em)[${"A", "B"}$])
-
-    circle((-1, -3), ..style-node, name: "n2lr")
-    content((-1, -3.5), text(size: 0.7em)[${"A", not"B"}$])
-
-    circle((1, -3), ..style-node, name: "n2rl")
-    content((1, -3.5), text(size: 0.7em)[${not"A", "B"}$])
-
-    circle((3, -3), ..style-node, name: "n2rr")
-    content((3, -3.5), text(size: 0.7em)[${not"A", not"B"}$])
+    draw-state-node((-dx-l1 - dx-l2, dy * 2), "n2ll", [${"TCP", 80}$], "north")
+    draw-state-node((-dx-l1 + dx-l2, dy * 2), "n2lr", [${"TCP", !80}$], "north")
+    draw-state-node((dx-l1 - dx-l2, dy * 2), "n2rl", [${!"TCP", 80}$], "north")
+    draw-state-node((dx-l1 + dx-l2, dy * 2), "n2rr", [${!"TCP", !80}$], "north")
 
     // Edges
-    line("n0", "n1l", stroke: 0.5pt + colors.text-light)
-    line("n0", "n1r", stroke: 0.5pt + colors.text-light)
+    draw-edge("n0", "n1l")
+    draw-edge("n0", "n1r")
 
-    line("n1l", "n2ll", stroke: 0.5pt + colors.text-light)
-    line("n1l", "n2lr", stroke: 0.5pt + colors.text-light)
-    line("n1r", "n2rl", stroke: 0.5pt + colors.text-light)
-    line("n1r", "n2rr", stroke: 0.5pt + colors.text-light)
+    draw-edge("n1l", "n2ll")
+    draw-edge("n1l", "n2lr")
+    draw-edge("n1r", "n2rl")
+    draw-edge("n1r", "n2rr")
 
-    // Ellipsis for further explosion
-    content((0, -4.5), text(size: 1.2em, fill: colors.error)[$2^N$ Paths!])
+    // Ellipsis
+    content((0, dy * 3), text(size: 1.2em, fill: colors.error)[$2^N$ Paths!])
   }),
 )
 
@@ -266,13 +273,20 @@ We need a "Third Way."
 We need a data structure that can represent *sets of states* compactly, without listing them one by one.
 
 #intuition-box[
-  *Analogy: 20 Questions*
-  Imagine trying to identify a number between 1 and 1,000,000.
-  - *Enumeration:* "Is it 1? Is it 2? Is it 3? ..." (Takes 500,000 guesses on average).
-  - *Symbolic (Binary Search):* "Is it greater than 500,000?" (Takes 20 guesses).
+  *Extensional vs. Intensional Definition*
+  There are two ways to define a set $S$ within a universe $cal(U)$:
 
-  BDDs work like the "20 Questions" game.
-  Instead of listing every state, they ask a series of Yes/No questions (decisions) to efficiently narrow down the set of valid states.
+  - *Extensional:* Listing every member explicitly.
+    $ S = \{s_1, s_2, dots, s_n\} $
+    This is computationally infeasible when $|S|$ is large (e.g., $|cal(U)| approx 2^256$).
+
+  - *Intensional:* Specifying a logical predicate $P$ that characterizes the set.
+    $ S = \{x in cal(U) mid(|) P(x)\} $
+
+  Symbolic execution relies on the *intensional* approach.
+  A BDD encodes the *characteristic function* $chi_S: cal(U) -> \{0, 1\}$ defined as:
+  $ chi_S(x) = cases(1 &"if" P(x) "is true", 0 &"otherwise") $
+  This allows us to manipulate the *logic* of the set (the function $chi_S$) rather than enumerating its elements.
 ]
 
 In this guide, we will use *Binary Decision Diagrams (BDDs)* as our symbolic representation.
