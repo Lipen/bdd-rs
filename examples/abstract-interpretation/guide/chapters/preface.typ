@@ -17,62 +17,70 @@ Whether you're a student encountering formal methods for the first time, a pract
 
 == Who This Guide Is For
 
-This guide serves multiple audiences, each with different backgrounds and goals:
+This guide serves multiple audiences with diverse backgrounds and goals:
 
-#reading-path(path: "beginner")
 *Complete Beginners:*
-New to program verification and formal methods? Start with @part-i.
+New to program verification and formal methods?
+Start with @part-i.
 The guide builds intuition through concrete examples before introducing mathematical formalism.
 No prior knowledge of abstract interpretation or BDDs assumed --- just basic programming experience and curiosity.
 
-#reading-path(path: "implementation")
 *Practitioners:*
-Software engineer interested in applying verification techniques? Focus on @part-i (Chapters 1-5) for conceptual understanding, then jump to @part-iii (@ch-security) for implementation details and benchmarks.
+Software engineers interested in applying verification techniques?
+Focus on @part-i for conceptual understanding, then jump to @part-iii (@ch-security, @ch-performance) for implementation details and benchmarks.
 
-#reading-path(path: "advanced")
-*Researchers and Students:*
-Already familiar with program analysis basics? Skim @part-i and dive into @part-ii, which provides complete mathematical foundations, proofs, and connections to research literature.
+*Researchers and Graduate Students:*
+Already familiar with program analysis basics?
+Skim @part-i and dive into @part-ii, which provides complete mathematical foundations, formal proofs, and connections to research literature.
 
-*Educators*:
-This guide is structured to support a one-semester course on program analysis, with progressive exercises, worked examples, and discussion prompts throughout.
+*Educators:*
+This guide is structured to support a one-semester graduate course on program analysis, with progressive exercises, worked examples, and discussion prompts throughout.
 
 == What Makes This Guide Different
 
 Unlike traditional academic papers or reference manuals, this guide:
 
 - *Tells a story*: Concepts build progressively, motivating each idea before formalizing it.
-- *Shows real code*: Every concept is backed by working Rust implementations.
-- *Balances rigor and intuition*: Mathematical precision maintained with accessible explanations.
-- *Connects to practice*: Real-world applications and case studies demonstrate where these techniques shine.
-- *Provides multiple paths*: Skip sections that don't match your goals, or deep-dive where interested.
+- *Shows real code*: Every concept is backed by working Rust implementations from the `bdd-rs` library.
+- *Balances rigor and intuition*: Mathematical precision maintained while providing accessible explanations.
+- *Connects to practice*: Real-world applications --- from security analysis to smart contracts --- demonstrate where these techniques shine.
+- *Provides multiple paths*: Skip sections that don't match your goals, or deep-dive into formal theory where interested.
 
 == Structure of This Guide
 
-This guide is organized into three parts:
+This guide is organized into three parts, each serving a distinct purpose:
 
-*@part-i: Gentle Introduction* starts from first principles, building intuition about program abstraction, control flow, and symbolic representations through running examples like *heater controllers* and *traffic lights*.
+*@part-i: Gentle Introduction* (@ch-abstraction through @ch-symbolic-executor) starts from first principles.
+We build intuition about program abstraction, control flow, and symbolic representations through concrete examples.
+Core concepts like abstract domains, lattice operations, and BDD-based path sensitivity emerge naturally from practical problems.
 This part is accessible to anyone with programming background.
 
-*@part-ii: Deep Dive* provides complete theoretical foundations, formal proofs, implementation techniques, and research connections, enabling readers to understand the mathematics deeply and implement their own analyses.
+*@part-ii: Deep Dive* (@ch-lattice-theory through @ch-precision-techniques) provides rigorous mathematical foundations.
+We develop complete lattice theory, fixpoint theorems, Galois connections, and domain combination operators.
+Each chapter includes formal definitions, proofs, and implementation guidance.
+Topics include abstract transformers (@ch-advanced-galois), reduced products (@ch-domain-combinations), BDD path sensitivity (@ch-bdd-path), and specialized domains for strings (@ch-strings-automata), pointers (@ch-points-types), and precision refinement (@ch-precision-techniques).
 
-*@part-iii: Applications & Case Studies* explores advanced topics like security analysis, inter-procedural verification, and performance tuning, concluding with a complete case study of an access control system analysis.
+*@part-iii: Applications & Future Directions* (@ch-security through @ch-conclusion) bridges theory and practice.
+We explore security analysis with taint tracking, inter-procedural analysis with context sensitivity, performance optimization techniques, and the emerging integration of AI with formal methods.
+The guide concludes with a complete case study analyzing an access control system and directions for future research.
 
 == How to Use This Guide
 
 === For Learning (First Time Through)
 
-+ Start with the *Prologue* to understand the motivation.
-+ Work through *@part-i* sequentially, trying the examples.
-+ When encountering formalism in @part-ii, don't panic --- we build intuition first.
-+ Use the *exercises* to test your understanding.
-+ Refer to *appendices* when you need background material.
++ Start with the *Prologue* to understand why static analysis matters.
++ Work through *@part-i* sequentially --- concepts build on each other.
++ Try the code examples from the `bdd-rs` repository as you go.
++ When encountering formalism in @part-ii, don't panic --- intuition comes first, rigor follows.
++ Use the *exercises* (marked with difficulty levels) to test understanding.
++ Skip @part-ii proofs on first reading if they feel overwhelming --- return when ready.
 
 === For Reference (Coming Back)
 
-- Use the *table of contents* and *index* to find specific topics.
-- *Margin notes* provide quick refreshers on key concepts.
-- *Cross-references* link related sections.
-- The *glossary* defines all technical terms.
+- Use the *table of contents* and *cross-references* to navigate directly to topics.
+- *Info boxes* and *margin notes* provide quick refreshers on key concepts.
+- *Example references* link to concrete code in the repository.
+- The *index* (when complete) will enable rapid lookup of specific terms.
 
 === Reading Paths
 
@@ -95,38 +103,55 @@ We've marked sections with icons to help you navigate:
 == Prerequisites
 
 *Assumed knowledge:*
-- Basic programming experience (any language).
-- Undergraduate-level discrete mathematics (sets, functions, logic).
+- Basic programming experience (preferably in Rust, but examples are explained).
+- Undergraduate discrete mathematics (sets, functions, relations, basic logic).
 - Familiarity with graphs and trees.
 
 *Helpful but not required:*
-- Experience with Rust or functional programming.
-- Previous exposure to program analysis or compilers.
-- Basic understanding of logic and Boolean algebra.
+- Understanding of compilers or program analysis.
+- Experience with functional programming patterns.
+- Exposure to Boolean algebra or propositional logic.
 
-If you're missing background in any area, Appendix A provides concise summaries of mathematical prerequisites.
+*For @part-ii (advanced readers):*
+- Mathematical maturity for reading proofs.
+- Comfort with order theory (partially ordered sets, lattices).
+- Familiarity with fixpoint theorems.
+
+Don't let prerequisites intimidate you --- the guide builds concepts incrementally.
+When mathematical background is needed, we provide intuition before formalism.
 
 == Companion Resources
 
-This guide is part of a larger ecosystem:
+This guide is part of a comprehensive ecosystem:
 
-- *bdd-rs library*: Open-source Rust implementation at #link("https://github.com/Lipen/bdd-rs").
-- *Code examples*: All examples from this guide are in the repository.
-- *Research paper*: A concise academic paper presents the core contributions.
-- *Benchmarks*: Complete benchmark suite for reproducing results.
+- *`bdd-rs` library*: Open-source Rust implementation at #link("https://github.com/Lipen/bdd-rs")[github.com/Lipen/bdd-rs].
+- *Code examples*: All examples from this guide are in the `bdd-rs/examples/abstract-interpretation/` directory.
+- *Test suite*: Comprehensive tests validate correctness of implementations.
+
+All code is open-source and contributions are welcome.
 
 == Acknowledgments
 
-This guide builds on decades of research in abstract interpretation (pioneered by Patrick and Radhia Cousot) and symbolic verification using BDDs (advanced by Randal Bryant and many others).
+This guide builds on decades of foundational research.
+Abstract interpretation was pioneered by Patrick and Radhia Cousot in their seminal work.
+Binary Decision Diagrams were introduced by Randal Bryant, revolutionizing symbolic verification.
+Countless researchers have extended these foundations --- their work is cited throughout.
 
-The bdd-rs library and this guide are open-source projects, welcoming contributions from the community.
-Thank you to everyone who has contributed code, feedback, and insights.
+The `bdd-rs` library represents a modern synthesis of these ideas, optimized for Rust's ownership model and designed for practical deployment.
+
+Thank you to the open-source community for feedback, bug reports, and contributions that have improved both the library and this guide.
 
 == Let's Begin
 
-Program verification is a journey from informal reasoning to mathematical certainty.
-This guide equips you with powerful tools for analyzing programs automatically, guaranteeing properties that testing alone cannot ensure.
+Program verification is not just an academic exercise --- it's a necessity for building reliable, secure systems.
+Testing alone cannot guarantee correctness in modern software.
+We need tools that reason about *all* possible behaviors, not just sampled executions.
 
-Whether you're here to understand how verification works, to apply these techniques to your own code, or to advance the state of the art, this guide aims to be a valuable resource.
+This guide equips you with the theory and practice of BDD-guided abstract interpretation:
+- *Theory*: Understand why these techniques work and when they apply.
+- *Practice*: Implement analyses using the `bdd-rs` library.
+- *Applications*: Apply these tools to real security and verification problems.
+
+Whether you're here to understand how verification works, to apply these techniques to your own code, or to advance the state of the art, this guide aims to be your companion.
 
 Let's dive in!
