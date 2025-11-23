@@ -1,21 +1,21 @@
 #import "../../theme.typ": *
 #import "@preview/cetz:0.4.2": canvas, draw
 
-= Implementing the Engine: The `ConditionManager` <ch-bdd-programming>
+= Implementing the Engine: The `FilterManager` <ch-bdd-programming>
 
-We have the theory: BDDs represent sets of paths.
+We have the theory: BDDs represent sets of packets.
 Now we build the engine.
 
-Our first task is to implement the *`ConditionManager`*.
-This component translates the language of our program (strings like "`x > 0`") into the language of BDDs (variables like 1, 2, 3).
+Our first task is to implement the *`FilterManager`*.
+This component translates the language of our firewall rules (strings like "`tcp.dst_port == 80`") into the language of BDDs (variables like 1, 2, 3).
 
 == Setting Up the Project
 
-First, let's create a new Rust project for our MiniVerifier.
+First, let's create a new Rust project for our Firewall Checker.
 
 ```bash
-cargo new miniverifier
-cd miniverifier
+cargo new firewall-checker
+cd firewall-checker
 # If using the local workspace:
 # cargo add --path ../../bdd-rs
 # If using crates.io (once published):
@@ -32,7 +32,7 @@ The `bdd-rs` library operates on a strict principle: *The Manager is King*.
 
 #info-box(title: "Why a Manager?")[
   In a BDD, nodes are shared.
-  If you have the expression `a AND b` in two different places, they point to the *exact same memory address*.
+  If you have the rule `tcp AND port_80` in two different chains, they point to the *exact same memory address*.
 
   To make this work, we need a central authority --- the `Bdd` manager --- to:
   + *Deduplicate*: Check if a node already exists before creating a new one (Hash Consing).
@@ -49,17 +49,17 @@ The `bdd-rs` library operates on a strict principle: *The Manager is King*.
 
     // Internal Nodes (The Truth)
     circle((2, 2.5), radius: 0.4, name: "node1", fill: colors.node-bg, stroke: colors.node-border)
-    content("node1", $x_1$)
+    content("node1", [tcp])
 
     circle((3.5, 1), radius: 0.4, name: "node2", fill: colors.node-bg, stroke: colors.node-border)
-    content("node2", $x_2$)
+    content("node2", [ssh])
 
     // Terminals
     rect((1.5, -1), (2.5, -0.4), name: "zero", fill: colors.error.lighten(80%), stroke: colors.error)
-    content("zero", $0$)
+    content("zero", [Drop])
 
     rect((3, -1), (4, -0.4), name: "one", fill: colors.success.lighten(80%), stroke: colors.success)
-    content("one", $1$)
+    content("one", [Accept])
 
     // Edges (Internal structure)
     line("node1", "node2", mark: (end: ">", fill: colors.primary))
@@ -101,15 +101,15 @@ fn main() {
 
     // 2. Create variables (must be 1-indexed!)
     // Variable 0 is reserved for internal use.
-    let var1 = bdd.mk_var(1);
-    let var2 = bdd.mk_var(2);
+    let is_tcp = bdd.mk_var(1);
+    let is_ssh = bdd.mk_var(2);
 
     // 3. Combine them using the manager
-    let both = bdd.apply_and(var1, var2); // var1 AND var2
-    let either = bdd.apply_or(var1, var2); // var1 OR var2
+    let ssh_traffic = bdd.apply_and(is_tcp, is_ssh); // TCP AND SSH
+    let any_traffic = bdd.apply_or(is_tcp, is_ssh);  // TCP OR SSH
 
     // 4. Check results
-    println!("Both: {:?}", both);
+    println!("SSH Traffic: {:?}", ssh_traffic);
 }
 ```
 
@@ -137,52 +137,54 @@ The following example provides a deep dive into the manager's architecture:
 == Defining the Input Language
 
 To build a verifier, we first need a language to verify.
-Let's define a minimal Abstract Syntax Tree (AST) for expressions and conditions.
-This allows us to represent statements like `x < 5` or `y == 10` as data structures.
+Let's define a minimal Abstract Syntax Tree (AST) for packet headers and match rules.
+This allows us to represent statements like `ip.src == 10.0.0.1` or `tcp.port == 22` as data structures.
 
 ```rust
 // src/ast.rs
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Expr {
-    Var(String),
-    Const(i32),
+pub enum HeaderField {
+    SrcIp,
+    DstIp,
+    Proto,
+    DstPort,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Cond {
-    Lt(Expr, Expr), // e.g., x < 5
-    Eq(Expr, Expr), // e.g., x == 5
+pub enum Match {
+    Exact(HeaderField, u32), // e.g., Proto == 6 (TCP)
+    Range(HeaderField, u32, u32), // e.g., Port in [0, 1024]
     // ... other variants
 }
 ```
 
-== Designing the `ConditionManager`
+== Designing the `FilterManager`
 
 Now, let's build our bridge.
-The BDD engine doesn't understand arithmetic or variables like~`x`.
+The BDD engine doesn't understand IP addresses or ports.
 It only understands boolean variables $1, 2, 3, dots$.
-We need a component that maps our rich AST conditions (like `x < 5`) to these simple BDD variables.
+We need a component that maps our rich AST matches (like `DstPort == 22`) to these simple BDD variables.
 
 We need a struct that holds:
 + The `Bdd` manager itself.
-+ A mapping from `Cond` (our AST node) to BDD variable IDs.
++ A mapping from `Match` (our AST node) to BDD variable IDs.
 + A counter to assign new IDs.
 
 ```rust
 use std::collections::HashMap;
 use bdd_rs::bdd::Bdd;
 use bdd_rs::reference::Ref;
-// Assuming Cond is defined as in Chapter 1
-use crate::ast::Cond;
+// Assuming Match is defined as in Chapter 1
+use crate::ast::Match;
 
-pub struct ConditionManager {
+pub struct FilterManager {
     bdd: Bdd,
-    mapping: HashMap<Cond, usize>,
+    mapping: HashMap<Match, usize>,
     next_var_id: usize,
 }
 
-impl ConditionManager {
+impl FilterManager {
     pub fn new() -> Self {
         Self {
             bdd: Bdd::default(), // Use default configuration
@@ -195,44 +197,44 @@ impl ConditionManager {
 
 == Allocating Conditions
 
-The core method is `get_condition`.
-It takes a `Cond` and returns a BDD `Ref`.
+The core method is `get_match_var`.
+It takes a `Match` and returns a BDD `Ref`.
 
-If we've seen this condition before, return the existing variable.
+If we've seen this match rule before, return the existing variable.
 If not, create a new one.
 
 ```rust
-impl ConditionManager {
-    pub fn get_condition(&mut self, cond: &Cond) -> Ref {
-        if let Some(&id) = self.mapping.get(cond) {
-            // We've seen this condition before.
+impl FilterManager {
+    pub fn get_match_var(&mut self, m: &Match) -> Ref {
+        if let Some(&id) = self.mapping.get(m) {
+            // We've seen this rule before.
             // Return the BDD variable for it.
             return self.bdd.mk_var(id as u32);
         }
 
-        // New condition!
+        // New rule!
         let id = self.next_var_id;
         self.next_var_id += 1;
 
-        self.mapping.insert(cond.clone(), id);
+        self.mapping.insert(m.clone(), id);
         self.bdd.mk_var(id as u32)
     }
 }
 ```
 
 #warning-box(title: "The Boolean Abstraction Gap")[
-  Our simple manager treats every distinct `Cond` as a completely independent boolean variable.
+  Our simple manager treats every distinct `Match` as a completely independent boolean variable.
 
-  For example, if we encounter `x > 0` and `x <= 0`, they will be assigned two different variables, say $1$ and $2$.
-  The BDD will allow both to be true simultaneously ($1 and 2$), even though logically they are contradictory.
+  For example, if we encounter `src_ip == 10.0.0.1` and `src_ip == 192.168.1.1`, they will be assigned two different variables, say $1$ and $2$.
+  The BDD will allow both to be true simultaneously ($1 and 2$), even though a packet cannot have two different source IPs at once!
 
   This is known as *Boolean Abstraction*.
-  We lose the semantic relationships between arithmetic predicates.
-  Fixing this requires a more sophisticated mapping strategy (e.g., canonicalizing negations) or an SMT solver, but for now, we accept this precision loss.
+  We lose the semantic relationships between header fields.
+  Fixing this requires a more sophisticated mapping strategy (e.g., One-Hot Encoding or SMT integration), but for now, we accept this precision loss.
 ]
 
-This simple logic guarantees that `x > 0` always maps to the same BDD variable, ensuring consistency across the entire analysis.
-This is crucial: if we mapped `x > 0` to variable `1` in one place and variable `2` in another, the BDD would treat them as independent facts!
+This simple logic guarantees that `DstPort == 22` always maps to the same BDD variable, ensuring consistency across the entire analysis.
+This is crucial: if we mapped `DstPort == 22` to variable `1` in one place and variable `2` in another, the BDD would treat them as independent facts!
 
 == Exposing BDD Operations
 
@@ -240,7 +242,7 @@ We also need to expose the BDD operations (AND, OR, NOT) so the rest of the engi
 This encapsulates the BDD logic.
 
 ```rust
-impl ConditionManager {
+impl FilterManager {
     pub fn and(&self, a: Ref, b: Ref) -> Ref {
         self.bdd.apply_and(a, b)
     }
@@ -276,7 +278,7 @@ Here is how to use it:
 
 ```rust
 // Inside main()
-let dot_graph = mgr.to_dot(path);
+let dot_graph = mgr.to_dot(policy);
 println!("{}", dot_graph);
 ```
 
@@ -288,51 +290,50 @@ dot -Tpng output.dot -o output.png
 
 #insight-box[
   Visualizing the BDD is the fastest way to spot if your variable ordering is inefficient or if your logic is incorrect.
-  If the graph looks like a tangled mess for a simple formula, check your variable ordering!
+  If the graph looks like a tangled mess for a simple policy, check your variable ordering!
 ]
 
 == Putting It Together
 
 Let's test our manager with a simple scenario.
-We will use the `Expr` and `Cond` types we defined earlier.
+We will use the `HeaderField` and `Match` types we defined earlier.
 
 ```rust
 // Make sure to include the AST definition from above!
-// mod ast; use ast::{Expr, Cond};
+// mod ast; use ast::{HeaderField, Match};
 
 fn main() {
-    let mut mgr = ConditionManager::new();
+    let mut mgr = FilterManager::new();
 
-    // Encounter "x > 0"
-    // In our AST: 0 < x
-    let x_gt_0 = Cond::Lt(Expr::Const(0), Expr::Var("x".into()));
-    let c1 = mgr.get_condition(&x_gt_0);
+    // Encounter "proto == TCP" (6)
+    let is_tcp = Match::Exact(HeaderField::Proto, 6);
+    let c1 = mgr.get_match_var(&is_tcp);
 
-    // Encounter "y < 5"
-    let y_lt_5 = Cond::Lt(Expr::Var("y".into()), Expr::Const(5));
-    let c2 = mgr.get_condition(&y_lt_5);
+    // Encounter "dst_port == 22" (SSH)
+    let is_ssh = Match::Exact(HeaderField::DstPort, 22);
+    let c2 = mgr.get_match_var(&is_ssh);
 
-    // Path: x > 0 AND y < 5
-    let path = mgr.and(c1, c2);
+    // Policy: TCP AND SSH
+    let policy = mgr.and(c1, c2);
 
-    // Encounter "x > 0" again!
+    // Encounter "proto == TCP" again!
     // The manager should return the SAME variable ID.
-    let c3 = mgr.get_condition(&x_gt_0);
+    let c3 = mgr.get_match_var(&is_tcp);
 
     // Should be the same variable
     assert_eq!(c1, c3);
 
-    println!("Path BDD: {:?}", path);
+    println!("Policy BDD: {:?}", policy);
 }
 ```
 
-This `ConditionManager` is the foundation of our symbolic execution engine.
-In the next chapter, we will use it to "execute" our Control Flow Graph.
+This `FilterManager` is the foundation of our symbolic execution engine.
+In the next chapter, we will use it to "execute" our Firewall Chains and build these BDDs automatically.
 
 #info-box(title: "Advanced BDD Topics")[
   For production BDD engines, two advanced topics are critical:
 
-  - *Quantification* (∃, ∀): Projecting out variables.
+  - *Quantification* (∃, ∀): Projecting out variables (e.g., checking if *any* port allows access).
     - See #inline-example("bdd_advanced", "quantification.rs", "bdd_quantification")
   - *Variable Ordering*: The \#1 factor affecting BDD size.
     - See #inline-example("bdd_advanced", "variable_ordering.rs", "bdd_variable_ordering")
@@ -343,17 +344,17 @@ In the next chapter, we will use it to "execute" our Control Flow Graph.
 #exercise-box(number: 1, difficulty: "Medium")[
   *Derived Operations*:
   + Implement `implies(&self, a: Ref, b: Ref) -> Ref` using `apply_not` and `apply_or`.
-    Use the logical equivalence $A => B equiv not A or B$.
+    Use this to check for *Redundant Rules* (if $"Rule"_A => "Rule"_B$, then $"Rule"_B$ might be redundant).
   + Implement `are_mutually_exclusive(&self, a: Ref, b: Ref) -> bool`.
-    This should return `true` if $a$ and $b$ cannot both be true simultaneously (i.e., their conjunction is `false`).
+    Use this to check for *Shadowing* (if a high-priority rule matches a superset of a low-priority rule).
 ]
 
 == Summary
 
 - We set up a Rust project with `bdd-rs` dependency.
-- We implemented `ConditionManager` to map `Cond` AST nodes to BDD variables.
-- We ensured that identical conditions map to identical variables (canonicalization).
+- We implemented `FilterManager` to map `Match` AST nodes to BDD variables.
+- We ensured that identical matches map to identical variables (canonicalization).
 - We exposed basic Boolean operations.
 
 Next: *Symbolic Execution*.
-We will write the code that walks the CFG and builds these BDDs automatically.
+We will write the code that walks the Firewall Chains and builds these BDDs automatically.

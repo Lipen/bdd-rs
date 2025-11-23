@@ -13,9 +13,10 @@ This chapter catalogs practical techniques and patterns for building precise, sc
   Given domains $A$ and $B$, the reduced product is $(A times B, rho)$ where $rho$ reduces $(a, b)$ to $(a', b')$ such that $gamma(a', b') = gamma(a, b)$ and $a' lle a$, $b' lle b$.
 ]
 
-**Firewall Optimization Patterns**:
+*Firewall Optimization Patterns*:
 
-- *Mutual Refinement*: IP ranges (Intervals) refine BDD paths. If `ip` is in `[10.0.0.0, 10.255.255.255]`, the BDD branch for `is_private_ip` becomes true.
+- *Mutual Refinement*: IP ranges (Intervals) refine BDD paths.
+  If `ip` is in `[10.0.0.0, 10.255.255.255]`, the BDD branch for `is_private_ip` becomes true.
 - *On-Demand Reduction*: Only reduce expensive domains (like Polyhedra) at loop heads or function summaries.
 - *Domain-Aware Reductions*: String length limits trim the Automaton domain (e.g., `len(payload) < 1500`).
 

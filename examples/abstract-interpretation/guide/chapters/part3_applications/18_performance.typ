@@ -5,7 +5,7 @@
 #reading-path(path: "implementation")
 
 Building a correct abstract interpreter is hard; building a *fast* one is even harder.
-When using BDDs, performance cliffs are steep: a good variable ordering runs in milliseconds, while a bad one might never terminate.
+When using BDDs for packet analysis, performance cliffs are steep: a good variable ordering runs in milliseconds, while a bad one might never terminate.
 This chapter provides a survival guide for tuning and debugging your BDD-based analyzer.
 
 == The Three Pillars of BDD Performance
@@ -15,11 +15,11 @@ This chapter provides a survival guide for tuning and debugging your BDD-based a
 We cannot stress this enough: *Variable ordering is the single most important factor.*
 
 - *Heuristic:* Group related variables together.
-- *Control Flow:* Order variables by their appearance in the CFG (topological sort).
-- *Interleaving:* For relational properties (e.g., $x = x'$), interleave the "before" and "after" variables: $x_1, x'_1, x_2, x'_2, ...$.
+- *Packet Headers:* Keep bytes of the same field adjacent (e.g., `ip_src[0]`, `ip_src[1]`, ...).
+- *Interleaving:* For relational properties (e.g., checking `ip_src == ip_dst`), interleave the variables: `src[0], dst[0], src[1], dst[1], ...`.
 
 #warning-box(title: "The Symptom")[
-  If your analysis hangs on a simple loop or consumes gigabytes of RAM suddenly, it is almost always a variable ordering issue.
+  If your analysis hangs on a simple rule set or consumes gigabytes of RAM suddenly, it is almost always a variable ordering issue.
 ]
 
 === Garbage Collection
@@ -44,12 +44,12 @@ if iteration % 100 == 0 {
 Abstract transfer functions are often called repeatedly with the same arguments.
 The BDD manager caches low-level operations (`and`, `or`), but your domain logic is not cached by default.
 
-*Strategy:* Cache the result of `transfer(statement, state)`.
+*Strategy:* Cache the result of `transfer(rule, state)`.
 Since `Bdd` nodes are canonical integers (`Ref`), they make excellent hash map keys!
 
 ```rust
 struct CacheKey {
-    pc: ProgramCounter,
+    rule_id: RuleId,
     bdd_ref: Ref,
     data_hash: u64,
 }
@@ -77,20 +77,20 @@ Look for:
 
 === The "Explain" Feature
 
-If your analysis reports a false positive, ask the BDD *why*.
+If your analysis reports a false positive (e.g., "Packet leaked!"), ask the BDD *why*.
 Enumerate the paths (cubes) in the error state.
 
 ```rust
 let cubes = bdd.sat_cubes(error_state);
 for cube in cubes {
-    println!("Error possible when:");
+    println!("Leak possible when:");
     for lit in cube {
         println!("  {} = {}", var_name(lit.var), lit.val);
     }
 }
 ```
 
-This often reveals that the analyzer thinks a path is possible when it shouldn't be (e.g., `x > 0` AND `x < 0`), indicating a missing `assume` or reduction.
+This often reveals that the analyzer thinks a path is possible when it shouldn't be (e.g., `src_port = 80` AND `src_port = 443`), indicating a missing `assume` or reduction.
 
 == Profiling
 
@@ -110,7 +110,7 @@ If the analysis is slow to converge:
 ```rust
 fn widen_control(bdd: &Bdd, f1: Ref, f2: Ref) -> Ref {
     if bdd.size(f2) > THRESHOLD {
-        bdd.one // Give up on path sensitivity
+        bdd.one // Give up on tracking exact packet flows
     } else {
         f2
     }

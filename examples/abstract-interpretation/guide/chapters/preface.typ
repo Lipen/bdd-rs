@@ -56,13 +56,14 @@ Unlike traditional academic papers or reference manuals, this guide:
 This guide is organized into three parts:
 
 *@part-i: Gentle Introduction* starts from first principles, building intuition about program abstraction, control flow, and symbolic representations.
-Through running examples like heater controllers and traffic lights, we motivate why BDD-based path-sensitive analysis matters.
+Through running examples like *packet filters* and *firewall rules*, we motivate why BDD-based path-sensitive analysis matters.
 This part is accessible to anyone with programming background.
 
 *@part-ii: Deep Dive* provides complete theoretical foundations, formal proofs, implementation techniques, and research connections.
 This part enables readers to understand the mathematics deeply and implement their own analyses.
 
-*@part-iii: Appendices* offer reference material: mathematical prerequisites, complete code walkthroughs, benchmark specifications, and an annotated bibliography.
+*@part-iii: Applications & Case Studies* explores advanced topics like security analysis, inter-chain verification, and performance tuning.
+It concludes with a complete case study of a corporate firewall analysis.
 
 == How to Use This Guide
 

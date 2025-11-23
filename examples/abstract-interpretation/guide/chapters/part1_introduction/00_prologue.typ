@@ -2,68 +2,59 @@
 
 #counter(heading).update(0)
 
-#heading(numbering: none)[Prologue: The Case for Verification]
+#heading(numbering: none)[Prologue: The Case for Network Verification]
 
 #reading-path(path: "essential") #h(0.5em) #reading-path(path: "beginner")
 
-_July 19, 2024._
-_Global IT Infrastructure._
+_July 2019._
+_A Major Financial Institution._
 
-A routine sensor configuration update is pushed to millions of Windows hosts.
-Within minutes, critical infrastructure across the globe grinds to a halt.
-Airlines ground flights.
-Hospitals cancel surgeries.
-Emergency services go offline.
-The "Blue Screen of Death" appears on 8.5 million devices.
+A hacker gains access to over 100 million customer records.
+Social Security numbers, bank account details, and credit scores are exfiltrated.
+The breach costs the company hundreds of millions of dollars in fines and settlements.
 
 The cause?
-A logic error in the CrowdStrike Falcon sensor.
-Specifically, the software attempted to read memory from an invalid address (0x9c).
-This was an *out-of-bounds read*.
-The C++ runtime, enforcing memory safety, triggered an access violation.
-At the kernel level, this violation is fatal.
+A *Server-Side Request Forgery (SSRF)* vulnerability combined with a *Firewall Misconfiguration*.
+The Web Application Firewall (WAF) had permissions to access the backend metadata service.
+A specific rule allowed traffic from the WAF to the metadata server, which contained the credentials for the entire cloud environment.
 
-This was not a malicious attack.
-It was not a hardware failure.
-It was a failure of *verification*.
-A static analysis tool capable of tracking value ranges could have proven that the offset `0x9c` was invalid for the given buffer.
+This was not a zero-day exploit in the kernel.
+It was a failure of *policy verification*.
+A static analysis tool capable of analyzing network reachability could have proven that the WAF was allowed to initiate connections to the sensitive metadata IP address.
 
 But this story is not unique.
-History is littered with expensive and deadly software failures that testing missed.
+History is littered with expensive and deadly failures where the system behaved exactly as configured, but the configuration was wrong.
 
-=== The High Cost of Bugs
+=== The High Cost of Misconfiguration
+
+*Facebook BGP Outage (2021):*
+A routine configuration change to the backbone routers disconnected Facebook's data centers from the internet.
+The BGP routes were withdrawn, making Facebook.com (and WhatsApp, Instagram) disappear from the global routing table.
+*Cost: \$60 million in revenue, 6 hours of global downtime.*
 
 *Ariane 5 (1996):*
-Thirty-seven seconds after launch, the European Space Agency's Ariane 5 rocket disintegrated.
-The cause?
-A 64-bit floating-point number was converted to a 16-bit signed integer.
-The value was too large to fit, causing an overflow exception.
-*Cost: \$370 million and a decade of research.*
-
-*Therac-25 (1985-1987):*
-A radiation therapy machine killed or seriously injured six patients due to massive radiation overdoses.
-The cause?
-A race condition in the control software.
-*Cost: Human lives.*
+Thirty-seven seconds after launch, the rocket disintegrated due to an integer overflow.
+While not a network failure, it illustrates the same principle: unverified assumptions about data ranges.
+*Cost: \$370 million.*
 
 These disasters share a common thread:
-The code passed standard testing pipelines.
-It worked in the test environment.
-But the *input space* --- the combination of all possible variables, timings, and configurations --- was not fully explored.
+The configurations passed standard syntax checks.
+They worked in the test lab.
+But the *state space* --- the combination of all possible packets, routes, and failures --- was not fully explored.
 
 #v(1em)
 
 == The Illusion of Testing
 
-We have built a civilization that runs on software.
-Yet, our primary method for ensuring reliability --- testing --- is fundamentally incapable of guaranteeing it.
+We have built a civilization that runs on networks.
+Yet, our primary method for ensuring reliability --- testing (ping, traceroute, penetration testing) --- is fundamentally incapable of guaranteeing it.
 
 Testing is the process of checking specific points in the input space.
-If we test inputs $x_1, x_2, ..., x_n$, we know the program works for those $n$ inputs.
-We know *nothing* about input $x_(n+1)$.
+If we test packets $p_1, p_2, ..., p_n$, we know the network handles those $n$ packets correctly.
+We know *nothing* about packet $p_(n+1)$.
 
 #figure(
-  caption: [Testing vs. Verification. Testing checks individual points (green dots). Verification proves properties about the entire input space (blue region).],
+  caption: [Testing vs. Verification. Testing checks individual packets (green dots). Verification proves properties about the entire header space (blue region).],
   cetz.canvas({
     import cetz.draw: *
 
@@ -73,7 +64,7 @@ We know *nothing* about input $x_(n+1)$.
 
     // Input Space
     rect((0, 0), (6, 4), ..style-space, name: "space")
-    content((3, 4.3), text(weight: "bold")[Input Space ($2^{128}$ states)])
+    content((3, 4.3), text(weight: "bold")[Header Space ($2^{104}$ bits)])
 
     // Testing (Scattered points)
     for i in range(15) {
@@ -81,72 +72,71 @@ We know *nothing* about input $x_(n+1)$.
       let y = calc.rem(i * 3 + 2, 35) / 10.0 + 0.2
       circle((x, y), ..style-test)
     }
-    content((1, 0.5), text(size: 0.8em, fill: colors.success)[Tests])
+    content((1, 0.5), text(size: 0.8em, fill: colors.success)[Pen Tests])
 
     // Verification (Covered region)
     rect((3.5, 1.5), (5.5, 3.5), ..style-verify)
-    content((4.5, 2.5), text(size: 0.8em, fill: colors.primary)[Verified Region])
+    content((4.5, 2.5), text(size: 0.8em, fill: colors.primary)[Verified Policy])
 
     // Bug (Uncovered)
     circle((5.2, 0.8), radius: 0.1, fill: colors.error, stroke: none)
-    content((5.2, 0.4), text(size: 0.8em, fill: colors.error)[Bug])
+    content((5.2, 0.4), text(size: 0.8em, fill: colors.error)[Leak])
 
     // Arrow from verified to bug (showing it missed? No, verification covers regions)
     // Let's show that testing missed the bug
   }),
 )
 
-Consider a simple function taking two 64-bit integers:
+Consider a simple firewall rule checking IPv4 source, destination, and port:
 
 ```rust
-fn critical_logic(a: u64, b: u64) -> u64 { ... }
+fn check_packet(src: u32, dst: u32, port: u16) -> Action { ... }
 ```
 
-The input space size is $2^128 approx 3.4 times 10^38$.
-If we could run one trillion tests per second, covering this space would take $10^19$ years.
-We cannot test our way to correctness.
+The input space size is $2^32 times 2^32 times 2^16 = 2^80$.
+If we include IPv6 ($2^128$), the space is astronomically larger.
+We cannot test our way to security.
 
 == What is Verification?
 
-If testing is "checking some inputs," then *verification* is "proving properties about *all* inputs."
+If testing is "checking some packets," then *verification* is "proving properties about *all* packets."
 
-In software, we use logic and mathematics to prove statements like:
-- "This variable `index` is *always* within the bounds of array `buffer`."
-- "This lock is *never* held by two threads simultaneously."
-- "This function *always* returns a value greater than zero."
+In networking, we use logic and mathematics to prove statements like:
+- "The Database subnet is *never* reachable from the Public Internet."
+- "All traffic from VPN users *must* pass through the Intrusion Detection System."
+- "No two rules in this firewall chain are *redundant*."
 
 === The Spectrum of Assurance
 
-We can view software quality assurance as a spectrum:
+We can view network assurance as a spectrum:
 
-+ *Unit Testing:* Checks specific, manually chosen inputs.
-+ *Fuzzing:* Checks millions of random inputs.
-+ *Static Analysis:* Checks for patterns of bugs without running the code.
-+ *Formal Verification:* Mathematically proves that the code satisfies a specification for *all* possible inputs.
++ *Ping/Traceroute:* Checks connectivity for one packet at one time.
++ *Penetration Testing:* Checks for known vulnerabilities using random or heuristic attacks.
++ *Config Analysis:* Checks for syntax errors and bad practices (linting).
++ *Formal Verification:* Mathematically proves that the network policy satisfies a specification for *all* possible packets.
 
 This guide focuses on a sweet spot in this spectrum: *Abstract Interpretation*.
 
 == The Formal Alternative: Abstract Interpretation
 
 Abstract Interpretation is a technique that allows us to reason about infinite state spaces using finite representations.
-We do not run the program; we *analyze* it.
+We do not send packets; we *analyze* the policy.
 
-Instead of tracking the exact value of a variable (which could be anything), we track its *abstract property*.
-For example, instead of knowing `x = 5`, we might know `x is Positive`.
+Instead of tracking the exact value of a header field (which could be anything), we track its *abstract property*.
+For example, instead of knowing `src_ip = 192.168.1.55`, we might know `src_ip in 192.168.1.0/24`.
 
-If we know `x` is Positive and `y` is Positive, we know `x + y` is Positive.
-We don't need to know the exact values to prove that the result is not negative.
+If we know `src_ip` is Internal and `dst_ip` is External, we can determine the firewall action without knowing the exact IP addresses.
 
 == The Challenge: Combinatorial Explosion
 
-However, abstract interpretation faces a massive hurdle: *Control Flow*.
-Every `if` statement splits the execution path.
-Every loop multiplies the number of paths.
-A program with just 100 branches can have $2^100$ execution paths.
+However, abstract interpretation faces a massive hurdle: *Rule Complexity*.
+Every firewall rule splits the packet space.
+Every jump to a sub-chain multiplies the number of paths.
+A complex policy with thousands of rules can have an explosion of possible packet flows.
 
 Naive analysis either:
-1.  *Explodes*: Tries to track every path and runs out of memory.
-2.  *Gives Up*: Merges all paths together, losing precision (e.g., concluding "x could be anything").
+1. *Explodes*: Tries to track every single IP address and runs out of memory.
+2. *Gives Up*: Merges all flows together, losing precision (e.g., concluding "Access might be allowed").
 
 == Enter the BDD
 
@@ -154,10 +144,10 @@ This guide focuses on a specific, powerful synergy:
 *Abstract Interpretation* combined with *Binary Decision Diagrams (BDDs)*.
 
 *BDDs* are the secret weapon against combinatorial explosion.
-They allow us to represent and manipulate *sets of paths* implicitly.
-Instead of listing $2^100$ paths, a BDD might represent them with a graph of just a few hundred nodes.
+They allow us to represent and manipulate *sets of packets* implicitly.
+Instead of listing billions of IP addresses, a BDD might represent a complex ACL with a graph of just a few hundred nodes.
 
-Together, they enable *Path-Sensitive Analysis*: verification that understands how data values change depending on the path taken through the code, yet scales to real-world problems.
+Together, they enable *Path-Sensitive Analysis*: verification that understands how packet headers match rules, yet scales to real-world networks.
 
 == The Journey Ahead
 
@@ -166,13 +156,13 @@ It is a practical guide to building verification tools in Rust.
 We chose Rust because it is the language of modern systems programming, and its type system aligns beautifully with the goals of verification.
 
 We will start from first principles:
-+ *Abstraction:* How to trade precision for speed.
-+ *Control Flow:* Why loops are the enemy of analysis.
++ *Abstraction:* How to trade precision for speed (CIDR blocks).
++ *Control Flow:* Why rule chains are the enemy of analysis.
 + *Symbolic Logic:* How BDDs crush combinatorial complexity.
 
-Then, we will build a complete *Symbolic Executor* capable of proving properties that testing would miss.
+Then, we will build a complete *Symbolic Firewall Checker* capable of proving security properties that testing would miss.
 
-The CrowdStrike incident demonstrated the fragility of our digital world.
-It is our responsibility as engineers to build systems that are not just "probably" correct, but *provably* robust.
+The Facebook and Capital One incidents demonstrated the fragility of our digital infrastructure.
+It is our responsibility as engineers to build networks that are not just "probably" secure, but *provably* robust.
 
 Let us begin.

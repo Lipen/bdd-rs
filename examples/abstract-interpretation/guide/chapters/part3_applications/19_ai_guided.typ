@@ -29,8 +29,8 @@ We can conceptualize a hybrid system using the analogy of a Wizard and a Clerk.
 Instead of iteratively computing a fixpoint (which can be slow), we can ask an LLM to predict the loop invariant.
 
 #example-box(title: "Neuro-Symbolic Loop Analysis")[
-  + *Prompt:* "Given this loop `while x < 100 { x += 2 }`, what is the invariant?"
-  + *AI Response:* "Invariant: `x % 2 == 0 && x <= 100`"
+  + *Prompt:* "Given this packet loop `while ttl > 0 { ttl -= 1; forward() }`, what is the invariant?"
+  + *AI Response:* "Invariant: `ttl <= 64` (assuming initial max TTL)"
   + *Verifier:* The BDD analyzer checks if this formula is inductive.
     - Base case: `init => inv`? Yes.
     - Inductive step: `inv && cond => inv'`? Yes.
@@ -45,7 +45,7 @@ The AI acts as an oracle for the fixpoint operator `lfp(f)`.
 Widening operators ($widen$) are necessary for termination but often lose too much information.
 A "Widening Oracle" (trained ML model) can look at the iteration history and the code structure to suggest:
 - *When* to widen (maybe wait 3 more iterations).
-- *How* to widen (e.g., "widen to the next constant appearing in the code").
+- *How* to widen (e.g., "widen to the MTU size 1500" instead of infinity).
 
 The soundness is preserved because the Abstract Interpreter still performs the widening and subsequent verification; the AI only guides the *strategy*.
 

@@ -1,14 +1,14 @@
 #import "../../theme.typ": *
 
-= Binary Decision Diagrams <ch-bdds>
+= Representing Header Spaces with BDDs <ch-bdds>
 
-In @ch-control-flow, we saw that tracking every execution path individually leads to the *path explosion problem*.
+In @ch-control-flow, we saw that tracking every packet flow individually leads to the *flow explosion problem*.
 
-To build a scalable verifier, we need a mechanism to represent *sets* of paths efficiently.
+To build a scalable verifier, we need a mechanism to represent *sets* of packets efficiently.
 
-This chapter introduces the *Binary Decision Diagram (BDD)*, the core data structure powering our MiniVerifier.
+This chapter introduces the *Binary Decision Diagram (BDD)*, the core data structure powering our FirewallChecker.
 
-Instead of enumerating paths as a list, we represent them as a *Boolean function*.
+Instead of enumerating packets as a list, we represent them as a *Boolean function*.
 
 == From Sets to Functions
 
@@ -20,43 +20,43 @@ $ f_S (x) = cases(1 &"if" x in S, 0 &"if" x in.not S) $
 
 If we can represent $f_S$ compactly, we effectively represent the set $S$ compactly.
 
-=== Paths as Boolean Formulas
+=== Packet Matches as Boolean Formulas
 
-In a Control Flow Graph, a path is determined by the sequence of decisions made at branching points.
+In a Chain Graph, a flow is determined by the sequence of matches made at branching points.
 
-By assigning a Boolean variable to each decision, we can encode paths as logical formulas.
+By assigning a Boolean variable to each match condition, we can encode flows as logical formulas.
 
-Consider the following code snippet:
+Consider the following packet filter snippet:
 
 ```rust
-if x > 0 {  // Decision A
-    y = 1;
+if proto == TCP {  // Decision A
+    state = ESTABLISHED;
 } else {
-    y = 2;
+    state = CLOSED;
 }
-if y < 5 {  // Decision B
-    z = 3;
+if port == 80 {    // Decision B
+    action = ACCEPT;
 }
 ```
 
-Let $A$ represent the condition `x > 0` and $B$ represent `y < 5`.
+Let $A$ represent the condition `proto == TCP` and $B$ represent `port == 80`.
 
-Each path corresponds to a conjunction of these variables:
+Each flow corresponds to a conjunction of these variables:
 
-- *Path 1* (True, True): $A and B$
-- *Path 2* (True, False): $A and not B$
-- *Path 3* (False, True): $not A and B$
-- *Path 4* (False, False): $not A and not B$
+- *Flow 1* (TCP, Port 80): $A and B$
+- *Flow 2* (TCP, Other Port): $A and not B$
+- *Flow 3* (Non-TCP, Port 80): $not A and B$
+- *Flow 4* (Non-TCP, Other Port): $not A and not B$
 
-The set of *all* valid paths is the disjunction of these formulas.
+The set of *all* valid flows is the disjunction of these formulas.
 
-To represent the set of paths where `z = 3` (i.e., where decision $B$ is true), we write:
+To represent the set of packets where `action = ACCEPT` (i.e., where decision $B$ is true), we write:
 $ (A and B) or (not A and B) $
 
 Using Boolean algebra, this simplifies to just $B$.
 
 #info-box(title: "Key Insight")[
-  Set operations on paths correspond directly to Boolean operations on formulas:
+  Set operations on packets correspond directly to Boolean operations on formulas:
   - *Union* ($union$) $->$ Logical OR ($or$)
   - *Intersection* ($inter$) $->$ Logical AND ($and$)
   - *Empty Set* ($emptyset$) $->$ False ($0$)
@@ -249,42 +249,42 @@ To illustrate these concepts, let us visualize the reduction of the decision tre
     This means the value of $B$ is irrelevant.
     The redundant $B$ node is removed, and $A$ connects directly to $C$.
 
-== The `ConditionManager`
+== The `FilterManager`
 
-In our MiniVerifier, we must bridge the gap between the "semantic" world of the program (AST nodes like `x > 0`) and the "numeric" world of the BDD library (integer variables like 1, 2, 3).
+In our FirewallChecker, we must bridge the gap between the "semantic" world of the policy (AST nodes like `ip == 10.0.0.1`) and the "numeric" world of the BDD library (integer variables like 1, 2, 3).
 
-We implement a `ConditionManager` to handle this translation and ensure consistency.
+We implement a `FilterManager` to handle this translation and ensure consistency.
 
 #info-box(title: "Design Pattern")[
-  The `ConditionManager` acts as a facade over the raw BDD manager.
-  It~maintains a `HashMap<Cond, Ref>` to ensure that identical AST conditions always map to the same BDD variable.
+  The `FilterManager` acts as a facade over the raw BDD manager.
+  It~maintains a `HashMap<Match, Ref>` to ensure that identical AST matches always map to the same BDD variable.
 ]
 
 The structure is defined as follows:
 
 ```rust
-// Ensure Cond derives Hash and Eq!
+// Ensure Match derives Hash and Eq!
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Cond {
+pub enum Match {
     // ... variants ...
 }
 
-pub struct ConditionManager {
+pub struct FilterManager {
     bdd: Bdd,
-    mapping: HashMap<Cond, usize>, // Maps AST conditions to BDD variable IDs
+    mapping: HashMap<Match, usize>, // Maps AST matches to BDD variable IDs
     next_var_id: usize,
 }
 
-impl ConditionManager {
-    /// Get or create the BDD variable for a condition
-    pub fn get_condition(&mut self, cond: &Cond) -> Ref {
-        if let Some(&id) = self.mapping.get(cond) {
+impl FilterManager {
+    /// Get or create the BDD variable for a match condition
+    pub fn get_match(&mut self, m: &Match) -> Ref {
+        if let Some(&id) = self.mapping.get(m) {
             return self.bdd.mk_var(id as u32);
         }
 
         let id = self.next_var_id;
         self.next_var_id += 1;
-        self.mapping.insert(cond.clone(), id);
+        self.mapping.insert(m.clone(), id);
         self.bdd.mk_var(id as u32)
     }
 }
@@ -304,31 +304,31 @@ The workflow is:
 
 This guarantees that the *same* logical condition is always represented by the *same* BDD variable, preserving the logical consistency of the analysis.
 
-== Why BDDs Solve Path Explosion
+== Why BDDs Solve Flow Explosion
 
-As discussed in @ch-control-flow, a sequence of $N$ branches can create $2^N$ paths.
+As discussed in @ch-control-flow, a sequence of $N$ branches can create $2^N$ flows.
 
 BDDs mitigate this explosion by exploiting structure and independence.
 
-If paths do not interact (e.g., independent branches), the BDD size grows *linearly* with the number of variables, rather than exponentially.
+If flows do not interact (e.g., independent ACL rules), the BDD size grows *linearly* with the number of variables, rather than exponentially.
 
 For example, consider 100 independent `if` statements:
-- *Explicit Paths*: $2^100$ paths (computationally intractable).
+- *Explicit Flows*: $2^100$ flows (computationally intractable).
 - *BDD Nodes*: $2 times 100 = 200$ nodes (trivial to store).
 
 The BDD automatically "factors out" the independence.
 
-Explosion typically occurs only when variables are heavily correlated in complex ways (e.g., cryptographic functions or multipliers), which is less common in typical control flow logic.
+Explosion typically occurs only when variables are heavily correlated in complex ways (e.g., deep packet inspection or cryptographic hashes), which is less common in typical firewall logic.
 
 == Summary
 
-- *Sets of paths* are represented as *Boolean functions*.
+- *Sets of packets* are represented as *Boolean functions*.
 - *BDDs* provide a compact, canonical graph representation of these functions.
 - *Reduction rules* (Isomorphism and Redundant Tests) compress the representation by sharing common sub-structures.
-- The *`ConditionManager`* maps program conditions to BDD variables, ensuring consistency.
+- The *`FilterManager`* maps policy matches to BDD variables, ensuring consistency.
 
 #info-box(title: "Explore BDD Operations")[
   To see boolean operations in action, run #run-example("bdd_boolean_ops") which demonstrates AND, OR, XOR, and their algebraic properties like De Morgan's laws and absorption.
 ]
 
-In the next chapter, we will implement the `ConditionManager` and the core BDD interface in Rust.
+In the next chapter, we will implement the `FilterManager` and the core BDD interface in Rust.

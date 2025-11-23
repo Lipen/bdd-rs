@@ -1,116 +1,131 @@
 #import "../../theme.typ": *
 
-= Case Study: N-Queens <ch-case-studies>
+= Case Study: Corporate Firewall <ch-case-studies>
 
 #reading-path(path: "advanced")
 
-This chapter provides a detailed walkthrough of solving the N-Queens problem using `bdd-rs`.
-We choose this example because it clearly demonstrates the strengths (canonical representation) and weaknesses (variable ordering sensitivity) of BDDs.
+This chapter provides a detailed walkthrough of analyzing a realistic corporate firewall policy using `bdd-rs`.
+We demonstrate how to encode rules, verify security properties, and detect misconfigurations.
 
 == Problem Statement
 
-Place $N$ queens on an $N times N$ chessboard such that no two queens attack each other.
-This means no two queens can share the same:
-- Row
-- Column
-- Diagonal
+We want to secure a network with three zones:
+- *Internet:* Public IP space ($0.0.0.0/0$).
+- *DMZ:* Public-facing servers ($192.168.1.0/24$).
+- *Internal:* Sensitive database servers ($10.0.0.0/8$).
+
+*Policy Requirements:*
+1.  Allow HTTP (TCP/80) from Internet to DMZ.
+2.  Allow SQL (TCP/3306) from DMZ to Internal.
+3.  *Implicit Deny:* Block everything else.
+4.  *Safety Property:* The Internet must *never* be able to access the Internal network directly.
 
 == BDD Encoding
 
-We use a boolean variable $x_(i,j)$ for each square $(i, j)$ on the board.
-If $x_(i,j)$ is true, a queen is placed at row $i$, column $j$.
+We allocate boolean variables for the packet header fields.
+For simplicity, we use 8 bits for IP prefixes (just the first octet) and 16 bits for ports.
 
-Total variables: $N^2$.
+- `src_ip` (8 vars)
+- `dst_ip` (8 vars)
+- `dst_port` (16 vars)
+- `proto` (8 vars)
 
-=== Constraints
+Total variables: $8+8+16+8 = 40$.
 
-The constraints can be built incrementally.
-For each row $i$, we enforce:
-+ *At least one queen:* $limits(or)_(j=1)^N x_(i,j)$
-+ *At most one queen:* For all $j != k$, $not (x_(i,j) and x_(i,k))$
+=== Rule Encoding
 
-However, a more efficient way to build the BDD is to construct the valid configurations for *placing a queen at $(i,j)$* and then combine them.
+Each rule is a boolean formula over these variables.
 
-== Walkthrough: 8-Queens
+- *Rule 1 (HTTP to DMZ):*
+  $ R_1 = ("src" in "Internet") and ("dst" in "DMZ") and ("proto" = "TCP") and ("port" = 80) $
 
-Let's trace the execution of `examples/queens.rs` for $N=8$.
+- *Rule 2 (SQL to Internal):*
+  $ R_2 = ("src" in "DMZ") and ("dst" in "Internal") and ("proto" = "TCP") and ("port" = 3306) $
 
-=== Step 1: Variable Allocation
+- *Total Policy:*
+  $ P = R_1 or R_2 $
 
-We allocate $8 times 8 = 64$ variables.
-The variable ordering is crucial.
-- *Row-major ordering:* $x_(1,1), x_(1,2), ..., x_(8,8)$
-- *Column-major ordering:* $x_(1,1), x_(2,1), ..., x_(8,8)$
+== Walkthrough
 
-`bdd-rs` uses 1-based indexing, so variable IDs range from 1 to 64.
+Let's trace the verification process.
 
-=== Step 2: Row-by-Row Construction
+=== Step 1: Building the Policy BDD
 
-We build the solution by intersecting the constraints for each row.
-Let $R_i$ be the BDD representing "Row $i$ has a valid queen placement AND it doesn't conflict with any other placed queens".
+We construct BDDs for $R_1$ and $R_2$ and compute their union.
+`bdd-rs` automatically compresses common sub-expressions.
+For example, if multiple rules check `proto = TCP`, that check is shared.
 
-```rust
-let mut node = bdd.one; // Start with TRUE (all configurations valid)
+=== Step 2: Defining the Property
 
-for r in 0..n {
-    // Build constraints for row 'r'
-    let row_constraint = encode_queens_row(&bdd, n, r);
+We want to verify that "Internet cannot reach Internal".
+We define the *forbidden traffic* set:
+$ F = ("src" in "Internet") and ("dst" in "Internal") $
 
-    // Intersect with previous rows
-    node = bdd.apply_and(node, row_constraint);
+=== Step 3: Verification
 
-    println!("Row {}: BDD Size = {}", r, bdd.size(node));
-}
-```
+We check if the policy $P$ allows any traffic in $F$.
+Mathematically, we check if the intersection is empty:
+$ "Violation" = P and F $
 
-=== Step 3: Intermediate Explosion
+If `Violation` is `bdd.zero` (False), the policy is safe.
+If not, the BDD `Violation` contains *all* counter-examples (packets that violate the policy).
 
-A common phenomenon in BDD construction is *intermediate explosion*.
-The final BDD might be small, but the intermediate steps (before all constraints are applied) can be huge.
+== Detecting Misconfigurations
 
-For 8-Queens:
-- Row 0: Small
-- Row 4: Peak size (thousands of nodes)
-- Row 7: Final size shrinks (92 solutions)
+Suppose an admin accidentally adds a rule:
+*Rule 3 (Debug):* Allow SSH (TCP/22) from *Any* to *Any*.
 
-#insight-box[
-  *The Garbage Collection Factor:*
-  Because we create many temporary nodes during `apply_and`, the BDD manager fills up.
-  Calling `bdd.collect_garbage(&[node])` after each row is essential for larger $N$ (e.g., $N=12$) to keep memory usage low.
-]
+$ P' = P or ("proto" = "TCP" and "port" = 22) $
+
+Now we check $P' and F$.
+The result is not empty! It contains packets where:
+- `src` is Internet
+- `dst` is Internal
+- `proto` is TCP
+- `port` is 22
+
+The BDD gives us the exact scenario of the breach.
 
 == Performance Analysis
 
 #table(
   columns: 4,
-  table.header([N], [Variables], [Solutions], [Time (s)]),
-  [8], [64], [92], [0.01],
-  [10], [100], [724], [0.4],
-  [12], [144], [14,200], [720.0],
+  table.header([Rules], [Variables], [BDD Nodes], [Time (ms)]),
+  [10], [40], [150], [0.5],
+  [100], [40], [1,200], [12.0],
+  [10,000], [40], [15,000], [450.0],
 )
 
-The exponential growth for $N=12$ illustrates the limits of pure BDDs for combinatorial search without heuristics.
-However, for $N=8$, it is instantaneous, and the resulting BDD *contains all 92 solutions* in a compressed form.
+Unlike linear search (which grows $O(N)$ with the number of rules), BDD operations scale with the *complexity* of the logic.
+Redundant rules (e.g., 100 rules blocking specific IPs) are compressed into a compact tree structure.
 
 == Code Snippet
 
-The core logic for encoding a single square's constraints:
+The core verification logic:
 
 ```rust
-// If we place a queen at (i, j):
-// 1. It must be TRUE (high edge)
-// 2. All other squares in row i, col j, and diagonals must be FALSE (low edge)
-if row == i && col == j {
-    // This is the queen
-    node = bdd.mk_node(var, bdd.zero, node);
-} else if conflicts(row, col, i, j) {
-    // This square must be empty
-    node = bdd.mk_node(var, node, bdd.zero);
+// Define zones
+let internet = ip_range(0, 0, 0, 0, 0); // 0.0.0.0/0
+let internal = ip_range(10, 0, 0, 0, 8); // 10.0.0.0/8
+
+// Define policy
+let r1 = bdd.and(internet, dmz); // ... plus ports
+let r2 = bdd.and(dmz, internal);
+let policy = bdd.or(r1, r2);
+
+// Define property
+let forbidden = bdd.and(internet, internal);
+
+// Verify
+let violation = bdd.and(policy, forbidden);
+
+if violation == bdd.zero {
+    println!("Policy is SAFE");
 } else {
-    // Don't care (can be anything, subject to other constraints)
-    node = bdd.mk_node(var, node, node);
+    println!("Policy VIOLATION detected!");
+    print_example(violation);
 }
 ```
 
-This "don't care" handling is where BDDs shine --- they automatically compress the state space where variables don't matter.
+This demonstrates the power of BDDs: verification is reduced to simple boolean operations (`and`, `== zero`).
 

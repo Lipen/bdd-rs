@@ -2,23 +2,23 @@
 
 #import "../../theme.typ": *
 
-= The Art of Approximation <ch-abstraction>
+= The Art of Header Space Analysis <ch-abstraction>
 
 #reading-path(path: "essential") #h(0.5em) #reading-path(path: "beginner")
 
-In the Prologue, we established that exact verification is impossible for general programs.
+In the Prologue, we established that exact verification is impossible for general networks.
 We must approximate.
-But how do we approximate in a way that is useful?
-How do we ensure we don't "approximate away" the bugs we are trying to find?
+But how do we approximate in a way that is useful for networks?
+How do we ensure we don't "approximate away" the security holes we are trying to find?
 
-This chapter introduces the core concept of Abstract Interpretation:
-*Sound Approximation*.
+This chapter introduces the core concept of Abstract Interpretation applied to networks:
+*Header Space Analysis*.
 
 == The Geometric Analogy
 
 Imagine a complex 3D object, such as a cylinder, floating in space.
 Describing its exact position and shape requires precise coordinates for every point on its surface.
-This is like the *concrete state* of a program: complex, detailed, and hard to manipulate.
+This is like the *concrete state* of a packet: complex, detailed (payload, timing, fragmentation), and hard to manipulate.
 
 Now, imagine shining a light on the object to cast a shadow on the wall.
 - From the top, the shadow is a *circle*.
@@ -32,100 +32,97 @@ Now, imagine shining a light on the object to cast a shadow on the wall.
 ]
 
 Abstract Interpretation is the art of choosing the right "projection" (abstraction) for the property we want to prove.
-- If we want to prove the object fits through a round hole, we project it to a circle.
-- If we want to prove a variable never exceeds 100, we project it to an *Interval*.
-- If we want to prove a pointer is never null, we project it to a *Nullability* state.
+- If we want to prove a packet is HTTP, we project it to its *Dst Port* field.
+- If we want to prove a packet is TCP, we project it to its *Protocol* field.
+- If we want to prove a packet comes from a private network, we project its IP to a *CIDR Block*.
 
 == Formalizing Abstraction
 
-To make this rigorous, we define two functions connecting the concrete world (actual values) and the abstract world (properties).
+To make this rigorous, we define two functions connecting the concrete world (actual packets) and the abstract world (properties).
 
 #definition(title: "Concretization Function ($gamma$)")[
-  The concretization function $gamma$ maps an abstract value to the set of concrete values it represents.
-  For example, in the Sign domain:
-  - $gamma(+) = {1, 2, 3, dots}$
-  - $gamma(-) = {-1, -2, -3, dots}$
-  - $gamma(0) = {0}$
-  - $gamma(top) = ZZ$ (All integers)
+  The concretization function $gamma$ maps an abstract value to the set of concrete packets it represents.
+  For example, in the Protocol domain:
+  - $gamma("TCP") = {"All TCP packets"}$
+  - $gamma("UDP") = {"All UDP packets"}$
+  - $gamma(top) = {"All IP packets"}$
 ]
 
 An analysis is *sound* if the abstract result always covers the concrete result.
-If we compute $a + b = c$ in the abstract, then for every concrete $x in gamma(a)$ and $y in gamma(b)$, the real sum $x+y$ must be in $gamma(c)$.
+If we compute `packet.proto` in the abstract, the result must include the actual protocol of the concrete packet.
 
 == Interactive Reasoning
 
 Before we write code, let's build intuition by playing a game.
-I have two hidden integers, $x$ and $y$.
-I won't tell you their values, but I will tell you their *properties*.
+I have two hidden packets, $A$ and $B$.
+I won't tell you their full headers, but I will tell you their *properties*.
 
 *Round 1:*
-- Fact: $x$ is a positive integer ($x > 0$).
-- Fact: $y$ is a positive integer ($y > 0$).
-- Question: What is the sign of $x + y$?
+- Fact: $A$ is a TCP packet.
+- Fact: $B$ is a TCP packet.
+- Question: If I pick one at random, what is its protocol?
 
-*Answer:* Positive.
-Reasoning: The sum of two positive numbers is always positive.
-We didn't need to know the values to know the result.
+*Answer:* TCP.
+Reasoning: The union of TCP and TCP is still TCP.
+We didn't need to know the payloads to know the protocol.
 
 *Round 2:*
-- Fact: $x$ is positive.
-- Fact: $y$ is positive.
-- Question: What is the sign of $x - y$?
+- Fact: $A$ is a TCP packet.
+- Fact: $B$ is a UDP packet.
+- Question: If I pick one at random, what is its protocol?
 
 *Answer:* Unknown ($top$).
 Reasoning:
-- If $x = 5, y = 2$, then $x - y = 3$ (Positive).
-- If $x = 2, y = 5$, then $x - y = -3$ (Negative).
-- If $x = 5, y = 5$, then $x - y = 0$ (Zero).
+- It could be TCP.
+- It could be UDP.
 
-Because the result depends on the *concrete values* which we have abstracted away, we cannot give a precise answer.
-We must return $top$ ("Any value is possible") to remain sound.
+Because the result depends on *which packet* I picked, we cannot give a precise single protocol.
+We must return $top$ ("Any Protocol") to remain sound.
 
-== The IMP Language
+== The PFL Language
 
-To make this concrete, we will build a *MiniVerifier* throughout this guide.
-We will analyze a simple toy language called *IMP* (Imperative Language).
+To make this concrete, we will build a *FirewallChecker* throughout this guide.
+We will analyze a simple toy language called *PFL* (Packet Filter Language).
 
-IMP is a minimal language with variables, loops, and conditionals.
+PFL is a minimal language with header matches (IP, Port, Proto), conditionals, and actions (drop/accept).
 It is simple enough to understand fully, yet complex enough to exhibit the challenges of verification.
 
 === Syntax
 
-IMP programs consist of assignments, sequences, conditionals, and while loops.
-Here is a simple example that computes the sum of numbers from 0 to 9:
+PFL policies consist of checks and actions.
+Here is a simple example that drops traffic to a specific port:
 
 ```rust
-// Example IMP program
-x = 0;
-y = 0;
-while x < 10 {
-    x = x + 1;
-    y = y + x;
+// Example PFL policy
+if dst_port == 80 {
+    accept;
+} else {
+    drop;
 }
 ```
 
 (We will define the full Rust AST in later chapters when we start implementing the parser.)
 
-== The Sign Domain
+== The Protocol Domain
 
-Let's formalize our "Positive/Negative" game.
+Let's formalize our "TCP/UDP" game.
 We define a set of abstract values $D$:
-$ D = {bot, -, 0, +, top} $
+$ D = {bot, "TCP", "UDP", "ICMP", top} $
 
-- $bot$ (Bottom): Impossible / Unreachable.
-- $-$: Strictly negative integers.
-- $0$: The integer zero.
-- $+$: Strictly positive integers.
-- $top$ (Top): Unknown / Any integer.
+- $bot$ (Bottom): Impossible / No packet.
+- "TCP": Strictly TCP packets.
+- "UDP": Strictly UDP packets.
+- "ICMP": Strictly ICMP packets.
+- $top$ (Top): Unknown / Any protocol.
 
 We can implement this in Rust:
 
 #example-reference(
   "domains",
-  "sign.rs",
-  "sign_domain",
+  "protocol.rs",
+  "protocol_domain",
   [
-    Complete implementation of the sign domain with lattice operations, abstract arithmetic, and path merging demonstrations.
+    Complete implementation of the protocol domain with lattice operations.
     Shows how abstraction trades precision for tractability.
   ],
 )
@@ -133,20 +130,18 @@ We can implement this in Rust:
 === Abstract Semantics
 
 We define *abstract transfer functions* to execute code in this domain.
-For addition (`+`):
+For merging two paths:
 
 ```rust
-impl std::ops::Add for Sign {
-    type Output = Sign;
-
-    fn add(self, rhs: Sign) -> Sign {
-        match (self, rhs) {
-            (Sign::Pos, Sign::Pos) => Sign::Pos,
-            (Sign::Neg, Sign::Neg) => Sign::Neg,
-            (Sign::Zero, x) => x,
-            (x, Sign::Zero) => x,
-            // ... other cases return Top
-            _ => Sign::Top,
+impl AbstractDomain for Protocol {
+    fn join(&self, other: &Self) -> Self {
+        match (self, other) {
+            (Protocol::TCP, Protocol::TCP) => Protocol::TCP,
+            (Protocol::UDP, Protocol::UDP) => Protocol::UDP,
+            (Protocol::Bot, x) => x.clone(),
+            (x, Protocol::Bot) => x.clone(),
+            // ... merging different protocols returns Top
+            _ => Protocol::Top,
         }
     }
 }
@@ -155,20 +150,20 @@ impl std::ops::Add for Sign {
 == The Challenge of Control Flow
 
 Straight-line code is easy.
-Loops and branches are hard.
+Branches are hard.
 
 ```rust
-if x > 0 {
-    y = 1;
+if src_ip == 10.0.0.1 {
+    proto = TCP;
 } else {
-    y = -1;
+    proto = UDP;
 }
-// At this point, what is y?
+// At this point, what is proto?
 ```
 
-At the merge point, `y` could be 1 (Positive) OR -1 (Negative).
-In the Sign domain, we must find a single value that covers *both* possibilities.
-The smallest value covering both $+$ and $-$ is $top$.
+At the merge point, `proto` could be TCP OR UDP.
+In the Protocol domain, we must find a single value that covers *both* possibilities.
+The smallest value covering both TCP and UDP is $top$.
 
 #figure(
   caption: [The Merge Problem. Merging two precise paths often results in information loss ($top$).],
@@ -179,14 +174,14 @@ The smallest value covering both $+$ and $-$ is $top$.
 
     // Branch
     rect((-2, 2), (-0.5, 3), ..style-state, name: "s1")
-    content("s1", [y = 1 \ (+)])
+    content("s1", [proto = TCP])
 
     rect((0.5, 2), (2, 3), ..style-state, name: "s2")
-    content("s2", [y = -1 \ (-)])
+    content("s2", [proto = UDP])
 
     // Merge
     rect((-0.75, 0), (0.75, 1), ..style-state, name: "merge")
-    content("merge", [y = ? \ ($top$)])
+    content("merge", [proto = ? \ ($top$)])
 
     // Edges
     line("s1.south", "merge.north", mark: (end: ">"))
@@ -196,14 +191,14 @@ The smallest value covering both $+$ and $-$ is $top$.
   }),
 )
 
-We lost the information that `y` is non-zero!
-We know `y` is either 1 or -1, but our abstraction forces us to say "It could be anything."
+We lost the information that `proto` is either TCP or UDP (and definitely not ICMP)!
+We know it's one of the two, but our abstraction forces us to say "It could be anything."
 
 This is where *BDDs* will come in.
 Instead of merging everything into a single abstract value (and getting $top$), we can use BDDs to track *which path* leads to which value.
 
-- Path 1 ($x > 0$): $y = +$
-- Path 2 ($x <= 0$): $y = -$
+- Path 1 (`src_ip == 10.0.0.1`): `proto = TCP`
+- Path 2 (`src_ip != 10.0.0.1`): `proto = UDP`
 
 This is called *Path Sensitivity*, and it is the main focus of this guide.
 
@@ -212,11 +207,11 @@ This is called *Path Sensitivity*, and it is the main focus of this guide.
     Like a shadow of a 3D object, an abstract domain captures some properties while ignoring others.
 
   - *Soundness is Key.*
-    If the abstraction says "Safe", the concrete program must be safe.
-    If the abstraction says "Unknown", the program might be safe or unsafe.
+    If the abstraction says "Safe", the concrete packet must be safe.
+    If the abstraction says "Unknown", the packet might be safe or unsafe.
 
   - *Precision vs. Speed.*
-    More complex domains (Intervals vs. Signs) give better answers but cost more to compute.
+    More complex domains (CIDR vs. Single IP) give better answers but cost more to compute.
 
   - *The Merge Problem.*
     Control flow merges force us to combine conflicting information, often leading to precision loss ($top$).
