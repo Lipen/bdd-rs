@@ -20,9 +20,7 @@ use std::rc::Rc;
 use abstract_interpretation::*;
 
 fn main() {
-    println!("\n=======================================================");
-    println!("   Traffic Light Controller Analysis");
-    println!("=======================================================\n");
+    println!("=== Traffic Light Controller Analysis ===\n");
 
     // System description
     println!("SYSTEM DESCRIPTION:");
@@ -42,21 +40,15 @@ fn main() {
     println!("      - YELLOW state: timer ∈ [0, 5]");
     println!("  P3: Mutual exclusion: never RED and GREEN simultaneously");
     println!();
-    println!("=======================================================");
-    println!();
 
-    analyze_path_insensitive();
-    println!("\n=======================================================\n");
-    analyze_path_sensitive();
-
-    println!("\n=======================================================");
-    println!("   Analysis Complete");
-    println!("=======================================================\n");
+    example_path_insensitive();
+    example_path_sensitive();
 }
 
-/// Path-insensitive analysis: merges all light states
-fn analyze_path_insensitive() {
-    println!("--- Path-Insensitive Analysis ---");
+/// Example 1: Path-insensitive analysis
+fn example_path_insensitive() {
+    println!("Example 1: Path-Insensitive Analysis");
+    println!("-------------------------------------");
     println!();
 
     let domain = IntervalDomain;
@@ -92,9 +84,10 @@ fn analyze_path_insensitive() {
     println!("⚠️ Cannot verify: \"YELLOW state has timer ≤ 5\"");
 }
 
-/// Path-sensitive analysis: maintains separate state for each light color
-fn analyze_path_sensitive() {
-    println!("--- Path-Sensitive Analysis (BDD Control) ---");
+/// Example 2: Path-sensitive analysis
+fn example_path_sensitive() {
+    println!("Example 2: Path-Sensitive Analysis (BDD Control)");
+    println!("------------------------------------------------");
     println!();
 
     let control_domain = Rc::new(BddControlDomain::new());

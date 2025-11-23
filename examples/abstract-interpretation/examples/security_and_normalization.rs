@@ -18,23 +18,16 @@ use abstract_interpretation::domain::AbstractDomain;
 use abstract_interpretation::string_domain::{StringCase, StringCaseDomain, StringNumeric, StringNumericDomain, TaintDomain};
 
 fn main() {
-    println!("\n=======================================================");
-    println!("   Security and Normalization Analysis");
-    println!("=======================================================\n");
+    println!("=== Security and Normalization Analysis ===\n");
 
-    analyze_sql_injection();
-    println!("=======================================================");
-    analyze_normalization();
-    println!("=======================================================");
-    analyze_numeric_input();
-
-    println!("\n=======================================================");
-    println!("   Analysis Complete");
-    println!("=======================================================\n");
+    example_sql_injection();
+    example_normalization();
+    example_numeric_input();
 }
 
-fn analyze_sql_injection() {
-    println!("--- Taint Analysis (SQL Injection) ---");
+fn example_sql_injection() {
+    println!("Example 1: Taint Analysis (SQL Injection)");
+    println!("-----------------------------------------");
     let domain = TaintDomain;
 
     // Scenario: User input vs Constant query
@@ -73,11 +66,12 @@ fn analyze_sql_injection() {
     }
     // Assertion: The query should be safe after sanitization.
     assert!(!domain.is_top(&safe_query), "Expected sanitized query to be safe");
-    println!();
+    println!("\n");
 }
 
-fn analyze_normalization() {
-    println!("--- String Case Analysis (Normalization) ---");
+fn example_normalization() {
+    println!("Example 2: String Case Analysis (Normalization)");
+    println!("-----------------------------------------------");
     let domain = StringCaseDomain;
 
     let inputs = vec!["user", "USER", "User", "123"];
@@ -114,8 +108,9 @@ fn analyze_normalization() {
     println!();
 }
 
-fn analyze_numeric_input() {
-    println!("--- Numeric String Analysis (Input Validation) ---");
+fn example_numeric_input() {
+    println!("Example 3: Numeric String Analysis");
+    println!("----------------------------------");
     let domain = StringNumericDomain;
 
     let inputs = vec!["123", "-50", "3.14", "abc", "12ab"];
@@ -144,5 +139,5 @@ fn analyze_numeric_input() {
             _ => {}
         }
     }
-    println!();
+    println!("\n");
 }

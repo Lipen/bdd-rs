@@ -23,9 +23,7 @@
 use abstract_interpretation::*;
 
 fn main() {
-    println!("\n=======================================================");
-    println!("   Symbolic Automata Domain Analysis");
-    println!("=======================================================\n");
+    println!("=== Symbolic Automata Domain Analysis ===\n");
 
     let domain = AutomataDomain;
 

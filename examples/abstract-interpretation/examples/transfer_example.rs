@@ -13,35 +13,33 @@
 //! - **Refinement**: Using `assume` and `assert` to narrow down possible values.
 
 use abstract_interpretation::*;
-use simplelog::*;
 
 fn main() {
-    // Initialize logging
-    TermLogger::init(LevelFilter::Info, Config::default(), TerminalMode::Mixed, ColorChoice::Auto).unwrap();
+    println!("=== Transfer Function Analysis ===");
 
-    println!("=== Transfer Function Analysis ===\n");
-
-    // domain: The abstract domain used for analysis (interval domain)
-    // Provides lattice operations (⊔, ⊓, ∇, ∆) and numeric operations
     let domain = IntervalDomain;
-
-    // transfer: Transfer function for applying abstract semantics to statements
-    // Implements: ⟦stmt⟧♯: Element → Element
     let transfer = NumericTransferFunction;
 
-    // Example 1: Sequential assignments
-    println!("Example 1: Sequential assignments");
+    example_sequential_assignments(&domain, &transfer);
+    example_conditional_branch(&domain, &transfer);
+    example_nested_conditionals(&domain, &transfer);
+    example_assertions_and_assumptions(&domain, &transfer);
+}
+
+/// Example 1: Sequential assignments
+fn example_sequential_assignments(domain: &IntervalDomain, transfer: &NumericTransferFunction) {
+    println!("Example 1: Sequential Assignments");
+    println!("----------------------------------");
+
+    println!("Program:");
     println!("  let x = 5;");
     println!("  let y = x + 10;");
-    println!("  let z = y * 2;\n");
+    println!("  let z = y * 2;");
+    println!();
 
-    // init: Initial abstract state (empty - no variables defined yet)
     let init = IntervalElement::new();
 
-    // prog1: Abstract syntax tree representing the program
-    // Structure: Seq(x:=5, Seq(y:=x+10, z:=y*2))
-    // Represents three sequential assignments in a nested structure
-    let prog1 = Stmt::Seq(
+    let prog = Stmt::Seq(
         Box::new(Stmt::Assign("x".to_string(), NumExpr::Const(5))),
         Box::new(Stmt::Seq(
             Box::new(Stmt::Assign(
@@ -55,44 +53,45 @@ fn main() {
         )),
     );
 
-    // result1: Abstract state after applying transfer function
-    // Computed via: ⟦prog1⟧♯(init) = abstract execution of the program
-    let result1 = transfer.apply(&domain, &init, &prog1);
-    println!("  Result:");
-    println!("    x ∈ {}", result1.get("x"));
-    println!("    y ∈ {}", result1.get("y"));
-    println!("    z ∈ {}", result1.get("z"));
-    println!();
-    println!("  ✅ Interpretation:");
-    println!("     • All values are PRECISE constants (singleton intervals)");
-    println!("     • x=5 → y=5+10=15 → z=15*2=30");
-    println!("     • Transfer functions propagate concrete values exactly");
-    println!("     • No loss of precision for deterministic computations");
-    println!();
+    let result = transfer.apply(domain, &init, &prog);
 
-    // Example 2: Conditional
-    println!("Example 2: Conditional branch");
+    println!("Result:");
+    println!("  x ∈ {}", result.get("x"));
+    println!("  y ∈ {}", result.get("y"));
+    println!("  z ∈ {}", result.get("z"));
+    println!();
+    println!("✓ All values are precise constants (singleton intervals)");
+    println!("  x=5 → y=5+10=15 → z=15*2=30");
+    println!("  Transfer functions propagate concrete values exactly");
+
+    assert_eq!(result.get("x"), Interval::constant(5));
+    assert_eq!(result.get("y"), Interval::constant(15));
+    assert_eq!(result.get("z"), Interval::constant(30));
+
+    println!("\n");
+}
+
+/// Example 2: Conditional branch
+fn example_conditional_branch(domain: &IntervalDomain, transfer: &NumericTransferFunction) {
+    println!("Example 2: Conditional Branch");
+    println!("------------------------------");
+
+    println!("Program:");
     println!("  let x = input (-10..10);");
     println!("  if (x >= 0) {{");
     println!("    y = x + 10;");
     println!("  }} else {{");
     println!("    y = -x;");
-    println!("  }}\n");
+    println!("  }}");
+    println!();
 
-    // init2: Initial state with x ∈ [-10, 10] (simulating input range)
-    let init2 = {
+    let init = {
         let mut elem = IntervalElement::new();
         elem.set("x".to_string(), Interval::new(Bound::Finite(-10), Bound::Finite(10)));
         elem
     };
 
-    // prog2: Conditional statement (if-then-else)
-    // Structure: If(x >= 0, y := x+10, y := -x)
-    // Transfer function will:
-    //   1. Split state by condition (x >= 0 vs x < 0)
-    //   2. Apply assignments to each branch
-    //   3. Join (⊔) results from both branches
-    let prog2 = Stmt::If(
+    let prog = Stmt::If(
         NumPred::Ge(NumExpr::Var("x".to_string()), NumExpr::Const(0)),
         Box::new(Stmt::Assign(
             "y".to_string(),
@@ -101,24 +100,28 @@ fn main() {
         Box::new(Stmt::Assign("y".to_string(), NumExpr::Neg(Box::new(NumExpr::Var("x".to_string()))))),
     );
 
-    // result2: Abstract state after conditional
-    // Contains join of both branches: then_result ⊔ else_result
-    let result2 = transfer.apply(&domain, &init2, &prog2);
-    println!("  Result:");
-    println!("    x ∈ {}", result2.get("x"));
-    println!("    y ∈ {}", result2.get("y"));
-    println!();
-    println!("  ✅ Interpretation:");
-    println!("     • x unchanged: [-10, 10] (not modified by the conditional)");
-    println!("     • y ∈ [1, 20]: Join of both branches");
-    println!("       - THEN branch (x ≥ 0): x ∈ [0,10] → y = x+10 ∈ [10,20]");
-    println!("       - ELSE branch (x < 0): x ∈ [-10,-1] → y = -x ∈ [1,10]");
-    println!("       - Join: [10,20] ⊔ [1,10] = [1,20] ✓");
-    println!("     • Note: Lower bound is 1 not 0 (negation of [-10,-1] starts at 1)");
-    println!();
+    let result = transfer.apply(domain, &init, &prog);
 
-    // Example 3: Nested conditionals
-    println!("Example 3: Nested conditionals");
+    println!("Result:");
+    println!("  x ∈ {}", result.get("x"));
+    println!("  y ∈ {}", result.get("y"));
+    println!();
+    println!("✓ Conditional analysis complete:");
+    println!("  THEN branch (x ≥ 0): x ∈ [0,10] → y = x+10 ∈ [10,20]");
+    println!("  ELSE branch (x < 0): x ∈ [-10,-1] → y = -x ∈ [1,10]");
+    println!("  Join: [10,20] ⊔ [1,10] = [1,20]");
+
+    assert_eq!(result.get("y"), Interval::new(Bound::Finite(1), Bound::Finite(20)));
+
+    println!("\n");
+}
+
+/// Example 3: Nested conditionals
+fn example_nested_conditionals(domain: &IntervalDomain, transfer: &NumericTransferFunction) {
+    println!("Example 3: Nested Conditionals");
+    println!("-------------------------------");
+
+    println!("Program:");
     println!("  let x = input (0..100);");
     println!("  if (x < 50) {{");
     println!("    if (x < 25) {{");
@@ -128,19 +131,16 @@ fn main() {
     println!("    }}");
     println!("  }} else {{");
     println!("    y = 2;");
-    println!("  }}\n");
+    println!("  }}");
+    println!();
 
-    // init3: Initial state with x ∈ [0, 100]
-    let init3 = {
+    let init = {
         let mut elem = IntervalElement::new();
         elem.set("x".to_string(), Interval::new(Bound::Finite(0), Bound::Finite(100)));
         elem
     };
 
-    // prog3: Nested conditional (if inside if)
-    // Structure: If(x<50, If(x<25, y:=0, y:=1), y:=2)
-    // Creates THREE execution paths that will be joined
-    let prog3 = Stmt::If(
+    let prog = Stmt::If(
         NumPred::Lt(NumExpr::Var("x".to_string()), NumExpr::Const(50)),
         Box::new(Stmt::If(
             NumPred::Lt(NumExpr::Var("x".to_string()), NumExpr::Const(25)),
@@ -150,70 +150,55 @@ fn main() {
         Box::new(Stmt::Assign("y".to_string(), NumExpr::Const(2))),
     );
 
-    // result3: Abstract state after nested conditional
-    // Join of three paths: {0} ⊔ {1} ⊔ {2} = [0, 2]
-    let result3 = transfer.apply(&domain, &init3, &prog3);
-    println!("  Result:");
-    println!("    x ∈ {}", result3.get("x"));
-    println!("    y ∈ {}", result3.get("y"));
-    println!();
-    println!("  ✅ Interpretation:");
-    println!("     • x unchanged: [0, 100]");
-    println!("     • y ∈ [0, 2]: Join of THREE branches");
-    println!("       - x < 25: y = 0");
-    println!("       - 25 ≤ x < 50: y = 1");
-    println!("       - x ≥ 50: y = 2");
-    println!("       - Join: {{0}} ⊔ {{1}} ⊔ {{2}} = [0, 2] ✓");
-    println!("     • Precise result captures all three possible outcomes");
-    println!();
+    let result = transfer.apply(domain, &init, &prog);
 
-    // Example 4: Assert and assume
-    println!("Example 4: Assertions and assumptions");
+    println!("Result:");
+    println!("  x ∈ {}", result.get("x"));
+    println!("  y ∈ {}", result.get("y"));
+    println!();
+    println!("✓ Nested conditional analysis:");
+    println!("  x < 25: y = 0");
+    println!("  25 ≤ x < 50: y = 1");
+    println!("  x ≥ 50: y = 2");
+    println!("  Join: {{0}} ⊔ {{1}} ⊔ {{2}} = [0, 2]");
+
+    assert_eq!(result.get("y"), Interval::new(Bound::Finite(0), Bound::Finite(2)));
+
+    println!("\n");
+}
+
+/// Example 4: Assertions and assumptions
+fn example_assertions_and_assumptions(domain: &IntervalDomain, transfer: &NumericTransferFunction) {
+    println!("Example 4: Assertions and Assumptions");
+    println!("-------------------------------------");
+
+    println!("Program:");
     println!("  let x = input (0..100);");
     println!("  assume(x >= 10);");
-    println!("  assert(x <= 50);  // refines to [10, 50]\n");
+    println!("  assert(x <= 50);");
+    println!();
 
-    // init4: Initial state with x ∈ [0, 100]
-    let init4 = {
+    let init = {
         let mut elem = IntervalElement::new();
         elem.set("x".to_string(), Interval::new(Bound::Finite(0), Bound::Finite(100)));
         elem
     };
 
-    // prog4: Sequence of assume and assert statements
-    // Structure: Seq(assume(x>=10), assert(x<=50))
-    // Both assume and assert use domain refinement (meet ⊓)
-    let prog4 = Stmt::Seq(
+    let prog = Stmt::Seq(
         Box::new(Stmt::Assume(NumPred::Ge(NumExpr::Var("x".to_string()), NumExpr::Const(10)))),
         Box::new(Stmt::Assert(NumPred::Le(NumExpr::Var("x".to_string()), NumExpr::Const(50)))),
     );
 
-    // result4: Abstract state after refinement
-    // Sequential refinement: [0,100] ⊓ [10,∞] ⊓ [-∞,50] = [10,50]
-    let result4 = transfer.apply(&domain, &init4, &prog4);
-    println!("  Result:");
-    println!("    x ∈ {}", result4.get("x"));
-    println!();
-    println!("  ✅ Interpretation:");
-    println!("     • Initial: x ∈ [0, 100] (input range)");
-    println!("     • After assume(x ≥ 10): x ∈ [10, 100] (refined by assumption)");
-    println!("     • After assert(x ≤ 50): x ∈ [10, 50] (further refined)");
-    println!("     • Both assume and assert REFINE the abstract state");
-    println!("     • In abstract interpretation: assume = assert (both use meet)");
-    println!("     • This demonstrates how contracts narrow the state space");
-    println!();
+    let result = transfer.apply(domain, &init, &prog);
 
-    println!("=== Analysis Complete ===");
+    println!("Result:");
+    println!("  x ∈ {}", result.get("x"));
     println!();
-    println!("📊 Key Takeaways:");
-    println!("   1. Sequential code: Precise propagation of values");
-    println!("   2. Conditionals: Join (⊔) merges branches, may lose precision");
-    println!("   3. Nested branches: Multiple paths merged into single interval");
-    println!("   4. Assumptions/assertions: Refine state via meet (⊓)");
-    println!();
-    println!("💡 Using these results:");
-    println!("   • Results are SOUND over-approximations");
-    println!("   • Can verify properties true for ALL values in intervals");
-    println!("   • Cannot prove properties false for SOME values in intervals");
-    println!("   • Precision loss at joins is inherent to interval domain");
+    println!("✓ State refinement through constraints:");
+    println!("  Initial: x ∈ [0, 100]");
+    println!("  After assume(x ≥ 10): x ∈ [10, 100]");
+    println!("  After assert(x ≤ 50): x ∈ [10, 50]");
+    println!("  Both assume and assert refine the abstract state via meet (⊓)");
+
+    assert_eq!(result.get("x"), Interval::new(Bound::Finite(10), Bound::Finite(50)));
 }

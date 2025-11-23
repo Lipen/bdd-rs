@@ -23,9 +23,7 @@ use std::rc::Rc;
 use abstract_interpretation::*;
 
 fn main() {
-    println!("\n=======================================================");
-    println!("   Mode-Based Controller Analysis");
-    println!("=======================================================\n");
+    println!("=== Mode-Based Controller Analysis ===\n");
 
     // System description
     println!("SYSTEM DESCRIPTION:");

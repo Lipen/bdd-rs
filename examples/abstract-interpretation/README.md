@@ -139,6 +139,8 @@ cargo run --example pointsto_example
 # String analysis
 cargo run --example string_concatenation
 cargo run --example string_constant_and_length
+cargo run --example string_prefix_and_charset
+cargo run --example string_suffix_and_inclusion
 cargo run --example regex_analysis
 cargo run --example automata_analysis
 

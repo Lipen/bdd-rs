@@ -15,9 +15,7 @@
 use abstract_interpretation::*;
 
 fn main() {
-    println!("\n=======================================================");
-    println!("   Input Validation Analysis");
-    println!("=======================================================\n");
+    println!("=== Input Validation Analysis ===\n");
 
     println!("This example demonstrates analyzing input validation logic using string length abstraction.");
     println!("Scenario: Validating that a password meets minimum length requirements.");
@@ -82,7 +80,5 @@ fn main() {
     // Additional check: ensure false branch does not contain 8
     assert!(!false_len.contains(8));
 
-    println!("\n=======================================================");
-    println!("   Analysis Complete");
-    println!("=======================================================");
+    println!("\n");
 }

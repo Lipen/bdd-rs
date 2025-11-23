@@ -21,9 +21,7 @@ use std::rc::Rc;
 use abstract_interpretation::*;
 
 fn main() {
-    println!("\n=======================================================");
-    println!("   Protocol State Machine Analysis");
-    println!("=======================================================\n");
+    println!("=== Protocol State Machine Analysis ===\n");
 
     // System description
     println!("SYSTEM DESCRIPTION:");

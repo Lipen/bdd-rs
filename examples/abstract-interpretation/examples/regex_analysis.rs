@@ -13,9 +13,7 @@ use abstract_interpretation::string_domain::{RegexDomain, StringRegex};
 use regex::Regex;
 
 fn main() {
-    println!("\n=======================================================");
-    println!("   Regex Domain Analysis");
-    println!("=======================================================\n");
+    println!("=== Regex Domain Analysis ===\n");
 
     test_id_generation();
     println!("{}", "─".repeat(60));
