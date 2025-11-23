@@ -1,5 +1,4 @@
 #import "../../theme.typ": *
-#import "@preview/cetz:0.4.2": canvas, draw
 
 = Implementing the Engine: The `AnalysisManager` <ch-bdd-programming>
 
@@ -40,8 +39,8 @@ The `bdd-rs` library operates on a strict principle: *The Manager is King*.
 ]
 
 #figure(
-  canvas(length: 1cm, {
-    import draw: *
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
 
     // Manager boundary
     rect((0, -1.4), (5, 4), fill: colors.bg-subtle, stroke: (paint: colors.primary, dash: "dashed"), radius: 0.2)
@@ -333,12 +332,17 @@ Next chapter, we use it to "execute" IMP programs and build BDDs automatically.
 #info-box(title: "Advanced BDD Topics")[
   For production BDD engines, two advanced topics are critical:
 
-  - *Quantification* (∃, ∀): Projecting out variables (e.g., checking if *any* input causes an error).
-    - See #inline-example("bdd_advanced", "quantification.rs", "bdd_quantification")
-  - *Variable Ordering*: The \#1 factor affecting BDD size.
-    - See #inline-example("bdd_advanced", "variable_ordering.rs", "bdd_variable_ordering")
+  *Quantification (∃, ∀):*
+  Existential and universal quantification allow projecting out variables from BDDs.
+  For example, checking if any input causes an error involves existential quantification.
+  See #inline-example("bdd_advanced", "quantification.rs", "bdd_quantification") for implementation.
 
-  Variable ordering can make the difference between tractable (linear nodes) and intractable (exponential nodes) for the same formula!
+  *Variable Ordering:*
+  The order in which variables appear in the BDD is the single most important factor affecting size.
+  A good ordering can result in linear node count, while a bad one causes exponential blowup.
+  See #inline-example("bdd_advanced", "variable_ordering.rs", "bdd_variable_ordering") for strategies.
+
+  Variable ordering can make the difference between tractable and intractable analysis for the same formula!
 ]
 
 #exercise-box(number: 1, difficulty: "Medium")[
@@ -406,13 +410,24 @@ Given `(f, g)` and operator `op`, the algorithm returns a canonical `Ref` throug
 
 === Instrumentation and Metrics <sec-instrumentation>
 
-Add lightweight counters to monitor performance.
-Suggested metrics:
+Add lightweight counters to monitor performance throughout BDD operations.
+Here are the most useful metrics to track:
 
-- *Node Creations*: Count of unique table insertions.
-- *Cache Hits / Misses*: Ratio guiding apply optimization.
-- *Reductions Applied*: Number of redundant test eliminations.
-- *Peak Node Count*: High water mark tracking memory pressure.
+*Node creations:*
+Count the total number of unique table insertions.
+High values indicate many new nodes are being created, suggesting complex formulas or poor sharing.
+
+*Cache hits vs. misses:*
+Track the ratio of cached results to recomputations in apply operations.
+A high hit rate indicates good memoization; low rates suggest cache eviction or poor locality.
+
+*Reductions applied:*
+Count how many times redundant test elimination fires.
+This shows how much simplification is happening during construction.
+
+*Peak node count:*
+Track the maximum number of live nodes at any point.
+This high-water mark indicates memory pressure and helps tune garbage collection.
 
 #implementation-box[
   Expose a `struct BddStats` to hold these counters:

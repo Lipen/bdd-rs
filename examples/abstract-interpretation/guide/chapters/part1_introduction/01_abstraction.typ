@@ -1,5 +1,3 @@
-// Chapter 1: The World of Abstract Interpretation
-
 #import "../../theme.typ": *
 
 = Foundations of Abstraction <ch-abstraction>

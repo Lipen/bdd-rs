@@ -561,33 +561,38 @@ Key takeaways:
 @part-ii dives deeper into mathematical foundations and advanced techniques.
 
 #chapter-summary[
-  - *Symbolic execution simulates program flows with symbolic variables.*
-    Maintains path conditions and symbolic environments.
+  *Symbolic execution simulates program flows with symbolic variables.*
+  Instead of concrete values, we maintain path conditions (Boolean formulas) and symbolic environments.
+  This allows exploring multiple execution paths simultaneously.
 
-  - *Condition language models program logic.*
-    Variables, operators, values.
+  *The condition language models program logic.*
+  We represent program predicates using variables, comparison operators, and integer values.
+  This forms the vocabulary for expressing path conditions.
 
-  - *Symbolic state: path condition (BDD) + variable environment.*
-    BDD tracks which inputs are feasible, environment maps variables to values.
+  *Symbolic state pairs BDDs with variable environments.*
+  The BDD tracks which combinations of inputs are feasible (which paths are reachable).
+  The environment maps each variable to its symbolic value or abstract property.
 
-  - *Branching allocates BDD variable and splits state.*
-    True branch: path ∧ cond. False branch: path ∧ ¬cond.
+  *Branching creates path splits.*
+  At each conditional, we allocate a fresh BDD variable.
+  The true branch gets path condition $"path" and "cond"$, the false branch gets $"path" and not "cond"$.
 
-  - *Program Walker executes statements, exploring all paths.*
-    Assignments update environment, branches split states.
+  *The program walker explores all feasible paths.*
+  Assignments update the environment without changing the path condition.
+  Branches split the state into two copies, one for each direction.
 
-  - *Conflict detection checks for unreachable code.*
-    Find paths where statements are dead.
+  *Conflict detection identifies unreachable code.*
+  When a path condition becomes False (unsatisfiable), that code is provably dead.
+  This catches bugs like impossible branches and redundant checks.
 
-  - *Enhancements for real systems:*
-    Interval Analysis, abstract domain integration, SMT solvers, loops.
+  *Real systems need enhancements.*
+  Production symbolic executors integrate abstract domains (intervals, octagons), constraint solvers (SMT), loop handling (bounded unrolling, widening), and sophisticated pruning strategies.
 
-  - *Practical challenges: path explosion, variable ordering, performance.*
-    Mitigate with bounded exploration, heuristics, pruning.
+  *Practical challenges remain.*
+  Path explosion limits scalability, variable ordering affects BDD size, and performance requires careful engineering.
+  Hybrid approaches combining multiple techniques offer the best trade-offs.
 
-  - *Hybrid approach combines symbolic execution and abstract interpretation.*
-    BDDs for control, abstract domains for data.
-
-  - *Main insight:*
-    BDD-based symbolic execution provides practical path-sensitive analysis by compactly representing path conditions while exploring feasible execution traces.
+  *The key insight: BDDs enable tractable path-sensitivity.*
+  By compactly representing exponentially many path conditions, BDDs make path-sensitive analysis practical.
+  This bridges the gap between theoretical precision and real-world scalability.
 ]

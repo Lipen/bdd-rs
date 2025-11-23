@@ -566,10 +566,20 @@ fn eval_stmt(stmt: &Stmt, state: &mut State) {
 }
 ```
 
-Key operations:
-- *Assignment*: update environment, preserve path
-- *Branch*: split state, refine both branches, join results
-- *Loop*: iterate until fixpoint with widening (Chapter 10 covers fixpoint algorithms)
+The interpreter handles three types of statements, each with different effects on state:
+
+*Assignment statements:*
+Update the variable environment with new values.
+The path condition remains unchanged since assignments don't affect control flow.
+
+*Branch statements:*
+Split the state into two copies, one for each branch direction.
+Refine both path conditions and environments using the `assume` operation.
+After analyzing both branches, join the results back together.
+
+*Loop statements:*
+Require fixpoint iteration to handle potential unbounded execution.
+Chapter 10 covers the widening operators needed to ensure termination.
 
 == Understanding the Product: How BDDs and Domains Cooperate
 
@@ -860,11 +870,19 @@ Trace partitioning is a restricted powerset where partitions align with control 
   Formalized trace partitioning as a systematic framework for path-sensitive analysis distinguishing syntactic control predicates from semantic abstract values.
 ]
 
-Recent work explores:
+Recent work explores several promising directions:
 
-- *Dynamic Partitioning*: Adjust partition granularity based on precision needs.
-- *Predicate Abstraction*: Choose relevant predicates via counterexample-guided refinement (CEGAR).
-- *Hybrid Partitioning*: Combine trace partitioning with relational domains for specific variable clusters.
+*Dynamic partitioning:*
+Adjust partition granularity dynamically based on precision needs.
+Maintain fine-grained partitions where precision matters, coarser partitions elsewhere.
+
+*Predicate abstraction:*
+Automatically choose relevant predicates to track using counterexample-guided refinement (CEGAR).
+Start with coarse abstraction and refine only when necessary to eliminate false alarms.
+
+*Hybrid partitioning:*
+Combine trace partitioning with relational domains for specific variable clusters.
+Use path-sensitivity for control-heavy code, relational domains for data-intensive loops.
 
 #exercise-box(difficulty: "Hard")[
   Compare trace partitioning (our approach) with full powerset on a loop with nested conditionals.
@@ -927,10 +945,21 @@ Core concepts:
 - Abstract domains track variable properties on each path
 
 Key operations:
-- *Branch*: Split state, refine path conditions ($"path" and "cond"$, $"path" and not "cond"$)
-- *Assign*: Update environment, preserve path condition
-- *Join*: Merge paths with OR, join data with domain operations ($ljoin$)
-- *Feasibility*: Prune when BDD becomes False
+
+*Branching splits states:*
+Create two refined path conditions: $"path" and "cond"$ for true branch, $"path" and not "cond"$ for false branch.
+Each branch gets its own copy of the environment to track independently.
+
+*Assignment updates values:*
+Modify the variable environment with new abstract values.
+The path condition stays the same since assignments don't create new paths.
+
+*Joining merges paths:*
+Combine path conditions with logical OR.
+Join data environments using the domain's join operation ($ljoin$).
+
+*Feasibility checking prunes paths:*
+When a BDD becomes False, that path is impossible and can be discarded immediately.
 
 Implementation patterns:
 ```rust

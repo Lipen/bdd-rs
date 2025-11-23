@@ -1,5 +1,3 @@
-// Chapter 2: Control Flow and the CFG
-
 #import "../../theme.typ": *
 
 = Control Flow and Program Structure <ch-control-flow>
@@ -318,16 +316,19 @@ BDDs let us:
 Next chapter: we dive into how BDDs work their magic.
 
 #chapter-summary[
-  - *CFGs capture behavior.*
-    We transform the hierarchical AST into a flat graph of Basic Blocks to model execution.
+  *Control Flow Graphs capture program behavior.*
+  We transform the hierarchical AST into a flat graph of Basic Blocks to model execution.
+  Each node represents a sequence of statements that execute together atomically.
 
-  - *Basic Blocks are atomic.*
-    They are sequences of instructions that always execute together.
-    Branching only happens at the boundaries.
+  *Basic Blocks are the unit of analysis.*
+  They are sequences of instructions that always execute together without branching.
+  Control flow changes only happen at block boundaries, making them natural analysis units.
 
-  - *Path Explosion is the bottleneck.*
-    The number of execution paths grows exponentially with program size, making naive enumeration impossible.
+  *Path explosion is the fundamental bottleneck.*
+  The number of execution paths grows exponentially with program size.
+  With loops, the path count can become infinite, making naive enumeration impossible.
 
-  - *Symbolic Execution is the key.*
-    We will use BDDs to represent and manipulate sets of states implicitly, avoiding the explosion problem.
+  *Symbolic execution provides the solution.*
+  We will use BDDs to represent and manipulate sets of states implicitly.
+  This lets us work with exponentially many paths without explicitly enumerating them.
 ]
