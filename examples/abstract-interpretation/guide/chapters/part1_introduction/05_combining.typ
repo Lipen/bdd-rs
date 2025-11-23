@@ -591,7 +591,7 @@ Each state $(b, rho)$ combines:
 - $rho$: abstract environment with variable values
 
 These two components inform each other.
-This is an instance of *product domain* construction (see formal definition in @ch-advanced-galois).
+This is an instance of *product domain* construction (see formal definition in @ch-domain-combinations).
 
 === Control Flow Refines Data Values
 
@@ -626,7 +626,7 @@ This proves the path is infeasible, so we can drop this partition entirely.
 
 This bidirectional refinement is called *reduction*.
 The process continues until neither component can tighten further.
-For formal reduction operators with soundness proofs, see @ch-advanced-galois.
+For formal reduction operators with soundness proofs, see @ch-domain-combinations.
 
 #insight-box[
   Constraints flow between domains until stabilization.

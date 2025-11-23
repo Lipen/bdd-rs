@@ -19,17 +19,29 @@ Finally, we explore *relational domains*, which transcend per-variable analysis 
 Combine two domains $A$ and $B$ via the *direct product*: run two independent analyses and pair their results.
 
 #definition(title: "Direct Product Domain")[
-  Given two abstract domains $A$ and $B$, their direct product $A times B$ is defined as:
-  - *Elements*: Pairs $(a, b)$ where $a in A$ and $b in B$.
-  - *Ordering*: $(a_1, b_1) lle (a_2, b_2) <==> a_1 lle_A a_2 and b_1 lle_B b_2$.
-  - *Join*: $(a_1, b_1) ljoin (a_2, b_2) = (a_1 ljoin_A a_2, b_1 ljoin_B b_2)$.
-  - *Meet*: $(a_1, b_1) lmeet (a_2, b_2) = (a_1 lmeet_A a_2, b_1 lmeet_B b_2)$.
-  - *Concretization*: $gamma((a, b)) = gamma_A (a) inter gamma_B (b)$.
+  Given domains $(C, alpha_1, gamma_1, A_1)$ and $(C, alpha_2, gamma_2, A_2)$ over the same concrete domain, their *direct product* $A_1 times A_2$ is defined as:
+
+  *Elements:* Pairs $(a_1, a_2)$ where $a_1 in A_1$ and $a_2 in A_2$.
+
+  *Ordering:* $(a_1, b_1) lle (a_2, b_2) <==> a_1 lle_(A_1) a_2 and b_1 lle_(A_2) b_2$.
+
+  *Lattice operations (component-wise):*
+  - Join: $(a_1, b_1) ljoin (a_2, b_2) = (a_1 ljoin_(A_1) a_2, b_1 ljoin_(A_2) b_2)$
+  - Meet: $(a_1, b_1) lmeet (a_2, b_2) = (a_1 lmeet_(A_1) a_2, b_1 lmeet_(A_2) b_2)$
+
+  *Galois connection:*
+  - Abstraction: $alpha(c) = (alpha_1 (c), alpha_2 (c))$
+  - Concretization: $gamma((a_1, a_2)) = gamma_1 (a_1) inter gamma_2 (a_2)$
 ]
 
 The direct product answers questions neither domain could answer alone, but domains cannot *help* each other.
 
-#example-box(title: "Loss of Precision in Direct Product")[
+The direct product is sound but may contain *unrealizable* elements: pairs $(a_1, a_2)$ where $gamma_1 (a_1) inter gamma_2 (a_2) = emptyset$.
+These represent inconsistent abstract states that correspond to no concrete execution.
+
+#example-box(title: "Direct Product: Precision Loss and Unrealizability")[
+  *Precision loss from independence:*
+
   Consider the product of *Signs* and *Parity* domains.
   Let $x$ be "Positive" in Signs and "Even" in Parity.
   State: $(+, "Even")$.
@@ -42,6 +54,18 @@ The direct product answers questions neither domain could answer alone, but doma
   We lost the information that $x$ was even!
   If we knew $x=6$, then $x/2=3$ (odd).
   The domains operated independently and failed to refine the result.
+
+  *Unrealizable states:*
+
+  Consider *Type* × *Value* product:
+  - *Type*: ${bot, "Int", "Float", "Bool", top}$
+  - *Value*: Interval domain $[0, 100]$
+
+  Product element $("Int", [5, 5])$ represents integer 5 --- realizable.
+
+  Product element $("Bool", [5, 5])$ --- *unrealizable*!
+  Booleans are 0 or 1. The value 5 contradicts the type Bool.
+  The concrete meaning is $gamma("Bool") inter gamma("Value"[5]) = emptyset$.
 ]
 
 == The Reduced Product
@@ -49,15 +73,20 @@ The direct product answers questions neither domain could answer alone, but doma
 The *reduced product* improves upon the direct product by allowing information exchange (reduction) between domains.
 
 #definition(title: "Reduction Operator")[
-  A reduction operator $rho: A times B -> A times B$ transforms a pair $(a, b)$ into a more precise pair $(a', b')$ such that:
-  + $gamma(a', b') = gamma(a, b)$ (Soundness: no concrete states lost).
-  + $(a', b') lle (a, b)$ (Improvement: result is smaller or equal).
+  A *reduction operator* $rho: A_1 times A_2 -> A_1 times A_2$ transforms a pair $(a_1, a_2)$ into a more precise pair $(a'_1, a'_2)$ satisfying:
+
+  + *Soundness*: $gamma(rho(a_1, a_2)) = gamma(a_1, a_2)$ (no concrete states lost)
+  + *Improvement*: $rho(a_1, a_2) lle (a_1, a_2)$ (result is more precise)
+  + *Idempotence*: $rho(rho(a_1, a_2)) = rho(a_1, a_2)$ (repeated application stabilizes)
+  + *Monotonicity*: $(a_1, a_2) lle (b_1, b_2) => rho(a_1, a_2) lle rho(b_1, b_2)$ (preserves ordering)
+
+  The *reduced product* applies $rho$ after each operation to maintain a canonical form.
 ]
 
 Reduction propagates constraints discovered by one domain to the other.
 
-#example-box(title: "Reduction Example")[
-  *Intervals* $times$ *Congruence*.
+#example-box(title: "Reduction Examples")[
+  *Intervals* $times$ *Congruence*:
 
   State: $x in [10, 12]$ AND $x equiv 0 mod 5$.
 
@@ -70,7 +99,95 @@ Reduction propagates constraints discovered by one domain to the other.
 
   The interval domain tells the congruence domain: "The value is exactly 10."
   Refined Congruence: $x equiv 0 mod 10$ (if supported).
+
+  *Type* $times$ *Value*:
+
+  ```rust
+  fn reduce(ty: Type, val: Interval) -> (Type, Interval) {
+      match ty {
+          Type::Bool => {
+              // Bool implies value is 0 or 1
+              let bool_range = Interval::new(0, 1);
+              let refined = val.intersect(bool_range);
+              if refined.is_bottom() {
+                  (Type::Bottom, Interval::bottom())
+              } else {
+                  (ty, refined)
+              }
+          },
+          Type::Int | Type::Float => (ty, val),
+          _ => (ty, val),
+      }
+  }
+  ```
+
+  After reduction, $("Bool", [5, 5])$ becomes $(bot, bot)$, making the inconsistency explicit.
 ]
+
+#figure(
+  caption: [Reduced product eliminates unrealizable states],
+
+  cetz.canvas({
+    import cetz: draw
+
+    // Domain 1: Type
+    let d1-x = 0
+    draw.content((d1-x, 4), [Type])
+    draw.circle((d1-x, 3), radius: 0.3, name: "int", fill: colors.bg-code, stroke: colors.primary + 1pt)
+    draw.content("int", [Int])
+    draw.circle((d1-x, 1), radius: 0.3, name: "bool", fill: colors.bg-code, stroke: colors.primary + 1pt)
+    draw.content("bool", [Bool])
+
+    // Domain 2: Value
+    let d2-x = 3
+    draw.content((d2-x, 4), [Value])
+    draw.rect((d2-x - 0.4, 2.6), (d2-x + 0.4, 3.4), name: "v5", fill: colors.bg-code, stroke: colors.accent + 1pt)
+    draw.content("v5", [5])
+    draw.rect((d2-x - 0.4, 0.6), (d2-x + 0.4, 1.4), name: "vNone", fill: colors.bg-code, stroke: colors.accent + 1pt)
+    draw.content("vNone", [$bot$])
+
+    // Product
+    let p-x = 7
+    draw.content((p-x, 4), [Product State])
+
+    // Realizable
+    draw.rect(
+      (p-x - 0.8, 2.6),
+      (p-x + 0.8, 3.4),
+      name: "valid",
+      fill: colors.success.lighten(70%),
+      stroke: colors.success + 1pt,
+    )
+    draw.content("valid", [(Int, 5)])
+
+    // Unrealizable
+    draw.rect(
+      (p-x - 0.8, 0.6),
+      (p-x + 0.8, 1.4),
+      name: "invalid",
+      fill: colors.error.lighten(70%),
+      stroke: colors.error + 1pt,
+    )
+    draw.content("invalid", [(Bool, 5)])
+
+    // Reduction arrow
+    draw.line(
+      "invalid.east",
+      (p-x + 2, 1),
+      stroke: (paint: colors.text-light, thickness: 1pt, dash: "dashed"),
+      mark: (end: ">"),
+    )
+    draw.content((p-x + 2.5, 1), text(fill: colors.error)[$bot$])
+    draw.content((p-x + 2.5, 1.5), text(size: 8pt)[Reduce])
+
+    // Connections
+    draw.line("int.east", "valid.west", stroke: colors.text-light + 0.5pt)
+    draw.line("v5.east", "valid.west", stroke: colors.text-light + 0.5pt)
+
+    draw.line("bool.east", "invalid.west", stroke: colors.text-light + 0.5pt)
+    draw.line("v5.east", "invalid.west", stroke: colors.text-light + 0.5pt)
+  }),
+)
 
 #figure(
   caption: [Direct vs. Reduced Product: Intervals $times$ Congruence],
@@ -155,6 +272,127 @@ Reduction propagates constraints discovered by one domain to the other.
 
 In practice, computing the *optimal* reduction (the Granger-Cousot reduction) can be expensive.
 Most analyzers use *local iterations* or specific reduction heuristics (e.g., "Signs refines Intervals").
+
+#info-box(title: "Implementing the Reduction Loop")[
+  In a multi-domain product, reduction can be iterative.
+  Domain A refines B, which refines C, which might refine A again!
+
+  ```rust
+  fn reduce_loop(mut state: ProductState) -> ProductState {
+      loop {
+          let old_state = state.clone();
+
+          // 1. Apply all reduction rules
+          state = apply_rules(state);
+
+          // 2. Check for fixpoint
+          if state == old_state { break; }
+
+          // 3. Check for bottom (contradiction)
+          if state.is_bottom() { return ProductState::bottom(); }
+      }
+      state
+  }
+  ```
+  For finite height domains, this loop always terminates.
+]
+
+#theorem(title: "Reduced Product Precision")[
+  Let $(C, alpha_i, gamma_i, A_i)$ for $i=1,2$ be Galois connections, and $rho$ be a reduction operator.
+
+  + The reduced product forms a Galois connection with:
+    $ alpha(c) = rho(alpha_1 (c), alpha_2 (c)) $
+    $ gamma((a_1, a_2)) = gamma_1 (a_1) inter gamma_2 (a_2) $
+
+  + Reduced product is *at least as precise* as the direct product:
+    $ rho(a_1, a_2) lle (a_1, a_2) $
+]
+
+#proof[
+  *Galois connection*: Soundness of $rho$ ensures $gamma(rho(a_1, a_2)) = gamma(a_1, a_2)$, preserving the concretization.
+  The abstraction $alpha$ followed by reduction maintains the adjunction property.
+
+  *Precision*: Reduction operator is *decreasing*: $rho(a_1, a_2) lle (a_1, a_2)$ by soundness (same concretization) and idempotence (stabilizes at a smaller element).
+  Since $lle$ is the precision ordering (smaller = more precise), the reduced product is more precise.
+]
+
+=== Designing Reduction Operators
+
+Effective reduction operators exploit *domain-specific relationships*.
+
+#definition(title: "Reduction Strategies")[
+  Common reduction patterns:
+
+  + *Contradiction elimination*: Detect $gamma(a_1) inter gamma(a_2) = emptyset$, set both to $bot$.
+  + *Constraint propagation*: Tighten one domain based on constraints from another.
+  + *Interval refinement*: Use sign/parity to narrow interval bounds.
+  + *Relational tightening*: Use relationships between variables.
+]
+
+#example-box[
+  *Mode × Value reduction:*
+
+  ```rust
+  fn reduce(mode: Mode, val: Interval) -> (Mode, Interval) {
+      match mode {
+          Mode::Fast => {
+              // Fast mode: value must be > 100
+              let refined = val.intersect(Interval::new(101, 1000));
+              (mode, refined)
+          }
+          Mode::Safe => {
+              // Safe mode: value must be <= 100
+              let refined = val.intersect(Interval::new(0, 100));
+              (mode, refined)
+          }
+          _ => (mode, val),
+      }
+  }
+  ```
+
+  Input: $("Fast", [0, 200])$.
+
+  After reduction: $("Fast", [101, 200])$ --- safe values eliminated!
+]
+
+#warning-box(title: "Reduction Cost")[
+  Reduction adds computational overhead.
+  Apply reduction:
+  - After joins (most beneficial).
+  - Periodically during fixpoint iteration.
+  - Only when precision gain justifies cost.
+
+  Measure impact experimentally!
+]
+
+=== Multi-Domain Products
+
+#definition(title: "Multi-Domain Reduced Product")[
+  Given domains $A_1, ..., A_n$ with abstractions $alpha_i$ and concretizations $gamma_i$, the reduced product is:
+
+  $ A = {(a_1, ..., a_n) mid(|) a_i in A_i, gamma_1 (a_1) inter ... inter gamma_n (a_n) != emptyset} $
+
+  with reduction operator:
+  $ rho(a_1, ..., a_n) = "fix"(lambda (b_1, ..., b_n) . (rho_1 (b_1, ..., b_n), ..., rho_n (b_1, ..., b_n))) $
+
+  where each $rho_i$ refines domain $A_i$ based on constraints from other domains.
+]
+
+#example-box[
+  *Type × Mode × Value:*
+
+  For variable `v`:
+  - Type: $"Int"$
+  - Mode: $"Const"$
+  - Value: $[0, 100]$
+
+  Reduction:
+  + Type refines Value: Int implies integer values.
+  + Mode refines Value: Const implies singleton value (if we knew it).
+  + Result: $("Int", "Const", [0, 100])$.
+
+  If Mode was "Positive", we could refine Value to $[1, 100]$.
+]
 
 == Trace Partitioning
 
@@ -241,6 +479,42 @@ If $T$ represents "call stack", we get context sensitivity (interprocedural anal
   This structure makes trace partitioning much more efficient than full disjunctive completion.
 ]
 
+== Abstract Transformers for Products
+
+Transformers on product domains must maintain reduction.
+
+#algorithm(title: "Product Domain Transfer Function")[
+  *Input:* Statement $s$, product state $(a_1, ..., a_n)$.
+
+  *Output:* Transformed product state.
+
+  + *for* $i = 1$ *to* $n$ *do*
+    + $a'_i <- llb s rrb^sharp_i (a_i)$ $quad slash.double$ Apply transformer in each domain.
+  + *end for*
+  + $(a'_1, ..., a'_n) <- rho(a'_1, ..., a'_n)$ $quad slash.double$ Reduce result.
+  + *return* $(a'_1, ..., a'_n)$
+]
+
+#theorem(title: "Soundness of Product Transformers")[
+  If each component transformer $llb s rrb^sharp_i$ is sound and $rho$ is a sound reduction, then the product transformer is sound.
+]
+
+#proof[
+  Let $c = gamma(a_1, ..., a_n)$ be the concrete set represented by the product element.
+
+  After executing $s$ concretely: $c' = llb s rrb_C (c)$.
+
+  By soundness of each component:
+  $ c' subset.eq gamma_i (llb s rrb^sharp_i (a_i)) quad "for all" i $
+
+  Thus:
+  $ c' subset.eq inter.big_(i=1)^n gamma_i (llb s rrb^sharp_i (a_i)) = gamma(a'_1, ..., a'_n) $
+
+  Reduction preserves concretization: $gamma(rho(a'_1, ..., a'_n)) = gamma(a'_1, ..., a'_n)$.
+
+  Therefore: $c' subset.eq gamma(rho(a'_1, ..., a'_n))$, establishing soundness.
+]
+
 == Relational Domains
 
 So far, we have discussed *non-relational* domains (like Intervals), which track properties of variables independently ($x in [a, b]$).
@@ -276,6 +550,43 @@ They are particularly effective for alias analysis and variable substitution.
     Cannot capture the correlation "if user is admin, role must be Admin".
   - *Relational*: Tracks `user_id == admin_id => role == "Admin"`.
     Can prove that the `error()` is unreachable for consistent states.
+]
+
+== Precision vs. Cost Tradeoffs
+
+#definition(title: "Analysis Metrics")[
+  For comparing domain choices:
+
+  + *Precision*: How many false alarms? Can we prove the property?
+  + *Cost*: Time and memory for analysis.
+  + *Scalability*: Performance on large programs.
+  + *Expressiveness*: What properties can we verify?
+]
+
+#example-box[
+  *Domain comparison for `x := x * x`:*
+
+  #table(
+    columns: 3,
+    table.header([Domain], [Result for $x in [-2, 2]$], [Cost]),
+    [Sign], [$top$], [Low],
+    [Interval], [$[-4, 4]$], [Medium],
+    [Sign × Interval (unreduced)], [$(top, [-4, 4])$], [Medium],
+    [Sign × Interval (reduced)], [$("NonNeg", [0, 4])$], [High],
+    [Octagon], [$x^2 in [0, 4]$], [Very High],
+  )
+
+  Reduced product eliminates negative results, but at computational cost.
+]
+
+#info-box(title: "Choosing Domains")[
+  Domain selection heuristics:
+
+  - *Start simple*: Sign or intervals for initial analysis.
+  - *Add domains incrementally*: Identify precision bottlenecks.
+  - *Use reduction selectively*: Only where needed.
+  - *Profile performance*: Measure time/space costs.
+  - *Consider problem structure*: Some domains excel on certain patterns.
 ]
 
 == Widening in Product Domains
