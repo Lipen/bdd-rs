@@ -5,11 +5,11 @@
 // ============================================================================
 
 #show: apply-guide-theme.with(
-title: "Abstract Interpretation with BDDs",
-subtitle: "A Gentle Guide to Program Verification",
-authors: ([The #link("https://github.com/Lipen/bdd-rs")[bdd-rs] contributors],),
-date: datetime.today().display("[month repr:long] [day], [year]"),
-header-title: "Abstract Interpretation with BDDs",
+  title: "Abstract Interpretation with BDDs",
+  subtitle: "A Gentle Guide to Program Verification",
+  authors: ([The #link("https://github.com/Lipen/bdd-rs")[bdd-rs] contributors],),
+  date: datetime.today().display("[month repr:long] [day], [year]"),
+  header-title: "Abstract Interpretation with BDDs",
 )
 
 // ============================================================================
