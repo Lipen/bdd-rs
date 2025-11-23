@@ -59,7 +59,7 @@ A widening operator observes the growth and jumps to infinity.
     // Post-fixpoint line
     line((0, 3), (6, 3))
     content((6, 3), anchor: "west", padding: 0.2)[Post-Fixpoint]
-  })
+  }),
 )
 
 The exact sequence approaches the Least Fixpoint (LFP) asymptotically but never reaches it.

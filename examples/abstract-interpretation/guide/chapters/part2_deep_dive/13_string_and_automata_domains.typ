@@ -139,7 +139,14 @@ We model pipelines `validate; normalize; use`:
     draw.content((1, 0.3), [a])
 
     // Self-loop
-    draw.bezier("w1.north-east", "w1.north-west", (2.8, 1), (1.2, 1), stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+    draw.bezier(
+      "w1.north-east",
+      "w1.north-west",
+      (2.8, 1),
+      (1.2, 1),
+      stroke: colors.text-light + 0.8pt,
+      mark: (end: ">"),
+    )
     draw.content((2, 1), [a])
 
     // Arrow

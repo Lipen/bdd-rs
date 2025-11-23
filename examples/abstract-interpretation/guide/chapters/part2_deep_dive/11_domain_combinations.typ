@@ -43,7 +43,7 @@ These represent inconsistent abstract states that correspond to no concrete exec
   *Precision loss from independence:*
 
   Consider the product of *Signs* and *Parity* domains.
-  Let $x$ be $"Pos"$ in Signs and $"Even"$ in Parity.
+  Let $x$ be `Pos` in Signs and `Even` in Parity.
   State: $("Pos", "Even")$.
 
   Now, assume we execute `x = x / 2`.
@@ -382,8 +382,8 @@ Effective reduction operators exploit *domain-specific relationships*.
   *Type × Mode × Value:*
 
   For variable `v`:
-  - Type: $"Int"$
-  - Mode: $"Const"$
+  - Type: `Int`
+  - Mode: `Const`
   - Value: $[0, 100]$
 
   Reduction:

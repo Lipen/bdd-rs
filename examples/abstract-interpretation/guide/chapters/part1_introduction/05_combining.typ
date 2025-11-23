@@ -816,12 +816,12 @@ Reduction works by projecting the polyhedron:
   "domains",
   "combined.rs",
   "combined_domain",
-  [Implements a reduced product of sign and parity domains, demonstrating how reduction eliminates impossible combinations like $($"Zero"$, $"Odd"$)$.],
+  [Implements a reduced product of sign and parity domains, demonstrating how reduction eliminates impossible combinations like $("Zero", "Odd")$.],
 )
 
 #exercise-box(difficulty: "Hard")[
   Design a reduced product of interval and parity (`Even`/`Odd`) domains.
-  Implement reduction: interval $[2, 5]$ with parity $"Even"$ refines to ${2, 4}$.
+  Implement reduction: interval $[2, 5]$ with parity `Even` refines to ${2, 4}$.
   Measure overhead versus precision gain.
 ]
 

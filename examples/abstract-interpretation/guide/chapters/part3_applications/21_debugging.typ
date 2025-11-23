@@ -10,8 +10,8 @@ We have journeyed from the low-level bit-twiddling of Binary Decision Diagrams t
 
 The power of this approach lies in the synergy between two distinct fields:
 
-1.  *Abstract Interpretation* provides the *soundness*. It ensures that when we say "Input X cannot cause Error Y", we are mathematically correct. There are no missed corner cases.
-2.  *Binary Decision Diagrams* provide the *efficiency*. They allow us to represent and manipulate sets of $2^100$ states as easily as a single integer.
++ *Abstract Interpretation* provides the *soundness*. It ensures that when we say "Input X cannot cause Error Y", we are mathematically correct. There are no missed corner cases.
++ *Binary Decision Diagrams* provide the *efficiency*. They allow us to represent and manipulate sets of $2^100$ states as easily as a single integer.
 
 By combining them, we build tools that are both rigorous and scalable --- a rare combination in software verification.
 
