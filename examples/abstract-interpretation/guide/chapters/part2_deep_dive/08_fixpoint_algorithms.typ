@@ -181,14 +181,33 @@ where
 
     // Legend
     let legend-y = 1
-    draw.circle((2, legend-y), radius: 0.25, fill: colors.success.lighten(70%), stroke: colors.primary + 0.8pt)
-    draw.content((3, legend-y), [Computed])
+    draw.content((0, legend-y + 0.7), text(size: 9pt, weight: "bold")[Color Legend], anchor: "west")
+    draw.circle(
+      (1, legend-y),
+      radius: 0.25,
+      fill: colors.success.lighten(70%),
+      stroke: colors.primary + 0.8pt,
+      name: "legend-computed",
+    )
+    draw.content("legend-computed.east", [Computed], anchor: "west", padding: 0.2)
 
-    draw.circle((4.5, legend-y), radius: 0.25, fill: colors.warning.lighten(70%), stroke: colors.primary + 0.8pt)
-    draw.content((5.8, legend-y), [In worklist])
+    draw.circle(
+      (4, legend-y),
+      radius: 0.25,
+      fill: colors.warning.lighten(70%),
+      stroke: colors.primary + 0.8pt,
+      name: "legend-in-worklist",
+    )
+    draw.content("legend-in-worklist.east", [In worklist], anchor: "west", padding: 0.2)
 
-    draw.circle((7, legend-y), radius: 0.25, fill: colors.bg-code, stroke: colors.primary + 0.8pt)
-    draw.content((8, legend-y), [Not visited])
+    draw.circle(
+      (7, legend-y),
+      radius: 0.25,
+      fill: colors.bg-code,
+      stroke: colors.primary + 0.8pt,
+      name: "legend-not-visited",
+    )
+    draw.content("legend-not-visited.east", [Not visited], anchor: "west", padding: 0.2)
 
     // Worklist state
     draw.content((4, 0), text(weight: "bold")[Worklist: ${x_2, x_5}$])
