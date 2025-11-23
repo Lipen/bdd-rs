@@ -363,8 +363,8 @@ fn main() {
     let mut verifier = Verifier::new();
 
     // Example 1: Safe Program
-    // let x = 10;
-    // if x > 5 { assert(x > 0) }
+    //   let x = 10;
+    //   if x > 5 { assert(x > 0) }
     println!("Example 1: Verifying safe program...");
     let prog1 = vec![
         Stmt::Assign("x".into(), Expr::Const(10)),
@@ -381,11 +381,11 @@ fn main() {
     println!();
 
     // Example 2: Unsafe Program (detected by refinement)
-    // let x = input(); // Top
-    // if x > 10 {
-    //    x = x - 5;
-    //    assert(x > 10); // Fail: x could be 11 -> 6
-    // }
+    //   let x = input(); // Top
+    //   if x > 10 {
+    //      x = x - 5;
+    //      assert(x > 10); // Fail: x could be 11 -> 6
+    //   }
     println!("Example 2: Verifying unsafe program...");
     let mut verifier2 = Verifier::new();
     let prog2 = vec![
@@ -406,8 +406,9 @@ fn main() {
     println!();
 
     // Example 3: Dead Code Detection
-    // let x = 5;
-    // if x > 10 { ... } // Unreachable
+    //   let x = 5;
+    //   if x > 10 { y = 1 } // Unreachable
+    //   else { y = 2 }
     println!("Example 3: Dead code detection...");
     let mut verifier3 = Verifier::new();
     let prog3 = vec![
