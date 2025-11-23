@@ -1057,21 +1057,18 @@
     file
   }
 
-  box(
-    baseline: 0.2em,
-    inset: (x: 0.3em, y: 0.2em),
-    outset: (x: -0.1em),
+  h(0.1em)
+  highlight(
     fill: colors.bg-code,
     radius: 3pt,
-    stroke: 0.5pt + colors.line,
-  )[
-    #link(url)[
+    extent: 1pt,
+    link(url)[
       #if icon {
         box(
           baseline: 0.1em,
           text(size: 0.9em, fill: colors.primary)[📄],
         )
-        h(0.2em)
+        // h(0.2em)
       }
       #text(
         size: 0.9em,
@@ -1079,28 +1076,26 @@
         font: fonts.mono,
         display,
       )
-    ]
-  ]
+    ],
+  )
+  h(0.1em)
 }
 
 // Reference to run a specific example
 #let run-example(example-name) = {
-  box(
-    baseline: 3pt,
-    inset: (x: 3pt, y: 3pt),
-    outset: (x: -1pt),
+  h(.1em)
+  highlight(
     fill: colors.box-info,
     radius: 3pt,
-    stroke: 0.5pt + colors.info,
-  )[
-    #text(
-      size: 0.8em,
-      fill: colors.info,
+    extent: 2pt,
+    text(
       font: fonts.mono,
-    )[
-      cargo run \-\-example #example-name
-    ]
-  ]
+      size: 0.9em,
+      fill: colors.info,
+      [cargo run \-\-example #example-name],
+    ),
+  )
+  h(.1em)
 }
 
 // Inline mention of code location for quick reference
