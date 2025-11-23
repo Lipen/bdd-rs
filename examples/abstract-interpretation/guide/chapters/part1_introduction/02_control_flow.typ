@@ -208,26 +208,26 @@ This is *exponential growth*.
 
     // Level 0
     circle((0, 0), ..style-node, name: "n0")
-    content((0, 0.5), text(size: 0.7em)[State: {}])
+    content((0, 0.5), text(size: 0.7em)[State: $emptyset$])
 
     // Level 1
     circle((-2, -1.5), ..style-node, name: "n1l")
-    content((-2.5, -1.5), text(size: 0.7em)[{A}], anchor: "east")
+    content((-2.5, -1.5), text(size: 0.7em)[${"A"}$], anchor: "east")
     circle((2, -1.5), ..style-node, name: "n1r")
-    content((2.5, -1.5), text(size: 0.7em)[{!A}], anchor: "west")
+    content((2.5, -1.5), text(size: 0.7em)[${not"A"}$], anchor: "west")
 
     // Level 2
     circle((-3, -3), ..style-node, name: "n2ll")
-    content((-3, -3.5), text(size: 0.7em)[{A, B}])
+    content((-3, -3.5), text(size: 0.7em)[${"A", "B"}$])
 
     circle((-1, -3), ..style-node, name: "n2lr")
-    content((-1, -3.5), text(size: 0.7em)[{A, !B}])
+    content((-1, -3.5), text(size: 0.7em)[${"A", not"B"}$])
 
     circle((1, -3), ..style-node, name: "n2rl")
-    content((1, -3.5), text(size: 0.7em)[{!A, B}])
+    content((1, -3.5), text(size: 0.7em)[${not"A", "B"}$])
 
     circle((3, -3), ..style-node, name: "n2rr")
-    content((3, -3.5), text(size: 0.7em)[{!A, !B}])
+    content((3, -3.5), text(size: 0.7em)[${not"A", not"B"}$])
 
     // Edges
     line("n0", "n1l", stroke: 0.5pt + colors.text-light)
