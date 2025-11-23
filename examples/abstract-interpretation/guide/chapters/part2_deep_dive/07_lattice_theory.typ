@@ -20,7 +20,7 @@ We develop the theory of complete lattices, fixpoint theorems, and Galois connec
   Think of it as:
   - $bot$ (Bottom): "Impossible" (Perfect information, but contradictory).
   - $x$: "`x` is 5" (Very precise).
-  - $y$: "`x` is positive" (Less precise).
+  - $y$: "`x` is `Pos`" (Less precise).
   - $top$ (Top): "`x` is any integer" (No information).
 ]
 
@@ -175,7 +175,7 @@ Meet finds the most precise common refinement.
     [*$top$*], [$top$], [$top$], [$top$], [$top$],
   ))
 
-  Note that $"Pos" ljoin "Neg" = top$ because there's no single sign that is both Positive and Negative (except $top$ which covers both).
+  Note that $"Pos" ljoin "Neg" = top$ because there's no single sign that is both `Pos` and `Neg` (except $top$ which covers both).
 ]
 
 #example-box[

@@ -788,16 +788,16 @@ See #inline-example("domains", "combined.rs", "combined") for runnable examples.
 
 === Sign × Interval Product
 
-The sign domain detects zero division and distinguishes positive from negative values.
+The sign domain detects zero division and distinguishes `Pos` from `Neg` values.
 The interval domain tracks numeric bounds.
 Together, they can refine each other:
 
-- If the sign domain determines a value is Zero, the interval domain can refine its bounds to $[0, 0]$.
-- Conversely, if the interval domain has bounds $[5, 10]$, the sign domain can refine its value to Positive.
+- If the sign domain determines a value is `Zero`, the interval domain can refine its bounds to $[0, 0]$.
+- Conversely, if the interval domain has bounds $[5, 10]$, the sign domain can refine its value to `Pos`.
 
 === Interval × Congruence Product
 
-Intervals provide bounds, while congruences track divisibility properties (e.g., "even" or "divisible by 4").
+Intervals provide bounds, while congruences track divisibility properties (e.g., `Even` or "divisible by 4").
 When combined, they can significantly reduce the set of possible values:
 
 - Interval $[8, 12]$ with congruence $equiv 0 mod 4$ refines to ${8, 12}$.
@@ -816,12 +816,12 @@ Reduction works by projecting the polyhedron:
   "domains",
   "combined.rs",
   "combined_domain",
-  [Implements a reduced product of sign and parity domains, demonstrating how reduction eliminates impossible combinations like (Zero, Odd).],
+  [Implements a reduced product of sign and parity domains, demonstrating how reduction eliminates impossible combinations like $($"Zero"$, $"Odd"$)$.],
 )
 
 #exercise-box(difficulty: "Hard")[
-  Design a reduced product of interval and parity (even/odd) domains.
-  Implement reduction: interval $[2, 5]$ with parity Even refines to ${2, 4}$.
+  Design a reduced product of interval and parity (`Even`/`Odd`) domains.
+  Implement reduction: interval $[2, 5]$ with parity $"Even"$ refines to ${2, 4}$.
   Measure overhead versus precision gain.
 ]
 

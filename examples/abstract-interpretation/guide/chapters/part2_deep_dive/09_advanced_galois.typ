@@ -83,7 +83,7 @@ The *best* (most precise) transformer exists when the Galois connection has cert
 #example-box[
   *Variable Decrement in Sign Domain:*
 
-  For `x := x - 1` with sign domain, consider $a = "Pos"$ (positive x).
+  For `x := x - 1` with sign domain, consider $a = "Pos"$ (`Pos` element).
 
   Concrete: $gamma("Pos") = ZZ^+ = {1, 2, ...}$.
 

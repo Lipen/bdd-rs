@@ -79,7 +79,7 @@ Now imagine shining light to cast shadows on walls.
 
 Abstract Interpretation is choosing the right "projection" (abstraction) for the property we want to prove.
 - To prove a variable is positive, project to its *Sign*.
-- To prove a variable is even, project to its *Parity*.
+- To prove a variable is `Even`, project to its *Parity*.
 - To prove a variable is within a range, project to an *Interval*.
 
 == The Subject of Analysis: IMP
@@ -116,15 +116,15 @@ Instead, we design an *Abstract Domain* capturing the properties we care about.
 
 Focus on variable *sign*.
 Concrete variables hold specific integers (e.g., `5`, `-42`, `0`).
-For analysis, we often only care if a number is positive, negative, or zero.
+For analysis, we often only care if a number is `Pos`, `Neg`, or `Zero`.
 
 We define a set of abstract values $D$:
 $ D = {bot, "Neg", "Zero", "Pos", top} $
 
 - $bot$ (Bottom): Represents the *empty set* (impossible / dead code).
-- `Neg`: Represents the set of all negative integers.
+- `Neg`: Represents the set of all `Neg` integers.
 - `Zero`: Represents the singleton set ${0}$.
-- `Pos`: Represents the set of all positive integers.
+- `Pos`: Represents the set of all `Pos` integers.
 - $top$ (Top): Represents the *universal set* (unknown / any integer).
 
 We can implement this in Rust:
@@ -165,7 +165,7 @@ Let's build intuition by playing a game using this domain.
 I have two hidden program states (variables), $A$ and $B$.
 I won't tell you their exact values, but I will tell you their *abstract signs*.
 
-=== First Scenario: Both Positive
+=== First Scenario: Both `Pos`
 
 Suppose:
 - $A$ has sign `Pos`
@@ -174,8 +174,8 @@ Suppose:
 Question: If I pick one variable at random, what is its sign?
 
 The answer is `Pos`.
-Reasoning: The union of two positive value sets is still positive.
-Both possibilities lead to positive values, so we can be certain.
+Reasoning: The union of two `Pos` value sets is still `Pos`.
+Both possibilities lead to `Pos` values, so we can be certain.
 
 === Second Scenario: Mixed Signs
 
@@ -187,7 +187,7 @@ Question: If I pick one variable at random, what is its sign?
 
 The answer is $top$ (Unknown).
 Here's why:
-- Could be positive or negative.
+- Could be `Pos` or `Neg`.
 - Domain $D$ lacks a "Non-Zero" value.
 - Smallest value covering both is $top$.
 

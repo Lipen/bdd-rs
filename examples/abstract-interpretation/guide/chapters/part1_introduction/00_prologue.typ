@@ -75,7 +75,7 @@ This unified dataflow analysis, type checking, and interval analysis into one ri
 === The Art of Approximation
 
 Consider: is `x * x` always non-negative?
-Proving this by testing requires checking every number from negative to positive infinity.
+Proving this by testing requires checking every number from `Neg` infinity to `Pos` infinity.
 Proving this by abstract interpretation simply observes the rule of signs.
 We map infinite integers to finite abstract values:
 
@@ -84,10 +84,10 @@ We map infinite integers to finite abstract values:
     columns: 3,
     align: (left, left, left),
     [*Abstract Value*], [*Meaning*], [*Examples*],
-    [`Pos` ($+$)], [Positive integers], [1, 42, 5000],
-    [`Zero` ($0$)], [Zero], [0],
-    [`Neg` ($-$)], [Negative integers], [-1, -7, -100],
-    [`Top` ($top$)], [Unknown], [Any integer],
+    [`Pos`], [Positive integers], [1, 42, 5000],
+    [`Zero`], [Zero], [0],
+    [`Neg`], [Negative integers], [-1, -7, -100],
+    [`Top`], [Unknown], [Any integer],
   ),
   caption: [The Sign Abstract Domain],
 )
@@ -119,7 +119,7 @@ With this small abstraction, we can prove that `x * x` is always `Pos` or `Zero`
 Two mathematical concepts make this rigorous: *Lattices* and *Fixpoints*.
 
 A *Lattice* provides a standard way to combine information.
-If one code path says `x` is positive and another says `x` is zero, the lattice tells us how to merge these facts (into "non-negative").
+If one code path says `x` is `Pos` and another says `x` is `Zero`, the lattice tells us how to merge these facts (into `NonNeg`).
 It defines precision ordering: some abstract values are more precise than others.
 
 A *Fixpoint* is the stable state of analysis.

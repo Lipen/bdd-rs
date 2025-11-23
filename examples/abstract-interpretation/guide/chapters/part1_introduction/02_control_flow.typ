@@ -275,7 +275,7 @@ However, it loses precision by forgetting which path was taken.
 === Path-Sensitive Analysis
 
 Path-sensitive analysis maintains separate information for each path.
-It can make precise statements like "if we took the true branch, `x` is positive; if we took the false branch, `x` is negative."
+It can make precise statements like "if we took the true branch, `x` is `Pos`; if we took the false branch, `x` is `Neg`."
 This provides much better precision, enabling detection of subtle bugs.
 The cost is potentially exponential state growth as paths multiply.
 

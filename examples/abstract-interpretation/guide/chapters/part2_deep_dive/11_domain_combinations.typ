@@ -43,16 +43,16 @@ These represent inconsistent abstract states that correspond to no concrete exec
   *Precision loss from independence:*
 
   Consider the product of *Signs* and *Parity* domains.
-  Let $x$ be "Positive" in Signs and "Even" in Parity.
-  State: $(+, "Even")$.
+  Let $x$ be $"Pos"$ in Signs and $"Even"$ in Parity.
+  State: $("Pos", "Even")$.
 
   Now, assume we execute `x = x / 2`.
-  - Signs: Positive / 2 $->$ Positive.
-  - Parity: Even / 2 $->$ Top (could be even or odd).
-  - Result: $(+, top)$.
+  - Signs: $"Pos"$ / 2 $->$ $"Pos"$.
+  - Parity: $"Even"$ / 2 $->$ $top$ (could be `Even` or `Odd`).
+  - Result: $("Pos", top)$.
 
-  We lost the information that $x$ was even!
-  If we knew $x=6$, then $x/2=3$ (odd).
+  We lost the information that $x$ was `Even`!
+  If we knew $x=6$, then $x/2=3$ (`Odd`).
   The domains operated independently and failed to refine the result.
 
   *Unrealizable states:*
@@ -64,7 +64,7 @@ These represent inconsistent abstract states that correspond to no concrete exec
   Product element $("Int", [5, 5])$ represents integer 5 --- realizable.
 
   Product element $("Bool", [5, 5])$ --- *unrealizable*!
-  Booleans are 0 or 1. The value 5 contradicts the type Bool.
+  Booleans are 0 or 1. The value 5 contradicts the type `Bool`.
   The concrete meaning is $gamma("Bool") inter gamma("Value"[5]) = emptyset$.
 ]
 
@@ -134,9 +134,9 @@ Reduction propagates constraints discovered by one domain to the other.
     let d1-x = 0
     draw.content((d1-x, 4), [Type])
     draw.circle((d1-x, 3), radius: 0.3, name: "int", fill: colors.bg-code, stroke: colors.primary + 1pt)
-    draw.content("int", [Int])
+    draw.content("int", [$"Int"$])
     draw.circle((d1-x, 1), radius: 0.3, name: "bool", fill: colors.bg-code, stroke: colors.primary + 1pt)
-    draw.content("bool", [Bool])
+    draw.content("bool", [$"Bool"$])
 
     // Domain 2: Value
     let d2-x = 3
@@ -271,7 +271,7 @@ Reduction propagates constraints discovered by one domain to the other.
 )
 
 In practice, computing the *optimal* reduction (the Granger-Cousot reduction) can be expensive.
-Most analyzers use *local iterations* or specific reduction heuristics (e.g., "Signs refines Intervals").
+Most analyzers use *local iterations* or specific reduction heuristics (e.g., "`Signs` refines `Intervals`").
 
 #info-box(title: "Implementing the Reduction Loop")[
   In a multi-domain product, reduction can be iterative.
@@ -352,7 +352,7 @@ Effective reduction operators exploit *domain-specific relationships*.
 
   Input: $("Fast", [0, 200])$.
 
-  After reduction: $("Fast", [101, 200])$ --- safe values eliminated!
+  After reduction: $("Fast", [101, 200])$ --- `Safe` values eliminated!
 ]
 
 #warning-box(title: "Reduction Cost")[
@@ -387,11 +387,11 @@ Effective reduction operators exploit *domain-specific relationships*.
   - Value: $[0, 100]$
 
   Reduction:
-  + Type refines Value: Int implies integer values.
-  + Mode refines Value: Const implies singleton value (if we knew it).
+  + Type refines Value: `Int` implies integer values.
+  + Mode refines Value: `Const` implies singleton value (if we knew it).
   + Result: $("Int", "Const", [0, 100])$.
 
-  If Mode was "Positive", we could refine Value to $[1, 100]$.
+  If Mode was `Pos`, we could refine Value to $[1, 100]$.
 ]
 
 == Trace Partitioning
@@ -575,7 +575,7 @@ They are particularly effective for alias analysis and variable substitution.
     [Octagon], [$x^2 in [0, 4]$], [Very High],
   )
 
-  Reduced product eliminates negative results, but at computational cost.
+  Reduced product eliminates `Neg` results, but at computational cost.
 ]
 
 #info-box(title: "Choosing Domains")[
