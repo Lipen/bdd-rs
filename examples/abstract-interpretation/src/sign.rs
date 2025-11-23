@@ -359,15 +359,12 @@ impl NumericDomain for SignDomain {
             Sign::Neg
         } else if low == 0 && high == 0 {
             Sign::Zero
-        } else if low < 0 && high > 0 {
-            Sign::Top
-        } else if low == 0 {
+        } else if low == 0 && high > 0 {
             Sign::NonNeg
-        } else if high == 0 {
+        } else if low < 0 && high == 0 {
             Sign::NonPos
-        } else if low < 0 && high > 0 {
-            Sign::Top
         } else {
+            // low < 0 && high > 0
             Sign::Top
         };
         elem.set(var.clone(), sign);
@@ -1071,6 +1068,15 @@ mod tests {
 
         let elem = domain.interval(&"x".to_string(), 0, 0);
         assert_eq!(elem.get("x"), Sign::Zero);
+
+        let elem = domain.interval(&"x".to_string(), 0, 50);
+        assert_eq!(elem.get("x"), Sign::NonNeg);
+
+        let elem = domain.interval(&"x".to_string(), -50, 0);
+        assert_eq!(elem.get("x"), Sign::NonPos);
+
+        let elem = domain.interval(&"x".to_string(), 10, 5);
+        assert_eq!(elem.get("x"), Sign::Bottom);
     }
 
     #[test]
