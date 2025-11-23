@@ -111,12 +111,12 @@ if condition {
 p.field = 0;              // Weak update!
 ```
 
-- *Analysis*:
-  - `p` points to `{s1, s2}`.
-  - The write `p.field = 0` must update *both* `s1` and `s2` weakly.
-  - `Store(s1).field` becomes `Old(s1).field` $ljoin$ `0`.
-  - `Store(s2).field` becomes `Old(s2).field` $ljoin$ `0`.
-  - We lose precision: we don't know which object was modified, so we must assume both *might* have been.
+The analysis proceeds as follows.
+At the join point after the conditional, `p` may point to either `{s1, s2}` depending on which branch executed.
+The subsequent write `p.field = 0` cannot determine which concrete object will be modified, forcing a weak update that conservatively modifies both sites.
+For `Store(s1).field`, the new value becomes `Old(s1).field` $ljoin$ `0`.
+Similarly, `Store(s2).field` becomes `Old(s2).field` $ljoin$ `0`.
+We lose precision because we must assume both objects might have been modified, even though at runtime only one actually changes.
 
 #figure(
   caption: [Points-to graph with aliasing],

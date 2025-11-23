@@ -8,11 +8,11 @@ Previous chapters explored individual abstract domains like Intervals and Signs.
 Real-world analysis often requires tracking multiple properties simultaneously or capturing relationships between them.
 We formalize the algebra of *combining* abstract domains.
 
-We will explore:
-- *Direct Products*: Running multiple analyses in parallel.
-- *Reduced Products*: Enabling domains to exchange information.
-- *Trace Partitioning*: The theoretical foundation for path sensitivity.
-- *Relational Domains*: Tracking correlations between variables.
+This chapter develops the theory of domain combinations, progressing from simple parallel execution to sophisticated coordination mechanisms.
+We begin with *direct products*, which run multiple analyses independently by pairing their results.
+Next, we introduce *reduced products*, which enable domains to exchange information and refine each other's precision.
+We then examine *trace partitioning*, the theoretical foundation that enables path-sensitive analysis by distinguishing abstract states based on control flow history.
+Finally, we explore *relational domains*, which transcend per-variable analysis by tracking correlations between multiple variables simultaneously.
 
 == The Direct Product
 
@@ -246,12 +246,18 @@ If $T$ represents "call stack", we get context sensitivity (interprocedural anal
 So far, we have discussed *non-relational* domains (like Intervals), which track properties of variables independently ($x in [a, b]$).
 *Relational domains* track relationships *between* variables.
 
-Common relational domains:
-- *Octagons*: Constraints of the form $plus.minus x plus.minus y lle c$.
-  Efficient ($O(n^3)$), good for array bounds checking ($i < n$).
-- *Polyhedra*: Linear inequalities $sum a_i x_i lle c$.
-  Very precise, but exponential complexity.
-- *Equalities*: $x = y + c$.
+=== Common Relational Abstractions
+
+Relational domains differ in the types of constraints they can express, creating fundamental tradeoffs between precision and performance.
+
+*Octagon domains* track constraints of the form $plus.minus x plus.minus y lle c$, capturing simple relationships like "$x$ is at most 5 greater than $y$".
+They achieve efficient $O(n^3)$ complexity, making them practical for array bounds checking where relationships like $i < n$ are common.
+
+*Polyhedral domains* use general linear inequalities $sum a_i x_i lle c$, expressing arbitrary linear constraints between variables.
+They offer maximum precision for linear relationships but suffer exponential complexity in the worst case.
+
+*Equality domains* specialize in constraints of the form $x = y + c$, precisely tracking affine relationships.
+They are particularly effective for alias analysis and variable substitution.
 
 #example-box(title: "Real-World Example: Consistency Check")[
   Consider a security check for user roles:
@@ -283,10 +289,19 @@ However, this can be too aggressive.
 
 == Chapter Summary
 
-- *Direct Product*: Combines domains independently.
-- *Reduced Product*: Adds communication between domains to recover precision.
-- *Trace Partitioning*: Distinguishes abstract states based on execution history (control flow).
-- *Relational Domains*: Track correlations between variables ($x < y$).
+This chapter developed a hierarchy of domain combination techniques, each adding sophistication to multi-property analysis.
+
+The *direct product* provides the foundation by running multiple analyses independently, combining their results through simple pairing.
+While answering questions neither domain could handle alone, it cannot exploit synergies between domains.
+
+The *reduced product* overcomes this limitation by introducing reduction operators that enable bidirectional information exchange.
+Domains can now refine each other's abstract states, recovering precision lost to independent analysis.
+
+The *trace partitioning* construction provides the theoretical basis for path sensitivity.
+By distinguishing abstract states based on execution history captured through control flow predicates, it enables precise reasoning about conditional program behavior.
+
+Finally, *relational domains* transcend per-variable analysis by tracking correlations between multiple variables.
+They enable expressing constraints like $x < y$ or $x = 2y + 1$, which are essential for reasoning about array bounds, pointer arithmetic, and data structure consistency.
 
 In the next chapter, we will implement a powerful instance of these concepts: a *Reduced Product of BDDs (Trace Partitioning) and Abstract Domains*.
 This "Killer Feature" uses BDDs to efficiently manage the trace partition $T$, enabling scalable path-sensitive analysis.

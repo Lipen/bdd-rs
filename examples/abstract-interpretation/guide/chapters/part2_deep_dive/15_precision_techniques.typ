@@ -241,9 +241,9 @@ After widening overshoots the target, we use *Narrowing* to shrink the result ba
 We run a few more iterations of the loop using the standard semantic function.
 Since the widening established a safe upper bound, these subsequent iterations can only refine the result, recovering precision.
 
-*Sequence*:
-+ Iterate with $widen$ (Widen) until convergence (Post-fixpoint).
-+ Iterate with $narrow$ (Narrow) for $k$ steps to improve precision.
+The complete fixpoint algorithm proceeds in two phases.
+First, we iterate using the widening operator until convergence, establishing a post-fixpoint that safely over-approximates all reachable states.
+Then, we apply narrowing for $k$ additional steps, refining this conservative approximation to recover precision lost to aggressive extrapolation.
 
 == Engineering Heuristics
 
@@ -424,8 +424,17 @@ We can augment our abstract state to track the set of "active rules".
 ]
 
 #chapter-summary[
-  - *Reduced Products* allow different domains to share information, proving properties neither could prove alone.
-  - *Partitioning* prevents precision loss at merge points by keeping incompatible states separate (e.g., GET vs POST).
-  - *Widening with Thresholds* ensures loops terminate quickly while respecting domain-specific boundaries (like Page Size).
-  - *Engineering Heuristics* like variable ordering and resource budgets are critical for scaling to real-world programs.
+  This chapter presented practical techniques for transforming abstract interpretation from theoretical framework to production-grade analysis tool.
+
+  *Reduced products* enable cooperation between complementary domains through systematic information exchange.
+  By allowing different abstractions to refine each other, they prove properties that neither domain could establish in isolation, overcoming the limitations of single-domain analysis.
+
+  *State partitioning* addresses precision loss at control flow merge points by maintaining separate abstract states for incompatible execution contexts.
+  Distinguishing GET from POST requests or different call sites prevents spurious interactions that generate false positives.
+
+  *Widening with thresholds* reconciles the competing demands of termination and precision for infinite-height domains.
+  By extrapolating to domain-specific landmarks like page boundaries rather than infinity, it ensures rapid convergence while respecting meaningful program boundaries.
+
+  Finally, *engineering heuristics* like BDD variable ordering and resource budgets bridge the gap between polynomial theoretical complexity and practical scalability.
+  These implementation details often determine whether an analyzer succeeds or fails on real-world programs.
 ]

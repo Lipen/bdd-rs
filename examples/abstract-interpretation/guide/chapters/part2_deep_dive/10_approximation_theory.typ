@@ -117,12 +117,15 @@ Analyzing loops with infinite domains:
 
 == Designing Widening Operators
 
-Good widening operators are domain-specific.
+Good widening operators exploit domain-specific structure to balance termination guarantees with precision preservation.
 
-- *Intervals:* If a bound changes, set it to $+infinity$ (or $-infinity$).
-- *Thresholds:* Instead of jumping to infinity, jump to the next value in a fixed set $T = {0, 1, 2, 4, 8, ...}$.
-- *Delayed Widening:* Perform $N$ normal joins before applying widening.
-  This handles short loops precisely without over-approximation.
+For *interval domains*, the standard widening strategy detects bound changes: if either endpoint shifts between iterations, that bound extrapolates to the corresponding infinity ($+infinity$ for upper bounds, $-infinity$ for lower bounds).
+
+*Threshold-based widening* refines this approach by jumping to values in a predetermined set $T = {0, 1, 2, 4, 8, ...}$ rather than immediately reaching infinity.
+This technique captures common program constants and loop bounds, significantly improving precision for loops with small iteration counts.
+
+*Delayed widening* defers extrapolation by performing $N$ normal join operations before activating the widening operator.
+This strategy handles short loops precisely, avoiding premature over-approximation when natural convergence would succeed within a few iterations.
 
 #warning-box(title: "Widening and BDDs")[
   BDD domains usually have finite height (for a fixed number of variables), so strictly speaking, they don't *need* widening to terminate.

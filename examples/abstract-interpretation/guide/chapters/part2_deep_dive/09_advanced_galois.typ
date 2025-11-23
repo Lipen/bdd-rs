@@ -465,12 +465,16 @@ Transformers on product domains must maintain reduction.
 
 == Chapter Summary
 
-- *Abstract transformers* compute statement effects in abstract domains.
-- *Best transformers* achieve maximum precision but may be expensive.
-- *Completeness* characterizes when practical transformers match best transformers.
-- *Reduced products* combine domains while eliminating inconsistencies.
-- *Reduction operators* exploit domain relationships for precision.
-- *Multi-domain products* enable rich, expressive analyses.
-- *Precision/cost tradeoffs* guide domain selection.
+This chapter completed the theoretical foundation for designing precise abstract analyses by exploring the transformation pipeline from concrete to abstract semantics.
 
-These techniques form the foundation for designing powerful, practical abstract interpretations.
+*Abstract transformers* provide the mechanism for computing statement effects within abstract domains, replacing expensive concrete execution with tractable approximations.
+The notion of *best transformers* establishes an optimality criterion, defining the most precise sound approximation achievable through the abstraction function.
+
+*Completeness* characterizes the ideal scenario where practical transformers achieve best transformer precision without computing through the costly $alpha compose llb s rrb_C compose gamma$ composition.
+This theoretical benchmark guides the design of efficient transformers that preserve maximum precision.
+
+The *reduced product* construction enables combining multiple domains while eliminating inconsistencies through *reduction operators* that exploit relationships between domains.
+This coordination mechanism recovers precision lost to independent analysis, enabling *multi-domain products* that track diverse properties simultaneously.
+
+Throughout these techniques runs the fundamental *precision-cost tradeoff* that guides practical domain selection and reduction strategy design.
+These principles form the foundation for designing powerful, practical abstract interpretations that balance theoretical soundness with computational feasibility.

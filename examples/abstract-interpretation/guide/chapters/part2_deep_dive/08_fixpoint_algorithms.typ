@@ -509,10 +509,17 @@ Applying widening too early loses precision unnecessarily.
 
 == Chapter Summary
 
-- *Chaotic iteration* allows flexible update orders with convergence guarantees.
-- *Worklist algorithms* track dependencies to minimize recomputation.
-- *Iteration strategies* (RPO, FIFO, LIFO) affect performance dramatically.
-- *Widening/narrowing* ensure termination for infinite-height lattices with two-phase iteration.
-- *Delayed widening* improves precision by waiting for natural convergence.
+This chapter bridged the gap between fixpoint theory and practical implementation by developing algorithms that compute least fixpoints efficiently on real programs.
 
-These techniques are essential for implementing efficient program analyzers.
+*Chaotic iteration* generalizes Kleene's sequential approach by allowing flexible update orders while preserving convergence guarantees through fairness conditions.
+This freedom enables *worklist algorithms* that exploit program structure by tracking dependencies explicitly, ensuring each computation step processes only variables whose inputs have changed.
+
+*Iteration strategies* determine the order of worklist processing, with dramatic performance implications.
+Reverse postorder traversal aligns with program control flow, enabling rapid propagation through acyclic regions.
+Queue-based (FIFO) and stack-based (LIFO) strategies offer simpler alternatives with different propagation characteristics.
+
+For infinite-height lattices where natural convergence is impossible, *widening operators* force termination by extrapolating ascending chains to stable upper bounds.
+The complementary *narrowing phase* refines these approximations in a descending iteration, recovering precision lost to aggressive widening.
+*Delayed widening* further improves results by deferring extrapolation until natural convergence stalls, preserving precise invariants when they arise quickly.
+
+These techniques form the algorithmic backbone of practical program analyzers, transforming abstract interpretation from theoretical framework to deployable verification technology.
