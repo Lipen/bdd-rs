@@ -1,60 +1,71 @@
 #import "../../theme.typ": *
 
+#import "@preview/numbly:0.1.0"
+#set heading(numbering: numbly.numbly(
+  "",
+  "{2}.",
+  "{2}.{3}",
+))
+
 #counter(heading).update(0)
 
-#heading(numbering: none)[Prologue: The Case for Network Verification]
+#heading(numbering: none)[Prologue: The Case for Static Analysis]
 
 #reading-path(path: "essential") #h(0.5em) #reading-path(path: "beginner")
 
-_July 2019._
-_A Major Financial Institution._
+The world runs on software.
+But increasingly, the world also runs on *configuration*.
+Cloud infrastructure, CI/CD pipelines, and firewall policies are no longer static settings managed by sysadmins.
+They are *programs* written in domain-specific languages.
 
-A hacker gains access to over 100 million customer records.
-Social Security numbers, bank account details, and credit scores are exfiltrated.
-The breach costs the company hundreds of millions of dollars in fines and settlements.
+- A Terraform file is a program that provisions servers.
+- A Kubernetes manifest is a program that orchestrates containers.
+- A Firewall Policy is a program that filters packets.
 
-The cause?
-A *Server-Side Request Forgery (SSRF)* vulnerability combined with a *Firewall Misconfiguration*.
-The Web Application Firewall (WAF) had permissions to access the backend metadata service.
-A specific rule allowed traffic from the WAF to the metadata server, which contained the credentials for the entire cloud environment.
+Yet, while we have sophisticated tools to verify our C++ and Rust code, we often treat our infrastructure code as second-class citizens.
+We "test" it by pushing it to production and seeing if the network breaks.
 
-This was not a zero-day exploit in the kernel.
-It was a failure of *policy verification*.
-A static analysis tool capable of analyzing network reachability could have proven that the WAF was allowed to initiate connections to the sensitive metadata IP address.
+This guide is about bringing the rigor of *Program Analysis* to the world of infrastructure.
 
-But this story is not unique.
-History is littered with expensive and deadly failures where the system behaved exactly as configured, but the configuration was wrong.
+=== The "Program" of the Network
 
-== The High Cost of Misconfiguration
+Consider a firewall policy.
+It has variables (IP addresses, ports).
+It has control flow (chains, jumps, `if/else` logic).
+It has a massive input space (all possible packets).
 
-*Facebook BGP Outage (2021):*
-A routine configuration change to the backbone routers disconnected Facebook's data centers from the internet.
-The BGP routes were withdrawn, making Facebook.com (and WhatsApp, Instagram) disappear from the global routing table.
-*Cost: \$60 million in revenue, 6 hours of global downtime.*
+When you write a rule like `deny tcp any any eq 80`, you are writing a line of code.
+When you have 10,000 such lines, you have a complex software system.
+And like any software system, it has bugs:
+- *Dead Code:* Rules that are shadowed by earlier rules.
+- *Infinite Loops:* Routing loops or circular chain references.
+- *Logic Errors:* Allowing traffic you intended to block.
 
-*Ariane 5 (1996):*
-Thirty-seven seconds after launch, the rocket disintegrated due to an integer overflow.
-While not a network failure, it illustrates the same principle: unverified assumptions about data ranges.
-*Cost: \$370 million.*
+How do we find these bugs without crashing the network?
 
-These disasters share a common thread:
-The configurations passed standard syntax checks.
-They worked in the test lab.
-But the *state space* --- the combination of all possible packets, routes, and failures --- was not fully explored.
+=== The Scale of the Input Space
 
-#v(1em)
+We rely on testing --- sending packets (inputs) and checking the output.
+But let's look at the math of a single packet header.
 
-== The Illusion of Testing
+To fully test a firewall program, we need to cover the combination of all relevant input variables:
+- IPv4 Source (32 bits)
+- IPv4 Destination (32 bits)
+- Source Port (16 bits)
+- Destination Port (16 bits)
+- Protocol (8 bits)
 
-We have built a civilization that runs on networks.
-Yet, our primary method for ensuring reliability --- testing (ping, traceroute, penetration testing) --- is fundamentally incapable of guaranteeing it.
+$ 32 + 32 + 16 + 16 + 8 = 104 "bits" $
 
-Testing is the process of checking specific points in the input space.
-If we test packets $p_1, p_2, ..., p_n$, we know the network handles those $n$ packets correctly.
-We know *nothing* about packet $p_(n+1)$.
+The input space is $2^104$.
+That is approximately $2 times 10^31$ possibilities.
+If we could test *one billion packets per second*, it would still take longer than the age of the universe to test all combinations for a single policy.
+
+Testing is like exploring a pitch-black cave with a laser pointer.
+You see exactly where you point, but you have no idea what is hiding in the dark.
 
 #figure(
-  caption: [Testing vs. Verification. Testing checks individual packets (green dots). Verification proves properties about the entire header space (blue region).],
+  caption: [Testing vs. Verification. Testing checks individual inputs (green). Verification analyzes the logic of the program itself (blue).],
   cetz.canvas({
     import cetz.draw: *
 
@@ -71,7 +82,7 @@ We know *nothing* about packet $p_(n+1)$.
 
     // Input Space
     rect((0, 0), (w-space, h-space), ..style-space, name: "space")
-    content((w-space / 2, h-space + 0.3), text(weight: "bold")[Header Space ($2^104$ bits)])
+    content((w-space / 2, h-space + 0.3), text(weight: "bold")[Input Space ($2^104$ bits)])
 
     // Testing (Scattered points)
     for i in range(15) {
@@ -83,7 +94,7 @@ We know *nothing* about packet $p_(n+1)$.
 
     // Verification (Covered region)
     rect((x-verify - 1, y-verify - 1), (x-verify + 1, y-verify + 1), ..style-verify, name: "region")
-    content("region", align(center, text(size: 0.8em, fill: colors.primary)[Verified \ Region]))
+    content("region", align(center, text(size: 0.8em, fill: colors.primary)[Verified \ Logic]))
 
     // Bug (Uncovered)
     circle((5.2, 0.8), radius: 0.1, fill: colors.error, stroke: none, name: "bug")
@@ -91,82 +102,63 @@ We know *nothing* about packet $p_(n+1)$.
   }),
 )
 
-Consider a simple firewall rule checking IPv4 source, destination, and port:
+== Abstract Interpretation: The Math of Analysis
 
-```rust
-fn check_packet(src: u32, dst: u32, port: u16) -> Action { ... }
-```
+To solve this, we turn to *Abstract Interpretation*.
+This is the same mathematical framework used to verify critical software in avionics and medical devices.
 
-The input space size is $2^32 times 2^32 times 2^16 = 2^80$.
-If we include IPv6 ($2^128$), the space is astronomically larger.
-We cannot test our way to security.
+Abstract Interpretation allows us to reason about infinite (or massive) state spaces using finite representations.
+Instead of running the program with specific inputs (testing), we *analyze* the program's logic using abstract values.
 
-== What is Verification?
+In our context:
+- A single *packet* is a concrete input point.
+- A *rule* is an abstract shape (a volume) in the input space.
+- The *policy* is a complex geometric object formed by these shapes.
 
-If testing is "checking some packets," then *verification* is "proving properties about *all* packets."
+We ask geometric questions about the program:
+- "Does the 'Allowed Traffic' shape intersect with the 'Sensitive Data' shape?"
+- "Is the 'Rule A' volume completely contained within the 'Rule B' volume?" (Dead Code)
 
-In networking, we use logic and mathematics to prove statements like:
-- "The Database subnet is *never* reachable from the Public Internet."
-- "All traffic from VPN users *must* pass through the Intrusion Detection System."
-- "No two rules in this firewall chain are *redundant*."
+=== Why Networks?
 
-== The Spectrum of Assurance
+You might ask: "If this is a guide about Abstract Interpretation, why focus on networks?"
 
-We can view network assurance as a spectrum:
+Networks are the perfect "Hello World" for learning Static Analysis:
++ *Finite but Huge:* The state space ($2^104$) is too big to test, but small enough to visualize.
++ *Structured:* The logic (CIDR blocks, ranges) is highly structured, making it ideal for specific data structures.
++ *Critical:* The impact of a bug is immediate and catastrophic.
 
-+ *Ping/Traceroute:* Checks connectivity for one packet at one time.
-+ *Penetration Testing:* Checks for known vulnerabilities using random or heuristic attacks.
-+ *Config Analysis:* Checks for syntax errors and bad practices (linting).
-+ *Formal Verification:* Mathematically proves that the network policy satisfies a specification for *all* possible packets.
+By building a Firewall Checker, you will learn the core principles of Abstract Interpretation --- Lattices, Transfer Functions, Fixpoints --- in a concrete, visual domain.
 
-This guide focuses on a sweet spot in this spectrum: *Abstract Interpretation*.
+== The Engine: BDDs and Rust
 
-== The Formal Alternative: Abstract Interpretation
+To implement this analysis efficiently, we need specialized tools.
 
-Abstract Interpretation is a technique that allows us to reason about infinite state spaces using finite representations.
-We do not send packets; we *analyze* the policy.
++ *Binary Decision Diagrams (BDDs):*
+  BDDs are a data structure that acts as a *compression engine* for boolean logic.
+  They allow us to represent the complex logic of a firewall policy as a compact graph.
+  They enable us to perform set operations (Union, Intersection, Difference) on the entire input space in microseconds.
 
-Instead of tracking the exact value of a header field (which could be anything), we track its *abstract property*.
-For example, instead of knowing `src_ip = 192.168.1.55`, we might know `src_ip in 192.168.1.0/24`.
++ *Rust:*
+  We use Rust not just for performance, but for *correctness*.
+  Rust's algebraic data types allow us to map the mathematical logic of verification directly into code.
 
-If we know `src_ip` is Internal and `dst_ip` is External, we can determine the firewall action without knowing the exact IP addresses.
+  ```rust
+  // If it compiles, we handled all cases!
+  match packet_action {
+      Action::Allow => log_traffic(),
+      Action::Deny => drop_packet(),
+      // No "default" case needed; the compiler knows we covered everything.
+  }
+  ```
 
-== The Challenge: Combinatorial Explosion
+== The Goal: Becoming a Toolsmith
 
-However, abstract interpretation faces a massive hurdle: *Rule Complexity*.
-Every firewall rule splits the packet space.
-Every jump to a sub-chain multiplies the number of paths.
-A complex policy with thousands of rules can have an explosion of possible packet flows.
+The goal of this guide is not just to teach you how to verify a firewall.
+It is to transform you into a *Toolsmith*.
 
-Naive analysis either:
-1. *Explodes*: Tries to track every single IP address and runs out of memory.
-2. *Gives Up*: Merges all flows together, losing precision (e.g., concluding "Access might be allowed").
+By the end of this book, you will have built a *Symbolic Analyzer* from scratch.
+You will understand how to apply Abstract Interpretation to solve complex verification problems.
+You will possess the rare skill of building tools that don't just run the code, but *understand* it.
 
-== Enter the BDD
-
-This guide focuses on a specific, powerful synergy:
-*Abstract Interpretation* combined with *Binary Decision Diagrams (BDDs)*.
-
-*BDDs* are the secret weapon against combinatorial explosion.
-They allow us to represent and manipulate *sets of packets* implicitly.
-Instead of listing billions of IP addresses, a BDD might represent a complex ACL with a graph of just a few hundred nodes.
-
-Together, they enable *Path-Sensitive Analysis*: verification that understands how packet headers match rules, yet scales to real-world networks.
-
-== The Journey Ahead
-
-This is not just a theoretical textbook.
-It is a practical guide to building verification tools in Rust.
-We chose Rust because it is the language of modern systems programming, and its type system aligns beautifully with the goals of verification.
-
-We will start from first principles:
-+ *Abstraction:* How to trade precision for speed (CIDR blocks).
-+ *Control Flow:* Why rule chains are the enemy of analysis.
-+ *Symbolic Logic:* How BDDs crush combinatorial complexity.
-
-Then, we will build a complete *Symbolic Firewall Checker* capable of proving security properties that testing would miss.
-
-The Facebook and Capital One incidents demonstrated the fragility of our digital infrastructure.
-It is our responsibility as engineers to build networks that are not just "probably" secure, but *provably* robust.
-
-Let us begin.
+Let's build it.
