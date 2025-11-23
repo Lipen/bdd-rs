@@ -164,31 +164,49 @@ For path sensitivity, a good heuristic is to order variables by their appearance
   Use a canonical mapping: `Map<Condition, BddVar>`.
 ]
 
-== Case Study: Packet Filter Safety
+== Case Study: Packet Parsing Safety
 
-Let's see this in action on a packet filter rule.
+Let's see this in action on a packet parsing routine.
+This is a classic source of vulnerabilities: checking a length field but failing to respect it during access.
 
 ```rust
-fn filter(packet: &Packet) {
-    if packet.proto == TCP {
-        // Safe access to TCP header?
-        let port = packet.tcp.dst_port;
+fn parse_packet(buf: &[u8], len: usize) {
+    // 1. Check length
+    if len < 4 { return; }
+
+    // 2. Access header (safe because len >= 4)
+    let header = buf[0..4];
+
+    // 3. Check payload type
+    if header[0] == 0x1 {
+        // 4. Access payload (requires len >= 8)
+        if len >= 8 {
+            let payload = buf[4..8];
+        }
     }
 }
 ```
 
 *Analysis Trace:*
 
-+ *Entry*: `packet` is generic.
-+ *Branch*: `packet.proto == TCP`.
-  - BDD adds variable $v_1$ (`proto == TCP`).
-  - Control state becomes $v_1$ (true branch).
-+ *Access `packet.tcp`*:
-  - The analyzer asks: "Is it safe to access the TCP union field?"
-  - Data domain might not track union tags precisely.
-  - *But* the BDD control state is $v_1$.
-  - This implies `proto == TCP` is true.
-  - The analyzer proves safety using the path condition.
++ *Entry*: `len` is $[0, infinity]$.
++ *Branch 1*: `len < 4`.
+  - False branch (fallthrough): BDD adds $!v_1$ (`!(len < 4)`).
+  - Data domain refines `len` to $[4, infinity]$.
++ *Access 1*: `buf[0..4]`.
+  - Safety check: Is `len >= 4`?
+  - Data domain says yes ($[4, infinity]$). *Safe.*
++ *Branch 3*: `header[0] == 0x1`.
+  - True branch: BDD adds $v_2$. Path is $!v_1 and v_2$.
++ *Branch 4*: `len >= 8`.
+  - True branch: BDD adds $v_3$. Path is $!v_1 and v_2 and v_3$.
+  - Data domain refines `len` to $[8, infinity]$.
++ *Access 2*: `buf[4..8]`.
+  - Safety check: Is `len >= 8`?
+  - Data domain says yes ($[8, infinity]$). *Safe.*
+
+Without path sensitivity (BDD), merging the paths after Branch 4 would lose the correlation between "we are inside the `len >= 8` block" and the variable `len`.
+The BDD keeps these states distinct if we use partitioning, or allows us to recover the condition if we use the product domain.
 
 == Performance Considerations
 

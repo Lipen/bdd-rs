@@ -41,28 +41,28 @@ A widening operator might observe the growth and jump to infinity.
     // Draw axes
     line((0, 0), (6, 0), mark: (end: ">"), name: "x", stroke: colors.text-light + 1pt)
     line((0, 0), (0, 4), mark: (end: ">"), name: "y", stroke: colors.text-light + 1pt)
-    content("x.end", anchor: "west", padding: 0.1)[Iterations]
-    content("y.end", anchor: "south", padding: 0.1)[Value]
+    content("x.end", anchor: "west", padding: 0.2)[Iterations]
+    content("y.end", anchor: "south", padding: 0.2)[Value]
 
     // Draw the "staircase" (concrete iteration)
     set-style(stroke: (paint: colors.secondary, dash: "dashed"))
     line((0, 0), (1, 1), (2, 1.5), (3, 1.75), (4, 1.875), (5, 1.9))
-    content((5, 1.9), anchor: "west", padding: 0.1, text(fill: colors.secondary)[Exact Sequence])
+    content((5, 1.9), anchor: "north", padding: 0.2, text(fill: colors.secondary)[Exact Sequence])
 
     // Draw the "widening" (jump)
     set-style(stroke: (paint: colors.primary, thickness: 2pt, dash: "solid"))
     line((0, 0), (1, 1), (2, 3))
     line((2, 3), (5, 3))
-    content((5, 3), anchor: "west", padding: 0.1, text(fill: colors.primary)[Widened Sequence])
+    content((5, 3), anchor: "south", padding: 0.2, text(fill: colors.primary)[Widened Sequence])
 
     // Limit line
     set-style(stroke: (paint: colors.text-light, dash: "dotted"))
     line((0, 2), (6, 2))
-    content((6, 2), anchor: "west", padding: 0.1)[Least Fixpoint]
+    content((6, 2), anchor: "west", padding: 0.2)[Least Fixpoint]
 
     // Post-fixpoint line
     line((0, 3), (6, 3))
-    content((6, 3), anchor: "west", padding: 0.1)[Post-Fixpoint]
+    content((6, 3), anchor: "west", padding: 0.2)[Post-Fixpoint]
   })
 )
 

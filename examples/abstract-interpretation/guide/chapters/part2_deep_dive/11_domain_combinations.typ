@@ -73,6 +73,87 @@ The goal of reduction is to propagate constraints discovered by one domain to th
   Refined Congruence: $x equiv 0 mod 10$ (if supported).
 ]
 
+#figure(
+  caption: [Direct vs. Reduced Product: Intervals $times$ Congruence],
+  cetz.canvas({
+    import cetz.draw: *
+
+    // --- Styles & Helpers ---
+    let style-box = (fill: colors.bg-code, stroke: colors.primary + 1pt, radius: 0.2)
+    let style-arrow = (mark: (end: ">"), stroke: colors.text-light + 0.8pt)
+
+    let draw-state(pos, name, body, fill: colors.bg-code, width: 4, height: 1.2) = {
+      let (x, y) = pos
+      let w = width / 2
+      let h = height / 2
+      rect((x - w, y - h), (x + w, y + h), name: name, fill: fill, stroke: colors.primary + 1pt, radius: 0.2)
+      content(pos, body)
+    }
+
+    let draw-arrow(from, to, label: none) = {
+      line(from, to, ..style-arrow, name: "arrow")
+      if label != none {
+        content("arrow.mid", anchor: "west", padding: 0.1, label)
+      }
+    }
+
+    // --- Layout Constants ---
+    let x-left = -4
+    let x-right = 4
+    let y-top = 3
+    let y-bot = 0
+
+    // --- Direct Product ---
+    content((x-left, y-top + 1.5), text(weight: "bold")[Direct Product])
+
+    // Initial State
+    draw-state((x-left, y-top), "d_init", [${[10, 12], 0 thick (mod 5)}$])
+
+    // Result (Independent)
+    draw-state(
+      (x-left, y-bot),
+      "d_res",
+      text(0.8em)[Interval: $10, 11, 12$ \ Congruence: $..., 5, 10, 15, ...$],
+      fill: colors.warning.lighten(80%),
+      height: 1.5,
+    )
+
+    // Operation
+    draw-arrow("d_init.south", "d_res.north", label: text(size: 0.8em)[Interpret])
+
+    content((x-left, y-bot - 1.2), text(size: 0.8em, fill: colors.error)[No refinement!])
+
+    // --- Reduced Product ---
+    content((x-right, y-top + 1.5), text(weight: "bold")[Reduced Product])
+
+    // Initial State
+    draw-state((x-right, y-top), "r_init", [${[10, 12], 0 thick (mod 5)}$])
+
+    // Result (Refined)
+    draw-state(
+      (x-right, y-bot),
+      "r_res",
+      [${[10, 10], 0 thick (mod 10)}$],
+      fill: colors.success.lighten(80%),
+      height: 1.5,
+    )
+
+    // Reduction Step
+    draw-arrow("r_init.south", "r_res.north", label: text(size: 0.8em, fill: colors.accent)[Reduce $rho$])
+
+    content((x-right, y-bot - 1.2), text(size: 0.8em, fill: colors.success)[Precision gained!])
+
+    // Explanation arrow
+    line(
+      "r_res.west",
+      "d_res.east",
+      stroke: (paint: colors.text-light, dash: "dashed"),
+      mark: (start: ">", end: ">", stroke: (dash: "solid")),
+    )
+    content((0, y-bot + 0.5), text(size: 0.8em)[$10 in [10, 12]$ is $0 thick (mod 5)$])
+  }),
+)
+
 In practice, computing the *optimal* reduction (the Granger-Cousot reduction) can be expensive.
 Most analyzers use *local iterations* or specific reduction heuristics (e.g., "Signs refines Intervals").
 
@@ -98,37 +179,57 @@ If $T$ represents "call stack", we get context sensitivity (interprocedural anal
   caption: [Trace partitioning splits abstract states by path],
 
   cetz.canvas({
-    import cetz: draw
+    import cetz.draw: *
+
+    // --- Styles & Helpers ---
+    let style-box = (fill: colors.bg-code, stroke: colors.primary + 1pt, radius: 0.2)
+    let style-arrow = (mark: (end: ">", stroke: (dash: "solid")), stroke: colors.text-light + 0.8pt)
+
+    let draw-state(pos, name, body, fill: colors.bg-code, stroke: colors.primary + 1pt, width: 2.5, height: 1) = {
+      let (x, y) = pos
+      let w = width / 2
+      let h = height / 2
+      rect((x - w, y - h), (x + w, y + h), name: name, fill: fill, stroke: stroke, radius: 0.2)
+      content(pos, body)
+    }
+
+    // --- Layout Constants ---
+    let y-split = 4
+    let y-branch = 2
+    let y-merge = 0
+    let x-sep = 2
 
     // Control flow split
-    draw.circle((2, 4), radius: 0.3, name: "split", fill: colors.bg-code, stroke: colors.primary + 1pt)
-    draw.content("split", [?])
+    circle((0, y-split), radius: 0.3, name: "split", fill: colors.bg-code, stroke: colors.primary + 1pt)
+    content("split", [?])
 
-    // Left branch (True)
-    draw.line("split.south-west", (0, 2.5), stroke: colors.text-light + 0.8pt, mark: (end: ">"))
-    draw.content((-0.5, 3.2), text(size: 8pt)[True])
-    draw.rect((-1, 1.5), (1, 2.5), name: "s1", fill: colors.success.lighten(70%), stroke: colors.success + 1pt)
-    draw.content("s1", [$x in [0, 5]$])
+    // Branches
+    draw-state((-x-sep, y-branch), "s1", [$x in [0, 5]$], fill: colors.success.lighten(70%))
+    draw-state((x-sep, y-branch), "s2", [$x in [6, 10]$], fill: colors.warning.lighten(70%))
 
-    // Right branch (False)
-    draw.line("split.south-east", (4, 2.5), stroke: colors.text-light + 0.8pt, mark: (end: ">"))
-    draw.content((4.5, 3.2), text(size: 8pt)[False])
-    draw.rect((3, 1.5), (5, 2.5), name: "s2", fill: colors.warning.lighten(70%), stroke: colors.warning + 1pt)
-    draw.content("s2", [$x in [6, 10]$])
+    // Edges to branches
+    line("split", "s1", ..style-arrow, name: "split-s1")
+    content("split-s1", text(size: 8pt, fill: colors.success)[True], anchor: "south-east", padding: 0.2)
+
+    line("split", "s2", ..style-arrow, name: "split-s2")
+    content("split-s2", text(size: 8pt, fill: colors.warning)[False], anchor: "south-west", padding: 0.2)
 
     // Merge point (Partitioned)
-    draw.line("s1.south", (2, 0.5), stroke: colors.text-light + 0.8pt, mark: (end: ">"))
-    draw.line("s2.south", (2, 0.5), stroke: colors.text-light + 0.8pt, mark: (end: ">"))
+    draw-state((0, y-merge), "merge", [${("T", [0, 5]), ("F", [6, 10])}$], width: 5)
+    content((0, y-merge - 1), text(size: 9pt, fill: colors.text-light)[Kept separate!])
 
-    draw.rect((0, -0.5), (4, 0.5), name: "merge", fill: colors.bg-code, stroke: colors.primary + 1pt)
-    draw.content("merge", [${("T", [0, 5]), ("F", [6, 10])}$])
-    draw.content((2, -1), text(size: 9pt, fill: colors.text-light)[Kept separate!])
+    // Edges to merge
+    line("s1", "merge", ..style-arrow)
+    line("s2", "merge", ..style-arrow)
 
     // Comparison with Merge
-    draw.content((7, 1.5), text(weight: "bold")[Standard Merge:])
-    draw.rect((6, 0), (8, 1), name: "std", fill: colors.error.lighten(70%), stroke: colors.error + 1pt)
-    draw.content("std", [$[0, 10]$])
-    draw.content((7, -0.5), text(size: 9pt, fill: colors.error)[Precision lost])
+    let x-std = 6
+    content((x-std, y-branch), text(weight: "bold")[Standard Merge:])
+    draw-state((x-std, y-merge), "std", [$[0, 10]$], fill: colors.error.lighten(70%), stroke: colors.error + 1pt)
+    content((x-std, y-merge - 1), text(size: 9pt, fill: colors.error)[Precision lost])
+
+    // Arrow for standard merge comparison (conceptual)
+    line((x-std, y-branch - 0.5), "std.north", ..style-arrow, stroke: (dash: "dashed"))
   }),
 )
 

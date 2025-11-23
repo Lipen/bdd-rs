@@ -64,7 +64,7 @@ We know *nothing* about packet $p_(n+1)$.
 
     // Input Space
     rect((0, 0), (6, 4), ..style-space, name: "space")
-    content((3, 4.3), text(weight: "bold")[Header Space ($2^{104}$ bits)])
+    content((3, 4.3), text(weight: "bold")[Header Space ($2^104$ bits)])
 
     // Testing (Scattered points)
     for i in range(15) {
@@ -72,15 +72,15 @@ We know *nothing* about packet $p_(n+1)$.
       let y = calc.rem(i * 3 + 2, 35) / 10.0 + 0.2
       circle((x, y), ..style-test)
     }
-    content((1, 0.5), text(size: 0.8em, fill: colors.success)[Pen Tests])
+    content((1, 0.5), text(size: 0.8em, fill: colors.success)[Tests])
 
     // Verification (Covered region)
     rect((3.5, 1.5), (5.5, 3.5), ..style-verify)
-    content((4.5, 2.5), text(size: 0.8em, fill: colors.primary)[Verified Policy])
+    content((4.5, 2.5), align(center, text(size: 0.8em, fill: colors.primary)[Verified \ Region]))
 
     // Bug (Uncovered)
     circle((5.2, 0.8), radius: 0.1, fill: colors.error, stroke: none)
-    content((5.2, 0.4), text(size: 0.8em, fill: colors.error)[Leak])
+    content((5.2, 0.4), text(size: 0.8em, fill: colors.error)[Bug])
 
     // Arrow from verified to bug (showing it missed? No, verification covers regions)
     // Let's show that testing missed the bug

@@ -32,8 +32,8 @@ A Chain Graph "flattens" the recursive structure into a graph.
 The fundamental unit of a Chain Graph is the *Rule Block*.
 
 #definition(title: "Rule Block")[
-  A *Rule Block* is a maximal sequence of rules with:
-  + *Single Entry*: Packets can only enter at the first rule.
+  A *Rule Block* (or Basic Block) is a maximal sequence of rules with:
+  + *Single Entry*: Packets can only enter at the first rule (the "leader").
   + *Single Exit*: Packets can only leave from the last rule (the "terminator").
   + *Atomic Execution*: If the first rule executes, all subsequent rules in the block are guaranteed to execute (unless a match diverts the flow).
 ]
@@ -41,6 +41,14 @@ The fundamental unit of a Chain Graph is the *Rule Block*.
 === The Firewall Chain Structure
 
 In our Rust implementation, we represent the Chain Graph as a collection of blocks, identified by unique integers (`BlockId`).
+
+#info-box(title: "Why not analyze the AST directly?")[
+  ASTs are trees, but control flow is a graph.
+  Firewall policies often have "jumps" (e.g., `goto chain_B`).
+  In an AST, `chain_B` is a separate subtree.
+  In a Chain Graph, `goto chain_B` is just an edge to the block representing `chain_B`.
+  This "flattening" makes analysis much simpler, especially for loops.
+]
 
 ```rust
 type BlockId = usize;
@@ -236,8 +244,8 @@ This is *exponential growth*.
   }),
 )
 
-If we have a routing loop that iterates 100 times, it is conceptually similar to 100 nested `match` statements.
-The number of flows becomes astronomical.
+If we analyze a routing loop by unrolling it (simulating each iteration), 100 iterations is conceptually similar to 100 nested `match` statements.
+The number of flows becomes astronomical ($2^100$).
 
 === Path Sensitivity vs. Scalability
 

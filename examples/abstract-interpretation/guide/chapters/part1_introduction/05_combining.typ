@@ -46,75 +46,81 @@ We maintain a set of pairs $(b_i, rho_i)$, where $b_i$ is a BDD representing a s
 This technique is called *Trace Partitioning*.
 
 #figure(
-  caption: [Trace Partitioning: Split and Merge. At a branch, the abstract state splits into two partitions, each guarded by a BDD path condition. These partitions evolve independently (e.g., different NAT rules). At the merge point, we can either keep them separate (maintaining precision) or merge them (joining data domains and unioning BDDs) to save space.],
+  caption: [Trace Partitioning vs. Naive Merge],
   cetz.canvas({
     import cetz.draw: *
 
-    let style-state = (fill: colors.bg-code, stroke: colors.primary + 1pt, radius: 0.2)
-    let style-bdd = (fill: colors.secondary.lighten(80%), stroke: colors.secondary + 1pt)
-    let style-data = (fill: colors.accent.lighten(80%), stroke: colors.accent + 1pt)
+    // --- Styles & Helpers ---
+    let style-box = (fill: colors.bg-code, stroke: colors.primary + 1pt, radius: 0.2)
+    let style-arrow = (mark: (end: ">"), stroke: colors.text-light + 0.8pt)
 
-    let draw-state(pos, bdd-text, data-text, label) = {
+    let draw-state(pos, name, body, fill: colors.bg-code, width: 3, height: 1) = {
       let (x, y) = pos
-      rect((x - 1.5, y - 1), (x + 1.5, y + 1), ..style-state)
-      content((x, y + 1.3), text(size: 0.8em, weight: "bold")[#label])
-
-      // BDD part
-      rect((x - 1.3, y + 0.1), (x + 1.3, y + 0.8), ..style-bdd)
-      content((x, y + 0.45), text(size: 0.7em, font: fonts.mono)[#bdd-text])
-
-      // Data part
-      rect((x - 1.3, y - 0.8), (x + 1.3, y - 0.1), ..style-data)
-      content((x, y - 0.45), text(size: 0.7em, font: fonts.mono)[#data-text])
+      let w = width / 2
+      let h = height / 2
+      rect((x - w, y - h), (x + w, y + h), name: name, fill: fill, stroke: colors.primary + 1pt, radius: 0.2)
+      content(pos, body)
     }
 
-    // Initial State
-    draw-state((0, 6), "True", "p: Top", "Initial State")
+    let draw-arrow(from, to) = {
+      line(from, to, ..style-arrow)
+    }
 
-    // Branch
-    line((0, 5), (-3, 4), mark: (end: ">"))
-    content((-1.5, 4.8), text(size: 0.8em)[if tcp])
+    // --- Layout Constants ---
+    let x-left = -4
+    let x-right = 4
+    let y-start = 5
+    let y-branch = 3
+    let y-merge = 1
+    let dx-branch = 1.5
+    let dx-branch-wide = 2.4
 
-    line((0, 5), (3, 4), mark: (end: ">"))
-    content((1.5, 4.8), text(size: 0.8em)[else])
+    // --- Path Insensitive (Left) ---
+    content((x-left, y-start + 1), text(weight: "bold")[Path Insensitive])
 
-    // Split States
-    draw-state((-3, 3), "tcp", "p: 6", "TCP Branch")
-    draw-state((3, 3), "!tcp", "p: !6", "Other Branch")
+    // Initial
+    draw-state((x-left, y-start), "l_init", [$top$], width: 2)
 
-    // Evolution (Assignments)
-    line((-3, 2), (-3, 1), mark: (end: ">"))
-    content((-3.5, 1.5), text(size: 0.8em, font: fonts.mono)[mark=1])
-
-    line((3, 2), (3, 1), mark: (end: ">"))
-    content((3.5, 1.5), text(size: 0.8em, font: fonts.mono)[mark=2])
-
-    draw-state((-3, 0), "tcp", "m: 1", "State A")
-    draw-state((3, 0), "!tcp", "m: 2", "State B")
+    // Branches
+    draw-state((x-left - dx-branch, y-branch), "l_b1", [$"mark"=1$], width: 2)
+    draw-state((x-left + dx-branch, y-branch), "l_b2", [$"mark"=2$], width: 2)
 
     // Merge
-    line((-3, -1), (0, -2), mark: (end: ">"))
-    line((3, -1), (0, -2), mark: (end: ">"))
-    content((0, -1.5), text(size: 0.8em, weight: "bold")[Join])
+    draw-state((x-left, y-merge), "l_merge", [$"mark" in {1,2}$], fill: colors.warning.lighten(80%), width: 3)
+    content((x-left, y-merge - 1), text(size: 0.8em, fill: colors.error)[Relation Lost!])
 
-    // Merged State
-    draw-state((0, -3), "True", "m: Top", "Merged State")
+    // Edges
+    draw-arrow("l_init", "l_b1")
+    draw-arrow("l_init", "l_b2")
+    draw-arrow("l_b1", "l_merge")
+    draw-arrow("l_b2", "l_merge")
 
-    // Annotation for loss of precision
-    content((2.5, -3), text(size: 0.7em, fill: colors.error)[Precision Loss!], anchor: "west")
+    // --- Path Sensitive (Right) ---
+    content((x-right, y-start + 1), text(weight: "bold")[Trace Partitioning])
 
-    // Alternative: Partitioned State
-    line((-3, -1), (-3, -4), mark: (end: ">"), stroke: (dash: "dashed"))
-    line((3, -1), (3, -4), mark: (end: ">"), stroke: (dash: "dashed"))
+    // Initial
+    draw-state((x-right, y-start), "r_init", [${(#true, top)}$], width: 4)
 
-    content((0, -4.5), text(size: 0.8em, weight: "bold")[Trace Partitioning])
+    // Partitions
+    draw-state((x-right - dx-branch-wide, y-branch), "r_p1", [${("TCP", "mark"=1)}$], width: 4.2)
+    draw-state((x-right + dx-branch-wide, y-branch), "r_p2", [${(not "TCP", "mark"=2)}$], width: 4.2)
 
-    rect((-4.5, -6), (4.5, -3.5), fill: none, stroke: (paint: colors.success, dash: "dashed"), radius: 0.2)
-    content((0, -3.8), text(size: 0.8em, fill: colors.success)[Keeps states separate!])
+    // Result (No Merge)
+    draw-state(
+      (x-right, y-merge),
+      "r_res",
+      [${("TCP", 1), (not "TCP", 2)}$],
+      fill: colors.success.lighten(80%),
+      width: 6,
+    )
+    content((x-right, y-merge - 1), text(size: 0.8em, fill: colors.success)[Relation Preserved!])
 
-    content((-3, -5), text(size: 0.7em, font: fonts.mono)[(tcp, m:1)])
-    content((3, -5), text(size: 0.7em, font: fonts.mono)[(!tcp, m:2)])
-
+    // Edges
+    draw-arrow("r_init", "r_p1")
+    draw-arrow("r_init", "r_p2")
+    // Draw arrows straight down to the result box
+    draw-arrow("r_p1", ((), "|-", "r_res.north"))
+    draw-arrow("r_p2", ((), "|-", "r_res.north"))
   }),
 ) <fig:split-merge>
 
@@ -201,7 +207,7 @@ The state is a disjunction: "Either the packet matches $b_1$ with headers $rho_1
 
 When we join two states, we don't blindly merge everything.
 We use BDDs to compress the representation.
-If two paths lead to the *same* header state, we can merge their path conditions!
+If two paths lead to the *same* (or similar) header state, we can merge their path conditions!
 
 $(b_1, rho) ljoin (b_2, rho) = (b_1 or b_2, rho)$
 
@@ -215,8 +221,10 @@ impl<D: AbstractDomain + PartialEq + Clone> PartitionedState<D> {
             // Try to merge with existing partition
             let mut merged = false;
             for (path1, env1) in &mut new_partitions {
+                // Heuristic: If data states are identical, merge the paths.
+                // In production, we might also merge "similar" states (e.g., one includes the other)
+                // or force a merge if the number of partitions exceeds a limit (k-limiting).
                 if env1 == env2 {
-                    // MAGIC: Same header state? Merge the paths!
                     *path1 = bdd.apply_or(*path1, *path2);
                     merged = true;
                     break;
@@ -227,8 +235,10 @@ impl<D: AbstractDomain + PartialEq + Clone> PartitionedState<D> {
             }
         }
 
-        // Note: In a real implementation, we would also merge "similar" states
-        // (e.g., using widening) to prevent the number of partitions from growing indefinitely.
+        // Optional: Enforce a partition limit to prevent explosion
+        if new_partitions.len() > 10 {
+            self.force_merge(&mut new_partitions);
+        }
 
         Self {
             partitions: new_partitions,
@@ -246,7 +256,14 @@ The BDD tells us *which* paths we are on.
 We can use this to refine our data knowledge.
 When we branch on a condition like `port < 1024`, we should update the abstract value of `port` in the true branch!
 
+To decouple the Abstract Domain from the AST, we introduce a `Refineable` trait.
+
 ```rust
+trait Refineable {
+    // Refine the abstract state based on a constraint
+    fn refine(&mut self, constraint: &Match);
+}
+
 impl<D: AbstractDomain + Refineable> PartitionedState<D> {
     fn assume(&mut self, m: &Match) {
         let mut new_partitions = Vec::new();
@@ -257,9 +274,9 @@ impl<D: AbstractDomain + Refineable> PartitionedState<D> {
             // 1. Update Control: Add condition to path
             let new_path = bdd.apply_and(path, bdd_cond);
 
-            if !bdd.is_false(new_path) {
-                // 2. Update Data: Refine environment (if supported)
-                // e.g., if match is "port < 1024", refine port to [0, 1023]
+            if !bdd.is_zero(new_path) {
+                // 2. Update Data: Refine environment
+                // The domain interprets the constraint to tighten values
                 env.refine(m);
                 new_partitions.push((new_path, env));
             }
