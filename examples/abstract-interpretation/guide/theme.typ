@@ -284,6 +284,7 @@
   }
 
   show raw.where(block: false): it => {
+    h(2pt)
     highlight(
       fill: colors.bg-code,
       radius: 3pt,
@@ -295,6 +296,7 @@
         it,
       ),
     )
+    h(2pt)
   }
 
   // Lists
