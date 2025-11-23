@@ -234,8 +234,8 @@
   show heading.where(level: 3): it => {
     block(
       width: 100%,
-      above: spacing.medium,
-      below: spacing.small,
+      above: spacing.large,
+      below: spacing.medium,
       sticky: true,
     )[
       #set text(
