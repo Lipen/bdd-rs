@@ -1,12 +1,5 @@
 #import "../../theme.typ": *
 
-#import "@preview/numbly:0.1.0"
-#set heading(numbering: numbly.numbly(
-  "",
-  "{2}.",
-  "{2}.{3}",
-))
-
 #counter(heading).update(0)
 
 #heading(numbering: none)[Prologue: The Case for Static Analysis]

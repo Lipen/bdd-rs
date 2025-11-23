@@ -2,51 +2,51 @@
 
 #import "../../theme.typ": *
 
-= Packet Flow and the Chain Graph <ch-control-flow>
+= Control Flow and Program Structure <ch-control-flow>
 
-In the previous chapter, we defined the syntax of our Firewall Policy using an Abstract Syntax Tree (AST).
-While ASTs are excellent for representing the *structure* of the policy (how it is written), they are often awkward for analyzing its *behavior* (how packets flow).
+In the previous chapter, we defined the syntax of our Toy Language (PFL) using an Abstract Syntax Tree (AST).
+While ASTs are excellent for representing the *structure* of the code (how it is written), they are often awkward for analyzing its *behavior* (how it executes).
 
-To analyze a policy, we need to view it not as a hierarchy of rules, but as a network of possible packet paths.
-This representation is called the *Chain Graph* (often called Control Flow Graph or CFG in software).
+To analyze a program, we need to view it not as a hierarchy of rules, but as a network of possible execution paths.
+This representation is called the *Control Flow Graph (CFG)*.
 
 #insight-box[
   *Analogy:* Think of an AST as a *Rule Book* --- it lists regulations chapter by chapter.
-  A Chain Graph is like a *Traffic Map* --- it shows how vehicles (packets) actually move through the intersections and roads.
+  A CFG is like a *Traffic Map* --- it shows how execution actually moves through the intersections and roads.
 ]
 
-== From AST to Chain Graph
+== From AST to CFG
 
 An AST is recursive and hierarchical.
-Packet processing, however, is sequential (rule-by-rule) and sometimes jumps between chains.
-A Chain Graph "flattens" the recursive structure into a graph.
+Program execution, however, is sequential (instruction-by-instruction) and sometimes jumps between blocks.
+A CFG "flattens" the recursive structure into a graph.
 
-#definition(title: "Chain Graph")[
-  A *Chain Graph* $G = (V, E)$ consists of:
-  - *Nodes* $V$: Rule Blocks (sequences of straight-line rules).
+#definition(title: "Control Flow Graph")[
+  A *Control Flow Graph* $G = (V, E)$ consists of:
+  - *Nodes* $V$: Basic Blocks (sequences of straight-line instructions).
   - *Edges* $E$: Flow transitions (jumps, branches) between blocks.
 ]
 
-=== The Rule Block
+=== The Basic Block
 
-The fundamental unit of a Chain Graph is the *Rule Block*.
+The fundamental unit of a CFG is the *Basic Block*.
 
-#definition(title: "Rule Block")[
-  A *Rule Block* (or Basic Block) is a maximal sequence of rules with:
-  + *Single Entry*: Packets can only enter at the first rule (the "leader").
-  + *Single Exit*: Packets can only leave from the last rule (the "terminator").
-  + *Atomic Execution*: If the first rule executes, all subsequent rules in the block are guaranteed to execute (unless a match diverts the flow).
+#definition(title: "Basic Block")[
+  A *Basic Block* is a maximal sequence of instructions with:
+  + *Single Entry*: Execution can only enter at the first instruction (the "leader").
+  + *Single Exit*: Execution can only leave from the last instruction (the "terminator").
+  + *Atomic Execution*: If the first instruction executes, all subsequent instructions in the block are guaranteed to execute (unless a crash occurs).
 ]
 
-=== The Firewall Chain Structure
+=== Implementing the CFG
 
-In our Rust implementation, we represent the Chain Graph as a collection of blocks, identified by unique integers (`BlockId`).
+In our Rust implementation, we represent the CFG as a collection of blocks, identified by unique integers (`BlockId`).
 
 #info-box(title: "Why not analyze the AST directly?")[
   ASTs are trees, but control flow is a graph.
-  Firewall policies often have "jumps" (e.g., `goto chain_B`).
-  In an AST, `chain_B` is a separate subtree.
-  In a Chain Graph, `goto chain_B` is just an edge to the block representing `chain_B`.
+  Programs often have "jumps" (e.g., `goto`, `break`, `continue`).
+  In an AST, the target is a separate subtree.
+  In a CFG, it is just an edge to the target block.
   This "flattening" makes analysis much simpler, especially for loops.
 ]
 
@@ -54,45 +54,44 @@ In our Rust implementation, we represent the Chain Graph as a collection of bloc
 type BlockId = usize;
 
 #[derive(Clone, Debug)]
-pub struct RuleBlock {
+pub struct BasicBlock {
     pub id: BlockId,
-    pub rules: Vec<Rule>,       // The straight-line rules (e.g., ModField)
-    pub terminator: Terminator, // How we leave the block
+    pub instructions: Vec<Instruction>, // The straight-line code
+    pub terminator: Terminator,         // How we leave the block
 }
 
 #[derive(Clone, Debug)]
 pub enum Terminator {
-    // Unconditional jump to another chain/block
+    // Unconditional jump to another block
     Jump(BlockId),
-    // Conditional branch based on a packet match
+    // Conditional branch based on a condition
     Branch {
-        match_rule: Match, // Uses the Match type from our AST
+        condition: Match, // Uses the Match type from our AST
         true_target: BlockId,
         false_target: BlockId,
     },
     // Final verdict
-    Accept,
-    Drop,
+    Return(Verdict),
 }
 ```
 
-== Translating Policy to Chain Graph
+== Translating AST to CFG
 
-The translation process involves breaking down complex AST nodes (like `Match` trees) into simple blocks and edges.
+The translation process involves breaking down complex AST nodes (like `if-else` trees) into simple blocks and edges.
 Let's visualize how each structure is transformed.
 
-=== Sequence (`r1; r2`)
+=== Sequence (`s1; s2`)
 
 Sequences are simply concatenated.
-If `r1` is just a modification (like NAT), `r2` is appended to it.
-If~`r1` contains control flow (like a `Match`), it will end the current block, and `r2` will start in a new block that the previous blocks jump to.
+If `s1` is just a modification, `s2` is appended to it.
+If~`s1` contains control flow, it will end the current block, and `s2` will start in a new block.
 
-=== Match (`match m { t } else { e }`)
+=== Branch (`if m { t } else { e }`)
 
-A match rule splits the packet flow into two paths that eventually merge.
+A branch splits the execution flow into two paths that eventually merge.
 
 #figure(
-  caption: [Translation of `match m { t } else { e }` into Chain Graph blocks.],
+  caption: [Translation of `if m { t } else { e }` into CFG blocks.],
   cetz.canvas({
     import cetz.draw: *
 
@@ -103,13 +102,13 @@ A match rule splits the packet flow into two paths that eventually merge.
     content("cond", [*Header* \ `Branch(m)`])
 
     rect((-3.5, -3), (-0.5, -1.5), ..style-block, name: "then")
-    content("then", [*True Chain* \ `t`])
+    content("then", [*True Path* \ `t`])
 
     rect((0, -3), (3, -1.5), ..style-block, name: "else")
-    content("else", [*False Chain* \ `e`])
+    content("else", [*False Path* \ `e`])
 
     rect((0, -5.5), (3, -4), ..style-block, name: "join")
-    content("join", [*Join Block* \ (next rule)])
+    content("join", [*Join Block* \ (next instruction)])
 
     // Edges
     line(
@@ -119,10 +118,10 @@ A match rule splits the packet flow into two paths that eventually merge.
       mark: (end: ">"),
       name: "true-edge",
     )
-    content("true-edge.25%", text(size: 0.8em, fill: colors.success)[Match], anchor: "south", padding: 0.2)
+    content("true-edge.25%", text(size: 0.8em, fill: colors.success)[True], anchor: "south", padding: 0.2)
 
     line("cond.south", "else.north", mark: (end: ">"), name: "false-edge")
-    content("false-edge.mid", text(size: 0.8em, fill: colors.error)[No Match], anchor: "west", padding: 0.2)
+    content("false-edge.mid", text(size: 0.8em, fill: colors.error)[False], anchor: "west", padding: 0.2)
 
     line(
       "then.south",
@@ -134,13 +133,13 @@ A match rule splits the packet flow into two paths that eventually merge.
   }),
 )
 
-=== Routing Loops
+=== Loops
 
-While rare in simple ACLs, routing loops can occur in complex networks.
-We need a "Header" block to evaluate the routing decision every time the packet loops.
+While our toy language PFL is loop-free, general programs have loops.
+We need a "Header" block to evaluate the loop condition every time the execution loops.
 
 #figure(
-  caption: [Translation of a routing loop into Chain Graph blocks.],
+  caption: [Translation of a `while` loop into CFG blocks.],
   cetz.canvas({
     import cetz.draw: *
 
@@ -148,22 +147,22 @@ We need a "Header" block to evaluate the routing decision every time the packet 
 
     // Nodes
     rect((0, -1), (3, 0.5), ..style-block, name: "header")
-    content("header", [*Router* \ `Forward`])
+    content("header", [*Loop Header* \ `Condition`])
 
     rect((0, -4), (3, -2.5), ..style-block, name: "body")
-    content("body", [*Next Hop* \ `Process`])
+    content("body", [*Loop Body* \ `Execute`])
 
     rect((4.5, -1), (7, 0.5), ..style-block, name: "exit")
-    content("exit", [*Destination*])
+    content("exit", [*Exit Block*])
 
     // Edges
     line((1.5, 1.5), "header.north", mark: (end: ">")) // Entry
 
     line("header.south", "body.north", mark: (end: ">"), name: "loop-edge")
-    content("loop-edge.mid", text(size: 0.8em, fill: colors.success)[Route], anchor: "west", padding: 0.2)
+    content("loop-edge.mid", text(size: 0.8em, fill: colors.success)[True], anchor: "west", padding: 0.2)
 
     line("header.east", "exit.west", mark: (end: ">"), name: "exit-edge")
-    content("exit-edge.mid", text(size: 0.8em, fill: colors.error)[Arrive], anchor: "south", padding: 0.2)
+    content("exit-edge.mid", text(size: 0.8em, fill: colors.error)[False], anchor: "south", padding: 0.2)
 
     // Back edge
     line(
@@ -182,25 +181,25 @@ We need a "Header" block to evaluate the routing decision every time the packet 
 == The Path Explosion Problem
 
 Why do we go through all this trouble?
-Why is network verification so hard?
+Why is program verification so hard?
 
-The answer lies in the structure of the Chain Graph.
-Every time we encounter a branch (like a `Match` rule), the number of possible packet flows multiplies.
+The answer lies in the structure of the CFG.
+Every time we encounter a branch, the number of possible execution paths multiplies.
 
-Consider a sequence of just 3 independent matches:
+Consider a sequence of just 3 independent checks:
 
 ```rust
-match tcp { ... }
-match port_80 { ... }
-match src_internal { ... }
+if condition_A { ... }
+if condition_B { ... }
+if condition_C { ... }
 ```
 
-This creates $2 times 2 times 2 = 8$ flows.
-For $N$ rules, we have $2^N$ flows.
+This creates $2 times 2 times 2 = 8$ paths.
+For $N$ branches, we have $2^N$ paths.
 This is *exponential growth*.
 
 #figure(
-  caption: [Visualizing Flow Explosion. As packets match rules, the number of distinct packet states we must track doubles at each step.],
+  caption: [Visualizing Path Explosion. As execution branches, the number of distinct states we must track doubles at each step.],
   cetz.canvas({
     import cetz.draw: *
 
@@ -213,22 +212,22 @@ This is *exponential growth*.
 
     // Level 1
     circle((-2, -1.5), ..style-node, name: "n1l")
-    content((-2.5, -1.5), text(size: 0.7em)[{TCP}], anchor: "east")
+    content((-2.5, -1.5), text(size: 0.7em)[{A}], anchor: "east")
     circle((2, -1.5), ..style-node, name: "n1r")
-    content((2.5, -1.5), text(size: 0.7em)[{!TCP}], anchor: "west")
+    content((2.5, -1.5), text(size: 0.7em)[{!A}], anchor: "west")
 
     // Level 2
     circle((-3, -3), ..style-node, name: "n2ll")
-    content((-3, -3.5), text(size: 0.7em)[{TCP, 80}])
+    content((-3, -3.5), text(size: 0.7em)[{A, B}])
 
     circle((-1, -3), ..style-node, name: "n2lr")
-    content((-1, -3.5), text(size: 0.7em)[{TCP, !80}])
+    content((-1, -3.5), text(size: 0.7em)[{A, !B}])
 
     circle((1, -3), ..style-node, name: "n2rl")
-    content((1, -3.5), text(size: 0.7em)[{!TCP, 80}])
+    content((1, -3.5), text(size: 0.7em)[{!A, B}])
 
     circle((3, -3), ..style-node, name: "n2rr")
-    content((3, -3.5), text(size: 0.7em)[{!TCP, !80}])
+    content((3, -3.5), text(size: 0.7em)[{!A, !B}])
 
     // Edges
     line("n0", "n1l", stroke: 0.5pt + colors.text-light)
@@ -240,23 +239,23 @@ This is *exponential growth*.
     line("n1r", "n2rr", stroke: 0.5pt + colors.text-light)
 
     // Ellipsis for further explosion
-    content((0, -4.5), text(size: 1.2em, fill: colors.error)[$2^N$ Flows!])
+    content((0, -4.5), text(size: 1.2em, fill: colors.error)[$2^N$ Paths!])
   }),
 )
 
-If we analyze a routing loop by unrolling it (simulating each iteration), 100 iterations is conceptually similar to 100 nested `match` statements.
-The number of flows becomes astronomical ($2^100$).
+If we analyze a loop by unrolling it (simulating each iteration), 100 iterations is conceptually similar to 100 nested `if` statements.
+The number of paths becomes astronomical ($2^100$).
 
 === Path Sensitivity vs. Scalability
 
 We want our analysis to be *Path Sensitive*.
-This means distinguishing between different packet histories.
+This means distinguishing between different execution histories.
 
-- *Path Insensitive*: "At this point, `src_ip` could be anything." (Fast, but imprecise)
-- *Path Sensitive*: "If we matched the VPN rule, `src_ip` is Internal. If we matched the Public rule, `src_ip`~is~External." (Precise, but expensive)
+- *Path Insensitive*: "At this point, `x` could be anything." (Fast, but imprecise)
+- *Path Sensitive*: "If we took the True branch, `x` is positive. If we took the False branch, `x`~is~negative." (Precise, but expensive)
 
 #warning-box(title: "The Dilemma")[
-  We want the precision of path sensitivity without the cost of enumerating exponential flows.
+  We want the precision of path sensitivity without the cost of enumerating exponential paths.
   Naive enumeration is impossible.
   Naive merging is imprecise.
 ]
@@ -264,7 +263,7 @@ This means distinguishing between different packet histories.
 == The Solution: Symbolic Representation
 
 We need a "Third Way."
-We need a data structure that can represent *sets of packets* compactly, without listing them one by one.
+We need a data structure that can represent *sets of states* compactly, without listing them one by one.
 
 #intuition-box[
   *Analogy: 20 Questions*
@@ -273,28 +272,28 @@ We need a data structure that can represent *sets of packets* compactly, without
   - *Symbolic (Binary Search):* "Is it greater than 500,000?" (Takes 20 guesses).
 
   BDDs work like the "20 Questions" game.
-  Instead of listing every packet, they ask a series of Yes/No questions (decisions) to efficiently narrow down the set of valid packets.
+  Instead of listing every state, they ask a series of Yes/No questions (decisions) to efficiently narrow down the set of valid states.
 ]
 
 In this guide, we will use *Binary Decision Diagrams (BDDs)* as our symbolic representation.
 BDDs will allow us to:
-+ Encode the matching logic of the policy.
-+ Represent huge sets of packet headers efficiently.
++ Encode the logic of the program.
++ Represent huge sets of program states efficiently.
 + Perform operations on these sets (like "join" or "intersection") mathematically.
 
 In the next chapter, we will dive into BDDs and see how they work their magic.
 
 #chapter-summary[
-  - *Chain Graphs capture behavior.*
-    We transform the hierarchical AST into a flat graph of Rule Blocks to model packet flow.
+  - *CFGs capture behavior.*
+    We transform the hierarchical AST into a flat graph of Basic Blocks to model execution.
 
-  - *Rule Blocks are atomic.*
-    They are sequences of rules that always execute together.
-    Flow branching only happens at the boundaries.
+  - *Basic Blocks are atomic.*
+    They are sequences of instructions that always execute together.
+    Branching only happens at the boundaries.
 
-  - *Flow Explosion is the bottleneck.*
-    The number of packet flows grows exponentially with policy size, making naive enumeration impossible.
+  - *Path Explosion is the bottleneck.*
+    The number of execution paths grows exponentially with program size, making naive enumeration impossible.
 
   - *Symbolic Execution is the key.*
-    We will use BDDs to represent and manipulate sets of packets implicitly, avoiding the explosion problem.
+    We will use BDDs to represent and manipulate sets of states implicitly, avoiding the explosion problem.
 ]

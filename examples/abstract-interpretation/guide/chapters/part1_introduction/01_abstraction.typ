@@ -2,23 +2,23 @@
 
 #import "../../theme.typ": *
 
-= The Art of Header Space Analysis <ch-abstraction>
+= Foundations of Abstraction <ch-abstraction>
 
 #reading-path(path: "essential") #h(0.5em) #reading-path(path: "beginner")
 
 In the Prologue, we established that we cannot test every possible input.
 We must reason about *sets* of inputs (abstract properties) rather than individual values.
-But how do we actually do this for network packets?
-How do we ensure we don't "approximate away" the security holes we are trying to find?
+But how do we actually do this?
+How do we ensure we don't "approximate away" the bugs we are trying to find?
 
-This chapter introduces the core mechanism of Abstract Interpretation applied to networks:
-*Header Space Analysis*.
+This chapter introduces the core mechanism of Abstract Interpretation:
+*Abstract Domains*.
 
 == The Geometric Analogy
 
 Imagine a complex 3D object, such as a cylinder, floating in space.
 Describing its exact position and shape requires precise coordinates for every point on its surface.
-This is like the *concrete state* of a packet: complex, detailed (payload, timing, fragmentation), and hard to manipulate.
+This is like the *concrete state* of a program: complex, detailed (all variable values, memory, heap), and hard to manipulate.
 
 Now, imagine shining a light on the object to cast a shadow on the wall.
 - From the top, the shadow is a *circle*.
@@ -81,16 +81,16 @@ Now, imagine shining a light on the object to cast a shadow on the wall.
 )
 
 Abstract Interpretation is the art of choosing the right "projection" (abstraction) for the property we want to prove.
-- If we want to prove a packet is HTTP, we project it to its *Dst Port* field.
-- If we want to prove a packet is TCP, we project it to its *Protocol* field.
-- If we want to prove a packet comes from a private network, we project its IP to a *CIDR Block*.
+- If we want to prove a variable is positive, we project it to its *Sign*.
+- If we want to prove a packet is TCP, we project it to its *Protocol*.
+- If we want to prove a pointer is safe, we project it to its *Nullability*.
 
 == Formalizing Abstraction
 
-To make this rigorous, we define two functions connecting the concrete world (actual packets) and the abstract world (properties).
+To make this rigorous, we define two functions connecting the concrete world (actual execution) and the abstract world (properties).
 
 #definition(title: "Concretization Function")[
-  The concretization function $gamma$ maps an abstract value to the set of concrete packets it represents.
+  The concretization function $gamma$ maps an abstract value to the set of concrete states it represents.
   For example, in the Protocol domain:
   - $gamma("TCP") = {"All TCP packets"}$
   - $gamma("UDP") = {"All UDP packets"}$
@@ -103,8 +103,8 @@ If we compute `packet.proto` in the abstract, the result must include the actual
 == Interactive Reasoning
 
 Before we write code, let's build intuition by playing a game.
-I have two hidden packets, $A$ and $B$.
-I won't tell you their full headers, but I will tell you their *properties*.
+I have two hidden program states, $A$ and $B$.
+I won't tell you their full memory, but I will tell you their *properties*.
 
 *Round 1:*
 - Fact: $A$ is a TCP packet.
@@ -125,16 +125,16 @@ Reasoning:
 - It could be TCP.
 - It could be UDP.
 
-Because the result depends on *which packet* I picked, we cannot give a precise single protocol.
+Because the result depends on *which path* we took, we cannot give a precise single protocol.
 We must return $top$ ("Any Protocol") to remain sound.
 
-== The PFL Language
+== The Subject of Analysis: PFL
 
-To make this concrete, we will build a *FirewallChecker* throughout this guide.
+To make this concrete, we will build a *Static Analyzer* throughout this guide.
 We will analyze a simple toy language called *PFL* (Packet Filter Language).
 
 PFL is a minimal language with header matches (IP, Port, Proto), conditionals, and actions (drop/accept).
-It is simple enough to understand fully, yet complex enough to exhibit the challenges of verification.
+It is simple enough to understand fully, yet complex enough to exhibit the challenges of verification (branching, state merging).
 
 === Syntax
 
@@ -152,7 +152,7 @@ if dst_port == 80 {
 
 (We will define the full Rust AST in later chapters when we start implementing the parser.)
 
-== The Protocol Domain
+== Designing an Abstract Domain
 
 Let's formalize our "TCP/UDP" game.
 We define a set of abstract values $D$:
