@@ -72,4 +72,5 @@ pub mod reorder;
 pub mod sat;
 pub mod storage;
 pub mod table;
+pub mod types;
 pub mod utils;

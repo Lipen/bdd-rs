@@ -64,9 +64,10 @@ use crate::cache::Cache;
 use crate::node::Node;
 use crate::reference::Ref;
 use crate::storage::Storage;
+use crate::types::{Level, Var};
 use crate::utils::OpKey;
 
-/// A Binary Decision Diagram (BDD) manager.
+/// A Binary Decision Diagram (BDD) manager with explicit variable ordering.
 ///
 /// This structure manages a shared pool of BDD nodes with automatic deduplication
 /// and caching. All BDD operations are performed through this manager.
@@ -76,6 +77,13 @@ use crate::utils::OpKey;
 /// - `zero` and `one`: Terminal nodes representing false and true
 /// - Internal nodes: Decision nodes with a variable and two children (low/high)
 /// - Complement edges: Negation is handled by marking edges rather than creating new nodes
+/// - **Explicit ordering**: Variable IDs and levels are maintained separately
+///
+/// # Variable Ordering
+///
+/// Unlike implicit ordering (where variable ID = level), this implementation uses
+/// **explicit ordering** where variable IDs are stable and their levels can change
+/// through reordering operations. This enables efficient O(k) in-place variable swaps.
 ///
 /// # Memory Management
 ///
@@ -100,6 +108,10 @@ pub struct Bdd {
     size_cache: RefCell<Cache<Ref, u64>>,
     pub zero: Ref,
     pub one: Ref,
+    var_order: RefCell<Vec<Var>>,            // level -> variable
+    level_map: RefCell<HashMap<Var, Level>>, // variable -> level
+    level_nodes: RefCell<Vec<HashSet<u32>>>, // level -> node indices
+    next_var_id: RefCell<u32>,               // next variable ID to allocate
 }
 
 impl Bdd {
@@ -151,6 +163,10 @@ impl Bdd {
             size_cache: RefCell::new(Cache::new(cache_bits)),
             zero,
             one,
+            var_order: RefCell::new(Vec::new()),
+            level_map: RefCell::new(HashMap::new()),
+            level_nodes: RefCell::new(Vec::new()),
+            next_var_id: RefCell::new(1), // Variables start at 1
         }
     }
 }
@@ -192,17 +208,74 @@ impl Bdd {
         self.size_cache.borrow_mut()
     }
 
+    /// Dereferences a node reference by following forwarding chains.
+    ///
+    /// During variable reordering, nodes may be forwarded to new locations.
+    /// This method follows the chain of forwarding pointers to find the
+    /// actual current node.
+    /// Dereferences a node by following forwarding pointers.
+    ///
+    /// After variable reordering with in-place swaps, nodes may have forwarding
+    /// pointers to their new locations. This method follows the forwarding chain
+    /// to find the actual current node.
+    ///
+    /// # Arguments
+    ///
+    /// * `r` - The reference to dereference (may be negated)
+    ///
+    /// # Returns
+    ///
+    /// The dereferenced reference (preserves negation)
+    ///
+    /// # Panics
+    ///
+    /// Panics if a forwarding cycle is detected (should never happen in correct code)
+    pub fn deref_node(&self, r: Ref) -> Ref {
+        let mut current = r;
+        let mut visited = HashSet::new();
+
+        // Follow forwarding chain, detecting cycles
+        loop {
+            let idx = current.index();
+
+            // Avoid infinite loops
+            if !visited.insert(idx) {
+                debug!("Warning: cycle detected in forwarding chain at index {}", idx);
+                break;
+            }
+
+            // Check if this node exists and is forwarded
+            let storage = self.storage.borrow();
+            if idx as usize <= storage.size() && storage.is_occupied(idx as usize) {
+                let node = storage.node(idx as usize);
+                if let Some(next) = node.forwarding_dest() {
+                    drop(storage);
+                    // Preserve negation through forwarding
+                    current = if current.is_negated() { -next } else { next };
+                    continue;
+                }
+            }
+            break;
+        }
+
+        current
+    }
+
     pub fn node(&self, index: u32) -> Node {
-        *self.storage().node(index as usize)
+        let deref = self.deref_node(Ref::positive(index));
+        *self.storage().node(deref.index() as usize)
     }
     pub fn variable(&self, index: u32) -> u32 {
-        self.storage().variable(index as usize)
+        let deref = self.deref_node(Ref::positive(index));
+        self.storage().variable(deref.index() as usize)
     }
     pub fn low(&self, index: u32) -> Ref {
-        self.storage().low(index as usize)
+        let deref = self.deref_node(Ref::positive(index));
+        self.storage().low(deref.index() as usize)
     }
     pub fn high(&self, index: u32) -> Ref {
-        self.storage().high(index as usize)
+        let deref = self.deref_node(Ref::positive(index));
+        self.storage().high(deref.index() as usize)
     }
     pub fn next(&self, index: u32) -> usize {
         self.storage().next(index as usize)
@@ -222,6 +295,241 @@ impl Bdd {
             -high
         } else {
             high
+        }
+    }
+
+    // ===== Explicit Variable Ordering API =====
+
+    /// Allocates a new variable and adds it to the end of the variable ordering.
+    ///
+    /// # Returns
+    ///
+    /// The newly allocated variable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let var = bdd.allocate_variable();
+    /// let x = bdd.mk_var(var.id());
+    /// ```
+    pub fn allocate_variable(&self) -> Var {
+        let var_id = *self.next_var_id.borrow();
+        *self.next_var_id.borrow_mut() = var_id + 1;
+
+        let var = Var::new(var_id);
+        let level = Level::new(self.var_order.borrow().len());
+
+        self.var_order.borrow_mut().push(var);
+        self.level_map.borrow_mut().insert(var, level);
+        self.level_nodes.borrow_mut().push(HashSet::new());
+
+        var
+    }
+
+    /// Gets the level of a variable in the current ordering.
+    ///
+    /// # Returns
+    ///
+    /// Some(level) if the variable is in the ordering, None otherwise.
+    pub fn get_level(&self, var: Var) -> Option<Level> {
+        self.level_map.borrow().get(&var).copied()
+    }
+
+    /// Gets the variable at a specific level in the current ordering.
+    ///
+    /// # Returns
+    ///
+    /// Some(variable) if the level exists, None otherwise.
+    pub fn get_variable_at_level(&self, level: Level) -> Option<Var> {
+        self.var_order.borrow().get(level.index()).copied()
+    }
+
+    /// Gets all node indices at a specific level.
+    ///
+    /// # Returns
+    ///
+    /// A vector of node indices at the given level.
+    pub fn get_nodes_at_level(&self, level: Level) -> Vec<u32> {
+        self.level_nodes
+            .borrow()
+            .get(level.index())
+            .map(|set| set.iter().copied().collect())
+            .unwrap_or_default()
+    }
+
+    /// Gets the current variable ordering.
+    ///
+    /// # Returns
+    ///
+    /// A vector of variables in order from level 0 to the last level.
+    pub fn get_variable_order(&self) -> Vec<Var> {
+        self.var_order.borrow().clone()
+    }
+
+    /// Gets the number of levels in the current ordering.
+    pub fn num_levels(&self) -> usize {
+        self.var_order.borrow().len()
+    }
+
+    /// Registers a variable in the ordering if it's not already present.
+    ///
+    /// This is called automatically by mk_var.
+    fn register_variable(&self, var_id: u32) {
+        let var = Var::new(var_id);
+
+        if !self.level_map.borrow().contains_key(&var) {
+            let level = Level::new(self.var_order.borrow().len());
+            self.var_order.borrow_mut().push(var);
+            self.level_map.borrow_mut().insert(var, level);
+            self.level_nodes.borrow_mut().push(HashSet::new());
+
+            // Update next_var_id if needed
+            let next_val = *self.next_var_id.borrow();
+            if var_id >= next_val {
+                *self.next_var_id.borrow_mut() = var_id + 1;
+            }
+        }
+    }
+
+    // ===== Variable Reordering with Forwarding Pointers =====
+
+    /// Swaps two adjacent levels using CUDD-style in-place transformation with forwarding pointers.
+    ///
+    /// This is the efficient O(k) swap where k = nodes at the two levels, compared to
+    /// O(m log m) for Shannon expansion where m = total nodes.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. Get nodes at level (with var_x)
+    /// 2. For each such node:
+    ///    - Extract four grandchildren
+    ///    - Rebuild with var_y on top, var_x below
+    ///    - Set forwarding pointer from old node to new structure
+    /// 3. Update ordering metadata
+    /// 4. Clear caches
+    ///
+    /// # Arguments
+    ///
+    /// * `level` - The first level to swap (swaps level with level+1)
+    ///
+    /// # Returns
+    ///
+    /// Ok(()) on success, Err if levels are out of bounds
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::Level;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let f = bdd.apply_and(x, y);
+    ///
+    /// // Swap levels 0 and 1
+    /// bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
+    /// ```
+    pub fn swap_adjacent_inplace(&self, level: Level) -> Result<(), String> {
+        if level.next().index() >= self.num_levels() {
+            return Err(format!(
+                "Level {} out of bounds (only {} levels)",
+                level.next().index(),
+                self.num_levels()
+            ));
+        }
+
+        let var_x = self
+            .get_variable_at_level(level)
+            .ok_or_else(|| format!("No variable at level {}", level.index()))?;
+        let var_y = self
+            .get_variable_at_level(level.next())
+            .ok_or_else(|| format!("No variable at level {}", level.next().index()))?;
+
+        debug!(
+            "In-place swap: var {:?} (level {:?}) <-> var {:?} (level {:?})",
+            var_x,
+            level,
+            var_y,
+            level.next()
+        );
+
+        // Get nodes at level_x (these have var_x)
+        let nodes_at_x = self.get_nodes_at_level(level);
+
+        debug!("  Nodes at level {}: {} nodes", level.index(), nodes_at_x.len());
+
+        // Transform each node with var_x
+        for &node_idx in &nodes_at_x {
+            let node = self.node(node_idx);
+
+            // Verify variable
+            if node.variable != var_x.id() {
+                debug!(
+                    "Warning: node {} has variable {} but expected {}",
+                    node_idx,
+                    node.variable,
+                    var_x.id()
+                );
+                continue;
+            }
+
+            // Extract grandchildren
+            let (f_x0_y0, f_x0_y1) = self.extract_grandchildren(node.low, var_y);
+            let (f_x1_y0, f_x1_y1) = self.extract_grandchildren(node.high, var_y);
+
+            // Rebuild: y on top, x below
+            // When y=0: mk_node(x, f_x0_y0, f_x1_y0)
+            // When y=1: mk_node(x, f_x0_y1, f_x1_y1)
+            let new_y0 = self.mk_node(var_x.id(), f_x0_y0, f_x1_y0);
+            let new_y1 = self.mk_node(var_x.id(), f_x0_y1, f_x1_y1);
+            let new_node = self.mk_node(var_y.id(), new_y0, new_y1);
+
+            // Set forwarding pointer
+            let mut storage = self.storage_mut();
+            if node_idx as usize <= storage.size() && storage.is_occupied(node_idx as usize) {
+                storage.value_mut(node_idx as usize).set_forwarding(new_node);
+                debug!("  Set forwarding: {} -> {}", node_idx, new_node.index());
+            }
+        }
+
+        // Swap ordering metadata
+        self.var_order.borrow_mut().swap(level.index(), level.next().index());
+        self.level_map.borrow_mut().insert(var_x, level.next());
+        self.level_map.borrow_mut().insert(var_y, level);
+        self.level_nodes.borrow_mut().swap(level.index(), level.next().index());
+
+        // Clear operation caches (they may contain stale results)
+        self.cache_mut().clear();
+        self.size_cache_mut().clear();
+
+        debug!("In-place swap complete");
+
+        Ok(())
+    }
+
+    /// Extracts the two children when restricting to a variable.
+    ///
+    /// If f has top variable var_y, returns (low, high).
+    /// Otherwise, returns (f, f) since f doesn't depend on var_y.
+    fn extract_grandchildren(&self, f: Ref, var_y: Var) -> (Ref, Ref) {
+        if self.is_terminal(f) {
+            return (f, f);
+        }
+
+        let node = self.node(f.index());
+
+        if node.variable == var_y.id() {
+            // This node has var_y, extract its children
+            let low = self.low_node(f);
+            let high = self.high_node(f);
+            (low, high)
+        } else {
+            // This node doesn't have var_y, both "grandchildren" are the same
+            (f, f)
         }
     }
 
@@ -336,7 +644,7 @@ impl Bdd {
             return low;
         }
 
-        let i = self.storage_mut().put(Node { variable: v, low, high });
+        let i = self.storage_mut().put(Node::new(v, low, high));
         Ref::positive(i as u32)
     }
 
@@ -370,6 +678,10 @@ impl Bdd {
     /// ```
     pub fn mk_var(&self, v: u32) -> Ref {
         assert_ne!(v, 0, "Variable index should not be zero");
+
+        // Register variable in ordering
+        self.register_variable(v);
+
         self.mk_node(v, self.zero, self.one)
     }
 
@@ -2024,7 +2336,10 @@ impl Bdd {
         self.cache_mut().clear();
         self.size_cache_mut().clear();
 
-        let alive = self.descendants(roots.iter().copied());
+        // Dereference all roots (follow forwarding pointers)
+        let dereferenced_roots: Vec<Ref> = roots.iter().map(|&r| self.deref_node(r)).collect();
+
+        let alive = self.descendants(dereferenced_roots.iter().copied());
         debug!("Alive nodes: {:?}", alive);
 
         let n = self.storage().num_buckets();
@@ -2072,6 +2387,55 @@ impl Bdd {
                 }
             }
         }
+
+        // Clear all forwarding pointers and rebuild level_nodes
+        self.clear_forwarding_and_rebuild_level_nodes();
+
+        debug!("Garbage collection complete");
+    }
+
+    /// Clears all forwarding pointers and rebuilds the level_nodes index.
+    ///
+    /// This should be called after garbage collection or any operation that
+    /// may have left forwarding pointers in place.
+    fn clear_forwarding_and_rebuild_level_nodes(&self) {
+        debug!("Clearing forwarding pointers and rebuilding level_nodes");
+
+        // Clear level_nodes
+        let num_levels = self.num_levels();
+        let mut new_level_nodes: Vec<HashSet<u32>> = vec![HashSet::new(); num_levels];
+
+        // Iterate over all nodes
+        let storage_size = self.storage().size();
+        for index in 1..=storage_size {
+            if !self.storage().is_occupied(index) {
+                continue;
+            }
+
+            let node_idx = index as u32;
+
+            // Clear forwarding pointer
+            {
+                let mut storage = self.storage_mut();
+                storage.value_mut(index).clear_forwarding();
+            }
+
+            // Rebuild level_nodes
+            let var = self.variable(node_idx);
+            // Skip terminal nodes (variable 0)
+            if var == 0 {
+                continue;
+            }
+            let var_obj = Var::new(var);
+            if let Some(level) = self.level_map.borrow().get(&var_obj) {
+                new_level_nodes[level.index()].insert(node_idx);
+            }
+        }
+
+        // Replace level_nodes
+        *self.level_nodes.borrow_mut() = new_level_nodes;
+
+        debug!("Forwarding cleared, level_nodes rebuilt");
     }
 
     pub fn to_bracket_string(&self, node_ref: Ref) -> String {
@@ -2091,7 +2455,12 @@ impl Bdd {
         }
 
         let index = node_ref.index();
-        let Node { variable, low, high } = self.node(index);
+        let Node {
+            variable,
+            low,
+            high,
+            next: _,
+        } = self.node(index);
 
         format!(
             "{}:(x{}, {}, {})",

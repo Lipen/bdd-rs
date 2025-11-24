@@ -80,6 +80,7 @@ use log::debug;
 
 use crate::bdd::Bdd;
 use crate::reference::Ref;
+use crate::types::Level;
 
 /// Statistics collected during reordering.
 #[derive(Debug, Clone, Default)]
@@ -115,30 +116,23 @@ impl Bdd {
     /// Swap two adjacent variables in the variable ordering (efficient in-place version).
     ///
     /// This is the fundamental operation for dynamic variable reordering.
-    /// With **implicit ordering** (where variable index = level), this swaps
-    /// variables at positions `level` and `level+1`.
+    /// Uses **CUDD-style in-place swap** with forwarding pointers for O(k) performance,
+    /// where k = nodes at the two levels being swapped.
     ///
     /// # Algorithm
     ///
-    /// This is an efficient in-place swap that directly manipulates BDD structure
-    /// rather than using ITE operations. It's based on the CUDD approach:
+    /// 1. Identifies nodes at the target level (with variable x)
+    /// 2. For each node, extracts 4 grandchildren and rebuilds with swapped variables
+    /// 3. Sets forwarding pointers from old to new nodes
+    /// 4. Updates ordering metadata (var_order, level_map, level_nodes)
+    /// 5. Clears operation caches
     ///
-    /// For each node `f` with variable x at level `level`:
-    /// 1. Extract the four grandchildren by following both children's edges
-    /// 2. If the children have variable y (level+1), extract their children
-    /// 3. Rebuild the structure with y on top and x below
-    /// 4. Create new nodes: `mk_node(x, f_y0_x0, f_y0_x1)` and `mk_node(x, f_y1_x0, f_y1_x1)`
-    /// 5. Finally: `mk_node(y, f_y0, f_y1)`
-    ///
-    /// This is significantly faster than Shannon expansion (O(k) vs O(k log k) per node)
-    /// where k is the number of nodes at these levels.
-    ///
-    /// **Important**: This only works for adjacent variables. For non-adjacent swaps,
-    /// use `swap_variables_generic()` instead.
+    /// This is significantly faster than Shannon expansion: O(k) vs O(m log m)
+    /// where m = total nodes in the BDD.
     ///
     /// # Arguments
     ///
-    /// * `roots` - Set of BDD roots to update after swapping
+    /// * `roots` - Set of BDD roots to update after swapping (dereferenced automatically)
     /// * `level` - The level of the first variable to swap (0-indexed)
     ///
     /// # Examples
@@ -151,38 +145,43 @@ impl Bdd {
     /// let y = bdd.mk_var(2);
     /// let f = bdd.apply_and(x, y);
     ///
-    /// // Swap variables at levels 0 and 1 (vars 1 and 2)
+    /// // Swap levels 0 and 1
     /// let mut roots = vec![f];
     /// bdd.swap_adjacent_variables(&mut roots, 0);
     /// ```
     pub fn swap_adjacent_variables(&self, roots: &mut [Ref], level: u32) {
-        // Get variables at the two levels (implicit ordering: var = level + 1)
-        let var_x = level + 1; // Variables are 1-indexed
-        let var_y = var_x + 1;
+        debug!("Swapping adjacent variables at level {} and {}", level, level + 1);
 
-        debug!("Swapping adjacent variables {} and {} (levels {} and {})", var_x, var_y, level, level + 1);
+        // Use the new in-place swap implementation
+        let level_obj = Level::new(level as usize);
+        if let Err(e) = self.swap_adjacent_inplace(level_obj) {
+            debug!("In-place swap failed: {}, falling back to Shannon expansion", e);
 
-        // For implicit ordering (as in bdd-rs), use Shannon expansion
-        // In-place swap (like CUDD) would require explicit ordering with separate var IDs and levels
+            // Fallback to Shannon expansion if in-place fails
+            let var_x = level + 1; // Variables are 1-indexed
+            let var_y = var_x + 1;
+            for root in roots.iter_mut() {
+                *root = self.swap_variables_generic(*root, var_x, var_y);
+            }
+            return;
+        }
+
+        // Dereference all roots (follow forwarding pointers)
         for root in roots.iter_mut() {
-            *root = self.swap_variables_generic(*root, var_x, var_y);
+            *root = self.deref_node(*root);
         }
 
         debug!("Swap complete");
     }
 
-    /// Swap two variables in a single BDD using Shannon expansion (generic version).
+    /// Swap two variables in a single BDD using Shannon expansion (fallback only).
     ///
     /// This uses the Shannon expansion approach:
     /// To swap x and y in f, we compute:
     /// f' = ITE(y, ITE(x, f[x←1,y←1], f[x←0,y←1]), ITE(x, f[x←1,y←0], f[x←0,y←0]))
     ///
-    /// **Important**: This method works for ANY two variables, not just adjacent ones!
-    /// The Shannon expansion with four cofactors correctly swaps variables regardless
-    /// of their relative positions in the ordering.
-    ///
-    /// **Performance Note**: This is slower than `swap_adjacent_in_place()` for adjacent
-    /// variables due to ITE operations. Use this only for non-adjacent variable swaps.
+    /// **Note**: This is a fallback method used only when in-place swap fails.
+    /// It's significantly slower than the O(k) in-place swap.
     fn swap_variables_generic(&self, f: Ref, var_x: u32, var_y: u32) -> Ref {
         // Get the four cofactors
         let f00 = self.cofactor_cube(f, &[-(var_x as i32), -(var_y as i32)]);
@@ -202,34 +201,16 @@ impl Bdd {
         self.apply_ite(y_var, when_y1, when_y0)
     }
 
-    // NOTE ON IN-PLACE SWAP FOR IMPLICIT ORDERING:
-    //
-    // CUDD's efficient in-place swap algorithm (which directly manipulates node structure
-    // without ITE operations) requires **explicit ordering** where variable IDs and levels
-    // are maintained separately.
-    //
-    // In bdd-rs, we use **implicit ordering** where variable_id = level + 1.
-    // This means swapping levels 0 and 1 swaps variables 1 and 2.
-    //
-    // Why in-place swap doesn't work for implicit ordering:
-    // - After swapping, nodes with var=2 would be at level 0 (above var=1)
-    // - But var=2 implies level 1, violating the BDD ordering invariant
-    // - The variable IDs in nodes would no longer match their levels
-    //
-    // Solution options:
-    // 1. Use Shannon expansion (current approach) - rebuilds with correct variable IDs
-    // 2. Switch to explicit ordering (separate var_order and level_map like CUDD)
-    //
-    // For explicit ordering example, see: examples/explicit_ordering_bdd.rs
-
     /// Swap any two variables in the BDD (not necessarily adjacent).
     ///
-    /// Unlike `swap_adjacent_variables`, this can swap variables at any distance.
-    /// This uses Shannon expansion which works for arbitrary variable pairs.
+    /// With explicit ordering, this efficiently swaps non-adjacent variables
+    /// by performing a series of adjacent swaps using the O(k) in-place algorithm.
     ///
-    /// **Performance Note**: For adjacent variables, prefer `swap_adjacent_variables()`
-    /// which is significantly faster. This method uses ITE operations which are
-    /// slower but work for any variable pair.
+    /// # Algorithm
+    ///
+    /// 1. Find current levels of both variables
+    /// 2. Move var_x to be adjacent to var_y through repeated adjacent swaps
+    /// 3. Perform the final adjacent swap
     ///
     /// # Arguments
     ///
@@ -254,12 +235,44 @@ impl Bdd {
     /// bdd.swap_any_variables(&mut roots, 1, 3);
     /// ```
     pub fn swap_any_variables(&self, roots: &mut [Ref], var_x: u32, var_y: u32) {
+        use crate::types::Var;
+        
         debug!("Swapping arbitrary variables {} and {}", var_x, var_y);
 
-        // For each root, compute the swapped version using Shannon expansion
-        for root in roots.iter_mut() {
-            *root = self.swap_variables_generic(*root, var_x, var_y);
+        // Get current levels of both variables
+        let var_x_obj = Var::new(var_x);
+        let var_y_obj = Var::new(var_y);
+        
+        let Some(level_x) = self.get_level(var_x_obj) else {
+            debug!("Variable {} not in ordering, skipping swap", var_x);
+            return;
+        };
+        let Some(level_y) = self.get_level(var_y_obj) else {
+            debug!("Variable {} not in ordering, skipping swap", var_y);
+            return;
+        };
+
+        if level_x == level_y {
+            debug!("Variables are at the same level, nothing to swap");
+            return;
         }
+
+        // Make sure level_x < level_y by swapping if needed
+        let (level_x, level_y) = if level_x.index() < level_y.index() {
+            (level_x, level_y)
+        } else {
+            (level_y, level_x)
+        };
+
+        // Move level_x down until it's adjacent to level_y
+        let mut current_level = level_x.index();
+        while current_level + 1 < level_y.index() {
+            self.swap_adjacent_variables(roots, current_level as u32);
+            current_level += 1;
+        }
+
+        // Now they're adjacent, do the final swap
+        self.swap_adjacent_variables(roots, current_level as u32);
 
         debug!("Swap complete");
     }
@@ -281,49 +294,54 @@ impl Bdd {
     /// # Arguments
     ///
     /// * `roots` - The BDD roots to optimize
-    /// * `var` - The variable to sift
-    /// * `num_vars` - Total number of variables
+    /// * `var` - The variable to sift (1-indexed variable ID)
     ///
     /// # Returns
     ///
     /// The number of swaps performed and the size reduction achieved
-    pub fn sift_variable(&self, roots: &mut [Ref], var: u32, num_vars: u32) -> (usize, i64) {
-        if num_vars <= 1 {
+    pub fn sift_variable(&self, roots: &mut [Ref], var: u32) -> (usize, i64) {
+        use crate::types::Var;
+        
+        let var_obj = Var::new(var);
+        let Some(mut current_level) = self.get_level(var_obj) else {
+            debug!("Variable {} not in ordering, skipping sift", var);
+            return (0, 0);
+        };
+        
+        let num_levels = self.num_levels();
+        if num_levels <= 1 {
             return (0, 0);
         }
 
         let initial_size = self.count_nodes(roots) as i64;
         let mut swaps = 0;
 
-        // Find current level of the variable
-        let mut current_level = var - 1; // Convert to 0-indexed level
-
         // Record sizes at each level
-        let mut sizes: Vec<(u32, usize)> = Vec::new();
-        sizes.push((current_level, initial_size as usize));
+        let mut sizes: Vec<(usize, usize)> = Vec::new();
+        sizes.push((current_level.index(), initial_size as usize));
 
-        debug!("Sifting variable {} (initially at level {})", var, current_level);
+        debug!("Sifting variable {} (initially at level {})", var, current_level.index());
 
         // Move variable up to level 0
-        while current_level > 0 {
-            self.swap_adjacent_variables(roots, current_level - 1);
-            current_level -= 1;
+        while current_level.index() > 0 {
+            self.swap_adjacent_variables(roots, (current_level.index() - 1) as u32);
+            current_level = current_level.prev().expect("Should have previous level");
             swaps += 1;
 
             let size = self.count_nodes(roots);
-            sizes.push((current_level, size));
-            debug!("  After swap to level {}: size = {}", current_level, size);
+            sizes.push((current_level.index(), size));
+            debug!("  After swap to level {}: size = {}", current_level.index(), size);
         }
 
         // Now move it down through all positions
-        while current_level < num_vars - 1 {
-            self.swap_adjacent_variables(roots, current_level);
-            current_level += 1;
+        while current_level.index() < num_levels - 1 {
+            self.swap_adjacent_variables(roots, current_level.index() as u32);
+            current_level = current_level.next();
             swaps += 1;
 
             let size = self.count_nodes(roots);
-            sizes.push((current_level, size));
-            debug!("  After swap to level {}: size = {}", current_level, size);
+            sizes.push((current_level.index(), size));
+            debug!("  After swap to level {}: size = {}", current_level.index(), size);
         }
 
         // Find the level with minimum size
@@ -332,9 +350,9 @@ impl Bdd {
         debug!("  Best position: level {} with size {}", best_level, best_size);
 
         // Move variable back to the best position
-        while current_level > best_level {
-            self.swap_adjacent_variables(roots, current_level - 1);
-            current_level -= 1;
+        while current_level.index() > best_level {
+            self.swap_adjacent_variables(roots, (current_level.index() - 1) as u32);
+            current_level = current_level.prev().expect("Should have previous level");
             swaps += 1;
         }
 
@@ -389,8 +407,6 @@ impl Bdd {
             };
         }
 
-        let num_vars = *all_vars.iter().max().unwrap();
-
         // Get usage counts to determine sifting order
         let usage_counts = self.variable_usage_counts(roots);
 
@@ -410,7 +426,7 @@ impl Bdd {
         // Sift each variable
         for &var in &vars_to_sift {
             debug!("Sifting variable {}", var);
-            let (swaps, _reduction) = self.sift_variable(roots, var, num_vars);
+            let (swaps, _reduction) = self.sift_variable(roots, var);
             total_swaps += swaps;
 
             let current_size = self.count_nodes(roots);
@@ -644,18 +660,36 @@ mod tests {
         println!("Original BDD structure:");
         if !bdd.is_terminal(roots[0]) {
             let node = bdd.node(roots[0].index());
-            println!("  Root @{}: var={}, low={}, high={}", roots[0].index(), node.variable, bdd.low_node(roots[0]), bdd.high_node(roots[0]));
+            println!(
+                "  Root @{}: var={}, low={}, high={}",
+                roots[0].index(),
+                node.variable,
+                bdd.low_node(roots[0]),
+                bdd.high_node(roots[0])
+            );
 
             if !bdd.is_terminal(bdd.low_node(roots[0])) {
                 let low_ref = bdd.low_node(roots[0]);
                 let low_node = bdd.node(low_ref.index());
-                println!("    Low child @{}: var={}, low={}, high={}", low_ref.index(), low_node.variable, bdd.low_node(low_ref), bdd.high_node(low_ref));
+                println!(
+                    "    Low child @{}: var={}, low={}, high={}",
+                    low_ref.index(),
+                    low_node.variable,
+                    bdd.low_node(low_ref),
+                    bdd.high_node(low_ref)
+                );
             }
 
             if !bdd.is_terminal(bdd.high_node(roots[0])) {
                 let high_ref = bdd.high_node(roots[0]);
                 let high_node = bdd.node(high_ref.index());
-                println!("    High child @{}: var={}, low={}, high={}", high_ref.index(), high_node.variable, bdd.low_node(high_ref), bdd.high_node(high_ref));
+                println!(
+                    "    High child @{}: var={}, low={}, high={}",
+                    high_ref.index(),
+                    high_node.variable,
+                    bdd.low_node(high_ref),
+                    bdd.high_node(high_ref)
+                );
             }
         }
 
@@ -685,16 +719,31 @@ mod tests {
         println!("BDD structure after swap:");
         if !bdd.is_terminal(roots[0]) {
             let node = bdd.node(roots[0].index());
-            println!("  Root: var={}, low={}, high={}", node.variable, bdd.low_node(roots[0]), bdd.high_node(roots[0]));
+            println!(
+                "  Root: var={}, low={}, high={}",
+                node.variable,
+                bdd.low_node(roots[0]),
+                bdd.high_node(roots[0])
+            );
 
             if !bdd.is_terminal(bdd.low_node(roots[0])) {
                 let low_node = bdd.node(bdd.low_node(roots[0]).index());
-                println!("    Low child: var={}, low={}, high={}", low_node.variable, bdd.low_node(bdd.low_node(roots[0])), bdd.high_node(bdd.low_node(roots[0])));
+                println!(
+                    "    Low child: var={}, low={}, high={}",
+                    low_node.variable,
+                    bdd.low_node(bdd.low_node(roots[0])),
+                    bdd.high_node(bdd.low_node(roots[0]))
+                );
             }
 
             if !bdd.is_terminal(bdd.high_node(roots[0])) {
                 let high_node = bdd.node(bdd.high_node(roots[0]).index());
-                println!("    High child: var={}, low={}, high={}", high_node.variable, bdd.low_node(bdd.high_node(roots[0])), bdd.high_node(bdd.high_node(roots[0])));
+                println!(
+                    "    High child: var={}, low={}, high={}",
+                    high_node.variable,
+                    bdd.low_node(bdd.high_node(roots[0])),
+                    bdd.high_node(bdd.high_node(roots[0]))
+                );
             }
         }
 
@@ -718,8 +767,14 @@ mod tests {
                 .collect();
             let result = bdd.cofactor_cube(roots[0], &cube);
             let result_bool = bdd.is_one(result);
-            println!("After swap: {:?} -> {} (result ref: {}, is_one: {}, is_zero: {})",
-                     assignment, result_bool, result, bdd.is_one(result), bdd.is_zero(result));
+            println!(
+                "After swap: {:?} -> {} (result ref: {}, is_one: {}, is_zero: {})",
+                assignment,
+                result_bool,
+                result,
+                bdd.is_one(result),
+                bdd.is_zero(result)
+            );
             assert_eq!(result_bool, expected, "After swap failed for {:?}", assignment);
         }
     }
@@ -783,7 +838,7 @@ mod tests {
         let size_before = bdd.count_nodes(&roots);
 
         // Sift variable 2 (y)
-        let (swaps, reduction) = bdd.sift_variable(&mut roots, 2, 3);
+        let (swaps, reduction) = bdd.sift_variable(&mut roots, 2);
 
         println!(
             "Sifted variable 2: {} swaps, size: {} -> {} (reduction: {})",
@@ -902,11 +957,11 @@ mod tests {
 
         // Test cases to verify correctness
         let test_cases = [
-            (vec![(1, true), (2, false), (3, true), (4, false)], true),   // x1∧x3 = T
-            (vec![(1, false), (2, true), (3, false), (4, true)], true),   // x2∧x4 = T
-            (vec![(1, true), (2, false), (3, false), (4, false)], false), // both terms F
+            (vec![(1, true), (2, false), (3, true), (4, false)], true),    // x1∧x3 = T
+            (vec![(1, false), (2, true), (3, false), (4, true)], true),    // x2∧x4 = T
+            (vec![(1, true), (2, false), (3, false), (4, false)], false),  // both terms F
             (vec![(1, false), (2, false), (3, false), (4, false)], false), // all F
-            (vec![(1, true), (2, true), (3, true), (4, true)], true),     // both terms T
+            (vec![(1, true), (2, true), (3, true), (4, true)], true),      // both terms T
         ];
 
         // Verify before swap
@@ -933,12 +988,7 @@ mod tests {
                 .map(|&(var, val)| if val { var as i32 } else { -(var as i32) })
                 .collect();
             let result = bdd.cofactor_cube(roots[0], &cube);
-            assert_eq!(
-                bdd.is_one(result),
-                *expected,
-                "After non-adjacent swap failed for {:?}",
-                assignment
-            );
+            assert_eq!(bdd.is_one(result), *expected, "After non-adjacent swap failed for {:?}", assignment);
         }
 
         // Now swap variables 2 and 4 (also non-adjacent)
