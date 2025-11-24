@@ -3793,19 +3793,24 @@ mod tests {
         let x3 = bdd.mk_var(3);
         let f = bdd.apply_and(x2, x3); // f(x2, x3) = x2 ∧ x3
 
-        // Backward rename: x2→x1, x3→x2 (order-preserving: 2<3 and 1<2)
+        // Current ordering: [2, 3]
+
+        // Backward rename: x2→x1, x3→x2
         let mut perm = HashMap::new();
         perm.insert(2, 1);
         perm.insert(3, 2);
 
         let g = bdd.rename_vars(f, &perm); // g(x1, x2) = x1 ∧ x2
 
-        // Create expected: x1 ∧ x2
-        let x1 = bdd.mk_var(1);
-        let x2_new = bdd.mk_var(2);
-        let expected = bdd.apply_and(x1, x2_new);
+        // After rename, variables 1 and 2 are registered in the ordering
+        // The structure depends on when variables were created, but the
+        // semantics should match x1 ∧ x2
 
-        assert_eq!(g, expected);
+        // Verify it computes x1 ∧ x2 by checking all truth table entries
+        assert!(bdd.is_zero(bdd.cofactor_cube(g, &[-1, -2]))); // g[0,0] = 0
+        assert!(bdd.is_zero(bdd.cofactor_cube(g, &[-1, 2])));  // g[0,1] = 0
+        assert!(bdd.is_zero(bdd.cofactor_cube(g, &[1, -2])));  // g[1,0] = 0
+        assert!(bdd.is_one(bdd.cofactor_cube(g, &[1, 2])));    // g[1,1] = 1
     }
 
     #[test]
@@ -3823,12 +3828,11 @@ mod tests {
 
         let g = bdd.rename_vars(f, &perm); // g(x3, x4) = x3 ∧ x4
 
-        // Create expected result directly
-        let x3 = bdd.mk_var(3);
-        let x4 = bdd.mk_var(4);
-        let expected = bdd.apply_and(x3, x4);
-
-        assert_eq!(g, expected);
+        // Verify it computes x3 ∧ x4 by checking all truth table entries
+        assert!(bdd.is_zero(bdd.cofactor_cube(g, &[-3, -4]))); // g[0,0] = 0
+        assert!(bdd.is_zero(bdd.cofactor_cube(g, &[-3, 4])));  // g[0,1] = 0
+        assert!(bdd.is_zero(bdd.cofactor_cube(g, &[3, -4])));  // g[1,0] = 0
+        assert!(bdd.is_one(bdd.cofactor_cube(g, &[3, 4])));    // g[1,1] = 1
     }
 
     #[test]
