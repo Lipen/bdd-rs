@@ -289,6 +289,68 @@ impl Bdd {
             low
         }
     }
+
+    /// Compares two variables by their level in the variable ordering.
+    ///
+    /// Returns the variable that should appear *first* (at a lower level/higher in the tree).
+    /// Uses the explicit variable ordering to determine precedence.
+    ///
+    /// # Arguments
+    ///
+    /// * `var1` - First variable ID (0 means terminal/no variable)
+    /// * `var2` - Second variable ID (0 means terminal/no variable)
+    ///
+    /// # Returns
+    ///
+    /// The variable ID that comes first in the ordering, or 0 if both are 0.
+    fn top_variable(&self, var1: u32, var2: u32) -> u32 {
+        if var1 == 0 {
+            return var2;
+        }
+        if var2 == 0 {
+            return var1;
+        }
+
+        // Compare by level in the explicit ordering
+        let level1 = self.get_level(Var::new(var1));
+        let level2 = self.get_level(Var::new(var2));
+
+        match (level1, level2) {
+            (Some(l1), Some(l2)) => {
+                if l1.index() <= l2.index() {
+                    var1
+                } else {
+                    var2
+                }
+            }
+            (Some(_), None) => var1,
+            (None, Some(_)) => var2,
+            (None, None) => {
+                // Neither variable is in the ordering, fall back to ID comparison
+                var1.min(var2)
+            }
+        }
+    }
+
+    /// Returns true if var1 comes before var2 in the variable ordering.
+    ///
+    /// Uses the explicit variable ordering to compare levels.
+    fn var_precedes(&self, var1: u32, var2: u32) -> bool {
+        if var1 == 0 || var2 == 0 {
+            return false;
+        }
+
+        let level1 = self.get_level(Var::new(var1));
+        let level2 = self.get_level(Var::new(var2));
+
+        match (level1, level2) {
+            (Some(l1), Some(l2)) => l1.index() < l2.index(),
+            (Some(_), None) => true,
+            (None, Some(_)) => false,
+            (None, None) => var1 < var2, // fallback to ID comparison
+        }
+    }
+
     pub fn high_node(&self, node_ref: Ref) -> Ref {
         let high = self.high(node_ref.index());
         if node_ref.is_negated() {
@@ -828,8 +890,10 @@ impl Bdd {
 
         let index = node_ref.index();
         let node = self.node(index);
-        if v < node.variable {
-            // 'node' does not depend on 'v'
+
+        // Check if v comes before node.variable in the ordering
+        if self.var_precedes(v, node.variable) {
+            // 'node' does not depend on 'v' (v is at a higher level, not in this subtree)
             return (node_ref, node_ref);
         }
         assert_eq!(v, node.variable);
@@ -950,27 +1014,27 @@ impl Bdd {
         //   ite(F,0,H) == ite(~H,0,~F) == ~F ∧ H
         //   ite(F,G,~G) == ite(G,F,~F)
         // (choose the one with the lowest variable)
-        if self.is_one(g) && k < i {
+        if self.is_one(g) && self.var_precedes(k, i) {
             assert_ne!(k, 0);
             debug!("ite(F,1,H) => ite(H,1,F)");
             return self.apply_ite(h, self.one, f);
         }
-        if self.is_zero(h) && j < i {
+        if self.is_zero(h) && self.var_precedes(j, i) {
             assert_ne!(j, 0);
             debug!("ite(F,G,0) => ite(G,F,0)");
             return self.apply_ite(g, f, self.zero);
         }
-        if self.is_one(h) && j < i {
+        if self.is_one(h) && self.var_precedes(j, i) {
             assert_ne!(j, 0);
             debug!("ite(F,G,1) => ite(~G,~F,1)");
             return self.apply_ite(-g, -f, self.one);
         }
-        if self.is_zero(g) && k < i {
+        if self.is_zero(g) && self.var_precedes(k, i) {
             assert_ne!(k, 0);
             debug!("ite(F,0,H) => ite(~H,0,~F)");
             return self.apply_ite(-h, self.zero, -f);
         }
-        if g == -h && j < i {
+        if g == -h && self.var_precedes(j, i) {
             assert_ne!(j, 0);
             debug!("ite(F,G,~G) => ite(G,F,~F)");
             return self.apply_ite(g, f, -f);
@@ -1008,12 +1072,12 @@ impl Bdd {
         // Determine the top variable:
         let mut m = i;
         if j != 0 {
-            m = m.min(j);
+            m = self.top_variable(m, j);
         }
         if k != 0 {
-            m = m.min(k);
+            m = self.top_variable(m, k);
         }
-        debug!("min variable = {}", m);
+        debug!("top variable = {}", m);
         assert_ne!(m, 0);
 
         let (f0, f1) = self.top_cofactors(f, m);
@@ -1130,12 +1194,12 @@ impl Bdd {
         // Determine the top variable:
         let mut m = i;
         if j != 0 {
-            m = m.min(j);
+            m = self.top_variable(m, j);
         }
         if k != 0 {
-            m = m.min(k);
+            m = self.top_variable(m, k);
         }
-        debug!("min variable = {}", m);
+        debug!("top variable = {}", m);
         assert_ne!(m, 0);
 
         let (f0, f1) = self.top_cofactors(f, m);

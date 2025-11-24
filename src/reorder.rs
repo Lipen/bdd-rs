@@ -81,6 +81,7 @@ use log::debug;
 use crate::bdd::Bdd;
 use crate::reference::Ref;
 use crate::types::Level;
+use crate::types::Var;
 
 /// Statistics collected during reordering.
 #[derive(Debug, Clone, Default)]
@@ -235,14 +236,12 @@ impl Bdd {
     /// bdd.swap_any_variables(&mut roots, 1, 3);
     /// ```
     pub fn swap_any_variables(&self, roots: &mut [Ref], var_x: u32, var_y: u32) {
-        use crate::types::Var;
-        
         debug!("Swapping arbitrary variables {} and {}", var_x, var_y);
 
         // Get current levels of both variables
         let var_x_obj = Var::new(var_x);
         let var_y_obj = Var::new(var_y);
-        
+
         let Some(level_x) = self.get_level(var_x_obj) else {
             debug!("Variable {} not in ordering, skipping swap", var_x);
             return;
@@ -301,13 +300,13 @@ impl Bdd {
     /// The number of swaps performed and the size reduction achieved
     pub fn sift_variable(&self, roots: &mut [Ref], var: u32) -> (usize, i64) {
         use crate::types::Var;
-        
+
         let var_obj = Var::new(var);
         let Some(mut current_level) = self.get_level(var_obj) else {
             debug!("Variable {} not in ordering, skipping sift", var);
             return (0, 0);
         };
-        
+
         let num_levels = self.num_levels();
         if num_levels <= 1 {
             return (0, 0);
