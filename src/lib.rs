@@ -68,6 +68,7 @@ pub mod node;
 pub mod paths;
 pub mod raw;
 pub mod reference;
+pub mod reorder;
 pub mod sat;
 pub mod storage;
 pub mod table;
