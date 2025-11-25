@@ -62,6 +62,7 @@
 
 pub mod bdd;
 pub mod cache;
+pub mod debug;
 pub mod dot;
 pub mod eval;
 pub mod node;
