@@ -1519,15 +1519,19 @@ impl Bdd {
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
     /// let y = bdd.mk_var(2);
-    /// let f = bdd.apply_or(bdd.apply_eq(x, y), x); // (x = y) ∨ x
+    ///
+    /// // f = (x = y) ∨ x
+    /// let f = bdd.apply_or(bdd.apply_eq(x, y), x);
     ///
     /// // Substitute x with true (using raw integer)
+    /// // f[x<-1] = (1 = y) ∨ 1  ==>  1
     /// let f_x_true = bdd.substitute(f, 1, true);
     /// assert!(bdd.is_one(f_x_true)); // Result is always true
     ///
     /// // Substitute y with false (using Var)
+    /// // f[y<-0] = (x = 0) ∨ x  ==>  1
     /// let f_y_false = bdd.substitute(f, Var::new(2), false);
-    /// // Result depends only on x now
+    /// assert!(bdd.is_one(f_y_false)); // Result is always true
     /// ```
     // f|v<-b
     pub fn substitute(&self, f: Ref, v: impl Into<Var>, b: bool) -> Ref {
@@ -3116,12 +3120,15 @@ mod tests {
         let x2 = bdd.mk_var(2);
         let x3 = bdd.mk_var(3);
 
+        // f = (x1 == x2) | x3
         let f = bdd.apply_or(bdd.apply_eq(x1, x2), x3);
         println!("f of size {} = {}", bdd.size(f), bdd.to_bracket_string(f));
 
+        // f[x2<-0] = (x1 == 0) | x3 = ~x1 | x3
         let f_x2_zero = bdd.substitute(f, 2, false); // f|x2<-0
         println!("f|x2<-0 of size {} = {}", bdd.size(f_x2_zero), bdd.to_bracket_string(f_x2_zero));
 
+        // g = ~x1 | x3
         let g = bdd.apply_or(-x1, x3);
         println!("g of size {} = {}", bdd.size(g), bdd.to_bracket_string(g));
 
