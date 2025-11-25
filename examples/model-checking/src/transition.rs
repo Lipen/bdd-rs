@@ -9,6 +9,7 @@ use std::rc::Rc;
 
 use bdd_rs::bdd::Bdd;
 use bdd_rs::reference::Ref;
+use bdd_rs::types::Var as BddVar;
 
 /// A variable in the transition system.
 ///
@@ -66,16 +67,14 @@ impl From<String> for Var {
 
 /// Manages BDD variable allocation for transition systems.
 ///
-/// Maps logical state variables to pairs of BDD variable indices
+/// Maps logical state variables to pairs of BDD variables
 /// (one for present state, one for next state).
 #[derive(Debug, Clone)]
 pub struct VarManager {
-    /// Maps state variables to their present-state BDD index
-    present_state_map: HashMap<Var, u32>,
-    /// Maps state variables to their next-state BDD index
-    next_state_map: HashMap<Var, u32>,
-    /// Counter for allocating new BDD variables
-    next_index: u32,
+    /// Maps state variables to their present-state BDD variable
+    present_state_map: HashMap<Var, BddVar>,
+    /// Maps state variables to their next-state BDD variable
+    next_state_map: HashMap<Var, BddVar>,
     /// Ordered list of state variables (for iteration)
     var_order: Vec<Var>,
 }
@@ -85,39 +84,34 @@ impl VarManager {
         VarManager {
             present_state_map: HashMap::new(),
             next_state_map: HashMap::new(),
-            next_index: 1, // Start from 1 (0 is reserved for constants)
             var_order: Vec::new(),
         }
     }
 
-    /// Declare a new state variable and allocate BDD indices for it.
+    /// Register a state variable with its pre-allocated BDD variables.
     ///
-    /// Returns (present_state_index, next_state_index).
-    pub fn declare_var(&mut self, var: Var) -> (u32, u32) {
-        if let Some(&present_idx) = self.present_state_map.get(&var) {
-            let next_idx = self.next_state_map[&var];
-            return (present_idx, next_idx);
+    /// This is called by [TransitionSystem] after allocating variables via the BDD manager.
+    pub fn register_var(&mut self, var: Var, present: BddVar, next: BddVar) {
+        if self.present_state_map.contains_key(&var) {
+            return; // Already registered
         }
-
-        let present_idx = self.next_index;
-        self.next_index += 1;
-        let next_idx = self.next_index;
-        self.next_index += 1;
-
-        self.present_state_map.insert(var.clone(), present_idx);
-        self.next_state_map.insert(var.clone(), next_idx);
+        self.present_state_map.insert(var.clone(), present);
+        self.next_state_map.insert(var.clone(), next);
         self.var_order.push(var);
-
-        (present_idx, next_idx)
     }
 
-    /// Get the present-state BDD index for a variable
-    pub fn get_present(&self, var: &Var) -> Option<u32> {
+    /// Check if a variable is already declared
+    pub fn is_declared(&self, var: &Var) -> bool {
+        self.present_state_map.contains_key(var)
+    }
+
+    /// Get the present-state BDD variable for a state variable
+    pub fn get_present(&self, var: &Var) -> Option<BddVar> {
         self.present_state_map.get(var).copied()
     }
 
-    /// Get the next-state BDD index for a variable
-    pub fn get_next(&self, var: &Var) -> Option<u32> {
+    /// Get the next-state BDD variable for a state variable
+    pub fn get_next(&self, var: &Var) -> Option<BddVar> {
         self.next_state_map.get(var).copied()
     }
 
@@ -131,13 +125,13 @@ impl VarManager {
         self.var_order.len()
     }
 
-    /// Get all present-state BDD indices
-    pub fn present_indices(&self) -> Vec<u32> {
+    /// Get all present-state BDD variables
+    pub fn present_vars(&self) -> Vec<BddVar> {
         self.var_order.iter().map(|v| self.present_state_map[v]).collect()
     }
 
-    /// Get all next-state BDD indices
-    pub fn next_indices(&self) -> Vec<u32> {
+    /// Get all next-state BDD variables
+    pub fn next_vars(&self) -> Vec<BddVar> {
         self.var_order.iter().map(|v| self.next_state_map[v]).collect()
     }
 }
@@ -196,8 +190,19 @@ impl TransitionSystem {
     }
 
     /// Declare a state variable
-    pub fn declare_var(&mut self, var: Var) -> (u32, u32) {
-        self.var_manager.declare_var(var)
+    ///
+    /// Allocates two BDD variables (present and next state) via the BDD manager
+    /// and registers them with the variable manager.
+    pub fn declare_var(&mut self, var: Var) -> (BddVar, BddVar) {
+        if let Some(present) = self.var_manager.get_present(&var) {
+            let next = self.var_manager.get_next(&var).unwrap();
+            return (present, next);
+        }
+        // Allocate variables through the BDD manager so they have proper levels
+        let present = self.bdd.allocate_variable();
+        let next = self.bdd.allocate_variable();
+        self.var_manager.register_var(var, present, next);
+        (present, next)
     }
 
     /// Set the initial states
@@ -240,8 +245,8 @@ impl TransitionSystem {
     /// Returns the set of states reachable in one step from `from`.
     pub fn image(&self, from: Ref) -> Ref {
         // ∃s. from(s) ∧ T(s, s')
-        let present_vars = self.var_manager.present_indices();
-        let result_in_next = self.bdd().rel_product(from, self.transition, &present_vars);
+        let present_vars = self.var_manager.present_vars();
+        let result_in_next = self.bdd().rel_product(from, self.transition, present_vars);
 
         // Rename from next-state to present-state variables
         self.rename_next_to_present(result_in_next)
@@ -255,8 +260,8 @@ impl TransitionSystem {
         let to_next = self.rename_present_to_next(to);
 
         // ∃s'. T(s, s') ∧ to(s')
-        let next_vars = self.var_manager.next_indices();
-        self.bdd().rel_product(self.transition, to_next, &next_vars)
+        let next_vars = self.var_manager.next_vars();
+        self.bdd().rel_product(self.transition, to_next, next_vars)
     }
 
     /// Compute reachable states from initial states
@@ -275,22 +280,22 @@ impl TransitionSystem {
 
     /// Rename present-state variables to next-state variables (v → v').
     fn rename_present_to_next(&self, f: Ref) -> Ref {
-        let present_vars = self.var_manager.present_indices();
-        let next_vars = self.var_manager.next_indices();
+        let present_vars = self.var_manager.present_vars();
+        let next_vars = self.var_manager.next_vars();
 
         // v -> v'
-        let perm: HashMap<u32, u32> = present_vars.iter().zip(next_vars.iter()).map(|(&p, &n)| (p, n)).collect();
+        let perm: HashMap<BddVar, BddVar> = present_vars.into_iter().zip(next_vars).collect();
 
         self.bdd().rename_vars(f, &perm)
     }
 
     /// Rename next-state variables to present-state variables (v' → v).
     fn rename_next_to_present(&self, f: Ref) -> Ref {
-        let present_vars = self.var_manager.present_indices();
-        let next_vars = self.var_manager.next_indices();
+        let present_vars = self.var_manager.present_vars();
+        let next_vars = self.var_manager.next_vars();
 
         // v' -> v
-        let perm: HashMap<u32, u32> = next_vars.iter().zip(present_vars.iter()).map(|(&n, &p)| (n, p)).collect();
+        let perm: HashMap<BddVar, BddVar> = next_vars.into_iter().zip(present_vars).collect();
 
         self.bdd().rename_vars(f, &perm)
     }
@@ -298,7 +303,7 @@ impl TransitionSystem {
     /// Count the number of states in a state set (up to 2^64)
     pub fn count_states(&self, states: Ref) -> Option<u64> {
         use num_traits::ToPrimitive;
-        let num_vars = self.var_manager.present_indices().len();
+        let num_vars = self.var_manager.present_vars().len();
         let count = self.bdd().sat_count(states, num_vars);
         // Try to convert BigUint to u64
         count.to_u64()
@@ -417,16 +422,14 @@ mod tests {
         let x = Var::new("x");
         let y = Var::new("y");
 
-        let (x_pres, x_next) = vm.declare_var(x.clone());
-        let (y_pres, y_next) = vm.declare_var(y.clone());
+        // Simulate what TransitionSystem does: allocate then register
+        vm.register_var(x.clone(), BddVar::new(1), BddVar::new(2));
+        vm.register_var(y.clone(), BddVar::new(3), BddVar::new(4));
 
-        assert_eq!(x_pres, 1);
-        assert_eq!(x_next, 2);
-        assert_eq!(y_pres, 3);
-        assert_eq!(y_next, 4);
-
-        assert_eq!(vm.get_present(&x), Some(1));
-        assert_eq!(vm.get_next(&x), Some(2));
+        assert_eq!(vm.get_present(&x), Some(BddVar::new(1)));
+        assert_eq!(vm.get_next(&x), Some(BddVar::new(2)));
+        assert_eq!(vm.get_present(&y), Some(BddVar::new(3)));
+        assert_eq!(vm.get_next(&y), Some(BddVar::new(4)));
         assert_eq!(vm.num_vars(), 2);
     }
 
