@@ -390,8 +390,6 @@ impl Bdd {
         }
     }
 
-    // ===== Explicit Variable Ordering API =====
-
     /// Allocates a new variable and adds it to the end of the variable ordering.
     ///
     /// # Returns
@@ -489,8 +487,6 @@ impl Bdd {
             }
         }
     }
-
-    // ===== Variable Reordering =====
 
     /// Swaps two adjacent levels using CUDD-style in-place transformation with forwarding pointers.
     ///
