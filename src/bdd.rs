@@ -316,6 +316,15 @@ impl Bdd {
         }
     }
 
+    pub fn high_node(&self, node_ref: Ref) -> Ref {
+        let high = self.high(node_ref.index());
+        if node_ref.is_negated() {
+            -high
+        } else {
+            high
+        }
+    }
+
     /// Compares two variables by their level in the variable ordering.
     ///
     /// Returns the variable that should appear *first* (at a lower level/higher in the tree).
@@ -378,15 +387,6 @@ impl Bdd {
             (Some(_), None) => true,
             (None, Some(_)) => false,
             (None, None) => var1.id() < var2.id(), // fallback to ID comparison
-        }
-    }
-
-    pub fn high_node(&self, node_ref: Ref) -> Ref {
-        let high = self.high(node_ref.index());
-        if node_ref.is_negated() {
-            -high
-        } else {
-            high
         }
     }
 
