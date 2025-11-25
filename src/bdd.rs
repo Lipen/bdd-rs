@@ -2642,8 +2642,10 @@ impl Bdd {
     /// use std::collections::HashMap;
     ///
     /// let bdd = Bdd::default();
+    /// // Pre-allocate all variables in order [1, 2, 3]
     /// let x1 = bdd.mk_var(1);
     /// let x2 = bdd.mk_var(2);
+    /// let x3 = bdd.mk_var(3);
     ///
     /// // f = x1 ∧ ¬x2
     /// let f = bdd.apply_and(x1, -x2);
@@ -2654,14 +2656,30 @@ impl Bdd {
     /// perm.insert(Var::new(2), Var::new(3));
     /// let g = bdd.rename_vars(f, &perm);
     ///
-    /// // Verify: g(x2=T, x3=F) should be true
-    /// let x3 = bdd.mk_var(3);
+    /// // Verify: g = x2 ∧ ¬x3
     /// let expected = bdd.apply_and(x2, -x3);
     /// assert_eq!(g, expected);
     /// ```
     pub fn rename_vars(&self, f: Ref, permutation: &HashMap<Var, Var>) -> Ref {
+        // Validate that all variables in the permutation are registered in the ordering
+        for (old_var, new_var) in permutation.iter() {
+            assert!(
+                self.get_level(*old_var).is_some(),
+                "Old variable {} is not registered in the ordering. \
+                All variables must be pre-allocated before rename.",
+                old_var
+            );
+            assert!(
+                self.get_level(*new_var).is_some(),
+                "New variable {} is not registered in the ordering. \
+                All variables must be pre-allocated before rename.",
+                new_var
+            );
+        }
+
         // Validate that the permutation is order-preserving:
         // If old_i precedes old_j in the ordering, then new_i must precede new_j.
+        //   (old_i < old_j) => (new_i < new_j)
         let mut sorted_pairs: Vec<_> = permutation.iter().collect();
         // Sort by level of the OLD variables
         sorted_pairs.sort_by(|&(old_a, _), &(old_b, _)| {
@@ -2725,28 +2743,6 @@ impl Bdd {
 
         // Apply permutation to variable (or keep original if not in map)
         let v_new = permutation.get(&v).copied().unwrap_or(v);
-
-        // Ensure the new variable is in the level_map at the correct level
-        if let Some(old_level) = self.get_level(v) {
-            let mut level_map = self.level_map.borrow_mut();
-            let mut var_order = self.var_order.borrow_mut();
-
-            // If v_new was already at a different level, we need to handle that
-            // For order-preserving permutations, the new variable should take
-            // the level of the old variable
-            if !level_map.contains_key(&v_new) || level_map.get(&v_new) != Some(&old_level) {
-                // Remove v_new from its old position if it exists elsewhere
-                if let Some(&other_level) = level_map.get(&v_new) {
-                    if other_level != old_level {
-                        // This shouldn't happen for valid order-preserving permutations
-                        // but handle it gracefully
-                    }
-                }
-                // Set v_new at the old variable's level
-                var_order[old_level.index()] = v_new;
-                level_map.insert(v_new, old_level);
-            }
-        }
 
         // Create new node with renamed variable
         let result_positive = self.mk_node(v_new, low_new, high_new);
@@ -3870,7 +3866,9 @@ mod tests {
     fn test_rename_vars_not_order_preserving() {
         let bdd = Bdd::default();
 
+        // Pre-allocate both variables
         let x1 = bdd.mk_var(1);
+        let _x2 = bdd.mk_var(2);
 
         // Rename x1→x2, x2→x1 (swap) - NOT order-preserving!
         let mut perm = HashMap::new();
@@ -3885,13 +3883,16 @@ mod tests {
     fn test_rename_vars_chain() {
         let bdd = Bdd::default();
 
+        // Pre-allocate all variables so ordering is [1, 2, 3]
         let x1 = bdd.mk_var(1);
         let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
 
         // f = x1 ∧ ¬x2
         let f = bdd.apply_and(x1, -x2);
 
         // Chain rename: x1→x2, x2→x3
+        // This is order-preserving: 1<2 maps to 2<3
         let mut perm = HashMap::new();
         perm.insert(Var::new(1), Var::new(2));
         perm.insert(Var::new(2), Var::new(3));
@@ -3899,7 +3900,6 @@ mod tests {
         let g = bdd.rename_vars(f, &perm); // g = x2 ∧ ¬x3
 
         // Create expected: x2 ∧ ¬x3
-        let x3 = bdd.mk_var(3);
         let expected = bdd.apply_and(x2, -x3);
 
         assert_eq!(g, expected);
@@ -3937,11 +3937,14 @@ mod tests {
     fn test_rename_vars_shift() {
         let bdd = Bdd::default();
 
+        // Pre-allocate all variables in order [1, 2, 3, 4]
         let x1 = bdd.mk_var(1);
         let x2 = bdd.mk_var(2);
+        let _x3 = bdd.mk_var(3);
+        let _x4 = bdd.mk_var(4);
         let f = bdd.apply_and(x1, x2); // f(x1, x2) = x1 ∧ x2
 
-        // Shift: x1→x3, x2→x4
+        // Shift: x1→x3, x2→x4 (order-preserving: 1<2 maps to 3<4)
         let mut perm = HashMap::new();
         perm.insert(Var::new(1), Var::new(3));
         perm.insert(Var::new(2), Var::new(4));
