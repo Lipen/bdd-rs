@@ -108,10 +108,10 @@ pub struct Bdd {
     size_cache: RefCell<Cache<Ref, u64>>,
     pub zero: Ref,
     pub one: Ref,
-    var_order: RefCell<Vec<Var>>,             // level -> variable
-    level_map: RefCell<HashMap<Var, Level>>,  // variable -> level
-    level_nodes: RefCell<Vec<BTreeSet<u32>>>, // level -> node indices
-    next_var_id: RefCell<u32>,                // next variable ID to allocate
+    var_order: RefCell<Vec<Var>>,            // level -> variable
+    level_map: RefCell<HashMap<Var, Level>>, // variable -> level
+    level_nodes: RefCell<Vec<Vec<u32>>>,     // level -> node indices
+    next_var_id: RefCell<u32>,               // next variable ID to allocate
 }
 
 impl Bdd {
@@ -416,7 +416,7 @@ impl Bdd {
 
         self.var_order.borrow_mut().push(var);
         self.level_map.borrow_mut().insert(var, level);
-        self.level_nodes.borrow_mut().push(BTreeSet::new());
+        self.level_nodes.borrow_mut().push(Vec::new());
 
         var
     }
@@ -480,7 +480,7 @@ impl Bdd {
             let level = Level::new(self.var_order.borrow().len());
             self.var_order.borrow_mut().push(var);
             self.level_map.borrow_mut().insert(var, level);
-            self.level_nodes.borrow_mut().push(BTreeSet::new());
+            self.level_nodes.borrow_mut().push(Vec::new());
 
             // Update next_var_id if needed
             let next_val = *self.next_var_id.borrow();
@@ -2671,7 +2671,7 @@ impl Bdd {
             }
         }
 
-        *self.level_nodes.borrow_mut() = new_level_nodes;
+        *self.level_nodes.borrow_mut() = new_level_nodes.into_iter().map(|s| s.into_iter().collect()).collect();
         debug!("level_nodes rebuilt");
     }
 
@@ -2745,7 +2745,7 @@ impl Bdd {
         }
 
         // Replace level_nodes
-        *self.level_nodes.borrow_mut() = new_level_nodes;
+        *self.level_nodes.borrow_mut() = new_level_nodes.into_iter().map(|s| s.into_iter().collect()).collect();
 
         debug!("Forwarding cleared, level_nodes rebuilt");
     }
