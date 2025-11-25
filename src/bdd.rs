@@ -1665,9 +1665,13 @@ impl Bdd {
     /// assert_eq!(result, bdd.one);
     /// ```
     pub fn cofactor_cube(&self, f: Ref, cube: impl IntoIterator<Item = impl Into<Lit>>) -> Ref {
-        // Convert to Vec<Lit> and sort by level
-        let mut lits: Vec<Lit> = cube.into_iter().map(|l| l.into()).collect();
-        lits.sort_by_key(|lit| self.get_level(lit.var()).map(|l| l.index()).unwrap_or(usize::MAX));
+        // Filter out variables not in the ordering and sort by level
+        let mut lits: Vec<Lit> = cube
+            .into_iter()
+            .map(|l| l.into())
+            .filter(|lit| self.get_level(lit.var()).is_some())
+            .collect();
+        lits.sort_by_key(|lit| self.get_level(lit.var()).unwrap().index());
         let mut cache = HashMap::new();
         self.cofactor_cube_(f, &lits, &mut cache)
     }
@@ -1690,35 +1694,33 @@ impl Bdd {
         let lit = cube[0];
         let u = lit.var();
 
-        // Compare by level (cube is already sorted by level)
-        let t_level = self.get_level(t);
-        let u_level = self.get_level(u);
+        // Both t and u must have levels:
+        // - t is in the BDD, so it must have a level
+        // - u was pre-filtered to only include variables with levels
+        let Some(tl) = self.get_level(t) else {
+            unreachable!("BDD variable {} must have a level", t);
+        };
+        let Some(ul) = self.get_level(u) else {
+            unreachable!("Cube variable {} must have a level", u);
+        };
 
-        let res = match (t_level, u_level) {
-            (Some(tl), Some(ul)) => {
-                match tl.cmp(&ul) {
-                    Ordering::Greater => {
-                        // `t` is at a greater (lower) level than `u`, so `f` doesn't depend on `u`
-                        self.cofactor_cube_(f, &cube[1..], cache)
-                    }
-                    Ordering::Equal => {
-                        // `t == u`: `u` is the top variable of `f`
-                        let res = if lit.is_positive() { self.high_node(f) } else { self.low_node(f) };
-                        self.cofactor_cube_(res, &cube[1..], cache)
-                    }
-                    Ordering::Less => {
-                        // `t` is at a smaller (higher) level than `u`
-                        let f0 = self.low_node(f);
-                        let f1 = self.high_node(f);
-                        let low = self.cofactor_cube_(f0, cube, cache);
-                        let high = self.cofactor_cube_(f1, cube, cache);
-                        self.mk_node(t, low, high)
-                    }
-                }
-            }
-            _ => {
-                // Variable not in ordering - skip it
+        let res = match tl.cmp(&ul) {
+            Ordering::Greater => {
+                // `t` is at a greater (lower) level than `u`, so `f` doesn't depend on `u`
                 self.cofactor_cube_(f, &cube[1..], cache)
+            }
+            Ordering::Equal => {
+                // `t == u`: `u` is the top variable of `f`
+                let branch = if lit.is_positive() { self.high_node(f) } else { self.low_node(f) };
+                self.cofactor_cube_(branch, &cube[1..], cache)
+            }
+            Ordering::Less => {
+                // `t` is at a smaller (higher) level than `u`
+                let f0 = self.low_node(f);
+                let f1 = self.high_node(f);
+                let low = self.cofactor_cube_(f0, cube, cache);
+                let high = self.cofactor_cube_(f1, cube, cache);
+                self.mk_node(t, low, high)
             }
         };
         cache.insert(key, res);
@@ -2211,12 +2213,16 @@ impl Bdd {
     /// The method uses internal caching to avoid recomputation. For best performance,
     /// the variable list should be sorted, though this is not required for correctness.
     pub fn exists(&self, f: Ref, vars: impl IntoIterator<Item = impl Into<Var>>) -> Ref {
-        // Sort variables by their level in the BDD ordering
-        let mut vars_sorted: Vec<Var> = vars.into_iter().map(|v| v.into()).collect();
+        // Filter out variables not in the ordering and sort by level
+        let mut vars_sorted: Vec<Var> = vars
+            .into_iter()
+            .map(|v| v.into())
+            .filter(|&v| self.get_level(v).is_some())
+            .collect();
         if vars_sorted.is_empty() {
             return f;
         }
-        vars_sorted.sort_by_key(|&v| self.get_level(v).map(|l| l.index()).unwrap_or(usize::MAX));
+        vars_sorted.sort_by_key(|&v| self.get_level(v).unwrap().index());
         let mut cache = Cache::new(16);
         self.exists_(f, &vars_sorted, 0, &mut cache)
     }
@@ -2373,13 +2379,16 @@ impl Bdd {
     /// This operation is significantly more efficient than computing the AND first and
     /// then quantifying, especially when the intermediate result would be large.
     pub fn rel_product(&self, u: Ref, v: Ref, vars: impl IntoIterator<Item = impl Into<Var>>) -> Ref {
-        let vars: Vec<Var> = vars.into_iter().map(|x| x.into()).collect();
-        if vars.is_empty() {
+        // Filter out variables not in the ordering and sort by level
+        let mut vars_sorted: Vec<Var> = vars
+            .into_iter()
+            .map(|x| x.into())
+            .filter(|&v| self.get_level(v).is_some())
+            .collect();
+        if vars_sorted.is_empty() {
             return self.apply_and(u, v);
         }
-        // Sort variables by their level in the BDD ordering
-        let mut vars_sorted: Vec<Var> = vars;
-        vars_sorted.sort_by_key(|&v| self.get_level(v).map(|l| l.index()).unwrap_or(usize::MAX));
+        vars_sorted.sort_by_key(|&v| self.get_level(v).unwrap().index());
         let mut cache = Cache::new(16);
         self.rel_product_(u, v, &vars_sorted, 0, &mut cache)
     }
