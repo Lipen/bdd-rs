@@ -390,7 +390,7 @@ impl Predicate for BddCharPredicate {
         let mut curr = self.node;
         // Traverse the BDD
         while !self.manager.is_terminal(curr) {
-            let var_idx = self.manager.variable(curr.index());
+            let var_idx = self.manager.variable(curr.index()).id();
             if var_idx > 21 {
                 // Should not happen for char predicates
                 return false;
