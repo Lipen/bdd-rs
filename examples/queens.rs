@@ -30,6 +30,7 @@
 
 use bdd_rs::bdd::Bdd;
 use bdd_rs::reference::Ref;
+use bdd_rs::types::Var;
 use clap::Parser;
 
 #[derive(Debug, Parser)]
@@ -106,9 +107,9 @@ fn encode_queens_square(bdd: &Bdd, n: usize, i: usize, j: usize) -> Ref {
 
     for row in (0..n).rev() {
         for col in (0..n).rev() {
-            let var = queen(n, row, col);
+            let var = Var::new(queen(n, row, col));
 
-            assert!(bdd.is_terminal(node) || var < bdd.variable(node.index()));
+            assert!(bdd.is_terminal(node) || var.id() < bdd.variable(node.index()).id());
 
             // Queen must be placed here
             if row == i && col == j {

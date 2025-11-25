@@ -17,7 +17,7 @@ impl Bdd {
             return Some(path);
         }
 
-        let v = self.variable(node.index()) as i32;
+        let v = self.variable(node.index()).id() as i32;
 
         let high = self.high_node(node);
         let mut path_high = path.clone();

@@ -48,7 +48,7 @@
 //! assert!(!bdd.is_one(f));  // It is not a tautology
 //!
 //! // 5. Evaluate (x1=true, x2=false) -> should be true
-//! let res = bdd.cofactor_cube(f, &[1, -2]);
+//! let res = bdd.cofactor_cube(f, [1, -2]);
 //! assert!(bdd.is_one(res));
 //! ```
 //!

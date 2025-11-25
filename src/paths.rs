@@ -30,7 +30,7 @@ impl Iterator for BddPaths<'_> {
                 return Some(path);
             } else {
                 assert!(!self.bdd.is_terminal(node));
-                let v = self.bdd.variable(node.index()) as i32;
+                let v = self.bdd.variable(node.index()).id() as i32;
 
                 let mut path_high = path.clone();
                 path_high.push(v);

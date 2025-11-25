@@ -1,9 +1,10 @@
-///! Type-safe wrappers for BDD variables and levels.
+///! Type-safe wrappers for BDD variables, levels, and literals.
 ///!
 ///! This module provides newtype wrappers that enforce compile-time distinction
 ///! between variable IDs and level indices, preventing common mistakes in BDD
 ///! manipulation code.
 use std::fmt;
+use std::ops::Neg;
 
 /// A variable identifier (1-indexed).
 ///
@@ -14,17 +15,31 @@ use std::fmt;
 ///
 /// - Variable IDs must be >= 1 (0 is reserved for terminals)
 /// - Variable IDs are independent of their position in the variable ordering
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+///
+/// # Note on Ordering
+///
+/// `Var` does not implement `Ord` or `PartialOrd` because variable IDs
+/// are not comparable in a meaningful way for BDD operations. To compare
+/// variables according to the current ordering, use [`Bdd::var_precedes`][crate::bdd::Bdd::var_precedes]
+/// or [`Bdd::top_variable`][crate::bdd::Bdd::top_variable].
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Var(u32);
 
 impl Var {
+    /// Special zero value representing terminal nodes.
+    ///
+    /// This is the only valid `Var` with ID 0. It should only be used
+    /// internally to mark terminal nodes in the BDD structure.
+    pub const ZERO: Var = Var(0);
+
     /// Creates a new variable with the given ID.
     ///
     /// # Panics
     ///
     /// Panics if `id == 0`. Variables must be 1-indexed.
+    /// Use `Var::ZERO` for terminal nodes.
     pub fn new(id: u32) -> Self {
-        assert_ne!(id, 0, "Variable IDs must be >= 1");
+        assert_ne!(id, 0, "Variable IDs must be >= 1 (use Var::ZERO for terminals)");
         Var(id)
     }
 
@@ -37,9 +52,25 @@ impl Var {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `id >= 1`.
-    pub unsafe fn from_raw_unchecked(id: u32) -> Self {
+    /// The caller must ensure that `id >= 1` or that they intend
+    /// to create `Var::ZERO` for terminal nodes.
+    pub const unsafe fn from_raw_unchecked(id: u32) -> Self {
         Var(id)
+    }
+
+    /// Returns true if this is the terminal marker (Var::ZERO).
+    pub fn is_terminal(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Creates a positive literal from this variable.
+    pub fn pos(self) -> Lit {
+        Lit::pos(self)
+    }
+
+    /// Creates a negative literal from this variable.
+    pub fn neg(self) -> Lit {
+        Lit::neg(self)
     }
 }
 
@@ -52,6 +83,138 @@ impl fmt::Display for Var {
 impl From<Var> for u32 {
     fn from(var: Var) -> Self {
         var.0
+    }
+}
+
+impl From<u32> for Var {
+    /// Converts a `u32` to a `Var`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `id == 0`. Variables must be 1-indexed.
+    fn from(id: u32) -> Self {
+        Var::new(id)
+    }
+}
+
+/// A literal (possibly negated variable).
+///
+/// Literals are represented efficiently using a single `u32` where:
+/// - The variable ID is stored in the upper 31 bits (shifted left by 1)
+/// - The sign bit is stored in the LSB (0 = positive, 1 = negative)
+///
+/// This encoding allows for efficient storage and manipulation while
+/// maintaining type safety.
+///
+/// # Examples
+///
+/// ```
+/// use bdd_rs::types::{Var, Lit};
+///
+/// let x1 = Var::new(1);
+///
+/// // Create literals from variables
+/// let pos_x1 = Lit::pos(x1);   // x₁
+/// let neg_x1 = Lit::neg(x1);   // ¬x₁
+///
+/// // Or use the convenience methods
+/// let pos_x1 = x1.pos();       // x₁
+/// let neg_x1 = x1.neg();       // ¬x₁
+///
+/// // Negate literals
+/// assert_eq!(-pos_x1, neg_x1);
+/// assert_eq!(-neg_x1, pos_x1);
+///
+/// // Check properties
+/// assert!(pos_x1.is_positive());
+/// assert!(neg_x1.is_negative());
+/// assert_eq!(pos_x1.var(), x1);
+/// assert_eq!(neg_x1.var(), x1);
+/// ```
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Lit(u32);
+
+impl Lit {
+    /// Creates a positive literal from a variable.
+    pub fn pos(var: Var) -> Self {
+        debug_assert!(!var.is_terminal(), "Cannot create literal from terminal variable");
+        Lit(var.0 << 1)
+    }
+
+    /// Creates a negative literal from a variable.
+    pub fn neg(var: Var) -> Self {
+        debug_assert!(!var.is_terminal(), "Cannot create literal from terminal variable");
+        Lit((var.0 << 1) | 1)
+    }
+
+    /// Creates a literal from a signed integer (DIMACS-style).
+    ///
+    /// Positive integers create positive literals, negative integers
+    /// create negative literals. Zero is not allowed.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `value == 0`.
+    pub fn from_dimacs(value: i32) -> Self {
+        assert_ne!(value, 0, "Literal value cannot be zero");
+        if value > 0 {
+            Lit::pos(Var::new(value as u32))
+        } else {
+            Lit::neg(Var::new((-value) as u32))
+        }
+    }
+
+    /// Returns the variable of this literal.
+    pub fn var(self) -> Var {
+        // Safety: We only create Lit from valid Var, so this is safe
+        unsafe { Var::from_raw_unchecked(self.0 >> 1) }
+    }
+
+    /// Returns true if this literal is positive (not negated).
+    pub fn is_positive(self) -> bool {
+        (self.0 & 1) == 0
+    }
+
+    /// Returns true if this literal is negative (negated).
+    pub fn is_negative(self) -> bool {
+        (self.0 & 1) == 1
+    }
+
+    /// Returns the DIMACS-style signed integer representation.
+    ///
+    /// Positive literals return positive integers, negative literals
+    /// return negative integers.
+    pub fn to_dimacs(self) -> i32 {
+        let var_id = (self.0 >> 1) as i32;
+        if self.is_positive() {
+            var_id
+        } else {
+            -var_id
+        }
+    }
+}
+
+impl Neg for Lit {
+    type Output = Lit;
+
+    fn neg(self) -> Self::Output {
+        Lit(self.0 ^ 1)
+    }
+}
+
+impl fmt::Display for Lit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_negative() {
+            write!(f, "¬x{}", self.var().id())
+        } else {
+            write!(f, "x{}", self.var().id())
+        }
+    }
+}
+
+impl From<i32> for Lit {
+    fn from(value: i32) -> Self {
+        Lit::from_dimacs(value)
     }
 }
 
@@ -127,13 +290,20 @@ mod tests {
         let v2 = Var::new(2);
         assert_eq!(v1.id(), 1);
         assert_eq!(v2.id(), 2);
-        assert!(v1 < v2);
+        // assert!(v1 < v2); // FORBIDDEN: Variables are incomparable!
     }
 
     #[test]
     #[should_panic(expected = "Variable IDs must be >= 1")]
     fn test_var_zero_panics() {
         Var::new(0);
+    }
+
+    #[test]
+    fn test_var_zero_constant() {
+        assert_eq!(Var::ZERO.id(), 0);
+        assert!(Var::ZERO.is_terminal());
+        assert!(!Var::new(1).is_terminal());
     }
 
     #[test]
@@ -149,11 +319,75 @@ mod tests {
     fn test_level_navigation() {
         let l0 = Level::new(0);
         let l1 = l0.next();
-        let _l2 = l1.next();
-
-        assert_eq!(l1.prev(), Some(l0));
+        let l2 = l1.next();
         assert_eq!(l0.prev(), None);
+        assert_eq!(l1.prev(), Some(l0));
+        assert_eq!(l2.prev(), Some(l1));
         assert!(l0.is_top());
         assert!(!l1.is_top());
+        assert!(!l2.is_top());
+    }
+
+    #[test]
+    fn test_lit_positive() {
+        let x1 = Var::new(1);
+        let lit = Lit::pos(x1);
+        assert!(lit.is_positive());
+        assert!(!lit.is_negative());
+        assert_eq!(lit.var(), x1);
+        assert_eq!(lit.to_dimacs(), 1);
+    }
+
+    #[test]
+    fn test_lit_negative() {
+        let x2 = Var::new(2);
+        let lit = Lit::neg(x2);
+        assert!(!lit.is_positive());
+        assert!(lit.is_negative());
+        assert_eq!(lit.var(), x2);
+        assert_eq!(lit.to_dimacs(), -2);
+    }
+
+    #[test]
+    fn test_lit_negation() {
+        let x1 = Var::new(1);
+        let pos = x1.pos();
+        let neg = x1.neg();
+        assert_eq!(-pos, neg);
+        assert_eq!(-neg, pos);
+        assert_eq!(-(-pos), pos);
+    }
+
+    #[test]
+    fn test_lit_from_dimacs() {
+        let pos = Lit::from_dimacs(3);
+        let neg = Lit::from_dimacs(-3);
+        assert_eq!(pos.var(), Var::new(3));
+        assert!(pos.is_positive());
+        assert_eq!(neg.var(), Var::new(3));
+        assert!(neg.is_negative());
+    }
+
+    #[test]
+    fn test_lit_from_i32() {
+        let pos: Lit = 5.into();
+        let neg: Lit = (-5).into();
+        assert_eq!(pos.var(), Var::new(5));
+        assert!(pos.is_positive());
+        assert_eq!(neg.var(), Var::new(5));
+        assert!(neg.is_negative());
+    }
+
+    #[test]
+    #[should_panic(expected = "Literal value cannot be zero")]
+    fn test_lit_zero_panics() {
+        Lit::from_dimacs(0);
+    }
+
+    #[test]
+    fn test_lit_display() {
+        let x1 = Var::new(1);
+        assert_eq!(format!("{}", x1.pos()), "x1");
+        assert_eq!(format!("{}", x1.neg()), "¬x1");
     }
 }

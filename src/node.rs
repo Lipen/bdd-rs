@@ -1,4 +1,5 @@
 use crate::reference::Ref;
+use crate::types::Var;
 use crate::utils::MyHash;
 
 /// A BDD node with CUDD-style forwarding pointer for efficient reordering.
@@ -18,18 +19,28 @@ use crate::utils::MyHash;
 /// follow forwarding chains to get the actual node.
 ///
 /// After garbage collection, forwarding chains are removed and nodes are compacted.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub struct Node {
-    pub variable: u32,
+    pub variable: Var,
     pub low: Ref,
     pub high: Ref,
     pub next: Ref,
 }
 
+// Custom PartialEq that ignores the `next` field (forwarding pointer)
+// This is critical for the unique table to find existing nodes correctly
+impl PartialEq for Node {
+    fn eq(&self, other: &Self) -> bool {
+        self.variable == other.variable && self.low == other.low && self.high == other.high
+    }
+}
+
+impl Eq for Node {}
+
 impl Default for Node {
     fn default() -> Self {
         Self {
-            variable: 0,
+            variable: Var::ZERO,
             low: Ref::ZERO,
             high: Ref::ZERO,
             next: Ref::ZERO,
@@ -39,7 +50,7 @@ impl Default for Node {
 
 impl MyHash for Node {
     fn hash(&self) -> u64 {
-        let x = self.variable as u64;
+        let x = self.variable.id() as u64;
         let y = MyHash::hash(&self.low);
         let z = MyHash::hash(&self.high);
         // Note: 'next' is NOT part of hash (forwarding is temporary)
@@ -49,7 +60,7 @@ impl MyHash for Node {
 
 impl Node {
     /// Creates a new node with the given variable and children.
-    pub fn new(variable: u32, low: Ref, high: Ref) -> Self {
+    pub fn new(variable: Var, low: Ref, high: Ref) -> Self {
         Self {
             variable,
             low,

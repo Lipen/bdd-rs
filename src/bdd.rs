@@ -64,7 +64,7 @@ use crate::cache::Cache;
 use crate::node::Node;
 use crate::reference::Ref;
 use crate::storage::Storage;
-use crate::types::{Level, Var};
+use crate::types::{Level, Lit, Var};
 use crate::utils::OpKey;
 
 /// A Binary Decision Diagram (BDD) manager with explicit variable ordering.
@@ -184,12 +184,19 @@ impl Debug for Bdd {
             .field("capacity", &storage.capacity())
             .field("size", &storage.size())
             .field("real_size", &storage.real_size())
+            .field(
+                "order",
+                &format_args!(
+                    "[{}]",
+                    self.var_order.borrow().iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", ")
+                ),
+            )
             .finish()
     }
 }
 
 impl Bdd {
-    pub fn storage(&self) -> cell::Ref<'_, Storage> {
+    pub fn storage(&self) -> std::cell::Ref<'_, Storage> {
         self.storage.borrow()
     }
     fn storage_mut(&self) -> cell::RefMut<'_, Storage> {
@@ -265,7 +272,7 @@ impl Bdd {
         let deref = self.deref_node(Ref::positive(index));
         *self.storage().node(deref.index() as usize)
     }
-    pub fn variable(&self, index: u32) -> u32 {
+    pub fn variable(&self, index: u32) -> Var {
         let deref = self.deref_node(Ref::positive(index));
         self.storage().variable(deref.index() as usize)
     }
@@ -297,23 +304,23 @@ impl Bdd {
     ///
     /// # Arguments
     ///
-    /// * `var1` - First variable ID (0 means terminal/no variable)
-    /// * `var2` - Second variable ID (0 means terminal/no variable)
+    /// * `var1` - First variable (Var::ZERO means terminal/no variable)
+    /// * `var2` - Second variable (Var::ZERO means terminal/no variable)
     ///
     /// # Returns
     ///
-    /// The variable ID that comes first in the ordering, or 0 if both are 0.
-    fn top_variable(&self, var1: u32, var2: u32) -> u32 {
-        if var1 == 0 {
+    /// The variable that comes first in the ordering, or Var::ZERO if both are terminals.
+    fn top_variable(&self, var1: Var, var2: Var) -> Var {
+        if var1.is_terminal() {
             return var2;
         }
-        if var2 == 0 {
+        if var2.is_terminal() {
             return var1;
         }
 
         // Compare by level in the explicit ordering
-        let level1 = self.get_level(Var::new(var1));
-        let level2 = self.get_level(Var::new(var2));
+        let level1 = self.get_level(var1);
+        let level2 = self.get_level(var2);
 
         match (level1, level2) {
             (Some(l1), Some(l2)) => {
@@ -327,7 +334,11 @@ impl Bdd {
             (None, Some(_)) => var2,
             (None, None) => {
                 // Neither variable is in the ordering, fall back to ID comparison
-                var1.min(var2)
+                if var1.id() <= var2.id() {
+                    var1
+                } else {
+                    var2
+                }
             }
         }
     }
@@ -335,19 +346,19 @@ impl Bdd {
     /// Returns true if var1 comes before var2 in the variable ordering.
     ///
     /// Uses the explicit variable ordering to compare levels.
-    fn var_precedes(&self, var1: u32, var2: u32) -> bool {
-        if var1 == 0 || var2 == 0 {
+    fn var_precedes(&self, var1: Var, var2: Var) -> bool {
+        if var1.is_terminal() || var2.is_terminal() {
             return false;
         }
 
-        let level1 = self.get_level(Var::new(var1));
-        let level2 = self.get_level(Var::new(var2));
+        let level1 = self.get_level(var1);
+        let level2 = self.get_level(var2);
 
         match (level1, level2) {
             (Some(l1), Some(l2)) => l1.index() < l2.index(),
             (Some(_), None) => true,
             (None, Some(_)) => false,
-            (None, None) => var1 < var2, // fallback to ID comparison
+            (None, None) => var1.id() < var2.id(), // fallback to ID comparison
         }
     }
 
@@ -375,7 +386,7 @@ impl Bdd {
     ///
     /// let bdd = Bdd::default();
     /// let var = bdd.allocate_variable();
-    /// let x = bdd.mk_var(var.id());
+    /// let x = bdd.mk_var(var);  // Can pass Var directly
     /// ```
     pub fn allocate_variable(&self) -> Var {
         let var_id = *self.next_var_id.borrow();
@@ -504,6 +515,9 @@ impl Bdd {
             ));
         }
 
+        // Rebuild level_nodes index before swap (needed if not maintained incrementally)
+        self.clear_forwarding_and_rebuild_level_nodes();
+
         let var_x = self
             .get_variable_at_level(level)
             .ok_or_else(|| format!("No variable at level {}", level.index()))?;
@@ -529,13 +543,8 @@ impl Bdd {
             let node = self.node(node_idx);
 
             // Verify variable
-            if node.variable != var_x.id() {
-                debug!(
-                    "Warning: node {} has variable {} but expected {}",
-                    node_idx,
-                    node.variable,
-                    var_x.id()
-                );
+            if node.variable != var_x {
+                debug!("Warning: node {} has variable {} but expected {}", node_idx, node.variable, var_x);
                 continue;
             }
 
@@ -546,9 +555,9 @@ impl Bdd {
             // Rebuild: y on top, x below
             // When y=0: mk_node(x, f_x0_y0, f_x1_y0)
             // When y=1: mk_node(x, f_x0_y1, f_x1_y1)
-            let new_y0 = self.mk_node(var_x.id(), f_x0_y0, f_x1_y0);
-            let new_y1 = self.mk_node(var_x.id(), f_x0_y1, f_x1_y1);
-            let new_node = self.mk_node(var_y.id(), new_y0, new_y1);
+            let new_y0 = self.mk_node(var_x, f_x0_y0, f_x1_y0);
+            let new_y1 = self.mk_node(var_x, f_x0_y1, f_x1_y1);
+            let new_node = self.mk_node(var_y, new_y0, new_y1);
 
             // Set forwarding pointer
             let mut storage = self.storage_mut();
@@ -584,7 +593,7 @@ impl Bdd {
 
         let node = self.node(f.index());
 
-        if node.variable == var_y.id() {
+        if node.variable == var_y {
             // This node has var_y, extract its children
             let low = self.low_node(f);
             let high = self.high_node(f);
@@ -689,10 +698,10 @@ impl Bdd {
         self.one
     }
 
-    pub fn mk_node(&self, v: u32, low: Ref, high: Ref) -> Ref {
+    pub fn mk_node(&self, v: Var, low: Ref, high: Ref) -> Ref {
         // debug!("mk(v = {}, low = {}, high = {})", v, low, high);
 
-        assert_ne!(v, 0, "Variable index should not be zero");
+        assert!(!v.is_terminal(), "Variable must not be Var::ZERO");
 
         // Handle canonicity
         if high.is_negated() {
@@ -717,20 +726,30 @@ impl Bdd {
     ///
     /// # Arguments
     ///
-    /// * `v` - Variable index (must be non-zero)
+    /// * `v` - Variable (must not be terminal). Can be a `Var` or `u32`.
     ///
     /// # Panics
     ///
-    /// Panics if `v == 0`. Variable indices must start from 1.
+    /// Panics if `v` is the terminal variable (`Var::ZERO`) or if passing `0u32`.
     ///
     /// # Examples
     ///
     /// ```
     /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::Var;
     ///
     /// let bdd = Bdd::default();
+    ///
+    /// // Using raw integers (backward compatible)
     /// let x1 = bdd.mk_var(1);
     /// let x2 = bdd.mk_var(2);
+    ///
+    /// // Using Var type
+    /// let x3 = bdd.mk_var(Var::new(3));
+    ///
+    /// // Using allocate_variable
+    /// let x4 = bdd.allocate_variable();
+    /// let bdd_x4 = bdd.mk_var(x4);
     ///
     /// // Variables can be negated
     /// let not_x1 = -x1;
@@ -738,11 +757,12 @@ impl Bdd {
     /// // And combined with operations
     /// let f = bdd.apply_and(x1, x2);
     /// ```
-    pub fn mk_var(&self, v: u32) -> Ref {
-        assert_ne!(v, 0, "Variable index should not be zero");
+    pub fn mk_var(&self, v: impl Into<Var>) -> Ref {
+        let v = v.into();
+        assert!(!v.is_terminal(), "Variable must not be terminal");
 
         // Register variable in ordering
-        self.register_variable(v);
+        self.register_variable(v.id());
 
         self.mk_node(v, self.zero, self.one)
     }
@@ -754,10 +774,9 @@ impl Bdd {
     ///
     /// # Arguments
     ///
-    /// * `literals` - Iterator of signed integers where:
-    ///   - Positive values represent positive literals (e.g., `1` = x₁)
-    ///   - Negative values represent negative literals (e.g., `-2` = ¬x₂)
-    ///   - Zero is not allowed
+    /// * `literals` - Iterator of literals. Each literal can be:
+    ///   - A `Lit` (type-safe literal)
+    ///   - An `i32` (DIMACS-style: positive = positive literal, negative = negated)
     ///
     /// # Returns
     ///
@@ -767,31 +786,42 @@ impl Bdd {
     ///
     /// ```
     /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::{Var, Lit};
     ///
     /// let bdd = Bdd::default();
     ///
-    /// // Create x₁ ∧ ¬x₂ ∧ x₃
-    /// let cube = bdd.mk_cube([1, -2, 3]);
+    /// // Using i32 (DIMACS-style, backward compatible)
+    /// let cube1 = bdd.mk_cube([1, -2, 3]);
     ///
-    /// // Equivalent to:
-    /// let x1 = bdd.mk_var(1);
-    /// let x2 = bdd.mk_var(2);
-    /// let x3 = bdd.mk_var(3);
-    /// let manual = bdd.apply_and(bdd.apply_and(x1, -x2), x3);
-    /// assert_eq!(cube, manual);
+    /// // Using Lit (type-safe) - produces identical result
+    /// let x1 = Var::new(1);
+    /// let x2 = Var::new(2);
+    /// let x3 = Var::new(3);
+    /// let cube2 = bdd.mk_cube([x1.pos(), x2.neg(), x3.pos()]);
+    ///
+    /// assert_eq!(cube1, cube2);
     /// ```
-    pub fn mk_cube(&self, literals: impl IntoIterator<Item = i32>) -> Ref {
-        let mut literals = literals.into_iter().collect::<Vec<_>>();
-        literals.sort_by_key(|&v| v.abs());
+    pub fn mk_cube(&self, literals: impl IntoIterator<Item = impl Into<Lit>>) -> Ref {
+        let mut literals: Vec<Lit> = literals.into_iter().map(|l| l.into()).collect();
+        // Sort by variable ID to ensure consistent ordering
+        literals.sort_by_key(|lit| lit.var().id());
         debug!("cube(literals = {:?})", literals);
+
+        // Register all variables in sorted order BEFORE reversing
+        // This ensures variables get the correct levels (lower ID = lower level = closer to root)
+        for lit in &literals {
+            self.register_variable(lit.var().id());
+        }
+
+        // Now reverse and build bottom-up
         literals.reverse();
         let mut current = self.one;
         for lit in literals {
-            assert_ne!(lit, 0, "Variable index should not be zero");
-            current = if lit < 0 {
-                self.mk_node(-lit as u32, current, self.zero)
+            let var = lit.var();
+            current = if lit.is_negative() {
+                self.mk_node(var, current, self.zero)
             } else {
-                self.mk_node(lit as u32, self.zero, current)
+                self.mk_node(var, self.zero, current)
             };
         }
         current
@@ -804,10 +834,9 @@ impl Bdd {
     ///
     /// # Arguments
     ///
-    /// * `literals` - Iterator of signed integers where:
-    ///   - Positive values represent positive literals (e.g., `1` = x₁)
-    ///   - Negative values represent negative literals (e.g., `-2` = ¬x₂)
-    ///   - Zero is not allowed
+    /// * `literals` - Iterator of literals. Each literal can be:
+    ///   - A `Lit` (type-safe literal)
+    ///   - An `i32` (DIMACS-style: positive = positive literal, negative = negated)
     ///
     /// # Returns
     ///
@@ -817,31 +846,42 @@ impl Bdd {
     ///
     /// ```
     /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::{Var, Lit};
     ///
     /// let bdd = Bdd::default();
     ///
-    /// // Create x₁ ∨ ¬x₂ ∨ x₃
-    /// let clause = bdd.mk_clause([1, -2, 3]);
+    /// // Using i32 (DIMACS-style, backward compatible)
+    /// let clause1 = bdd.mk_clause([1, -2, 3]);
     ///
-    /// // Equivalent to:
-    /// let x1 = bdd.mk_var(1);
-    /// let x2 = bdd.mk_var(2);
-    /// let x3 = bdd.mk_var(3);
-    /// let manual = bdd.apply_or(bdd.apply_or(x1, -x2), x3);
-    /// assert_eq!(clause, manual);
+    /// // Using Lit (type-safe)
+    /// let x1 = Var::new(1);
+    /// let x2 = Var::new(2);
+    /// let x3 = Var::new(3);
+    /// let clause2 = bdd.mk_clause([x1.pos(), x2.neg(), x3.pos()]);
+    ///
+    /// assert_eq!(clause1, clause2);
     /// ```
-    pub fn mk_clause(&self, literals: impl IntoIterator<Item = i32>) -> Ref {
-        let mut literals = literals.into_iter().collect::<Vec<_>>();
-        literals.sort_by_key(|&v| v.abs());
+    pub fn mk_clause(&self, literals: impl IntoIterator<Item = impl Into<Lit>>) -> Ref {
+        let mut literals: Vec<Lit> = literals.into_iter().map(|l| l.into()).collect();
+        // Sort by variable ID to ensure consistent ordering
+        literals.sort_by_key(|lit| lit.var().id());
         debug!("clause(literals = {:?})", literals);
+
+        // Register all variables in sorted order BEFORE reversing
+        // This ensures variables get the correct levels (lower ID = lower level = closer to root)
+        for lit in &literals {
+            self.register_variable(lit.var().id());
+        }
+
+        // Now reverse and build bottom-up
         literals.reverse();
         let mut current = self.zero;
         for lit in literals {
-            assert_ne!(lit, 0, "Variable index should not be zero");
-            current = if lit < 0 {
-                self.mk_node(-lit as u32, self.one, current)
+            let var = lit.var();
+            current = if lit.is_negative() {
+                self.mk_node(var, self.one, current)
             } else {
-                self.mk_node(lit as u32, current, self.one)
+                self.mk_node(var, current, self.one)
             };
         }
         current
@@ -868,6 +908,7 @@ impl Bdd {
     ///
     /// ```
     /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::Var;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -877,12 +918,12 @@ impl Bdd {
     /// let f = bdd.apply_and(x, y);
     ///
     /// // Cofactors with respect to x
-    /// let (f0, f1) = bdd.top_cofactors(f, 1);
+    /// let (f0, f1) = bdd.top_cofactors(f, Var::new(1));
     /// assert_eq!(f0, bdd.zero);  // x=false: false AND y = false
     /// assert_eq!(f1, y);         // x=true: true AND y = y
     /// ```
-    pub fn top_cofactors(&self, node_ref: Ref, v: u32) -> (Ref, Ref) {
-        assert_ne!(v, 0, "Variable index should not be zero");
+    pub fn top_cofactors(&self, node_ref: Ref, v: Var) -> (Ref, Ref) {
+        assert!(!v.is_terminal(), "Variable must not be Var::ZERO");
 
         if self.is_terminal(node_ref) {
             return (node_ref, node_ref);
@@ -1005,7 +1046,7 @@ impl Bdd {
         let i = self.variable(f.index());
         let j = self.variable(g.index());
         let k = self.variable(h.index());
-        assert_ne!(i, 0);
+        assert!(!i.is_terminal());
 
         // Equivalent pairs:
         //   ite(F,1,H) == ite(H,1,F) == F ∨ H
@@ -1015,27 +1056,27 @@ impl Bdd {
         //   ite(F,G,~G) == ite(G,F,~F)
         // (choose the one with the lowest variable)
         if self.is_one(g) && self.var_precedes(k, i) {
-            assert_ne!(k, 0);
+            assert!(!k.is_terminal());
             debug!("ite(F,1,H) => ite(H,1,F)");
             return self.apply_ite(h, self.one, f);
         }
         if self.is_zero(h) && self.var_precedes(j, i) {
-            assert_ne!(j, 0);
+            assert!(!j.is_terminal());
             debug!("ite(F,G,0) => ite(G,F,0)");
             return self.apply_ite(g, f, self.zero);
         }
         if self.is_one(h) && self.var_precedes(j, i) {
-            assert_ne!(j, 0);
+            assert!(!j.is_terminal());
             debug!("ite(F,G,1) => ite(~G,~F,1)");
             return self.apply_ite(-g, -f, self.one);
         }
         if self.is_zero(g) && self.var_precedes(k, i) {
-            assert_ne!(k, 0);
+            assert!(!k.is_terminal());
             debug!("ite(F,0,H) => ite(~H,0,~F)");
             return self.apply_ite(-h, self.zero, -f);
         }
         if g == -h && self.var_precedes(j, i) {
-            assert_ne!(j, 0);
+            assert!(!j.is_terminal());
             debug!("ite(F,G,~G) => ite(G,F,~F)");
             return self.apply_ite(g, f, -f);
         }
@@ -1071,14 +1112,14 @@ impl Bdd {
 
         // Determine the top variable:
         let mut m = i;
-        if j != 0 {
+        if !j.is_terminal() {
             m = self.top_variable(m, j);
         }
-        if k != 0 {
+        if !k.is_terminal() {
             m = self.top_variable(m, k);
         }
         debug!("top variable = {}", m);
-        assert_ne!(m, 0);
+        assert!(!m.is_terminal());
 
         let (f0, f1) = self.top_cofactors(f, m);
         debug!("cofactors of f = {} are: f0 = {}, f1 = {}", f, f0, f1);
@@ -1189,18 +1230,18 @@ impl Bdd {
         let i = self.variable(f.index());
         let j = self.variable(g.index());
         let k = self.variable(h.index());
-        assert_ne!(i, 0);
+        assert!(!i.is_terminal());
 
         // Determine the top variable:
         let mut m = i;
-        if j != 0 {
+        if !j.is_terminal() {
             m = self.top_variable(m, j);
         }
-        if k != 0 {
+        if !k.is_terminal() {
             m = self.top_variable(m, k);
         }
         debug!("top variable = {}", m);
-        assert_ne!(m, 0);
+        assert!(!m.is_terminal());
 
         let (f0, f1) = self.top_cofactors(f, m);
         debug!("cofactors of f = {} are: f0 = {}, f1 = {}", f, f0, f1);
@@ -1473,28 +1514,30 @@ impl Bdd {
     ///
     /// ```
     /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::Var;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
     /// let y = bdd.mk_var(2);
     /// let f = bdd.apply_or(bdd.apply_eq(x, y), x); // (x = y) ∨ x
     ///
-    /// // Substitute x with true
+    /// // Substitute x with true (using raw integer)
     /// let f_x_true = bdd.substitute(f, 1, true);
     /// assert!(bdd.is_one(f_x_true)); // Result is always true
     ///
-    /// // Substitute y with false
-    /// let f_y_false = bdd.substitute(f, 2, false);
+    /// // Substitute y with false (using Var)
+    /// let f_y_false = bdd.substitute(f, Var::new(2), false);
     /// // Result depends only on x now
     /// ```
     // f|v<-b
-    pub fn substitute(&self, f: Ref, v: u32, b: bool) -> Ref {
+    pub fn substitute(&self, f: Ref, v: impl Into<Var>, b: bool) -> Ref {
+        let v = v.into();
         let mut cache = HashMap::new();
         self.substitute_(f, v, b, &mut cache)
     }
 
-    fn substitute_(&self, f: Ref, v: u32, b: bool, cache: &mut HashMap<Ref, Ref>) -> Ref {
-        assert_ne!(v, 0, "Variable index should not be zero");
+    fn substitute_(&self, f: Ref, v: Var, b: bool, cache: &mut HashMap<Ref, Ref>) -> Ref {
+        assert!(!v.is_terminal(), "Variable must not be terminal");
 
         if self.is_terminal(f) {
             return f;
@@ -1502,8 +1545,8 @@ impl Bdd {
 
         let i = self.variable(f.index());
 
-        if v < i {
-            // 'f' does not depend on 'v'
+        if self.var_precedes(v, i) {
+            // 'v' comes before 'i' in ordering, so 'f' does not depend on 'v'
             return f;
         }
 
@@ -1516,7 +1559,7 @@ impl Bdd {
             return res;
         }
 
-        assert!(v > i);
+        assert!(self.var_precedes(i, v));
         let low = self.substitute_(self.low_node(f), v, b, cache);
         let high = self.substitute_(self.high_node(f), v, b, cache);
         let res = self.mk_node(i, low, high);
@@ -1538,6 +1581,7 @@ impl Bdd {
     ///
     /// ```
     /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::Var;
     /// use std::collections::HashMap;
     ///
     /// let bdd = Bdd::default();
@@ -1546,18 +1590,18 @@ impl Bdd {
     /// let f = bdd.apply_and(x, y);
     ///
     /// let mut values = HashMap::new();
-    /// values.insert(1, true);  // x = true
-    /// values.insert(2, false); // y = false
+    /// values.insert(Var::new(1), true);  // x = true
+    /// values.insert(Var::new(2), false); // y = false
     ///
     /// let result = bdd.substitute_multi(f, &values);
     /// assert_eq!(result, bdd.zero); // true AND false = false
     /// ```
-    pub fn substitute_multi(&self, f: Ref, values: &HashMap<u32, bool>) -> Ref {
+    pub fn substitute_multi(&self, f: Ref, values: &HashMap<Var, bool>) -> Ref {
         let mut cache = HashMap::new();
         self.substitute_multi_(f, values, &mut cache)
     }
 
-    fn substitute_multi_(&self, f: Ref, values: &HashMap<u32, bool>, cache: &mut HashMap<Ref, Ref>) -> Ref {
+    fn substitute_multi_(&self, f: Ref, values: &HashMap<Var, bool>, cache: &mut HashMap<Ref, Ref>) -> Ref {
         debug!("restrict_multi(f = {}, values = {:?})", f, values);
 
         if self.is_terminal(f) {
@@ -1599,37 +1643,41 @@ impl Bdd {
     /// # Parameters
     ///
     /// * `f` - The BDD to cofactor
-    /// * `cube` - Array of signed variable indices (positive for true, negative for false)
+    /// * `cube` - Literals representing the cube (positive for true, negative for false)
     ///
     /// # Examples
     ///
     /// ```
     /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::{Var, Lit};
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
     /// let y = bdd.mk_var(2);
     /// let f = bdd.apply_or(x, y);
     ///
-    /// // Cofactor with respect to x=true, y=false
-    /// let result = bdd.cofactor_cube(f, &[1, -2]);
+    /// // Cofactor with respect to x=true, y=false (using DIMACS-style integers)
+    /// let result = bdd.cofactor_cube(f, [1, -2]);
     /// assert_eq!(result, bdd.one); // true OR false = true
+    ///
+    /// // Or using Lit type directly
+    /// let result = bdd.cofactor_cube(f, [Var::new(1).pos(), Var::new(2).neg()]);
+    /// assert_eq!(result, bdd.one);
     /// ```
-    pub fn cofactor_cube(&self, f: Ref, cube: &[i32]) -> Ref {
+    pub fn cofactor_cube(&self, f: Ref, cube: impl IntoIterator<Item = impl Into<Lit>>) -> Ref {
+        // Convert to Vec<Lit> and sort by level
+        let mut lits: Vec<Lit> = cube.into_iter().map(|l| l.into()).collect();
+        lits.sort_by_key(|lit| self.get_level(lit.var()).map(|l| l.index()).unwrap_or(usize::MAX));
         let mut cache = HashMap::new();
-        self.cofactor_cube_(f, cube, &mut cache)
+        self.cofactor_cube_(f, &lits, &mut cache)
     }
 
-    fn cofactor_cube_(&self, f: Ref, cube: &[i32], cache: &mut HashMap<(usize, Ref), Ref>) -> Ref {
-        // debug!("cofactor_cube(f = {}, cube = {:?})", f, cube);
-
+    fn cofactor_cube_(&self, f: Ref, cube: &[Lit], cache: &mut HashMap<(usize, Ref), Ref>) -> Ref {
         if cube.is_empty() {
-            // debug!("cube is empty");
             return f;
         }
 
         if self.is_terminal(f) {
-            // debug!("f is terminal");
             return f;
         }
 
@@ -1639,33 +1687,38 @@ impl Bdd {
         }
 
         let t = self.variable(f.index()); // top variable of `f`
-        let xu = cube[0];
-        let u = xu.unsigned_abs();
+        let lit = cube[0];
+        let u = lit.var();
 
-        let res = match t.cmp(&u) {
-            Ordering::Greater => {
-                // `t > u`: `f` does not depend on `u`
+        // Compare by level (cube is already sorted by level)
+        let t_level = self.get_level(t);
+        let u_level = self.get_level(u);
+
+        let res = match (t_level, u_level) {
+            (Some(tl), Some(ul)) => {
+                match tl.cmp(&ul) {
+                    Ordering::Greater => {
+                        // `t` is at a greater (lower) level than `u`, so `f` doesn't depend on `u`
+                        self.cofactor_cube_(f, &cube[1..], cache)
+                    }
+                    Ordering::Equal => {
+                        // `t == u`: `u` is the top variable of `f`
+                        let res = if lit.is_positive() { self.high_node(f) } else { self.low_node(f) };
+                        self.cofactor_cube_(res, &cube[1..], cache)
+                    }
+                    Ordering::Less => {
+                        // `t` is at a smaller (higher) level than `u`
+                        let f0 = self.low_node(f);
+                        let f1 = self.high_node(f);
+                        let low = self.cofactor_cube_(f0, cube, cache);
+                        let high = self.cofactor_cube_(f1, cube, cache);
+                        self.mk_node(t, low, high)
+                    }
+                }
+            }
+            _ => {
+                // Variable not in ordering - skip it
                 self.cofactor_cube_(f, &cube[1..], cache)
-            }
-            Ordering::Equal => {
-                // `t == u`: `u` is the top variable of `f`
-                // let (f0, f1) = self.top_cofactors(f, u);
-                // if xu > 0 {
-                //     self.cofactor_cube_(f1, &cube[1..], cache)
-                // } else {
-                //     self.cofactor_cube_(f0, &cube[1..], cache)
-                // }
-                let res = if xu > 0 { self.high_node(f) } else { self.low_node(f) };
-                self.cofactor_cube_(res, &cube[1..], cache)
-            }
-            Ordering::Less => {
-                // `t < u`: `u` is not the top variable of 'f'
-                // let (f0, f1) = self.top_cofactors(f, t);
-                let f0 = self.low_node(f);
-                let f1 = self.high_node(f);
-                let low = self.cofactor_cube_(f0, cube, cache);
-                let high = self.cofactor_cube_(f1, cube, cache);
-                self.mk_node(t, low, high)
             }
         };
         cache.insert(key, res);
@@ -1680,13 +1733,14 @@ impl Bdd {
     /// # Arguments
     ///
     /// * `f` - The BDD to compose
-    /// * `v` - Variable index to substitute (must be non-zero)
+    /// * `v` - Variable to substitute (must not be terminal)
     /// * `g` - BDD to substitute for the variable
     ///
     /// # Examples
     ///
     /// ```
     /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::Var;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -1696,18 +1750,22 @@ impl Bdd {
     /// // f = x AND z
     /// let f = bdd.apply_and(x, z);
     ///
-    /// // Replace x with (y XOR z)
+    /// // Replace x with (y XOR z) - using raw integer
     /// let g = bdd.apply_xor(y, z);
     /// let result = bdd.compose(f, 1, g);
     ///
-    /// // Result is (y XOR z) AND z, which simplifies to (y AND NOT z)
+    /// // Or using Var type
+    /// let result = bdd.compose(f, Var::new(1), g);
+    ///
+    /// // Result is (y XOR z) AND z, which simplifies to (NOT y AND z)
     /// ```
-    pub fn compose(&self, f: Ref, v: u32, g: Ref) -> Ref {
+    pub fn compose(&self, f: Ref, v: impl Into<Var>, g: Ref) -> Ref {
+        let v = v.into();
         let mut cache = Cache::new(16);
         self.compose_(f, v, g, &mut cache)
     }
 
-    fn compose_(&self, f: Ref, v: u32, g: Ref, cache: &mut Cache<(Ref, Ref), Ref>) -> Ref {
+    fn compose_(&self, f: Ref, v: Var, g: Ref, cache: &mut Cache<(Ref, Ref), Ref>) -> Ref {
         // TODO: compose(f, v, g) = ITE(g, restrict(f, v, true), restrict(f, v, false))
 
         debug!("compose(f = {}, v = {}, g = {})", f, v, g);
@@ -1717,9 +1775,9 @@ impl Bdd {
         }
 
         let i = self.variable(f.index());
-        assert_ne!(i, 0);
-        if v < i {
-            // 'f' does not depend on 'v'
+        assert!(!i.is_terminal());
+        if self.var_precedes(v, i) {
+            // 'v' comes before 'i' in ordering, so 'f' does not depend on 'v'
             return f;
         }
 
@@ -1737,10 +1795,14 @@ impl Bdd {
                 res
             }
         } else {
-            assert!(v > i);
+            assert!(self.var_precedes(i, v));
 
-            let m = if self.is_terminal(g) { i } else { min(i, self.variable(g.index())) };
-            assert_ne!(m, 0);
+            let m = if self.is_terminal(g) {
+                i
+            } else {
+                self.top_variable(i, self.variable(g.index()))
+            };
+            assert!(!m.is_terminal());
 
             let (f0, f1) = self.top_cofactors(f, m);
             let (g0, g1) = self.top_cofactors(g, m);
@@ -1860,8 +1922,8 @@ impl Bdd {
         // TODO: is it necessary to compute min var, or we can just use var(g)?
         let i = self.variable(f.index());
         let j = self.variable(g.index());
-        let v = min(i, j);
-        debug!("min variable = {}", v);
+        let v = self.top_variable(i, j);
+        debug!("top variable = {}", v);
 
         let (f0, f1) = self.top_cofactors(f, v);
         let (g0, g1) = self.top_cofactors(g, v);
@@ -1955,7 +2017,7 @@ impl Bdd {
 
         let i = self.variable(f.index());
         let j = self.variable(g.index());
-        let v = min(i, j);
+        let v = self.top_variable(i, j);
 
         let (f0, f1) = self.top_cofactors(f, v);
         let (g0, g1) = self.top_cofactors(g, v);
@@ -2116,7 +2178,7 @@ impl Bdd {
     /// # Parameters
     ///
     /// * `f` - The BDD to quantify
-    /// * `vars` - A slice of variable indices to existentially quantify out
+    /// * `vars` - Variables to existentially quantify out
     ///
     /// # Returns
     ///
@@ -2126,6 +2188,7 @@ impl Bdd {
     ///
     /// ```
     /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::Var;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -2134,12 +2197,12 @@ impl Bdd {
     /// // f = x AND y
     /// let f = bdd.apply_and(x, y);
     ///
-    /// // Quantify out x: ∃x.(x ∧ y) = y
-    /// let result = bdd.exists(f, &[1]);
+    /// // Quantify out x: ∃x.(x ∧ y) = y (using raw integer)
+    /// let result = bdd.exists(f, [1]);
     /// assert_eq!(result, y);
     ///
-    /// // Quantify out both: ∃x,y.(x ∧ y) = true
-    /// let result = bdd.exists(f, &[1, 2]);
+    /// // Quantify out both: ∃x,y.(x ∧ y) = true (using Var)
+    /// let result = bdd.exists(f, [Var::new(1), Var::new(2)]);
     /// assert_eq!(result, bdd.one);
     /// ```
     ///
@@ -2147,17 +2210,18 @@ impl Bdd {
     ///
     /// The method uses internal caching to avoid recomputation. For best performance,
     /// the variable list should be sorted, though this is not required for correctness.
-    pub fn exists(&self, f: Ref, vars: &[u32]) -> Ref {
-        if vars.is_empty() {
+    pub fn exists(&self, f: Ref, vars: impl IntoIterator<Item = impl Into<Var>>) -> Ref {
+        // Sort variables by their level in the BDD ordering
+        let mut vars_sorted: Vec<Var> = vars.into_iter().map(|v| v.into()).collect();
+        if vars_sorted.is_empty() {
             return f;
         }
-        let mut vars_sorted = vars.to_vec();
-        vars_sorted.sort_unstable();
+        vars_sorted.sort_by_key(|&v| self.get_level(v).map(|l| l.index()).unwrap_or(usize::MAX));
         let mut cache = Cache::new(16);
         self.exists_(f, &vars_sorted, 0, &mut cache)
     }
 
-    fn exists_(&self, node: Ref, vars: &[u32], var_idx: usize, cache: &mut Cache<(Ref, usize), Ref>) -> Ref {
+    fn exists_(&self, node: Ref, vars: &[Var], var_idx: usize, cache: &mut Cache<(Ref, usize), Ref>) -> Ref {
         debug!("exists(node = {}, vars = {:?}, var_idx = {})", node, vars, var_idx);
 
         if self.is_terminal(node) {
@@ -2178,8 +2242,8 @@ impl Bdd {
         let v = self.variable(node.index());
         let current_var = vars[var_idx];
 
-        let res = if v < current_var {
-            // Node's variable is less than the current quantification variable
+        let res = if self.var_precedes(v, current_var) {
+            // Node's variable precedes the current quantification variable in the ordering
             // Recurse on both children
             let low = self.low_node(node);
             let high = self.high_node(node);
@@ -2195,7 +2259,7 @@ impl Bdd {
             let r1 = self.exists_(high, vars, var_idx + 1, cache);
             self.apply_or(r0, r1)
         } else {
-            // v > current_var: the quantification variable doesn't appear in this subtree
+            // current_var precedes v: the quantification variable doesn't appear in this subtree
             // Skip to the next quantification variable
             self.exists_(node, vars, var_idx + 1, cache)
         };
@@ -2222,7 +2286,7 @@ impl Bdd {
     /// # Parameters
     ///
     /// * `f` - The BDD to quantify
-    /// * `vars` - A slice of variable indices to universally quantify out
+    /// * `vars` - Variables to universally quantify out
     ///
     /// # Returns
     ///
@@ -2241,14 +2305,15 @@ impl Bdd {
     /// let f = bdd.apply_or(x, y);
     ///
     /// // Quantify out x: ∀x.(x ∨ y) = y
-    /// let result = bdd.forall(f, &[1]);
+    /// let result = bdd.forall(f, [1]);
     /// assert_eq!(result, y);
     ///
     /// // Quantify out both: ∀x,y.(x ∨ y) = false
-    /// let result = bdd.forall(f, &[1, 2]);
+    /// let result = bdd.forall(f, [1, 2]);
     /// assert_eq!(result, bdd.zero);
     /// ```
-    pub fn forall(&self, f: Ref, vars: &[u32]) -> Ref {
+    pub fn forall(&self, f: Ref, vars: impl IntoIterator<Item = impl Into<Var>>) -> Ref {
+        let vars: Vec<Var> = vars.into_iter().map(|v| v.into()).collect();
         // ∀x.f = ¬∃x.¬f
         -self.exists(-f, vars)
     }
@@ -2298,7 +2363,7 @@ impl Bdd {
     ///
     /// // Compose relations by eliminating the intermediate variable y
     /// // Result: x implies z
-    /// let composed = bdd.rel_product(r1, r2, &[2]);
+    /// let composed = bdd.rel_product(r1, r2, [2]);
     /// let expected = bdd.apply_imply(x, z);
     /// assert_eq!(composed, expected);
     /// ```
@@ -2307,17 +2372,19 @@ impl Bdd {
     ///
     /// This operation is significantly more efficient than computing the AND first and
     /// then quantifying, especially when the intermediate result would be large.
-    pub fn rel_product(&self, u: Ref, v: Ref, vars: &[u32]) -> Ref {
+    pub fn rel_product(&self, u: Ref, v: Ref, vars: impl IntoIterator<Item = impl Into<Var>>) -> Ref {
+        let vars: Vec<Var> = vars.into_iter().map(|x| x.into()).collect();
         if vars.is_empty() {
             return self.apply_and(u, v);
         }
-        let mut vars_sorted = vars.to_vec();
-        vars_sorted.sort_unstable();
+        // Sort variables by their level in the BDD ordering
+        let mut vars_sorted: Vec<Var> = vars;
+        vars_sorted.sort_by_key(|&v| self.get_level(v).map(|l| l.index()).unwrap_or(usize::MAX));
         let mut cache = Cache::new(16);
         self.rel_product_(u, v, &vars_sorted, 0, &mut cache)
     }
 
-    fn rel_product_(&self, u: Ref, v: Ref, vars: &[u32], var_idx: usize, cache: &mut Cache<(Ref, Ref, usize), Ref>) -> Ref {
+    fn rel_product_(&self, u: Ref, v: Ref, vars: &[Var], var_idx: usize, cache: &mut Cache<(Ref, Ref, usize), Ref>) -> Ref {
         debug!("rel_product(u = {}, v = {}, vars = {:?}, var_idx = {})", u, v, vars, var_idx);
 
         // Terminal cases
@@ -2342,7 +2409,7 @@ impl Bdd {
 
         let i = self.variable(u.index());
         let j = self.variable(v.index());
-        let m = min(i, j);
+        let m = self.top_variable(i, j);
 
         let (u0, u1) = self.top_cofactors(u, m);
         let (v0, v1) = self.top_cofactors(v, m);
@@ -2487,11 +2554,10 @@ impl Bdd {
             // Rebuild level_nodes
             let var = self.variable(node_idx);
             // Skip terminal nodes (variable 0)
-            if var == 0 {
+            if var.is_terminal() {
                 continue;
             }
-            let var_obj = Var::new(var);
-            if let Some(level) = self.level_map.borrow().get(&var_obj) {
+            if let Some(level) = self.level_map.borrow().get(&var) {
                 new_level_nodes[level.index()].insert(node_idx);
             }
         }
@@ -2527,7 +2593,7 @@ impl Bdd {
         } = self.node(index);
 
         format!(
-            "{}:(x{}, {}, {})",
+            "{}:({}, {}, {})",
             node_ref,
             variable,
             self.node_to_str(high, visited),
@@ -2544,7 +2610,7 @@ impl Bdd {
     /// # Arguments
     ///
     /// * `f` - The BDD to rename variables in
-    /// * `permutation` - HashMap mapping old variable indices to new ones.
+    /// * `permutation` - HashMap mapping old variables to new ones.
     ///   Variables not in the map remain unchanged.
     ///
     /// # Panics
@@ -2559,6 +2625,7 @@ impl Bdd {
     ///
     /// ```
     /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::Var;
     /// use std::collections::HashMap;
     ///
     /// let bdd = Bdd::default();
@@ -2570,8 +2637,8 @@ impl Bdd {
     ///
     /// // Order-preserving rename: x1→x2, x2→x3 (1<2 and 2<3, so order preserved)
     /// let mut perm = HashMap::new();
-    /// perm.insert(1, 2);
-    /// perm.insert(2, 3);
+    /// perm.insert(Var::new(1), Var::new(2));
+    /// perm.insert(Var::new(2), Var::new(3));
     /// let g = bdd.rename_vars(f, &perm);
     ///
     /// // Verify: g(x2=T, x3=F) should be true
@@ -2579,21 +2646,36 @@ impl Bdd {
     /// let expected = bdd.apply_and(x2, -x3);
     /// assert_eq!(g, expected);
     /// ```
-    pub fn rename_vars(&self, f: Ref, permutation: &HashMap<u32, u32>) -> Ref {
-        // Validate that the permutation is order-preserving
+    pub fn rename_vars(&self, f: Ref, permutation: &HashMap<Var, Var>) -> Ref {
+        // Validate that the permutation is order-preserving:
+        // If old_i precedes old_j in the ordering, then new_i must precede new_j.
         let mut sorted_pairs: Vec<_> = permutation.iter().collect();
-        sorted_pairs.sort_by_key(|&(old, _)| old);
+        // Sort by level of the OLD variables
+        sorted_pairs.sort_by(|&(old_a, _), &(old_b, _)| {
+            if self.var_precedes(*old_a, *old_b) {
+                std::cmp::Ordering::Less
+            } else if self.var_precedes(*old_b, *old_a) {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        });
 
         for i in 0..sorted_pairs.len() {
             for j in i + 1..sorted_pairs.len() {
                 let (old_i, new_i) = sorted_pairs[i];
                 let (old_j, new_j) = sorted_pairs[j];
+                // old_i precedes old_j (by construction of sorted_pairs)
+                // so new_i must also precede new_j for order preservation
                 assert!(
-                    old_i < old_j && new_i < new_j,
-                    "Permutation is not order-preserving: {}→{} and {}→{} violates ordering invariant.",
+                    self.var_precedes(*new_i, *new_j),
+                    "Permutation is not order-preserving: {}→{} and {}→{} violates ordering invariant \
+                    (new variable {} should precede {} in the ordering).",
                     old_i,
                     new_i,
                     old_j,
+                    new_j,
+                    new_i,
                     new_j
                 );
             }
@@ -2603,7 +2685,7 @@ impl Bdd {
         self.rename_vars_(f, permutation, &mut cache)
     }
 
-    fn rename_vars_(&self, f: Ref, permutation: &HashMap<u32, u32>, cache: &mut Cache<Ref, Ref>) -> Ref {
+    fn rename_vars_(&self, f: Ref, permutation: &HashMap<Var, Var>, cache: &mut Cache<Ref, Ref>) -> Ref {
         // Terminals pass through unchanged
         if self.is_terminal(f) {
             return f;
@@ -2631,6 +2713,28 @@ impl Bdd {
         // Apply permutation to variable (or keep original if not in map)
         let v_new = permutation.get(&v).copied().unwrap_or(v);
 
+        // Ensure the new variable is in the level_map at the correct level
+        if let Some(old_level) = self.get_level(v) {
+            let mut level_map = self.level_map.borrow_mut();
+            let mut var_order = self.var_order.borrow_mut();
+
+            // If v_new was already at a different level, we need to handle that
+            // For order-preserving permutations, the new variable should take
+            // the level of the old variable
+            if !level_map.contains_key(&v_new) || level_map.get(&v_new) != Some(&old_level) {
+                // Remove v_new from its old position if it exists elsewhere
+                if let Some(&other_level) = level_map.get(&v_new) {
+                    if other_level != old_level {
+                        // This shouldn't happen for valid order-preserving permutations
+                        // but handle it gracefully
+                    }
+                }
+                // Set v_new at the old variable's level
+                var_order[old_level.index()] = v_new;
+                level_map.insert(v_new, old_level);
+            }
+        }
+
         // Create new node with renamed variable
         let result_positive = self.mk_node(v_new, low_new, high_new);
         let result = if is_negated { -result_positive } else { result_positive };
@@ -2652,7 +2756,7 @@ mod tests {
 
         let x = bdd.mk_var(1);
 
-        assert_eq!(bdd.variable(x.index()), 1);
+        assert_eq!(bdd.variable(x.index()), Var::new(1));
         assert_eq!(bdd.high_node(x), bdd.one);
         assert_eq!(bdd.low_node(x), bdd.zero);
     }
@@ -2664,7 +2768,7 @@ mod tests {
         let x = bdd.mk_var(1);
         let not_x = -x;
 
-        assert_eq!(bdd.variable(not_x.index()), 1);
+        assert_eq!(bdd.variable(not_x.index()), Var::new(1));
         assert_eq!(bdd.high_node(not_x), bdd.zero);
         assert_eq!(bdd.low_node(not_x), bdd.one);
     }
@@ -2681,11 +2785,11 @@ mod tests {
         assert_eq!(bdd.is_zero(bdd.one), false);
         assert_eq!(bdd.is_one(bdd.one), true);
 
-        assert_eq!(bdd.variable(bdd.zero.index()), 0);
+        assert_eq!(bdd.variable(bdd.zero.index()), Var::ZERO);
         assert_eq!(bdd.low(bdd.zero.index()).index(), 0);
         assert_eq!(bdd.high(bdd.zero.index()).index(), 0);
 
-        assert_eq!(bdd.variable(bdd.one.index()), 0);
+        assert_eq!(bdd.variable(bdd.one.index()), Var::ZERO);
         assert_eq!(bdd.low(bdd.one.index()).index(), 0);
         assert_eq!(bdd.high(bdd.one.index()).index(), 0);
     }
@@ -2783,7 +2887,7 @@ mod tests {
         assert_eq!(bdd.apply_ite(bdd.zero, g, h), h);
 
         // Functions
-        let f = bdd.mk_node(4, bdd.one, h);
+        let f = bdd.mk_node(Var::new(4), bdd.one, h);
         assert_eq!(bdd.apply_ite(f, f, h), bdd.apply_or(f, h));
         assert_eq!(bdd.apply_ite(f, g, f), bdd.apply_and(f, g));
         assert_eq!(bdd.apply_ite(f, -g, bdd.one), -bdd.apply_and(f, g));
@@ -2810,37 +2914,37 @@ mod tests {
         let f = bdd.mk_cube([1, 2, 3]);
         println!("f = {}", bdd.to_bracket_string(f));
 
-        assert_eq!(bdd.cofactor_cube(f, &[1]), bdd.mk_cube([2, 3]));
-        assert_eq!(bdd.cofactor_cube(f, &[2]), bdd.mk_cube([1, 3]));
-        assert_eq!(bdd.cofactor_cube(f, &[3]), bdd.mk_cube([1, 2]));
-        assert_eq!(bdd.cofactor_cube(f, &[-1]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[-2]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[-3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [1]), bdd.mk_cube([2, 3]));
+        assert_eq!(bdd.cofactor_cube(f, [2]), bdd.mk_cube([1, 3]));
+        assert_eq!(bdd.cofactor_cube(f, [3]), bdd.mk_cube([1, 2]));
+        assert_eq!(bdd.cofactor_cube(f, [-1]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [-2]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [-3]), bdd.zero);
 
-        assert_eq!(bdd.cofactor_cube(f, &[1, 2]), bdd.mk_cube([3]));
-        assert_eq!(bdd.cofactor_cube(f, &[1, 3]), bdd.mk_cube([2]));
-        assert_eq!(bdd.cofactor_cube(f, &[2, 3]), bdd.mk_cube([1]));
-        assert_eq!(bdd.cofactor_cube(f, &[1, -2]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[1, -3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[2, -3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[-1, 2]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[-1, 3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[-2, 3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [1, 2]), bdd.mk_cube([3]));
+        assert_eq!(bdd.cofactor_cube(f, [1, 3]), bdd.mk_cube([2]));
+        assert_eq!(bdd.cofactor_cube(f, [2, 3]), bdd.mk_cube([1]));
+        assert_eq!(bdd.cofactor_cube(f, [1, -2]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [1, -3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [2, -3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [-1, 2]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [-1, 3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [-2, 3]), bdd.zero);
 
-        assert_eq!(bdd.cofactor_cube(f, &[1, 2, 3]), bdd.one);
-        assert_eq!(bdd.cofactor_cube(f, &[1, 2, -3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[1, -2, 3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[1, -2, -3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[-1, 2, 3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[-1, 2, -3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[-1, -2, 3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, &[-1, -2, -3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [1, 2, 3]), bdd.one);
+        assert_eq!(bdd.cofactor_cube(f, [1, 2, -3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [1, -2, 3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [1, -2, -3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [-1, 2, 3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [-1, 2, -3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [-1, -2, 3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [-1, -2, -3]), bdd.zero);
 
-        assert_eq!(bdd.cofactor_cube(f, &[]), f);
-        assert_eq!(bdd.cofactor_cube(bdd.one, &[1]), bdd.one);
-        assert_eq!(bdd.cofactor_cube(bdd.zero, &[1]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(bdd.one, &[-1]), bdd.one);
-        assert_eq!(bdd.cofactor_cube(bdd.zero, &[-1]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, std::iter::empty::<i32>()), f);
+        assert_eq!(bdd.cofactor_cube(bdd.one, [1]), bdd.one);
+        assert_eq!(bdd.cofactor_cube(bdd.zero, [1]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(bdd.one, [-1]), bdd.one);
+        assert_eq!(bdd.cofactor_cube(bdd.zero, [-1]), bdd.zero);
     }
 
     impl Bdd {
@@ -2884,11 +2988,11 @@ mod tests {
     fn test_constrain_example1() {
         let bdd = Bdd::default();
 
-        let s = bdd.mk_node(3, -bdd.one, bdd.one);
-        let p = bdd.mk_node(2, -s, s);
-        let r = bdd.mk_node(2, s, bdd.one);
-        let q = bdd.mk_node(2, -s, bdd.one);
-        let t = bdd.mk_node(2, -bdd.one, s);
+        let s = bdd.mk_node(Var::new(3), -bdd.one, bdd.one);
+        let p = bdd.mk_node(Var::new(2), -s, s);
+        let r = bdd.mk_node(Var::new(2), s, bdd.one);
+        let q = bdd.mk_node(Var::new(2), -s, bdd.one);
+        let t = bdd.mk_node(Var::new(2), -bdd.one, s);
 
         println!("s = {}", bdd.to_bracket_string(s));
         println!("p = {}", bdd.to_bracket_string(p));
@@ -2896,11 +3000,11 @@ mod tests {
         println!("q = {}", bdd.to_bracket_string(q));
         println!("t = {}", bdd.to_bracket_string(t));
 
-        let f = bdd.mk_node(1, -p, s);
+        let f = bdd.mk_node(Var::new(1), -p, s);
         println!("f = {}", bdd.to_bracket_string(f));
-        let g = bdd.mk_node(1, -r, q);
+        let g = bdd.mk_node(Var::new(1), -r, q);
         println!("g = {}", bdd.to_bracket_string(g));
-        let h = bdd.mk_node(1, -bdd.one, t);
+        let h = bdd.mk_node(Var::new(1), -bdd.one, t);
         println!("h = {}", bdd.to_bracket_string(h));
 
         let fg = bdd.constrain(f, g);
@@ -2950,11 +3054,11 @@ mod tests {
         let _y = bdd.mk_var(2);
         let z = bdd.mk_var(3);
 
-        let s = bdd.mk_node(3, -bdd.one, bdd.one);
-        let p = bdd.mk_node(2, -s, s);
-        let r = bdd.mk_node(2, s, bdd.one);
-        let q = bdd.mk_node(2, -s, bdd.one);
-        let t = bdd.mk_node(2, -bdd.one, s);
+        let s = bdd.mk_node(Var::new(3), -bdd.one, bdd.one);
+        let p = bdd.mk_node(Var::new(2), -s, s);
+        let r = bdd.mk_node(Var::new(2), s, bdd.one);
+        let q = bdd.mk_node(Var::new(2), -s, bdd.one);
+        let t = bdd.mk_node(Var::new(2), -bdd.one, s);
 
         println!("s = {}", bdd.to_bracket_string(s));
         println!("p = {}", bdd.to_bracket_string(p));
@@ -2962,9 +3066,9 @@ mod tests {
         println!("q = {}", bdd.to_bracket_string(q));
         println!("t = {}", bdd.to_bracket_string(t));
 
-        let f = bdd.mk_node(1, -p, s);
+        let f = bdd.mk_node(Var::new(1), -p, s);
         println!("f = {}", bdd.to_bracket_string(f));
-        let g = bdd.mk_node(1, -r, q);
+        let g = bdd.mk_node(Var::new(1), -r, q);
         println!("g = {}", bdd.to_bracket_string(g));
         let h = bdd.apply_and(x, z);
         println!("h = {}", bdd.to_bracket_string(h));
@@ -3024,7 +3128,7 @@ mod tests {
         let x3 = bdd.mk_var(3);
         let x4 = bdd.mk_var(4);
 
-        let values = HashMap::from([(bdd.variable(x2.index()), true), (bdd.variable(x4.index()), false)]);
+        let values = HashMap::from([(Var::new(2), true), (Var::new(4), false)]);
         println!("values = {:?}", values);
 
         let f = bdd.apply_and_many([-x1, x2, x3, -x4]);
@@ -3053,7 +3157,7 @@ mod tests {
         let g = -bdd.apply_eq(x1, x2);
         println!("g of size {} = {}", bdd.size(g), bdd.to_bracket_string(g));
 
-        let h = bdd.compose(f, bdd.variable(x3.index()), g);
+        let h = bdd.compose(f, bdd.variable(x3.index()).id(), g);
         println!("h of size {} = {}", bdd.size(h), bdd.to_bracket_string(h));
         assert!(bdd.is_zero(h));
     }
@@ -3472,12 +3576,12 @@ mod tests {
         println!("f = x1 ∧ x2 = {}", bdd.to_bracket_string(f));
 
         // ∃x1.(x1 ∧ x2) = x2
-        let result = bdd.exists(f, &[1]);
+        let result = bdd.exists(f, [1]);
         println!("∃x1.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, x2);
 
         // ∃x2.(x1 ∧ x2) = x1
-        let result = bdd.exists(f, &[2]);
+        let result = bdd.exists(f, [2]);
         println!("∃x2.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, x1);
     }
@@ -3495,12 +3599,12 @@ mod tests {
         println!("f = x1 ∧ x2 ∧ x3 = {}", bdd.to_bracket_string(f));
 
         // ∃x1,x3.(x1 ∧ x2 ∧ x3) = x2
-        let result = bdd.exists(f, &[1, 3]);
+        let result = bdd.exists(f, [1, 3]);
         println!("∃x1,x3.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, x2);
 
         // ∃x1,x2,x3.(x1 ∧ x2 ∧ x3) = 1
-        let result = bdd.exists(f, &[1, 2, 3]);
+        let result = bdd.exists(f, [1, 2, 3]);
         println!("∃x1,x2,x3.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, bdd.one);
     }
@@ -3517,12 +3621,12 @@ mod tests {
         println!("f = x1 ∨ x2 = {}", bdd.to_bracket_string(f));
 
         // ∃x1.(x1 ∨ x2) = 1
-        let result = bdd.exists(f, &[1]);
+        let result = bdd.exists(f, [1]);
         println!("∃x1.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, bdd.one);
 
         // ∃x2.(x1 ∨ x2) = 1
-        let result = bdd.exists(f, &[2]);
+        let result = bdd.exists(f, [2]);
         println!("∃x2.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, bdd.one);
     }
@@ -3542,7 +3646,7 @@ mod tests {
         println!("f = (x1 ∧ x2) ∨ (¬x1 ∧ x3) = {}", bdd.to_bracket_string(f));
 
         // ∃x1.f = x2 ∨ x3
-        let result = bdd.exists(f, &[1]);
+        let result = bdd.exists(f, [1]);
         let expected = bdd.apply_or(x2, x3);
         println!("∃x1.f = {}", bdd.to_bracket_string(result));
         println!("expected = {}", bdd.to_bracket_string(expected));
@@ -3558,7 +3662,7 @@ mod tests {
         let f = bdd.apply_and(x1, x2);
 
         // Quantifying no variables should return the same formula
-        let result = bdd.exists(f, &[]);
+        let result = bdd.exists(f, std::iter::empty::<Var>());
         assert_eq!(result, f);
     }
 
@@ -3574,24 +3678,24 @@ mod tests {
         println!("f = x1 ∧ x2 = {}", bdd.to_bracket_string(f));
 
         // Quantify out x3 (which doesn't appear): should return the same formula
-        let result = bdd.exists(f, &[3]);
+        let result = bdd.exists(f, [3]);
         println!("∃x3.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, f, "Quantifying independent variable should return same BDD");
 
         // Quantify out x3, x4, x5 (none appear): should return the same formula
-        let result = bdd.exists(f, &[3, 4, 5]);
+        let result = bdd.exists(f, [3, 4, 5]);
         println!("∃x3,x4,x5.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, f, "Quantifying multiple independent variables should return same BDD");
 
         // Mix of dependent and independent variables
         // Quantify out x1, x3: ∃x1,x3.(x1 ∧ x2) = x2
-        let result = bdd.exists(f, &[1, 3]);
+        let result = bdd.exists(f, [1, 3]);
         println!("∃x1,x3.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, x2, "Should correctly handle mix of dependent and independent variables");
 
         // Independent variables before dependent ones
         // Quantify out x3, x1, x5, x2 (x3,x5 don't appear)
-        let result = bdd.exists(f, &[3, 1, 5, 2]);
+        let result = bdd.exists(f, [3, 1, 5, 2]);
         println!("∃x3,x1,x5,x2.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, bdd.one, "Should handle unsorted mix correctly");
     }
@@ -3608,12 +3712,12 @@ mod tests {
         println!("f = x1 ∨ x2 = {}", bdd.to_bracket_string(f));
 
         // ∀x1.(x1 ∨ x2) = x2
-        let result = bdd.forall(f, &[1]);
+        let result = bdd.forall(f, [1]);
         println!("∀x1.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, x2);
 
         // ∀x2.(x1 ∨ x2) = x1
-        let result = bdd.forall(f, &[2]);
+        let result = bdd.forall(f, [2]);
         println!("∀x2.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, x1);
     }
@@ -3631,12 +3735,12 @@ mod tests {
         println!("f = x1 ∨ x2 ∨ x3 = {}", bdd.to_bracket_string(f));
 
         // ∀x1,x3.(x1 ∨ x2 ∨ x3) = x2
-        let result = bdd.forall(f, &[1, 3]);
+        let result = bdd.forall(f, [1, 3]);
         println!("∀x1,x3.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, x2);
 
         // ∀x1,x2,x3.(x1 ∨ x2 ∨ x3) = 0
-        let result = bdd.forall(f, &[1, 2, 3]);
+        let result = bdd.forall(f, [1, 2, 3]);
         println!("∀x1,x2,x3.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, bdd.zero);
     }
@@ -3653,12 +3757,12 @@ mod tests {
         println!("f = x1 ∧ x2 = {}", bdd.to_bracket_string(f));
 
         // ∀x1.(x1 ∧ x2) = 0
-        let result = bdd.forall(f, &[1]);
+        let result = bdd.forall(f, [1]);
         println!("∀x1.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, bdd.zero);
 
         // ∀x2.(x1 ∧ x2) = 0
-        let result = bdd.forall(f, &[2]);
+        let result = bdd.forall(f, [2]);
         println!("∀x2.f = {}", bdd.to_bracket_string(result));
         assert_eq!(result, bdd.zero);
     }
@@ -3680,7 +3784,7 @@ mod tests {
         println!("r2 = y → z = {}", bdd.to_bracket_string(r2));
 
         // Compose: eliminate y to get x → z
-        let result = bdd.rel_product(r1, r2, &[2]);
+        let result = bdd.rel_product(r1, r2, [2]);
         println!("∃y.(r1 ∧ r2) = {}", bdd.to_bracket_string(result));
 
         let expected = bdd.apply_imply(x, z);
@@ -3700,11 +3804,11 @@ mod tests {
         let g = bdd.apply_or(x2, x3);
 
         // Using rel_product
-        let result1 = bdd.rel_product(f, g, &[2]);
+        let result1 = bdd.rel_product(f, g, [2]);
         println!("rel_product(f, g, [2]) = {}", bdd.to_bracket_string(result1));
 
         // Using exists(and(...))
-        let result2 = bdd.exists(bdd.apply_and(f, g), &[2]);
+        let result2 = bdd.exists(bdd.apply_and(f, g), [2]);
         println!("exists(f ∧ g, [2]) = {}", bdd.to_bracket_string(result2));
 
         // They should be equal
@@ -3722,7 +3826,7 @@ mod tests {
         let g = bdd.mk_var(3);
 
         // Relational product with no variables to eliminate is just AND
-        let result = bdd.rel_product(f, g, &[]);
+        let result = bdd.rel_product(f, g, std::iter::empty::<Var>());
         let expected = bdd.apply_and(f, g);
         assert_eq!(result, expected);
     }
@@ -3734,14 +3838,14 @@ mod tests {
         let x = bdd.mk_var(1);
 
         // rel_product with zero should be zero
-        let result = bdd.rel_product(bdd.zero, x, &[1]);
+        let result = bdd.rel_product(bdd.zero, x, [1]);
         assert_eq!(result, bdd.zero);
 
-        let result = bdd.rel_product(x, bdd.zero, &[1]);
+        let result = bdd.rel_product(x, bdd.zero, [1]);
         assert_eq!(result, bdd.zero);
 
         // rel_product(1, 1, []) = 1
-        let result = bdd.rel_product(bdd.one, bdd.one, &[]);
+        let result = bdd.rel_product(bdd.one, bdd.one, std::iter::empty::<Var>());
         assert_eq!(result, bdd.one);
     }
 
@@ -3754,8 +3858,8 @@ mod tests {
 
         // Rename x1→x2, x2→x1 (swap) - NOT order-preserving!
         let mut perm = HashMap::new();
-        perm.insert(1, 2);
-        perm.insert(2, 1);
+        perm.insert(Var::new(1), Var::new(2));
+        perm.insert(Var::new(2), Var::new(1));
 
         // This should panic
         let _result = bdd.rename_vars(x1, &perm);
@@ -3773,8 +3877,8 @@ mod tests {
 
         // Chain rename: x1→x2, x2→x3
         let mut perm = HashMap::new();
-        perm.insert(1, 2);
-        perm.insert(2, 3);
+        perm.insert(Var::new(1), Var::new(2));
+        perm.insert(Var::new(2), Var::new(3));
 
         let g = bdd.rename_vars(f, &perm); // g = x2 ∧ ¬x3
 
@@ -3789,28 +3893,28 @@ mod tests {
     fn test_rename_vars_backward() {
         let bdd = Bdd::default();
 
+        // Pre-allocate variables in natural order so the ordering is [1, 2, 3]
+        let _x1 = bdd.mk_var(1);
         let x2 = bdd.mk_var(2);
         let x3 = bdd.mk_var(3);
         let f = bdd.apply_and(x2, x3); // f(x2, x3) = x2 ∧ x3
 
-        // Current ordering: [2, 3]
+        // Current ordering: [1, 2, 3]
+        // f uses only x2 (level 1) and x3 (level 2)
 
         // Backward rename: x2→x1, x3→x2
+        // This is order-preserving: x2 < x3 in ordering, and x1 < x2 in ordering
         let mut perm = HashMap::new();
-        perm.insert(2, 1);
-        perm.insert(3, 2);
+        perm.insert(Var::new(2), Var::new(1));
+        perm.insert(Var::new(3), Var::new(2));
 
         let g = bdd.rename_vars(f, &perm); // g(x1, x2) = x1 ∧ x2
 
-        // After rename, variables 1 and 2 are registered in the ordering
-        // The structure depends on when variables were created, but the
-        // semantics should match x1 ∧ x2
-
         // Verify it computes x1 ∧ x2 by checking all truth table entries
-        assert!(bdd.is_zero(bdd.cofactor_cube(g, &[-1, -2]))); // g[0,0] = 0
-        assert!(bdd.is_zero(bdd.cofactor_cube(g, &[-1, 2])));  // g[0,1] = 0
-        assert!(bdd.is_zero(bdd.cofactor_cube(g, &[1, -2])));  // g[1,0] = 0
-        assert!(bdd.is_one(bdd.cofactor_cube(g, &[1, 2])));    // g[1,1] = 1
+        assert!(bdd.is_zero(bdd.cofactor_cube(g, [-1, -2]))); // g[0,0] = 0
+        assert!(bdd.is_zero(bdd.cofactor_cube(g, [-1, 2]))); // g[0,1] = 0
+        assert!(bdd.is_zero(bdd.cofactor_cube(g, [1, -2]))); // g[1,0] = 0
+        assert!(bdd.is_one(bdd.cofactor_cube(g, [1, 2]))); // g[1,1] = 1
     }
 
     #[test]
@@ -3823,16 +3927,16 @@ mod tests {
 
         // Shift: x1→x3, x2→x4
         let mut perm = HashMap::new();
-        perm.insert(1, 3);
-        perm.insert(2, 4);
+        perm.insert(Var::new(1), Var::new(3));
+        perm.insert(Var::new(2), Var::new(4));
 
         let g = bdd.rename_vars(f, &perm); // g(x3, x4) = x3 ∧ x4
 
         // Verify it computes x3 ∧ x4 by checking all truth table entries
-        assert!(bdd.is_zero(bdd.cofactor_cube(g, &[-3, -4]))); // g[0,0] = 0
-        assert!(bdd.is_zero(bdd.cofactor_cube(g, &[-3, 4])));  // g[0,1] = 0
-        assert!(bdd.is_zero(bdd.cofactor_cube(g, &[3, -4])));  // g[1,0] = 0
-        assert!(bdd.is_one(bdd.cofactor_cube(g, &[3, 4])));    // g[1,1] = 1
+        assert!(bdd.is_zero(bdd.cofactor_cube(g, [-3, -4]))); // g[0,0] = 0
+        assert!(bdd.is_zero(bdd.cofactor_cube(g, [-3, 4]))); // g[0,1] = 0
+        assert!(bdd.is_zero(bdd.cofactor_cube(g, [3, -4]))); // g[1,0] = 0
+        assert!(bdd.is_one(bdd.cofactor_cube(g, [3, 4]))); // g[1,1] = 1
     }
 
     #[test]
@@ -3847,8 +3951,8 @@ mod tests {
 
         // Only rename x1→x2, x2→x1 (swap), leave x3 unchanged - NOT order-preserving!
         let mut perm = HashMap::new();
-        perm.insert(1, 2);
-        perm.insert(2, 1);
+        perm.insert(Var::new(1), Var::new(2));
+        perm.insert(Var::new(2), Var::new(1));
 
         // This should panic
         let _g = bdd.rename_vars(f, &perm);
@@ -3865,8 +3969,8 @@ mod tests {
 
         // Swap x1↔x2 - NOT order-preserving!
         let mut perm = HashMap::new();
-        perm.insert(1, 2);
-        perm.insert(2, 1);
+        perm.insert(Var::new(1), Var::new(2));
+        perm.insert(Var::new(2), Var::new(1));
 
         // This should panic
         let _g = bdd.rename_vars(f, &perm);
@@ -3886,9 +3990,9 @@ mod tests {
 
         // Cyclic rename: x1→x2, x2→x3, x3→x1 (a cycle!) - NOT order-preserving!
         let mut perm = HashMap::new();
-        perm.insert(1, 2);
-        perm.insert(2, 3);
-        perm.insert(3, 1);
+        perm.insert(Var::new(1), Var::new(2));
+        perm.insert(Var::new(2), Var::new(3));
+        perm.insert(Var::new(3), Var::new(1));
 
         // This should panic
         let _g = bdd.rename_vars(f, &perm);

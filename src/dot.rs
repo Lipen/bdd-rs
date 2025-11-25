@@ -214,7 +214,7 @@ impl Bdd {
             if id == 1 {
                 continue; // Skip terminal node (handled separately)
             }
-            let level = self.variable(id) as usize;
+            let level = self.variable(id).id() as usize;
             levels.entry(level).or_default().push(id);
         }
 
