@@ -149,6 +149,10 @@ use crate::subtable::Subtable;
 use crate::types::{Level, Lit, Var};
 use crate::utils::OpKey;
 
+// ============================================================================
+// Bdd struct and constructors
+// ============================================================================
+
 /// The BDD manager: a shared multi-rooted graph with complement edges.
 ///
 /// This is the central structure for creating and manipulating BDDs.
@@ -275,6 +279,10 @@ impl Bdd {
     }
 }
 
+// ============================================================================
+// Trait implementations
+// ============================================================================
+
 impl Default for Bdd {
     fn default() -> Self {
         Bdd::new(20)
@@ -296,6 +304,10 @@ impl Debug for Bdd {
             .finish()
     }
 }
+
+// ============================================================================
+// Internal accessors
+// ============================================================================
 
 impl Bdd {
     pub fn nodes(&self) -> cell::Ref<'_, Vec<Node>> {
@@ -354,42 +366,13 @@ impl Bdd {
     fn size_cache_mut(&self) -> cell::RefMut<'_, Cache<Ref, u64>> {
         self.size_cache.borrow_mut()
     }
+}
 
-    /// Returns the current variable ordering as a vector.
-    ///
-    /// The i-th element is the variable at level i. Level 0 is the root level.
-    pub fn get_variable_order(&self) -> Vec<Var> {
-        self.var_order().clone()
-    }
+// ============================================================================
+// Node inspection
+// ============================================================================
 
-    /// Returns the variable at a given level, if it exists.
-    pub fn get_variable_at_level(&self, level: Level) -> Option<Var> {
-        self.var_order().get(level.index()).copied()
-    }
-
-    /// Returns the level of a variable in the current ordering.
-    ///
-    /// Returns `None` if the variable has not been registered.
-    pub fn get_level(&self, var: Var) -> Option<Level> {
-        self.level_map().get(&var).copied()
-    }
-
-    /// Returns all node indices at a specific level.
-    ///
-    /// This is primarily used internally for variable reordering.
-    pub fn get_nodes_at_level(&self, level: Level) -> Vec<u32> {
-        let nodes = self.nodes();
-        self.subtables()
-            .get(level.index())
-            .map(|st| st.indices(&nodes).collect())
-            .unwrap_or_default()
-    }
-
-    /// Returns the number of levels (registered variables) in the ordering.
-    pub fn num_levels(&self) -> usize {
-        self.var_order().len()
-    }
-
+impl Bdd {
     /// Gets a copy of the node at the given index.
     pub fn node(&self, index: u32) -> Node {
         self.nodes()[index as usize]
@@ -439,7 +422,77 @@ impl Bdd {
     pub fn variable(&self, index: u32) -> Var {
         self.nodes()[index as usize].variable
     }
+}
 
+// ============================================================================
+// Predicates
+// ============================================================================
+
+impl Bdd {
+    /// Checks if a BDD node represents the constant false.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// assert!(bdd.is_zero(bdd.zero));
+    /// assert!(!bdd.is_zero(bdd.one));
+    ///
+    /// let x = bdd.mk_var(1);
+    /// let contradiction = bdd.apply_and(x, -x);
+    /// assert!(bdd.is_zero(contradiction));
+    /// ```
+    pub fn is_zero(&self, node_ref: Ref) -> bool {
+        node_ref == self.zero
+    }
+
+    /// Checks if a BDD node represents the constant true.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// assert!(bdd.is_one(bdd.one));
+    /// assert!(!bdd.is_one(bdd.zero));
+    ///
+    /// let x = bdd.mk_var(1);
+    /// let tautology = bdd.apply_or(x, -x);
+    /// assert!(bdd.is_one(tautology));
+    /// ```
+    pub fn is_one(&self, node_ref: Ref) -> bool {
+        node_ref == self.one
+    }
+
+    /// Checks if a BDD node is a terminal (constant) node.
+    ///
+    /// Returns true if the node is either zero (false) or one (true).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// assert!(bdd.is_terminal(bdd.zero));
+    /// assert!(bdd.is_terminal(bdd.one));
+    ///
+    /// let x = bdd.mk_var(1);
+    /// assert!(!bdd.is_terminal(x));
+    /// ```
+    pub fn is_terminal(&self, node_ref: Ref) -> bool {
+        self.is_zero(node_ref) || self.is_one(node_ref)
+    }
+}
+
+// ============================================================================
+// Variable management
+// ============================================================================
+
+impl Bdd {
     /// Allocates a new variable and adds it to the end of the variable ordering.
     ///
     /// # Returns
@@ -553,65 +606,54 @@ impl Bdd {
             }
         }
     }
+}
 
-    /// Checks if a BDD node represents the constant false.
+// ============================================================================
+// Variable ordering
+// ============================================================================
+
+impl Bdd {
+    /// Returns the current variable ordering as a vector.
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bdd_rs::bdd::Bdd;
-    ///
-    /// let bdd = Bdd::default();
-    /// assert!(bdd.is_zero(bdd.zero));
-    /// assert!(!bdd.is_zero(bdd.one));
-    ///
-    /// let x = bdd.mk_var(1);
-    /// let contradiction = bdd.apply_and(x, -x);
-    /// assert!(bdd.is_zero(contradiction));
-    /// ```
-    pub fn is_zero(&self, node_ref: Ref) -> bool {
-        node_ref == self.zero
+    /// The i-th element is the variable at level i. Level 0 is the root level.
+    pub fn get_variable_order(&self) -> Vec<Var> {
+        self.var_order().clone()
     }
 
-    /// Checks if a BDD node represents the constant true.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bdd_rs::bdd::Bdd;
-    ///
-    /// let bdd = Bdd::default();
-    /// assert!(bdd.is_one(bdd.one));
-    /// assert!(!bdd.is_one(bdd.zero));
-    ///
-    /// let x = bdd.mk_var(1);
-    /// let tautology = bdd.apply_or(x, -x);
-    /// assert!(bdd.is_one(tautology));
-    /// ```
-    pub fn is_one(&self, node_ref: Ref) -> bool {
-        node_ref == self.one
+    /// Returns the variable at a given level, if it exists.
+    pub fn get_variable_at_level(&self, level: Level) -> Option<Var> {
+        self.var_order().get(level.index()).copied()
     }
 
-    /// Checks if a BDD node is a terminal (constant) node.
+    /// Returns the level of a variable in the current ordering.
     ///
-    /// Returns true if the node is either zero (false) or one (true).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bdd_rs::bdd::Bdd;
-    ///
-    /// let bdd = Bdd::default();
-    /// assert!(bdd.is_terminal(bdd.zero));
-    /// assert!(bdd.is_terminal(bdd.one));
-    ///
-    /// let x = bdd.mk_var(1);
-    /// assert!(!bdd.is_terminal(x));
-    /// ```
-    pub fn is_terminal(&self, node_ref: Ref) -> bool {
-        self.is_zero(node_ref) || self.is_one(node_ref)
+    /// Returns `None` if the variable has not been registered.
+    pub fn get_level(&self, var: Var) -> Option<Level> {
+        self.level_map().get(&var).copied()
     }
 
+    /// Returns all node indices at a specific level.
+    ///
+    /// This is primarily used internally for variable reordering.
+    pub fn get_nodes_at_level(&self, level: Level) -> Vec<u32> {
+        let nodes = self.nodes();
+        self.subtables()
+            .get(level.index())
+            .map(|st| st.indices(&nodes).collect())
+            .unwrap_or_default()
+    }
+
+    /// Returns the number of levels (registered variables) in the ordering.
+    pub fn num_levels(&self) -> usize {
+        self.var_order().len()
+    }
+}
+
+// ============================================================================
+// Node constructors (mk_*)
+// ============================================================================
+
+impl Bdd {
     /// Returns the constant false BDD.
     ///
     /// This is a convenience method equivalent to accessing `bdd.zero` directly.
@@ -901,7 +943,13 @@ impl Bdd {
         }
         current
     }
+}
 
+// ============================================================================
+// Boolean operations
+// ============================================================================
+
+impl Bdd {
     /// Returns the top cofactors (Shannon expansion) with respect to a variable.
     ///
     /// For a BDD `f` and variable `v`, returns `(f₀, f₁)` where:
@@ -1530,7 +1578,13 @@ impl Bdd {
         }
         res
     }
+}
 
+// ============================================================================
+// Substitution and composition
+// ============================================================================
+
+impl Bdd {
     /// Substitutes a variable with a Boolean constant.
     ///
     /// Returns a new BDD where all occurrences of variable `v` are replaced with
@@ -2077,120 +2131,157 @@ impl Bdd {
         self.cache_mut().insert(key, res);
         res
     }
+}
 
-    /// Returns all node indices reachable from the given BDD references.
+// ============================================================================
+// Variable renaming
+// ============================================================================
+
+impl Bdd {
+    /// Renames variables according to an **order-preserving** permutation mapping.
     ///
-    /// This performs a depth-first traversal from the root nodes to collect all reachable
-    /// node indices. The terminal node (index 1) is always included in the result.
+    /// **IMPORTANT**: This function requires that the permutation preserves the variable
+    /// ordering to maintain the OBDD invariant. If `old_var1 < old_var2` and both are
+    /// in the permutation, then `new_var1 < new_var2` must hold.
     ///
     /// # Arguments
     ///
-    /// * `nodes` - An iterable collection of BDD references to start the traversal from
+    /// * `f` - The BDD to rename variables in
+    /// * `permutation` - HashMap mapping old variables to new ones.
+    ///   Variables not in the map remain unchanged.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the permutation is not order-preserving.
     ///
     /// # Returns
     ///
-    /// A `HashSet<u32>` containing all unique node indices reachable from the given roots,
-    /// including the terminal node (index 1).
+    /// A new BDD with variables renamed according to the permutation.
     ///
     /// # Examples
     ///
     /// ```
     /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::Var;
+    /// use std::collections::HashMap;
     ///
     /// let bdd = Bdd::default();
-    /// let x = bdd.mk_var(1);
-    /// let y = bdd.mk_var(2);
+    /// // Pre-allocate all variables in order [1, 2, 3]
+    /// let x1 = bdd.mk_var(1);
+    /// let x2 = bdd.mk_var(2);
+    /// let x3 = bdd.mk_var(3);
     ///
-    /// // Single variable: the variable node + terminal
-    /// let desc = bdd.descendants([x]);
-    /// assert_eq!(desc.len(), 2);
-    /// assert!(desc.contains(&x.index()));
-    /// assert!(desc.contains(&1)); // terminal
+    /// // f = x1 ∧ ¬x2
+    /// let f = bdd.apply_and(x1, -x2);
     ///
-    /// // AND of two variables
-    /// let f = bdd.apply_and(x, y);
-    /// let desc = bdd.descendants([f]);
-    /// assert!(desc.contains(&f.index()));
-    /// assert!(desc.contains(&y.index()));
-    /// assert!(desc.contains(&1)); // terminal
+    /// // Order-preserving rename: x1→x2, x2→x3 (1<2 and 2<3, so order preserved)
+    /// let mut perm = HashMap::new();
+    /// perm.insert(Var::new(1), Var::new(2));
+    /// perm.insert(Var::new(2), Var::new(3));
+    /// let g = bdd.rename_vars(f, &perm);
+    ///
+    /// // Verify: g = x2 ∧ ¬x3
+    /// let expected = bdd.apply_and(x2, -x3);
+    /// assert_eq!(g, expected);
     /// ```
-    ///
-    /// # Multiple Roots
-    ///
-    /// ```
-    /// use bdd_rs::bdd::Bdd;
-    ///
-    /// let bdd = Bdd::default();
-    /// let x = bdd.mk_var(1);
-    /// let y = bdd.mk_var(2);
-    /// let z = bdd.mk_var(3);
-    ///
-    /// let f1 = bdd.apply_and(x, y);
-    /// let f2 = bdd.apply_and(y, z);
-    ///
-    /// // Descendants from multiple roots (shared nodes counted once)
-    /// let desc = bdd.descendants([f1, f2]);
-    /// assert!(desc.contains(&f1.index()));
-    /// assert!(desc.contains(&f2.index()));
-    /// assert!(desc.contains(&y.index())); // shared
-    /// ```
-    pub fn descendants(&self, nodes: impl IntoIterator<Item = Ref>) -> HashSet<u32> {
-        let mut visited = HashSet::new();
-        visited.insert(self.one.index());
-        let mut stack = Vec::from_iter(nodes.into_iter().map(|node_ref| node_ref.index()));
+    pub fn rename_vars(&self, f: Ref, permutation: &HashMap<Var, Var>) -> Ref {
+        // Validate that all variables in the permutation are registered in the ordering
+        for (old_var, new_var) in permutation.iter() {
+            assert!(
+                self.get_level(*old_var).is_some(),
+                "Old variable {} is not registered in the ordering. \
+                All variables must be pre-allocated before rename.",
+                old_var
+            );
+            assert!(
+                self.get_level(*new_var).is_some(),
+                "New variable {} is not registered in the ordering. \
+                All variables must be pre-allocated before rename.",
+                new_var
+            );
+        }
 
-        while let Some(i) = stack.pop() {
-            if visited.insert(i) {
-                let node = self.node(i);
-                let low = node.low.index();
-                if low != 1 {
-                    stack.push(low);
-                }
-                let high = node.high.index();
-                if high != 1 {
-                    stack.push(high);
-                }
+        // Validate that the permutation is order-preserving:
+        // If old_i precedes old_j in the ordering, then new_i must precede new_j.
+        //   (old_i < old_j) => (new_i < new_j)
+        let mut sorted_pairs: Vec<_> = permutation.iter().collect();
+        // Sort by level of the OLD variables
+        sorted_pairs.sort_by(|&(old_a, _), &(old_b, _)| {
+            if self.var_precedes(*old_a, *old_b) {
+                std::cmp::Ordering::Less
+            } else if self.var_precedes(*old_b, *old_a) {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        });
+
+        for i in 0..sorted_pairs.len() {
+            for j in i + 1..sorted_pairs.len() {
+                let (old_i, new_i) = sorted_pairs[i];
+                let (old_j, new_j) = sorted_pairs[j];
+                // old_i precedes old_j (by construction of sorted_pairs)
+                // so new_i must also precede new_j for order preservation
+                assert!(
+                    self.var_precedes(*new_i, *new_j),
+                    "Permutation is not order-preserving: {}→{} and {}→{} violates ordering invariant \
+                    (new variable {} should precede {} in the ordering).",
+                    old_i,
+                    new_i,
+                    old_j,
+                    new_j,
+                    new_i,
+                    new_j
+                );
             }
         }
 
-        visited
+        let mut cache = Cache::new(16);
+        self.rename_vars_(f, permutation, &mut cache)
     }
 
-    /// Returns the number of nodes in a BDD.
-    ///
-    /// This counts all unique nodes reachable from the given node, including the terminal.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bdd_rs::bdd::Bdd;
-    ///
-    /// let bdd = Bdd::default();
-    /// let x = bdd.mk_var(1);
-    /// let y = bdd.mk_var(2);
-    ///
-    /// // Single variable
-    /// assert_eq!(bdd.size(x), 2);
-    ///
-    /// // AND of two variables
-    /// let and = bdd.apply_and(x, y);
-    /// assert_eq!(bdd.size(and), 3);
-    ///
-    /// // Tautology (just the terminal)
-    /// assert_eq!(bdd.size(bdd.one), 1);
-    /// ```
-    pub fn size(&self, node_ref: Ref) -> u64 {
-        debug!("size(f = {})", node_ref);
-        if let Some(&size) = self.size_cache().get(&node_ref) {
-            debug!("cache: size({}) -> {}", node_ref, size);
-            return size;
+    fn rename_vars_(&self, f: Ref, permutation: &HashMap<Var, Var>, cache: &mut Cache<Ref, Ref>) -> Ref {
+        // Terminals pass through unchanged
+        if self.is_terminal(f) {
+            return f;
         }
-        let size = self.descendants([node_ref]).len() as u64;
-        debug!("computed: size({}) -> {}", node_ref, size);
-        self.size_cache_mut().insert(node_ref, size);
-        size
-    }
 
+        // Check cache (cache on the original reference including negation)
+        if let Some(&result) = cache.get(&f) {
+            return result;
+        }
+
+        // Handle negation: rename the positive node and negate the result
+        let is_negated = f.is_negated();
+        let f_positive = if is_negated { -f } else { f };
+
+        // Get the variable and children
+        let index = f_positive.index();
+        let v = self.variable(index);
+        let low = self.low(index);
+        let high = self.high(index);
+
+        // Recursively rename variables in children
+        let low_new = self.rename_vars_(low, permutation, cache);
+        let high_new = self.rename_vars_(high, permutation, cache);
+
+        // Apply permutation to variable (or keep original if not in map)
+        let v_new = permutation.get(&v).copied().unwrap_or(v);
+
+        // Create new node with renamed variable
+        let result_positive = self.mk_node(v_new, low_new, high_new);
+        let result = if is_negated { -result_positive } else { result_positive };
+
+        cache.insert(f, result);
+        result
+    }
+}
+
+// ============================================================================
+// Quantification
+// ============================================================================
+
+impl Bdd {
     /// Performs existential quantification over a set of variables.
     ///
     /// Returns a new BDD where all occurrences of the specified variables are existentially
@@ -2475,7 +2566,132 @@ impl Bdd {
         debug!("computed: rel_product({:?}) -> {}", key, res);
         res
     }
+}
 
+// ============================================================================
+// Analysis
+// ============================================================================
+
+impl Bdd {
+    /// Returns all node indices reachable from the given BDD references.
+    ///
+    /// This performs a depth-first traversal from the root nodes to collect all reachable
+    /// node indices. The terminal node (index 1) is always included in the result.
+    ///
+    /// # Arguments
+    ///
+    /// * `nodes` - An iterable collection of BDD references to start the traversal from
+    ///
+    /// # Returns
+    ///
+    /// A `HashSet<u32>` containing all unique node indices reachable from the given roots,
+    /// including the terminal node (index 1).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// // Single variable: the variable node + terminal
+    /// let desc = bdd.descendants([x]);
+    /// assert_eq!(desc.len(), 2);
+    /// assert!(desc.contains(&x.index()));
+    /// assert!(desc.contains(&1)); // terminal
+    ///
+    /// // AND of two variables
+    /// let f = bdd.apply_and(x, y);
+    /// let desc = bdd.descendants([f]);
+    /// assert!(desc.contains(&f.index()));
+    /// assert!(desc.contains(&y.index()));
+    /// assert!(desc.contains(&1)); // terminal
+    /// ```
+    ///
+    /// # Multiple Roots
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let z = bdd.mk_var(3);
+    ///
+    /// let f1 = bdd.apply_and(x, y);
+    /// let f2 = bdd.apply_and(y, z);
+    ///
+    /// // Descendants from multiple roots (shared nodes counted once)
+    /// let desc = bdd.descendants([f1, f2]);
+    /// assert!(desc.contains(&f1.index()));
+    /// assert!(desc.contains(&f2.index()));
+    /// assert!(desc.contains(&y.index())); // shared
+    /// ```
+    pub fn descendants(&self, nodes: impl IntoIterator<Item = Ref>) -> HashSet<u32> {
+        let mut visited = HashSet::new();
+        visited.insert(self.one.index());
+        let mut stack = Vec::from_iter(nodes.into_iter().map(|node_ref| node_ref.index()));
+
+        while let Some(i) = stack.pop() {
+            if visited.insert(i) {
+                let node = self.node(i);
+                let low = node.low.index();
+                if low != 1 {
+                    stack.push(low);
+                }
+                let high = node.high.index();
+                if high != 1 {
+                    stack.push(high);
+                }
+            }
+        }
+
+        visited
+    }
+
+    /// Returns the number of nodes in a BDD.
+    ///
+    /// This counts all unique nodes reachable from the given node, including the terminal.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    ///
+    /// // Single variable
+    /// assert_eq!(bdd.size(x), 2);
+    ///
+    /// // AND of two variables
+    /// let and = bdd.apply_and(x, y);
+    /// assert_eq!(bdd.size(and), 3);
+    ///
+    /// // Tautology (just the terminal)
+    /// assert_eq!(bdd.size(bdd.one), 1);
+    /// ```
+    pub fn size(&self, node_ref: Ref) -> u64 {
+        debug!("size(f = {})", node_ref);
+        if let Some(&size) = self.size_cache().get(&node_ref) {
+            debug!("cache: size({}) -> {}", node_ref, size);
+            return size;
+        }
+        let size = self.descendants([node_ref]).len() as u64;
+        debug!("computed: size({}) -> {}", node_ref, size);
+        self.size_cache_mut().insert(node_ref, size);
+        size
+    }
+}
+
+// ============================================================================
+// Memory management
+// ============================================================================
+
+impl Bdd {
     /// Performs garbage collection to reclaim unused BDD nodes.
     ///
     /// This removes all nodes that are not reachable from the provided roots.
@@ -2581,7 +2797,13 @@ impl Bdd {
 
         alive
     }
+}
 
+// ============================================================================
+// Variable reordering
+// ============================================================================
+
+impl Bdd {
     /// Swaps two adjacent levels in the variable ordering.
     ///
     /// This is the fundamental operation for dynamic variable reordering.
@@ -2821,7 +3043,13 @@ impl Bdd {
         *self.subtables_mut() = new_subtables;
         debug!("subtables rebuilt");
     }
+}
 
+// ============================================================================
+// Serialization
+// ============================================================================
+
+impl Bdd {
     pub fn to_bracket_string(&self, node_ref: Ref) -> String {
         let mut visited = HashSet::new();
         self.node_to_str(node_ref, &mut visited)
@@ -2848,144 +3076,6 @@ impl Bdd {
             self.node_to_str(high, visited),
             self.node_to_str(low, visited),
         )
-    }
-
-    /// Renames variables according to an **order-preserving** permutation mapping.
-    ///
-    /// **IMPORTANT**: This function requires that the permutation preserves the variable
-    /// ordering to maintain the OBDD invariant. If `old_var1 < old_var2` and both are
-    /// in the permutation, then `new_var1 < new_var2` must hold.
-    ///
-    /// # Arguments
-    ///
-    /// * `f` - The BDD to rename variables in
-    /// * `permutation` - HashMap mapping old variables to new ones.
-    ///   Variables not in the map remain unchanged.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the permutation is not order-preserving.
-    ///
-    /// # Returns
-    ///
-    /// A new BDD with variables renamed according to the permutation.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Var;
-    /// use std::collections::HashMap;
-    ///
-    /// let bdd = Bdd::default();
-    /// // Pre-allocate all variables in order [1, 2, 3]
-    /// let x1 = bdd.mk_var(1);
-    /// let x2 = bdd.mk_var(2);
-    /// let x3 = bdd.mk_var(3);
-    ///
-    /// // f = x1 ∧ ¬x2
-    /// let f = bdd.apply_and(x1, -x2);
-    ///
-    /// // Order-preserving rename: x1→x2, x2→x3 (1<2 and 2<3, so order preserved)
-    /// let mut perm = HashMap::new();
-    /// perm.insert(Var::new(1), Var::new(2));
-    /// perm.insert(Var::new(2), Var::new(3));
-    /// let g = bdd.rename_vars(f, &perm);
-    ///
-    /// // Verify: g = x2 ∧ ¬x3
-    /// let expected = bdd.apply_and(x2, -x3);
-    /// assert_eq!(g, expected);
-    /// ```
-    pub fn rename_vars(&self, f: Ref, permutation: &HashMap<Var, Var>) -> Ref {
-        // Validate that all variables in the permutation are registered in the ordering
-        for (old_var, new_var) in permutation.iter() {
-            assert!(
-                self.get_level(*old_var).is_some(),
-                "Old variable {} is not registered in the ordering. \
-                All variables must be pre-allocated before rename.",
-                old_var
-            );
-            assert!(
-                self.get_level(*new_var).is_some(),
-                "New variable {} is not registered in the ordering. \
-                All variables must be pre-allocated before rename.",
-                new_var
-            );
-        }
-
-        // Validate that the permutation is order-preserving:
-        // If old_i precedes old_j in the ordering, then new_i must precede new_j.
-        //   (old_i < old_j) => (new_i < new_j)
-        let mut sorted_pairs: Vec<_> = permutation.iter().collect();
-        // Sort by level of the OLD variables
-        sorted_pairs.sort_by(|&(old_a, _), &(old_b, _)| {
-            if self.var_precedes(*old_a, *old_b) {
-                std::cmp::Ordering::Less
-            } else if self.var_precedes(*old_b, *old_a) {
-                std::cmp::Ordering::Greater
-            } else {
-                std::cmp::Ordering::Equal
-            }
-        });
-
-        for i in 0..sorted_pairs.len() {
-            for j in i + 1..sorted_pairs.len() {
-                let (old_i, new_i) = sorted_pairs[i];
-                let (old_j, new_j) = sorted_pairs[j];
-                // old_i precedes old_j (by construction of sorted_pairs)
-                // so new_i must also precede new_j for order preservation
-                assert!(
-                    self.var_precedes(*new_i, *new_j),
-                    "Permutation is not order-preserving: {}→{} and {}→{} violates ordering invariant \
-                    (new variable {} should precede {} in the ordering).",
-                    old_i,
-                    new_i,
-                    old_j,
-                    new_j,
-                    new_i,
-                    new_j
-                );
-            }
-        }
-
-        let mut cache = Cache::new(16);
-        self.rename_vars_(f, permutation, &mut cache)
-    }
-
-    fn rename_vars_(&self, f: Ref, permutation: &HashMap<Var, Var>, cache: &mut Cache<Ref, Ref>) -> Ref {
-        // Terminals pass through unchanged
-        if self.is_terminal(f) {
-            return f;
-        }
-
-        // Check cache (cache on the original reference including negation)
-        if let Some(&result) = cache.get(&f) {
-            return result;
-        }
-
-        // Handle negation: rename the positive node and negate the result
-        let is_negated = f.is_negated();
-        let f_positive = if is_negated { -f } else { f };
-
-        // Get the variable and children
-        let index = f_positive.index();
-        let v = self.variable(index);
-        let low = self.low(index);
-        let high = self.high(index);
-
-        // Recursively rename variables in children
-        let low_new = self.rename_vars_(low, permutation, cache);
-        let high_new = self.rename_vars_(high, permutation, cache);
-
-        // Apply permutation to variable (or keep original if not in map)
-        let v_new = permutation.get(&v).copied().unwrap_or(v);
-
-        // Create new node with renamed variable
-        let result_positive = self.mk_node(v_new, low_new, high_new);
-        let result = if is_negated { -result_positive } else { result_positive };
-
-        cache.insert(f, result);
-        result
     }
 }
 
