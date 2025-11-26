@@ -1,38 +1,70 @@
 //! Binary Decision Diagram (BDD) implementation.
 //!
-//! This module provides a canonical, reduced ordered BDD implementation with efficient
-//! caching and operation support. BDDs are a compact data structure for representing
-//! and manipulating Boolean functions.
+//! This module provides a **reduced ordered BDD** (ROBDD) with a **shared multi-rooted graph**
+//! representation and **complement edges**. BDDs are a canonical data structure for representing
+//! and manipulating Boolean functions efficiently.
+//!
+//! # Architecture
+//!
+//! The implementation follows a **manager-centric design**:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────┐
+//! │                      Bdd (Manager)                          │
+//! │  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐ │
+//! │  │   Storage   │  │    Cache    │  │  Variable Ordering   │ │
+//! │  │ (hash table │  │  (ITE ops)  │  │  (level ↔ variable)  │ │
+//! │  │  of nodes)  │  │             │  │                      │ │
+//! │  └─────────────┘  └─────────────┘  └──────────────────────┘ │
+//! └─────────────────────────────────────────────────────────────┘
+//!          │
+//!          ▼
+//! ┌─────────────────┐
+//! │   Ref (handle)  │  32-bit: index (31 bits) + complement flag (1 bit)
+//! └─────────────────┘
+//! ```
+//!
+//! - All BDD nodes live in a **shared storage pool** managed by [`Bdd`]
+//! - Multiple BDD roots can share subgraphs (structural sharing)
+//! - [`Ref`] is a lightweight handle to a node in the pool
+//! - Negation uses **complement edges** (flipping a bit, no new nodes)
 //!
 //! # Terminology
 //!
-//! - **BDD**: A directed acyclic graph representing a Boolean function.
-//!   In this crate, "BDD" often refers to a reference ([`Ref`]) to the root of such a graph.
-//! - **BDD Manager** ([`Bdd`]): The central structure that manages the shared pool of nodes,
-//!   maintains canonicity, and provides operations.
-//!   All BDD operations go through the manager.
-//! - **Node** ([`Node`]): The building block of a BDD graph.
-//!   Each node represents a decision on a Boolean variable and has two outgoing edges.
-//! - **Reference** ([`Ref`]): A lightweight handle to a BDD node.
-//!   References can be negated (complement edges) without creating new nodes.
-//! - **Terminal node**: A leaf node representing a constant value.
-//!   This implementation uses two terminals: `zero` (false) and `one` (true).
-//! - **Low/High edges**: The two outgoing edges from a decision node.
-//!   The **low edge** is followed when the variable is false, the **high edge** when true.
-//! - **Complement edge**: A negated reference (indicated by a flag).
-//!   Following a complement edge logically negates the function at the target node.
-//!   Only low edges can be complemented.
-//! - **Variable ordering**: BDD nodes are ordered by their variable indices.
-//!   This ordering is crucial for canonicity and reduction.
+//! | Term | Description |
+//! |------|-------------|
+//! | **BDD** | A directed acyclic graph representing a Boolean function. In this crate, often refers to a [`Ref`] pointing to the root. |
+//! | **Manager** ([`Bdd`]) | The central structure managing node storage, caching, and variable ordering. |
+//! | **Node** ([`Node`]) | A decision node with a variable and two children (low/high edges). |
+//! | **Reference** ([`Ref`]) | A 32-bit handle: 31-bit index + 1-bit complement flag. |
+//! | **Terminal** | Leaf nodes `zero` (⊥) and `one` (⊤) representing constants. |
+//! | **Low edge** | Followed when the decision variable is false. |
+//! | **High edge** | Followed when the decision variable is true. |
+//! | **Complement edge** | A negated reference (complement flag set). Only low edges can be complemented. |
+//! | **Level** | Position in the variable ordering (0 = top/root). |
+//! | **Forwarding pointer** | Temporary redirect during variable reordering. |
 //!
-//! # Key Features
+//! # Key Properties
 //!
-//! - **Canonical representation**: Each Boolean function has a unique BDD representation
-//! - **Automatic reduction**: Duplicate and redundant nodes are eliminated
-//! - **Operation caching**: Results of operations are cached for performance
-//! - **Complement edges**: Negation is handled efficiently using edge attributes
+//! - **Canonical**: Each Boolean function has exactly one BDD representation (up to complement)
+//! - **Reduced**: No redundant nodes (if low == high, node is eliminated)
+//! - **Ordered**: Variables appear in consistent order on all paths (enables efficient operations)
+//! - **Shared**: Isomorphic subgraphs are shared (hash consing)
+//! - **Complement edges**: Negation is O(1), no node duplication
+//!
+//! # Variable Ordering
+//!
+//! The BDD uses **explicit variable ordering** where:
+//! - Variable IDs are stable identifiers (never change)
+//! - Variable levels determine position in the BDD (can change via reordering)
+//! - Lower level = closer to root = decided earlier
+//!
+//! Good variable ordering can exponentially reduce BDD size. Use [`sift_all_variables`](Bdd::sift_all_variables)
+//! for automatic optimization.
 //!
 //! # Examples
+//!
+//! ## Basic Operations
 //!
 //! ```
 //! use bdd_rs::bdd::Bdd;
@@ -43,13 +75,51 @@
 //! let x = bdd.mk_var(1);
 //! let y = bdd.mk_var(2);
 //!
-//! // Perform Boolean operations
-//! let and = bdd.apply_and(x, y);  // x ∧ y
-//! let or = bdd.apply_or(x, y);    // x ∨ y
-//! let xor = bdd.apply_xor(x, y);  // x ⊕ y
+//! // Boolean operations
+//! let f = bdd.apply_and(x, y);       // x ∧ y
+//! let g = bdd.apply_or(x, -y);       // x ∨ ¬y  (negation via complement edge)
+//! let h = bdd.apply_xor(x, y);       // x ⊕ y
 //!
-//! // Check properties
-//! assert!(bdd.size(and) <= bdd.size(or));
+//! // Check satisfiability
+//! assert!(!bdd.is_zero(f));          // f is satisfiable
+//! assert!(bdd.is_zero(bdd.apply_and(x, -x)));  // x ∧ ¬x is unsatisfiable
+//! ```
+//!
+//! ## Quantification
+//!
+//! ```
+//! use bdd_rs::bdd::Bdd;
+//! use bdd_rs::types::Var;
+//!
+//! let bdd = Bdd::default();
+//! let x = bdd.mk_var(1);
+//! let y = bdd.mk_var(2);
+//!
+//! let f = bdd.apply_and(x, y);  // x ∧ y
+//!
+//! // Existential: ∃x. (x ∧ y) = y
+//! let exists_x = bdd.exists(f, [Var::new(1)]);
+//! assert_eq!(exists_x, y);
+//!
+//! // Universal: ∀x. (x ∧ y) = ⊥
+//! let forall_x = bdd.forall(f, [Var::new(1)]);
+//! assert!(bdd.is_zero(forall_x));
+//! ```
+//!
+//! ## Variable Reordering
+//!
+//! ```
+//! use bdd_rs::bdd::Bdd;
+//! use bdd_rs::types::Level;
+//!
+//! let bdd = Bdd::default();
+//! let x = bdd.mk_var(1);
+//! let y = bdd.mk_var(2);
+//! let mut f = bdd.apply_and(x, y);
+//!
+//! // Swap adjacent levels (uses forwarding pointers internally)
+//! bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
+//! f = bdd.deref_node(f);  // Follow forwarding to get updated reference
 //! ```
 
 use std::cell;
@@ -67,40 +137,40 @@ use crate::storage::Storage;
 use crate::types::{Level, Lit, Var};
 use crate::utils::OpKey;
 
-/// A Binary Decision Diagram (BDD) manager with explicit variable ordering.
+/// The BDD manager: a shared multi-rooted graph with complement edges.
 ///
-/// This structure manages a shared pool of BDD nodes with automatic deduplication
-/// and caching. All BDD operations are performed through this manager.
+/// This is the central structure for creating and manipulating BDDs. It maintains:
+/// - A **shared node pool** with hash consing for canonicity
+/// - An **operation cache** for memoizing ITE results
+/// - An **explicit variable ordering** that can be dynamically changed
 ///
-/// # Representation
+/// # Design
 ///
-/// - `zero` and `one`: Terminal nodes representing false and true
-/// - Internal nodes: Decision nodes with a variable and two children (low/high)
-/// - Complement edges: Negation is handled by marking edges rather than creating new nodes
-/// - **Explicit ordering**: Variable IDs and levels are maintained separately
+/// All BDD operations go through the manager. The manager owns the storage and ensures:
+/// - **Uniqueness**: Identical nodes are shared (hash consing)
+/// - **Reduction**: Redundant nodes are eliminated automatically
+/// - **Canonicity**: Each function has exactly one representation
 ///
-/// # Variable Ordering
+/// # Fields
 ///
-/// Unlike implicit ordering (where variable ID = level), this implementation uses
-/// **explicit ordering** where variable IDs are stable and their levels can change
-/// through reordering operations. This enables efficient O(k) in-place variable swaps.
+/// - `zero`: The constant false terminal (index 1, negated)
+/// - `one`: The constant true terminal (index 1, positive)
 ///
-/// # Memory Management
+/// # Thread Safety
 ///
-/// The BDD uses a hash table for node storage with configurable capacity.
-/// Call [`collect_garbage`](Bdd::collect_garbage) to reclaim unused nodes.
+/// The manager uses `RefCell` internally and is **not thread-safe**.
+/// For concurrent use, wrap in appropriate synchronization primitives.
 ///
 /// # Examples
 ///
 /// ```
 /// use bdd_rs::bdd::Bdd;
 ///
-/// // Create a BDD manager with default capacity (2^20 nodes)
+/// // Default: 2^20 (~1M) nodes capacity
 /// let bdd = Bdd::default();
 ///
-/// // Or specify custom capacity
-/// let bdd = Bdd::new(10); // 2^10 nodes capacity
-/// assert_eq!(bdd.storage().capacity(), 1024);
+/// // Custom capacity for large problems
+/// let big_bdd = Bdd::new(24);  // 2^24 (~16M) nodes
 /// ```
 pub struct Bdd {
     storage: RefCell<Storage>,
@@ -196,18 +266,23 @@ impl Debug for Bdd {
 }
 
 impl Bdd {
+    /// Returns a reference to the underlying node storage.
     pub fn storage(&self) -> std::cell::Ref<'_, Storage> {
         self.storage.borrow()
     }
     fn storage_mut(&self) -> cell::RefMut<'_, Storage> {
         self.storage.borrow_mut()
     }
+
+    /// Returns a reference to the operation cache.
     pub fn cache(&self) -> cell::Ref<'_, Cache<OpKey, Ref>> {
         self.cache.borrow()
     }
     fn cache_mut(&self) -> cell::RefMut<'_, Cache<OpKey, Ref>> {
         self.cache.borrow_mut()
     }
+
+    /// Returns a reference to the size computation cache.
     pub fn size_cache(&self) -> cell::Ref<'_, Cache<Ref, u64>> {
         self.size_cache.borrow()
     }
@@ -215,51 +290,48 @@ impl Bdd {
         self.size_cache.borrow_mut()
     }
 
-    /// Gets the current variable ordering.
+    /// Returns the current variable ordering as a vector.
     ///
-    /// # Returns
-    ///
-    /// A vector of variables in order from level 0 to the last level.
+    /// The i-th element is the variable at level i. Level 0 is the root level.
     pub fn get_variable_order(&self) -> Vec<Var> {
         self.var_order.borrow().clone()
     }
 
-    /// Gets the variable at a specific level in the current ordering.
-    ///
-    /// # Returns
-    ///
-    /// Some(variable) if the level exists, None otherwise.
+    /// Returns the variable at a given level, if it exists.
     pub fn get_variable_at_level(&self, level: Level) -> Option<Var> {
         self.var_order.borrow().get(level.index()).copied()
     }
 
-    /// Gets the level of a variable in the current ordering.
+    /// Returns the level of a variable in the current ordering.
     ///
-    /// # Returns
-    ///
-    /// Some(level) if the variable is in the ordering, None otherwise.
+    /// Returns `None` if the variable has not been registered.
     pub fn get_level(&self, var: Var) -> Option<Level> {
         self.level_map.borrow().get(&var).copied()
     }
 
-    /// Gets all node indices at a specific level.
+    /// Returns all node indices at a specific level.
     ///
-    /// # Returns
-    ///
-    /// A vector of node indices at the given level.
+    /// This is primarily used internally for variable reordering.
     pub fn get_nodes_at_level(&self, level: Level) -> Vec<u32> {
         self.level_nodes.borrow().get(level.index()).cloned().unwrap_or_default()
     }
 
-    /// Gets the number of levels in the current ordering.
+    /// Returns the number of levels (registered variables) in the ordering.
     pub fn num_levels(&self) -> usize {
         self.var_order.borrow().len()
     }
 
+    /// Gets a copy of the node at the given index, following forwarding.
+    ///
+    /// This method automatically dereferences forwarding pointers.
     pub fn node(&self, index: u32) -> Node {
         let deref = self.deref_node(Ref::positive(index));
         *self.storage().node(deref.index() as usize)
     }
+
+    /// Gets the low child of a node, following forwarding.
+    ///
+    /// Returns the dereferenced low edge of the node at the given index.
     pub fn low(&self, index: u32) -> Ref {
         let deref = self.deref_node(Ref::positive(index));
         let low_ref = self.storage().low(deref.index() as usize);
@@ -271,6 +343,10 @@ impl Bdd {
             self.deref_node(low_ref)
         }
     }
+
+    /// Gets the high child of a node, following forwarding.
+    ///
+    /// Returns the dereferenced high edge of the node at the given index.
     pub fn high(&self, index: u32) -> Ref {
         let deref = self.deref_node(Ref::positive(index));
         let high_ref = self.storage().high(deref.index() as usize);
@@ -283,6 +359,10 @@ impl Bdd {
         }
     }
 
+    /// Gets the low child of a BDD node, respecting complement edges.
+    ///
+    /// If the node reference is negated, the returned child is also negated.
+    /// This maintains the complement edge semantics throughout traversal.
     pub fn low_node(&self, node_ref: Ref) -> Ref {
         let low = self.low(node_ref.index());
         if node_ref.is_negated() {
@@ -291,6 +371,11 @@ impl Bdd {
             low
         }
     }
+
+    /// Gets the high child of a BDD node, respecting complement edges.
+    ///
+    /// If the node reference is negated, the returned child is also negated.
+    /// This maintains the complement edge semantics throughout traversal.
     pub fn high_node(&self, node_ref: Ref) -> Ref {
         let high = self.high(node_ref.index());
         if node_ref.is_negated() {
@@ -300,16 +385,17 @@ impl Bdd {
         }
     }
 
-    /// Dereferences a node reference by following forwarding chains.
+    /// Dereferences a node reference by following forwarding pointers.
     ///
-    /// During variable reordering, nodes may be forwarded to new locations.
-    /// This method follows the chain of forwarding pointers to find the
-    /// actual current node.
-    /// Dereferences a node by following forwarding pointers.
+    /// During variable reordering with in-place swaps, nodes are transformed and
+    /// forwarding pointers are set from old nodes to their replacements. This method
+    /// follows the forwarding chain to find the actual current node.
     ///
-    /// After variable reordering with in-place swaps, nodes may have forwarding
-    /// pointers to their new locations. This method follows the forwarding chain
-    /// to find the actual current node.
+    /// # Forwarding Pointers
+    ///
+    /// When [`swap_adjacent_inplace`](Self::swap_adjacent_inplace) transforms a node,
+    /// instead of updating all references immediately, it sets a forwarding pointer
+    /// in the old node. This is the CUDD-style approach that enables O(k) swaps.
     ///
     /// # Arguments
     ///
@@ -317,11 +403,28 @@ impl Bdd {
     ///
     /// # Returns
     ///
-    /// The dereferenced reference (preserves negation)
+    /// The dereferenced reference. Negation is preserved through forwarding.
     ///
-    /// # Panics
+    /// # Cycle Detection
     ///
-    /// Panics if a forwarding cycle is detected (should never happen in correct code)
+    /// This method detects forwarding cycles (which indicate a bug) and breaks out
+    /// with a warning rather than looping infinitely.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::Level;
+    ///
+    /// let bdd = Bdd::default();
+    /// let f = bdd.apply_and(bdd.mk_var(1), bdd.mk_var(2));
+    ///
+    /// // After swap, f may have forwarding
+    /// bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
+    ///
+    /// // deref_node follows forwarding to get current reference
+    /// let f_current = bdd.deref_node(f);
+    /// ```
     pub fn deref_node(&self, r: Ref) -> Ref {
         let mut current = r;
         let mut visited = HashSet::new();
@@ -601,6 +704,33 @@ impl Bdd {
         self.one
     }
 
+    /// Creates or retrieves a BDD node with the given variable and children.
+    ///
+    /// This is the fundamental node constructor that enforces all BDD invariants:
+    /// - **Canonicity**: High edge is never complemented (negates entire node if needed)
+    /// - **Reduction**: If low == high, returns the child directly (no redundant node)
+    /// - **Uniqueness**: Uses hash consing to return existing identical nodes
+    ///
+    /// # Arguments
+    ///
+    /// * `v` - The decision variable (must not be terminal)
+    /// * `low` - Child followed when `v` is false
+    /// * `high` - Child followed when `v` is true
+    ///
+    /// # Returns
+    ///
+    /// A reference to the (possibly existing) node. May be negated if canonicity
+    /// required flipping the node.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `v` is the terminal variable (`Var::ZERO`).
+    ///
+    /// # Invariants Enforced
+    ///
+    /// 1. High edge is always positive (complement only on low edge)
+    /// 2. Redundant nodes eliminated (low == high → return child)
+    /// 3. Identical nodes shared (hash consing)
     pub fn mk_node(&self, v: Var, low: Ref, high: Ref) -> Ref {
         // debug!("mk(v = {}, low = {}, high = {})", v, low, high);
 
@@ -1055,6 +1185,15 @@ impl Bdd {
         }
     }
 
+    /// Checks if `ITE(f, g, h)` evaluates to a constant without building the BDD.
+    ///
+    /// Returns:
+    /// - `Some(true)` if the result is always true (ONE)
+    /// - `Some(false)` if the result is always false (ZERO)
+    /// - `None` if the result depends on variable assignments
+    ///
+    /// This is useful for implication checking and other queries where we only
+    /// care if the result is constant, not the full BDD structure.
     pub fn ite_constant(&self, f: Ref, g: Ref, h: Ref) -> Option<bool> {
         debug!("ite_constant(f = {}, g = {}, h = {})", f, g, h);
 
@@ -1164,14 +1303,22 @@ impl Bdd {
         t
     }
 
+    /// Checks if `f` logically implies `g` (i.e., `f → g` is a tautology).
+    ///
+    /// Returns `true` if for all assignments where `f` is true, `g` is also true.
+    /// Equivalent to checking if `f ∧ ¬g` is unsatisfiable.
+    ///
+    /// This is more efficient than building the implication BDD and checking if it's ONE,
+    /// as it can short-circuit when the result is determined.
     pub fn is_implies(&self, f: Ref, g: Ref) -> bool {
         debug!("is_implies(f = {}, g = {})", f, g);
         self.ite_constant(f, g, self.one) == Some(true)
     }
 
-    /// Returns the negation of a BDD.
+    /// Returns the negation of a BDD in O(1) time.
     ///
-    /// This operation is performed in constant time by flipping the complement bit.
+    /// Complement edges make negation trivial: just flip the complement bit.
+    /// No new nodes are created.
     ///
     /// # Examples
     ///
@@ -2656,11 +2803,28 @@ impl Bdd {
         Ok(())
     }
 
-    /// Extracts the two children when restricting to a variable.
+    /// Extracts the two cofactors of a function with respect to a variable.
     ///
-    /// If f has top variable var_y, returns (low, high).
-    /// Otherwise, returns (f, f) since f doesn't depend on var_y.
-    fn extract_grandchildren(&self, f: Ref, var_y: Var) -> (Ref, Ref) {
+    /// This is a key helper for the swap algorithm. When swapping variables x and y,
+    /// we need to extract the \"grandchildren\" of a node: the cofactors of a child
+    /// with respect to the variable being moved up.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - The BDD reference to extract cofactors from
+    /// * `var_y` - The variable to cofactor with respect to
+    ///
+    /// # Returns
+    ///
+    /// A tuple (f|_{var_y=0}, f|_{var_y=1}):
+    /// - If f has top variable var_y: returns (low child, high child)
+    /// - If f is terminal or has different top variable: returns (f, f)
+    ///
+    /// # Note
+    ///
+    /// This function assumes var_y is at the next level after f's top variable
+    /// in the swap context. It does NOT perform full cofactoring.
+    pub(crate) fn extract_grandchildren(&self, f: Ref, var_y: Var) -> (Ref, Ref) {
         if self.is_terminal(f) {
             return (f, f);
         }
@@ -2678,10 +2842,24 @@ impl Bdd {
         }
     }
 
-    /// Clears all forwarding pointers and rebuilds the level_nodes index.
+    /// Rebuilds the level_nodes index using dereferenced node data.
     ///
-    /// Rebuilds the level_nodes index without clearing forwarding pointers.
-    /// Uses dereferenced nodes to build the index.
+    /// This is called before each swap operation to ensure the level_nodes index
+    /// contains correct, dereferenced node indices. After multiple swaps, nodes
+    /// may have forwarding pointers, so we must follow them to find the actual
+    /// current nodes.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. Scan all occupied storage slots
+    /// 2. For each slot, dereference to find the actual current node
+    /// 3. Look up each node's variable and its current level
+    /// 4. Build a fresh level_nodes index using BTreeSet for deterministic ordering
+    ///
+    /// # Why BTreeSet?
+    ///
+    /// Using BTreeSet instead of HashSet ensures deterministic iteration order,
+    /// which is critical for reproducible swap operations.
     fn rebuild_level_nodes(&self) {
         debug!("Rebuilding level_nodes");
 
