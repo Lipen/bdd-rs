@@ -2720,7 +2720,7 @@ impl Bdd {
             .ok_or_else(|| format!("No variable at level {}", level.next().index()))?;
 
         debug!(
-            "In-place swap: var {:?} (level {:?}) <-> var {:?} (level {:?})",
+            "In-place swap: var {} (level {}) <-> var {} (level {})",
             var_x,
             level,
             var_y,
