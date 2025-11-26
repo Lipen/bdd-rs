@@ -204,8 +204,8 @@ pub struct Bdd {
     /// Node storage: Vec of Node, indexed by node ID.
     /// Index 0 is reserved (unused), index 1 is the terminal node (@1).
     nodes: RefCell<Vec<Node>>,
-    /// Free list of recycled node indices for reuse.
-    free_list: RefCell<Vec<u32>>,
+    /// Set of free (recycled) node indices available for reuse.
+    free_set: RefCell<HashSet<u32>>,
     cache: RefCell<Cache<OpKey, Ref>>,
     size_cache: RefCell<Cache<Ref, u64>>,
     pub zero: Ref,
@@ -262,7 +262,7 @@ impl Bdd {
 
         Self {
             nodes: RefCell::new(nodes),
-            free_list: RefCell::new(Vec::new()),
+            free_set: RefCell::new(HashSet::new()),
             cache: RefCell::new(Cache::new(cache_bits)),
             size_cache: RefCell::new(Cache::new(cache_bits)),
             zero,
@@ -308,7 +308,7 @@ impl Bdd {
     /// Returns the number of allocated nodes (excluding reserved slot 0 and free slots).
     pub fn num_nodes(&self) -> usize {
         // nodes.len() includes reserved slot 0, subtract 1 for that
-        self.nodes().len() - 1 - self.free_list.borrow().len()
+        self.nodes().len() - 1 - self.free_set.borrow().len()
     }
 
     /// Returns a reference to the operation cache.
@@ -683,9 +683,10 @@ impl Bdd {
         // Node doesn't exist - allocate and insert
         let node = Node::new(v, low, high);
         let index = {
-            let mut free_list = self.free_list.borrow_mut();
-            if let Some(idx) = free_list.pop() {
+            let mut free_set = self.free_set.borrow_mut();
+            if let Some(&idx) = free_set.iter().next() {
                 // Reuse a freed slot
+                free_set.remove(&idx);
                 self.nodes_mut()[idx as usize] = node;
                 idx
             } else {
@@ -2489,14 +2490,12 @@ impl Bdd {
         // Mark alive nodes using bit vector
         let alive = self.mark_alive(roots, num_nodes);
 
-        // Build set of currently free indices for quick lookup
-        let free_set: HashSet<u32> = self.free_list.borrow().iter().copied().collect();
-
         // Collect dead node indices and remove from subtables
         let dead_indices: Vec<u32> = {
             let mut nodes = self.nodes_mut();
             let mut subtables = self.subtables.borrow_mut();
             let level_map = self.level_map.borrow();
+            let free_set = self.free_set.borrow();
 
             (2..num_nodes as u32)
                 .filter(|&idx| {
@@ -2520,8 +2519,8 @@ impl Bdd {
                 .collect()
         };
 
-        // Add dead indices to free list for reuse
-        self.free_list.borrow_mut().extend(dead_indices);
+        // Add dead indices to free set for reuse
+        self.free_set.borrow_mut().extend(dead_indices);
 
         debug!("Garbage collection complete");
     }
@@ -2761,7 +2760,7 @@ impl Bdd {
         // Collect (level, low, high, index) for all non-free nodes first
         let entries: Vec<(usize, Ref, Ref, u32)> = {
             let nodes = self.nodes();
-            let free_set: HashSet<u32> = self.free_list.borrow().iter().copied().collect();
+            let free_set = self.free_set.borrow();
             let level_map = self.level_map.borrow();
 
             (2..nodes.len())
