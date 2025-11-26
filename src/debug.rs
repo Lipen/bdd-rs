@@ -23,10 +23,6 @@ pub struct NodeInfo {
     pub low: Option<Ref>,
     /// High child reference
     pub high: Option<Ref>,
-    /// Whether this node has a forwarding pointer
-    pub is_forwarded: bool,
-    /// Forwarding destination (if any)
-    pub forwarding_dest: Option<Ref>,
     /// Is this the ONE terminal
     pub is_one: bool,
     /// Is this the ZERO terminal
@@ -42,17 +38,12 @@ impl std::fmt::Display for NodeInfo {
         } else {
             write!(
                 f,
-                "{}(var={}, level={}, low={}, high={}{})",
+                "{}(var={}, level={}, low={}, high={})",
                 self.node_ref,
                 self.variable.map_or("?".to_string(), |v| v.to_string()),
                 self.level.map_or("?".to_string(), |l| l.to_string()),
                 self.low.map_or("?".to_string(), |r| r.to_string()),
                 self.high.map_or("?".to_string(), |r| r.to_string()),
-                if self.is_forwarded {
-                    format!(", FWD->{}", self.forwarding_dest.unwrap())
-                } else {
-                    String::new()
-                }
             )
         }
     }
@@ -85,8 +76,6 @@ impl Bdd {
                 level: None,
                 low: None,
                 high: None,
-                is_forwarded: false,
-                forwarding_dest: None,
                 is_one: true,
                 is_zero: false,
             };
@@ -99,8 +88,6 @@ impl Bdd {
                 level: None,
                 low: None,
                 high: None,
-                is_forwarded: false,
-                forwarding_dest: None,
                 is_one: false,
                 is_zero: true,
             };
@@ -109,8 +96,6 @@ impl Bdd {
         let node = self.node(node_ref.index());
         let variable = node.variable;
         let level = self.get_level(variable).map(|l| l.index());
-        let is_forwarded = node.is_forwarded();
-        let forwarding_dest = node.forwarding_dest();
 
         NodeInfo {
             node_ref,
@@ -118,8 +103,6 @@ impl Bdd {
             level,
             low: Some(self.low_node(node_ref)),
             high: Some(self.high_node(node_ref)),
-            is_forwarded,
-            forwarding_dest,
             is_one: false,
             is_zero: false,
         }
@@ -229,29 +212,6 @@ impl Bdd {
         failures
     }
 
-    /// Check if any nodes have forwarding pointers (indicates incomplete deref).
-    pub fn has_forwarding_pointers(&self, root: Ref) -> bool {
-        let mut visited = HashSet::new();
-        let mut stack = vec![root];
-
-        while let Some(node_ref) = stack.pop() {
-            if visited.contains(&node_ref) || self.is_terminal(node_ref) {
-                continue;
-            }
-            visited.insert(node_ref);
-
-            let node = self.node(node_ref.index());
-            if node.is_forwarded() {
-                return true;
-            }
-
-            stack.push(node.low);
-            stack.push(node.high);
-        }
-
-        false
-    }
-
     /// Dump complete BDD state for debugging.
     pub fn dump_state(&self) -> String {
         let mut result = String::new();
@@ -259,15 +219,7 @@ impl Bdd {
         writeln!(&mut result, "=== BDD State ===").unwrap();
         writeln!(&mut result, "{}", self.debug_ordering()).unwrap();
 
-        let storage = self.storage();
-        writeln!(
-            &mut result,
-            "Storage: capacity={}, size={}, real_size={}",
-            storage.capacity(),
-            storage.size(),
-            storage.real_size()
-        )
-        .unwrap();
+        writeln!(&mut result, "Nodes: count={}", self.num_nodes(),).unwrap();
 
         // Print nodes at each level
         writeln!(&mut result, "Nodes by level:").unwrap();

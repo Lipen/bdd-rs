@@ -352,8 +352,8 @@ impl Bdd {
         // Move variable up to level 0
         while current_level.index() > 0 {
             let prev = current_level.prev().expect("Should have previous level");
-            self.swap_adjacent_inplace(prev).expect("swap should succeed");
-            self.deref_roots(roots);
+            let mapping = self.swap_adjacent_inplace(prev).expect("swap should succeed");
+            self.remap_roots(roots, &mapping);
             current_level = prev;
             swaps += 1;
 
@@ -364,8 +364,8 @@ impl Bdd {
 
         // Now move it down through all positions
         while current_level.index() < num_levels - 1 {
-            self.swap_adjacent_inplace(current_level).expect("swap should succeed");
-            self.deref_roots(roots);
+            let mapping = self.swap_adjacent_inplace(current_level).expect("swap should succeed");
+            self.remap_roots(roots, &mapping);
             current_level = current_level.next();
             swaps += 1;
 
@@ -381,8 +381,8 @@ impl Bdd {
         // Move variable back to the best position
         while current_level.index() > best_level {
             let prev = current_level.prev().expect("Should have previous level");
-            self.swap_adjacent_inplace(prev).expect("swap should succeed");
-            self.deref_roots(roots);
+            let mapping = self.swap_adjacent_inplace(prev).expect("swap should succeed");
+            self.remap_roots(roots, &mapping);
             current_level = prev;
             swaps += 1;
         }
@@ -396,6 +396,48 @@ impl Bdd {
         );
 
         (swaps, size_reduction)
+    }
+
+    /// Applies a node index → Ref mapping to a single reference.
+    ///
+    /// If the reference's index is in the mapping, returns the mapped value
+    /// (preserving negation). Otherwise returns the reference unchanged.
+    ///
+    /// This is a public wrapper around the internal `apply_mapping` used during swaps.
+    pub fn remap_ref(&self, r: Ref, mapping: &HashMap<u32, Ref>) -> Ref {
+        self.apply_mapping(r, mapping)
+    }
+
+    /// Applies a node index → Ref mapping to a slice of roots, mutating them in place.
+    ///
+    /// For each root, if its index is in the mapping, the root is updated to the
+    /// mapped value (preserving negation).
+    ///
+    /// # Arguments
+    ///
+    /// * `roots` - Mutable slice of BDD roots to update
+    /// * `mapping` - Mapping from old node indices to new references
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::Level;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let f = bdd.apply_and(x, y);
+    ///
+    /// let mut roots = vec![f];
+    /// let mapping = bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
+    /// bdd.remap_roots(&mut roots, &mapping);
+    /// // roots[0] now points to the updated BDD
+    /// ```
+    pub fn remap_roots(&self, roots: &mut [Ref], mapping: &HashMap<u32, Ref>) {
+        for root in roots.iter_mut() {
+            *root = self.apply_mapping(*root, mapping);
+        }
     }
 
     /// Count the total number of nodes in a set of BDDs.
@@ -417,13 +459,10 @@ impl Bdd {
         visited.insert(self.one.index());
 
         for &root in roots {
-            // Deref the root first
-            let deref_root = self.deref_node(root);
-            let mut stack = vec![deref_root.index()];
+            let mut stack = vec![root.index()];
 
             while let Some(idx) = stack.pop() {
                 if visited.insert(idx) {
-                    // Use low_node and high_node which handle dereferencing
                     let node_ref = Ref::positive(idx);
                     if self.is_terminal(node_ref) {
                         continue;
@@ -583,8 +622,8 @@ impl Bdd {
         if current_level < target_level {
             // Move down (towards terminals)
             while current_level < target_level {
-                self.swap_adjacent_inplace(current_level).expect("swap should succeed");
-                self.deref_roots(roots);
+                let mapping = self.swap_adjacent_inplace(current_level).expect("swap should succeed");
+                self.remap_roots(roots, &mapping);
                 current_level = current_level.next();
                 swaps += 1;
             }
@@ -592,8 +631,8 @@ impl Bdd {
             // Move up (towards root)
             while current_level > target_level {
                 let prev = current_level.prev().expect("Should have previous level");
-                self.swap_adjacent_inplace(prev).expect("swap should succeed");
-                self.deref_roots(roots);
+                let mapping = self.swap_adjacent_inplace(prev).expect("swap should succeed");
+                self.remap_roots(roots, &mapping);
                 current_level = prev;
                 swaps += 1;
             }
@@ -753,10 +792,8 @@ mod tests {
         println!("Before swap: {:?}", bdd);
 
         // Swap variables 1 and 2
-        bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
-        for root in roots.iter_mut() {
-            *root = bdd.deref_node(*root);
-        }
+        let mapping = bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
+        bdd.remap_roots(&mut roots, &mapping);
 
         println!("After swap: {:?}", bdd);
         println!("After swap: f = {}, size = {}", roots[0], bdd.count_nodes(&roots));
@@ -839,10 +876,8 @@ mod tests {
         let size_before = bdd.count_nodes(&roots);
 
         // Swap y and z
-        bdd.swap_adjacent_inplace(Level::new(1)).unwrap();
-        for root in roots.iter_mut() {
-            *root = bdd.deref_node(*root);
-        }
+        let mapping = bdd.swap_adjacent_inplace(Level::new(1)).unwrap();
+        bdd.remap_roots(&mut roots, &mapping);
 
         let size_after = bdd.count_nodes(&roots);
 
@@ -1143,23 +1178,21 @@ mod tests {
         assert_eq!(bdd.get_level(Var::new(3)), Some(Level::new(2)));
 
         println!("\n=== Step 1: swap levels 1 and 2 ===");
-        bdd.swap_adjacent_inplace(Level::new(1)).unwrap();
-        bdd.deref_roots(&mut roots);
+        let mapping = bdd.swap_adjacent_inplace(Level::new(1)).unwrap();
+        bdd.remap_roots(&mut roots, &mapping);
         println!("{}", bdd.debug_string(roots[0]));
         println!("{}", bdd.debug_ordering());
         println!("{}", bdd.dump_state());
         verify_function(&bdd, roots[0], &[1, 2, 3], expected_fn);
         println!("\n=== Step 2: swap levels 0 and 1 ===");
-        bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
-        bdd.deref_roots(&mut roots);
+        let mapping = bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
+        bdd.remap_roots(&mut roots, &mapping);
         println!("{}", bdd.debug_string(roots[0]));
         println!("{}", bdd.debug_ordering());
         println!("{}", bdd.dump_state());
 
         // Check that variable 3 is now at level 0
         assert_eq!(bdd.get_level(Var::new(3)), Some(Level::new(0)));
-
-        println!("Has forwarding pointers: {}", bdd.has_forwarding_pointers(roots[0]));
 
         // Verify after move
         verify_function(&bdd, roots[0], &[1, 2, 3], expected_fn);

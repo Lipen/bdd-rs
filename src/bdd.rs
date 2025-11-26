@@ -6,17 +6,27 @@
 //!
 //! # Architecture
 //!
-//! The implementation follows a **manager-centric design**:
+//! The implementation follows a **manager-centric design** with **per-level subtables** (similar to CUDD):
 //!
 //! ```text
-//! ┌─────────────────────────────────────────────────────────────┐
-//! │                      Bdd (Manager)                          │
-//! │  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐ │
-//! │  │   Storage   │  │    Cache    │  │  Variable Ordering   │ │
-//! │  │ (hash table │  │  (ITE ops)  │  │  (level ↔ variable)  │ │
-//! │  │  of nodes)  │  │             │  │                      │ │
-//! │  └─────────────┘  └─────────────┘  └──────────────────────┘ │
-//! └─────────────────────────────────────────────────────────────┘
+//! ┌──────────────────────────────────────────────────────────────────────────┐
+//! │                           Bdd (Manager)                                  │
+//! │  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────────────────┐  │
+//! │  │   Storage   │  │    Cache    │  │       Variable Ordering          │  │
+//! │  │ (raw node   │  │  (ITE ops)  │  │    (level ↔ variable map)        │  │
+//! │  │   data)     │  │             │  │                                  │  │
+//! │  └─────────────┘  └─────────────┘  └──────────────────────────────────┘  │
+//! │                                                                          │
+//! │  ┌────────────────────────────────────────────────────────────────────┐  │
+//! │  │                    Per-Level Subtables                             │  │
+//! │  │  ┌────────────┐  ┌────────────┐  ┌────────────┐                    │  │
+//! │  │  │ Level 0    │  │ Level 1    │  │ Level 2    │  ...               │  │
+//! │  │  │ (var x1)   │  │ (var x2)   │  │ (var x3)   │                    │  │
+//! │  │  │ HashMap    │  │ HashMap    │  │ HashMap    │                    │  │
+//! │  │  │ (lo,hi)→idx│  │ (lo,hi)→idx│  │ (lo,hi)→idx│                    │  │
+//! │  │  └────────────┘  └────────────┘  └────────────┘                    │  │
+//! │  └────────────────────────────────────────────────────────────────────┘  │
+//! └──────────────────────────────────────────────────────────────────────────┘
 //!          │
 //!          ▼
 //! ┌─────────────────┐
@@ -25,6 +35,8 @@
 //! ```
 //!
 //! - All BDD nodes live in a **shared storage pool** managed by [`Bdd`]
+//! - **Per-level subtables** enable efficient node lookup by (low, high) children
+//! - Variable reordering swaps subtables, making it efficient
 //! - Multiple BDD roots can share subgraphs (structural sharing)
 //! - [`Ref`] is a lightweight handle to a node in the pool
 //! - Negation uses **complement edges** (flipping a bit, no new nodes)
@@ -76,12 +88,12 @@
 //! let y = bdd.mk_var(2);
 //!
 //! // Boolean operations
-//! let f = bdd.apply_and(x, y);       // x ∧ y
-//! let g = bdd.apply_or(x, -y);       // x ∨ ¬y  (negation via complement edge)
-//! let h = bdd.apply_xor(x, y);       // x ⊕ y
+//! let f = bdd.apply_and(x, y);  // x ∧ y
+//! let g = bdd.apply_or(x, -y);  // x ∨ ¬y  (negation via complement edge)
+//! let h = bdd.apply_xor(x, y);  // x ⊕ y
 //!
 //! // Check satisfiability
-//! assert!(!bdd.is_zero(f));          // f is satisfiable
+//! assert!(!bdd.is_zero(f));     // f is satisfiable
 //! assert!(bdd.is_zero(bdd.apply_and(x, -x)));  // x ∧ ¬x is unsatisfiable
 //! ```
 //!
@@ -117,15 +129,15 @@
 //! let y = bdd.mk_var(2);
 //! let mut f = bdd.apply_and(x, y);
 //!
-//! // Swap adjacent levels (uses forwarding pointers internally)
-//! bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
-//! f = bdd.deref_node(f);  // Follow forwarding to get updated reference
+//! // Swap adjacent levels and remap references
+//! let mapping = bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
+//! f = bdd.apply_mapping(f, &mapping);  // Update reference using the mapping
 //! ```
 
 use std::cell;
 use std::cell::RefCell;
 use std::cmp::{min, Ordering};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 
 use log::debug;
@@ -133,23 +145,39 @@ use log::debug;
 use crate::cache::Cache;
 use crate::node::Node;
 use crate::reference::Ref;
-use crate::storage::Storage;
+use crate::subtable::Subtable;
 use crate::types::{Level, Lit, Var};
 use crate::utils::OpKey;
 
 /// The BDD manager: a shared multi-rooted graph with complement edges.
 ///
-/// This is the central structure for creating and manipulating BDDs. It maintains:
-/// - A **shared node pool** with hash consing for canonicity
+/// This is the central structure for creating and manipulating BDDs.
+/// It maintains:
+/// - A **node storage array** (`Vec<Node>`) for storing node data
+/// - **Per-level subtables** for efficient hash-based node lookup
 /// - An **operation cache** for memoizing ITE results
 /// - An **explicit variable ordering** that can be dynamically changed
 ///
 /// # Design
 ///
-/// All BDD operations go through the manager. The manager owns the storage and ensures:
-/// - **Uniqueness**: Identical nodes are shared (hash consing)
+/// All BDD operations go through the manager.
+/// The manager owns the storage and ensures:
+/// - **Uniqueness**: Identical nodes are shared (hash consing via per-level subtables)
 /// - **Reduction**: Redundant nodes are eliminated automatically
 /// - **Canonicity**: Each function has exactly one representation
+///
+/// ## Architecture
+///
+/// ```text
+/// nodes[0] = (unused, sentinel)
+/// nodes[1] = Terminal ONE node
+/// nodes[2] = First variable node
+/// ...
+///
+/// subtables[0] → HashMap for level 0: (low, high) → node_index
+/// subtables[1] → HashMap for level 1: (low, high) → node_index
+/// ...
+/// ```
 ///
 /// # Fields
 ///
@@ -173,14 +201,18 @@ use crate::utils::OpKey;
 /// let big_bdd = Bdd::new(24);  // 2^24 (~16M) nodes
 /// ```
 pub struct Bdd {
-    storage: RefCell<Storage>,
+    /// Node storage: Vec of Node, indexed by node ID.
+    /// Index 0 is reserved (unused), index 1 is the terminal node (@1).
+    nodes: RefCell<Vec<Node>>,
+    /// Free list of recycled node indices for reuse.
+    free_list: RefCell<Vec<u32>>,
     cache: RefCell<Cache<OpKey, Ref>>,
     size_cache: RefCell<Cache<Ref, u64>>,
     pub zero: Ref,
     pub one: Ref,
     var_order: RefCell<Vec<Var>>,            // level -> variable
     level_map: RefCell<HashMap<Var, Level>>, // variable -> level
-    level_nodes: RefCell<Vec<Vec<u32>>>,     // level -> node indices
+    subtables: RefCell<Vec<Subtable>>,       // level -> subtable
     next_var_id: RefCell<u32>,               // next variable ID to allocate
 }
 
@@ -208,34 +240,36 @@ impl Bdd {
     ///
     /// // Small BDD for simple problems
     /// let small_bdd = Bdd::new(16);
-    /// assert_eq!(small_bdd.storage().capacity(), 1 << 16);
+    /// assert_eq!(small_bdd.num_nodes(), 1);  // Just the terminal node
     ///
     /// // Large BDD for complex problems
     /// let large_bdd = Bdd::new(24);
-    /// assert_eq!(large_bdd.storage().capacity(), 1 << 24);
+    /// assert_eq!(large_bdd.num_nodes(), 1);
     /// ```
     pub fn new(storage_bits: usize) -> Self {
         assert!(storage_bits <= 31, "Storage bits should be in the range 0..=31");
 
         let cache_bits = min(storage_bits, 16);
+        let capacity = 1 << storage_bits;
 
-        let mut storage = Storage::new(storage_bits);
+        // Initialize node storage with reserved slot 0 and terminal node at index 1
+        let mut nodes = Vec::with_capacity(capacity);
+        nodes.push(Node::default()); // Index 0 is reserved (unused)
+        nodes.push(Node::default()); // Index 1 is the terminal node (@1)
 
-        // Allocate the terminal node:
-        let one = storage.alloc();
-        assert_eq!(one, 1); // Make sure the terminal node is (1).
-        let one = Ref::positive(one as u32);
+        let one = Ref::positive(1);
         let zero = -one;
 
         Self {
-            storage: RefCell::new(storage),
+            nodes: RefCell::new(nodes),
+            free_list: RefCell::new(Vec::new()),
             cache: RefCell::new(Cache::new(cache_bits)),
             size_cache: RefCell::new(Cache::new(cache_bits)),
             zero,
             one,
             var_order: RefCell::new(Vec::new()),
             level_map: RefCell::new(HashMap::new()),
-            level_nodes: RefCell::new(Vec::new()),
+            subtables: RefCell::new(Vec::new()),
             next_var_id: RefCell::new(1), // Variables start at 1
         }
     }
@@ -249,11 +283,9 @@ impl Default for Bdd {
 
 impl Debug for Bdd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let storage = self.storage.borrow();
         f.debug_struct("Bdd")
-            .field("capacity", &storage.capacity())
-            .field("size", &storage.size())
-            .field("real_size", &storage.real_size())
+            .field("capacity", &self.nodes().capacity())
+            .field("size", &self.num_nodes())
             .field(
                 "order",
                 &format_args!(
@@ -266,12 +298,17 @@ impl Debug for Bdd {
 }
 
 impl Bdd {
-    /// Returns a reference to the underlying node storage.
-    pub fn storage(&self) -> std::cell::Ref<'_, Storage> {
-        self.storage.borrow()
+    pub fn nodes(&self) -> cell::Ref<'_, Vec<Node>> {
+        self.nodes.borrow()
     }
-    fn storage_mut(&self) -> cell::RefMut<'_, Storage> {
-        self.storage.borrow_mut()
+    fn nodes_mut(&self) -> cell::RefMut<'_, Vec<Node>> {
+        self.nodes.borrow_mut()
+    }
+
+    /// Returns the number of allocated nodes (excluding reserved slot 0 and free slots).
+    pub fn num_nodes(&self) -> usize {
+        // nodes.len() includes reserved slot 0, subtract 1 for that
+        self.nodes().len() - 1 - self.free_list.borrow().len()
     }
 
     /// Returns a reference to the operation cache.
@@ -313,7 +350,11 @@ impl Bdd {
     ///
     /// This is primarily used internally for variable reordering.
     pub fn get_nodes_at_level(&self, level: Level) -> Vec<u32> {
-        self.level_nodes.borrow().get(level.index()).cloned().unwrap_or_default()
+        self.subtables
+            .borrow()
+            .get(level.index())
+            .map(|st| st.indices().collect())
+            .unwrap_or_default()
     }
 
     /// Returns the number of levels (registered variables) in the ordering.
@@ -321,42 +362,23 @@ impl Bdd {
         self.var_order.borrow().len()
     }
 
-    /// Gets a copy of the node at the given index, following forwarding.
-    ///
-    /// This method automatically dereferences forwarding pointers.
+    /// Gets a copy of the node at the given index.
     pub fn node(&self, index: u32) -> Node {
-        let deref = self.deref_node(Ref::positive(index));
-        *self.storage().node(deref.index() as usize)
+        self.nodes()[index as usize]
     }
 
-    /// Gets the low child of a node, following forwarding.
+    /// Gets the low child of a node.
     ///
-    /// Returns the dereferenced low edge of the node at the given index.
+    /// Returns the low edge of the node at the given index.
     pub fn low(&self, index: u32) -> Ref {
-        let deref = self.deref_node(Ref::positive(index));
-        let low_ref = self.storage().low(deref.index() as usize);
-        // Also deref the child reference (it might be forwarded)
-        // But don't deref terminals
-        if low_ref.index() <= 1 {
-            low_ref
-        } else {
-            self.deref_node(low_ref)
-        }
+        self.nodes()[index as usize].low
     }
 
-    /// Gets the high child of a node, following forwarding.
+    /// Gets the high child of a node.
     ///
-    /// Returns the dereferenced high edge of the node at the given index.
+    /// Returns the high edge of the node at the given index.
     pub fn high(&self, index: u32) -> Ref {
-        let deref = self.deref_node(Ref::positive(index));
-        let high_ref = self.storage().high(deref.index() as usize);
-        // Also deref the child reference (it might be forwarded)
-        // But don't deref terminals
-        if high_ref.index() <= 1 {
-            high_ref
-        } else {
-            self.deref_node(high_ref)
-        }
+        self.nodes()[index as usize].high
     }
 
     /// Gets the low child of a BDD node, respecting complement edges.
@@ -385,115 +407,9 @@ impl Bdd {
         }
     }
 
-    /// Dereferences a node reference by following forwarding pointers.
-    ///
-    /// During variable reordering with in-place swaps, nodes are transformed and
-    /// forwarding pointers are set from old nodes to their replacements. This method
-    /// follows the forwarding chain to find the actual current node.
-    ///
-    /// # Forwarding Pointers
-    ///
-    /// When [`swap_adjacent_inplace`](Self::swap_adjacent_inplace) transforms a node,
-    /// instead of updating all references immediately, it sets a forwarding pointer
-    /// in the old node. This is the CUDD-style approach that enables O(k) swaps.
-    ///
-    /// # Arguments
-    ///
-    /// * `r` - The reference to dereference (may be negated)
-    ///
-    /// # Returns
-    ///
-    /// The dereferenced reference. Negation is preserved through forwarding.
-    ///
-    /// # Cycle Detection
-    ///
-    /// This method detects forwarding cycles (which indicate a bug) and breaks out
-    /// with a warning rather than looping infinitely.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Level;
-    ///
-    /// let bdd = Bdd::default();
-    /// let f = bdd.apply_and(bdd.mk_var(1), bdd.mk_var(2));
-    ///
-    /// // After swap, f may have forwarding
-    /// bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
-    ///
-    /// // deref_node follows forwarding to get current reference
-    /// let f_current = bdd.deref_node(f);
-    /// ```
-    pub fn deref_node(&self, r: Ref) -> Ref {
-        let mut current = r;
-        let mut visited = HashSet::new();
-
-        // Follow forwarding chain, detecting cycles
-        loop {
-            let idx = current.index();
-
-            // Avoid infinite loops
-            if !visited.insert(idx) {
-                debug!("Warning: cycle detected in forwarding chain at index {}", idx);
-                break;
-            }
-
-            // Check if this node exists and is forwarded
-            let storage = self.storage.borrow();
-            let storage_size = storage.size();
-            // idx must be <= storage_size (size() returns last_index)
-            let check1 = (idx as usize) <= storage_size;
-            let check2 = if check1 { storage.is_occupied(idx as usize) } else { false };
-
-            if check1 && check2 {
-                let node = storage.node(idx as usize);
-                if let Some(next) = node.forwarding_dest() {
-                    drop(storage);
-                    // Preserve negation through forwarding
-                    current = if current.is_negated() { -next } else { next };
-                    continue;
-                }
-            }
-            break;
-        }
-
-        current
-    }
-
-    /// Dereferences all roots by following forwarding pointers.
-    ///
-    /// After [`swap_adjacent_inplace`](Self::swap_adjacent_inplace), BDD references may have
-    /// forwarding pointers. This helper updates all roots in-place to their current valid references.
-    ///
-    /// # Arguments
-    ///
-    /// * `roots` - Mutable slice of BDD roots to dereference
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Level;
-    ///
-    /// let bdd = Bdd::default();
-    /// let x = bdd.mk_var(1);
-    /// let y = bdd.mk_var(2);
-    /// let f = bdd.apply_and(x, y);
-    ///
-    /// let mut roots = vec![f];
-    /// bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
-    /// bdd.deref_roots(&mut roots);
-    /// ```
-    pub fn deref_roots(&self, roots: &mut [Ref]) {
-        for root in roots.iter_mut() {
-            *root = self.deref_node(*root);
-        }
-    }
-
+    /// Gets the variable of a node at the given index.
     pub fn variable(&self, index: u32) -> Var {
-        let deref = self.deref_node(Ref::positive(index));
-        self.storage().variable(deref.index() as usize)
+        self.nodes()[index as usize].variable
     }
 
     /// Allocates a new variable and adds it to the end of the variable ordering.
@@ -520,7 +436,7 @@ impl Bdd {
 
         self.var_order.borrow_mut().push(var);
         self.level_map.borrow_mut().insert(var, level);
-        self.level_nodes.borrow_mut().push(Vec::new());
+        self.subtables.borrow_mut().push(Subtable::new(var));
 
         var
     }
@@ -535,7 +451,7 @@ impl Bdd {
             let level = Level::new(self.var_order.borrow().len());
             self.var_order.borrow_mut().push(var);
             self.level_map.borrow_mut().insert(var, level);
-            self.level_nodes.borrow_mut().push(Vec::new());
+            self.subtables.borrow_mut().push(Subtable::new(var));
 
             // Update next_var_id if needed
             let next_val = *self.next_var_id.borrow();
@@ -557,7 +473,7 @@ impl Bdd {
         let level2 = self.get_level(var2);
 
         match (level1, level2) {
-            (Some(l1), Some(l2)) => l1.index() < l2.index(),
+            (Some(l1), Some(l2)) => l1 < l2,
             (Some(_), None) => true,
             (None, Some(_)) => false,
             (None, None) => var1.id() < var2.id(), // fallback to ID comparison
@@ -591,7 +507,7 @@ impl Bdd {
 
         match (level1, level2) {
             (Some(l1), Some(l2)) => {
-                if l1.index() <= l2.index() {
+                if l1 <= l2 {
                     var1
                 } else {
                     var2
@@ -748,8 +664,39 @@ impl Bdd {
             return low;
         }
 
-        let i = self.storage_mut().put(Node::new(v, low, high));
-        Ref::positive(i as u32)
+        // Auto-register the variable if needed
+        self.register_variable(v.id());
+
+        // Get the level for this variable (guaranteed to exist now)
+        let level = self.get_level(v).expect("Variable should be registered");
+
+        // Check if node exists in subtable
+        {
+            let subtables = self.subtables.borrow();
+            if let Some(index) = subtables[level.index()].find(low, high) {
+                return Ref::positive(index);
+            }
+        }
+
+        // Node doesn't exist - allocate and insert
+        let node = Node::new(v, low, high);
+        let index = {
+            let mut free_list = self.free_list.borrow_mut();
+            if let Some(idx) = free_list.pop() {
+                // Reuse a freed slot
+                self.nodes_mut()[idx as usize] = node;
+                idx
+            } else {
+                // Allocate new slot
+                let mut nodes = self.nodes_mut();
+                let idx = nodes.len() as u32;
+                nodes.push(node);
+                idx
+            }
+        };
+        self.subtables.borrow_mut()[level.index()].insert(low, high, index);
+
+        Ref::positive(index)
     }
 
     /// Creates a BDD representing a single Boolean variable.
@@ -2530,143 +2477,56 @@ impl Bdd {
         self.cache_mut().clear();
         self.size_cache_mut().clear();
 
-        // Dereference all roots (follow forwarding pointers)
-        let dereferenced_roots: Vec<Ref> = roots.iter().map(|&r| self.deref_node(r)).collect();
-
-        let alive = self.descendants(dereferenced_roots.iter().copied());
+        let alive = self.descendants(roots.iter().copied());
         debug!("Alive nodes: {:?}", alive);
 
-        let n = self.storage().num_buckets();
-        for i in 0..n {
-            let mut index = self.storage().bucket(i);
+        // Collect dead node indices to add to free list
+        let mut dead_indices = Vec::new();
 
-            if index != 0 {
-                debug!("Cleaning bucket #{} pointing to {}", i, index);
+        // Walk through all subtables and remove dead nodes
+        {
+            let mut subtables = self.subtables.borrow_mut();
+            for subtable in subtables.iter_mut() {
+                // Collect entries to remove (can't remove while iterating)
+                let to_remove: Vec<(Ref, Ref)> = subtable
+                    .iter()
+                    .filter(|&(_, _, idx)| !alive.contains(&idx))
+                    .map(|(low, high, idx)| {
+                        dead_indices.push(idx);
+                        (low, high)
+                    })
+                    .collect();
 
-                while index != 0 && !alive.contains(&(index as u32)) {
-                    let next = self.storage().next(index);
-                    debug!("Dropping {}, next = {}", index, next);
-                    self.storage_mut().drop(index);
-                    index = next;
-                }
-
-                debug!(
-                    "Relinking bucket #{} to {}, next = {:?}",
-                    i,
-                    index,
-                    if index != 0 { Some(self.storage().next(index)) } else { None }
-                );
-                self.storage_mut().set_bucket(i, index);
-
-                let mut prev = index;
-                while prev != 0 {
-                    let mut cur = self.storage().next(prev);
-                    while cur != 0 {
-                        if !alive.contains(&(cur as u32)) {
-                            let next = self.storage().next(cur);
-                            debug!("Dropping {}, prev = {}, next = {}", cur, prev, next);
-                            self.storage_mut().drop(cur);
-                            cur = next;
-                        } else {
-                            debug!("Keeping {}, prev = {}", cur, prev);
-                            break;
-                        }
-                    }
-                    let next_prev = self.storage().next(prev);
-                    if next_prev != cur {
-                        debug!("Relinking next({}) from {} to {}", prev, next_prev, cur);
-                        self.storage_mut().set_next(prev, cur);
-                    }
-                    prev = cur;
+                // Remove dead entries
+                for (low, high) in to_remove {
+                    subtable.remove(low, high);
                 }
             }
         }
 
-        // Clear all forwarding pointers and rebuild level_nodes
-        self.clear_forwarding_and_rebuild_level_nodes();
+        // Add dead indices to free list for reuse
+        self.free_list.borrow_mut().extend(dead_indices);
 
         debug!("Garbage collection complete");
     }
 
-    /// This should be called after garbage collection or any operation that
-    /// may have left forwarding pointers in place.
-    fn clear_forwarding_and_rebuild_level_nodes(&self) {
-        debug!("Clearing forwarding pointers and rebuilding level_nodes");
-
-        // Clear level_nodes
-        let num_levels = self.num_levels();
-        let mut new_level_nodes: Vec<BTreeSet<u32>> = vec![BTreeSet::new(); num_levels];
-
-        // First pass: collect dereferenced node indices BEFORE clearing forwarding
-        // We want to track the FINAL (dereferenced) nodes, not the forwarded ones
-        let storage_size = self.storage().size();
-        let mut live_nodes: HashSet<u32> = HashSet::new();
-
-        for index in 1..=storage_size {
-            if !self.storage().is_occupied(index) {
-                continue;
-            }
-
-            let node_idx = index as u32;
-            // Follow forwarding to get the final node
-            let deref_idx = self.deref_node(Ref::positive(node_idx)).index();
-            live_nodes.insert(deref_idx);
-            if node_idx != deref_idx {
-                debug!("  {} -> {} (forwarded)", node_idx, deref_idx);
-            }
-        }
-
-        debug!("  Live nodes: {:?}", live_nodes);
-
-        // Second pass: clear forwarding pointers
-        for index in 1..=storage_size {
-            if self.storage().is_occupied(index) {
-                self.storage_mut().value_mut(index).clear_forwarding();
-            }
-        }
-
-        // Third pass: rebuild level_nodes using only live (non-forwarded) nodes
-        for &node_idx in &live_nodes {
-            if node_idx as usize > storage_size || !self.storage().is_occupied(node_idx as usize) {
-                debug!("  Node {} not occupied, skipping", node_idx);
-                continue;
-            }
-
-            // Now forwarding is cleared, so we read the raw variable
-            let var = self.storage().variable(node_idx as usize);
-            // Skip terminal nodes (variable 0)
-            if var.is_terminal() {
-                continue;
-            }
-            if let Some(level) = self.level_map.borrow().get(&var) {
-                debug!("  Adding node {} (var {}) to level {}", node_idx, var, level);
-                new_level_nodes[level.index()].insert(node_idx);
-            } else {
-                debug!("  Node {} (var {}) not in level_map!", node_idx, var);
-            }
-        }
-
-        // Replace level_nodes
-        *self.level_nodes.borrow_mut() = new_level_nodes.into_iter().map(|s| s.into_iter().collect()).collect();
-    }
-
-    /// Swaps two adjacent levels using CUDD-style in-place transformation with forwarding pointers.
+    /// Swaps two adjacent levels in the variable ordering.
     ///
     /// This is the fundamental operation for dynamic variable reordering.
-    /// Uses efficient O(k) swap where k = nodes at the two levels.
+    /// Nodes at the two levels are restructured to reflect the new ordering.
     ///
     /// For high-level reordering operations, see [`sift_all_variables`](Self::sift_all_variables)
     /// which uses this function internally.
     ///
-    /// # Algorithm
+    /// # Algorithm (CUDD-style swap)
     ///
-    /// 1. Get nodes at level (with var_x)
-    /// 2. For each such node:
-    ///    - Extract four grandchildren
-    ///    - Rebuild with var_y on top, var_x below
-    ///    - Set forwarding pointer from old node to new structure
-    /// 3. Update ordering metadata
-    /// 4. Clear caches
+    /// For each node at level with var_x whose children depend on var_y:
+    /// 1. Extract four grandchildren: f00, f01, f10, f11 (where fij = f[x=i, y=j])
+    /// 2. Rebuild with var_y on top, var_x below:
+    ///    - new_y0 = mk_node(var_x, f00, f10)  -- when y=0
+    ///    - new_y1 = mk_node(var_x, f01, f11)  -- when y=1
+    ///    - result = mk_node(var_y, new_y0, new_y1)
+    /// 3. Update all references to the old node
     ///
     /// # Arguments
     ///
@@ -2674,13 +2534,9 @@ impl Bdd {
     ///
     /// # Returns
     ///
-    /// Ok(()) on success, Err if levels are out of bounds
-    ///
-    /// # Important
-    ///
-    /// After calling this function, any BDD references that existed before the swap
-    /// may have forwarding pointers. Use [`deref_node`](Self::deref_node) (for a single root)
-    /// or [`deref_roots`](Self::deref_roots) (for multiple roots) to follow these pointers.
+    /// A mapping from old node indices to new node references.
+    /// Callers should use [`apply_mapping`](Self::apply_mapping) or
+    /// [`remap_roots`](Self::remap_roots) to update any BDD roots they hold.
     ///
     /// # Examples
     ///
@@ -2694,12 +2550,12 @@ impl Bdd {
     /// let mut f = bdd.apply_and(x, y);
     ///
     /// // Swap levels 0 and 1
-    /// bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
+    /// let mapping = bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
     ///
-    /// // Follow forwarding pointer to get updated reference
-    /// f = bdd.deref_node(f);
+    /// // Update f using the mapping
+    /// f = bdd.apply_mapping(f, &mapping);
     /// ```
-    pub fn swap_adjacent_inplace(&self, level: Level) -> Result<(), String> {
+    pub fn swap_adjacent_inplace(&self, level: Level) -> Result<HashMap<u32, Ref>, String> {
         if level.next().index() >= self.num_levels() {
             return Err(format!(
                 "Level {} out of bounds (only {} levels)",
@@ -2708,10 +2564,6 @@ impl Bdd {
             ));
         }
 
-        // Rebuild level_nodes index WHILE forwarding pointers are present
-        // This ensures we use dereferenced nodes to build the index
-        self.rebuild_level_nodes();
-
         let var_x = self
             .get_variable_at_level(level)
             .ok_or_else(|| format!("No variable at level {}", level.index()))?;
@@ -2719,24 +2571,17 @@ impl Bdd {
             .get_variable_at_level(level.next())
             .ok_or_else(|| format!("No variable at level {}", level.next().index()))?;
 
-        debug!(
-            "In-place swap: var {} (level {}) <-> var {} (level {})",
-            var_x,
-            level,
-            var_y,
-            level.next()
-        );
+        debug!("Swap: var {} (level {}) <-> var {} (level {})", var_x, level, var_y, level.next());
 
         // Get nodes at level_x (these have var_x)
-        // These are DEREFERENCED indices from rebuild_level_nodes
         let nodes_at_x = self.get_nodes_at_level(level);
-
         debug!("  Nodes at level {}: {} nodes", level.index(), nodes_at_x.len());
 
+        // Build a mapping from old node index to new reference
+        let mut mapping: HashMap<u32, Ref> = HashMap::new();
+
         // Transform each node with var_x
-        // Read node data FIRST (while forwarding is present), then set new forwarding
         for &node_idx in &nodes_at_x {
-            // Read node data using deref (follows any existing forwarding)
             let node = self.node(node_idx);
 
             // Verify variable
@@ -2745,9 +2590,13 @@ impl Bdd {
                 continue;
             }
 
-            // Extract grandchildren (uses deref internally)
-            let (f_x0_y0, f_x0_y1) = self.extract_grandchildren(node.low, var_y);
-            let (f_x1_y0, f_x1_y1) = self.extract_grandchildren(node.high, var_y);
+            // Apply any already-computed mappings to the children
+            let low = self.apply_mapping(node.low, &mapping);
+            let high = self.apply_mapping(node.high, &mapping);
+
+            // Extract grandchildren (Shannon expansion with respect to var_y)
+            let (f_x0_y0, f_x0_y1) = self.extract_grandchildren(low, var_y);
+            let (f_x1_y0, f_x1_y1) = self.extract_grandchildren(high, var_y);
 
             // Rebuild: y on top, x below
             // When y=0: mk_node(x, f_x0_y0, f_x1_y0)
@@ -2756,34 +2605,29 @@ impl Bdd {
             let new_y1 = self.mk_node(var_x, f_x0_y1, f_x1_y1);
             let new_node = self.mk_node(var_y, new_y0, new_y1);
 
-            // Set forwarding pointer (overwriting any existing forwarding)
-            // This is safe because node_idx came from dereferenced level_nodes
-            // But we must check for cycles - if new_node is forwarded back to node_idx, don't create a cycle
-            let mut storage = self.storage_mut();
-            if node_idx as usize <= storage.size() && storage.is_occupied(node_idx as usize) {
-                if new_node.index() != node_idx {
-                    // Check if new_node has forwarding that would create a cycle
-                    let new_node_idx = new_node.index() as usize;
-                    let creates_cycle = if new_node_idx <= storage.size() && storage.is_occupied(new_node_idx) {
-                        let new_node_data = storage.node(new_node_idx);
-                        new_node_data
-                            .forwarding_dest()
-                            .map(|dest| dest.index() == node_idx)
-                            .unwrap_or(false)
-                    } else {
-                        false
-                    };
+            mapping.insert(node_idx, new_node);
+            debug!("  Mapped {} -> {}", node_idx, new_node);
+        }
 
-                    if creates_cycle {
-                        // Clear the conflicting forwarding from new_node instead
-                        storage.value_mut(new_node_idx).clear_forwarding();
-                        debug!("  Cleared cycle: {} was forwarded to {}", new_node.index(), node_idx);
-                    }
+        // Update nodes at higher levels (closer to root) that reference swapped nodes.
+        // We process from level-1 up to level 0.
+        for l in (0..level.index()).rev() {
+            let current_level = Level::new(l);
+            let var_at_level = self.get_variable_at_level(current_level).expect("Level should have variable");
+            let nodes_at_l = self.get_nodes_at_level(current_level);
 
-                    storage.value_mut(node_idx as usize).set_forwarding(new_node);
-                    debug!("  Set forwarding: {} -> {}", node_idx, new_node.index());
-                } else {
-                    debug!("  Node {} unchanged (same index)", node_idx);
+            for &node_idx in &nodes_at_l {
+                let node = self.node(node_idx);
+
+                // Check if any child is in the mapping
+                let new_low = self.apply_mapping(node.low, &mapping);
+                let new_high = self.apply_mapping(node.high, &mapping);
+
+                if new_low != node.low || new_high != node.high {
+                    // This node's children changed, create a new node
+                    let new_node = self.mk_node(var_at_level, new_low, new_high);
+                    mapping.insert(node_idx, new_node);
+                    debug!("  Updated ancestor {} -> {}", node_idx, new_node);
                 }
             }
         }
@@ -2792,21 +2636,39 @@ impl Bdd {
         self.var_order.borrow_mut().swap(level.index(), level.next().index());
         self.level_map.borrow_mut().insert(var_x, level.next());
         self.level_map.borrow_mut().insert(var_y, level);
-        self.level_nodes.borrow_mut().swap(level.index(), level.next().index());
+
+        // Rebuild subtables from scratch (simpler and more correct)
+        self.rebuild_subtables();
 
         // Clear operation caches (they may contain stale results)
         self.cache_mut().clear();
         self.size_cache_mut().clear();
 
-        debug!("In-place swap complete");
+        debug!("Swap complete");
 
-        Ok(())
+        Ok(mapping)
+    }
+
+    /// Applies a node mapping to a reference, handling negation.
+    ///
+    /// If the reference's index is in the mapping, returns the mapped value
+    /// with negation preserved. Otherwise returns the original reference.
+    pub fn apply_mapping(&self, r: Ref, mapping: &HashMap<u32, Ref>) -> Ref {
+        if let Some(&new_ref) = mapping.get(&r.index()) {
+            if r.is_negated() {
+                -new_ref
+            } else {
+                new_ref
+            }
+        } else {
+            r
+        }
     }
 
     /// Extracts the two cofactors of a function with respect to a variable.
     ///
     /// This is a key helper for the swap algorithm. When swapping variables x and y,
-    /// we need to extract the \"grandchildren\" of a node: the cofactors of a child
+    /// we need to extract the "grandchildren" of a node: the cofactors of a child
     /// with respect to the variable being moved up.
     ///
     /// # Arguments
@@ -2819,11 +2681,6 @@ impl Bdd {
     /// A tuple (f|_{var_y=0}, f|_{var_y=1}):
     /// - If f has top variable var_y: returns (low child, high child)
     /// - If f is terminal or has different top variable: returns (f, f)
-    ///
-    /// # Note
-    ///
-    /// This function assumes var_y is at the next level after f's top variable
-    /// in the swap context. It does NOT perform full cofactoring.
     pub(crate) fn extract_grandchildren(&self, f: Ref, var_y: Var) -> (Ref, Ref) {
         if self.is_terminal(f) {
             return (f, f);
@@ -2842,73 +2699,47 @@ impl Bdd {
         }
     }
 
-    /// Rebuilds the level_nodes index using dereferenced node data.
+    /// Rebuilds all subtables from the current node storage.
     ///
-    /// This is called before each swap operation to ensure the level_nodes index
-    /// contains correct, dereferenced node indices. After multiple swaps, nodes
-    /// may have forwarding pointers, so we must follow them to find the actual
-    /// current nodes.
-    ///
-    /// # Algorithm
-    ///
-    /// 1. Scan all occupied storage slots
-    /// 2. For each slot, dereference to find the actual current node
-    /// 3. Look up each node's variable and its current level
-    /// 4. Build a fresh level_nodes index using BTreeSet for deterministic ordering
-    ///
-    /// # Why BTreeSet?
-    ///
-    /// Using BTreeSet instead of HashSet ensures deterministic iteration order,
-    /// which is critical for reproducible swap operations.
-    fn rebuild_level_nodes(&self) {
-        debug!("Rebuilding level_nodes");
+    /// Scans all allocated nodes and re-populates the per-level subtables.
+    /// This is called after variable reordering when node-to-level mappings change.
+    fn rebuild_subtables(&self) {
+        debug!("Rebuilding subtables");
 
-        let num_levels = self.num_levels();
-        let mut new_level_nodes: Vec<BTreeSet<u32>> = vec![BTreeSet::new(); num_levels];
+        let var_order = self.var_order.borrow();
 
-        let storage_size = self.storage().size();
-        let mut live_nodes: HashSet<u32> = HashSet::new();
+        // Create fresh subtables for each level
+        let mut new_subtables: Vec<Subtable> = var_order.iter().map(|&v| Subtable::new(v)).collect();
+        drop(var_order);
 
-        // Collect dereferenced node indices (these are the "real" current nodes)
-        for index in 1..=storage_size {
-            if !self.storage().is_occupied(index) {
+        let nodes = self.nodes();
+        let free_set: HashSet<u32> = self.free_list.borrow().iter().copied().collect();
+        let level_map = self.level_map.borrow();
+
+        // Rebuild subtables from all non-free nodes
+        for index in 2..nodes.len() {
+            // Skip index 0 (reserved), index 1 (terminal), and free slots
+            if free_set.contains(&(index as u32)) {
                 continue;
             }
 
-            let node_idx = index as u32;
-            let deref_idx = self.deref_node(Ref::positive(node_idx)).index();
-            live_nodes.insert(deref_idx);
-        }
+            let node = &nodes[index];
+            let var = node.variable;
 
-        // Build level_nodes using dereferenced variables
-        for &node_idx in &live_nodes {
-            if node_idx as usize > storage_size || !self.storage().is_occupied(node_idx as usize) {
-                continue;
-            }
-
-            // Get the variable by dereferencing (in case node is forwarded)
-            let var = self.variable(node_idx);
+            // Skip terminal nodes (variable 0)
             if var.is_terminal() {
                 continue;
             }
-            if let Some(level) = self.level_map.borrow().get(&var) {
-                new_level_nodes[level.index()].insert(node_idx);
+
+            if let Some(&level) = level_map.get(&var) {
+                new_subtables[level.index()].insert(node.low, node.high, index as u32);
             }
         }
 
-        *self.level_nodes.borrow_mut() = new_level_nodes.into_iter().map(|s| s.into_iter().collect()).collect();
-        debug!("level_nodes rebuilt");
-    }
-
-    /// Clears forwarding pointers. Should only be called during GC.
-    #[allow(dead_code)]
-    fn clear_forwarding_pointers(&self) {
-        let storage_size = self.storage().size();
-        for index in 1..=storage_size {
-            if self.storage().is_occupied(index) {
-                self.storage_mut().value_mut(index).clear_forwarding();
-            }
-        }
+        drop(level_map);
+        drop(nodes);
+        *self.subtables.borrow_mut() = new_subtables;
+        debug!("subtables rebuilt");
     }
 
     pub fn to_bracket_string(&self, node_ref: Ref) -> String {
@@ -2928,12 +2759,7 @@ impl Bdd {
         }
 
         let index = node_ref.index();
-        let Node {
-            variable,
-            low,
-            high,
-            next: _,
-        } = self.node(index);
+        let Node { variable, low, high } = self.node(index);
 
         format!(
             "{}:({}, {}, {})",
@@ -3326,6 +3152,11 @@ mod tests {
     #[test]
     fn test_constrain_example1() {
         let bdd = Bdd::default();
+
+        // Pre-register variables in correct order (x1 at level 0, x2 at level 1, x3 at level 2)
+        bdd.mk_var(1);
+        bdd.mk_var(2);
+        bdd.mk_var(3);
 
         let s = bdd.mk_node(Var::new(3), -bdd.one, bdd.one);
         let p = bdd.mk_node(Var::new(2), -s, s);
