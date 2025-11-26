@@ -9,6 +9,7 @@ use crate::utils::MyHash;
 /// - `variable`: Variable ID (1-indexed, 0 for terminals)
 /// - `low`: Low child (followed when variable is false)
 /// - `high`: High child (followed when variable is true)
+/// - `next`: Next node in hash collision chain (intrusive linked list)
 ///
 /// # Structure
 ///
@@ -18,13 +19,24 @@ use crate::utils::MyHash;
 /// ```
 ///
 /// Nodes are stored in per-level subtables, where each subtable contains
-/// all nodes for a specific variable level. This enables efficient variable
-/// reordering by swapping subtables directly, without forwarding pointers.
+/// all nodes for a specific variable level. The `next` field implements
+/// collision chaining for the hash table, following CUDD's intrusive design.
+///
+/// # Memory Layout
+///
+/// ```text
+/// +----------+-----+------+------+
+/// | variable | low | high | next |
+/// +----------+-----+------+------+
+///     4B       4B    4B     4B    = 16 bytes total
+/// ```
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Node {
     pub variable: Var,
     pub low: Ref,
     pub high: Ref,
+    /// Next node in collision chain. `Ref::ZERO` means end of chain.
+    pub next: Ref,
 }
 
 impl Default for Node {
@@ -33,6 +45,7 @@ impl Default for Node {
             variable: Var::ZERO,
             low: Ref::ZERO,
             high: Ref::ZERO,
+            next: Ref::ZERO,
         }
     }
 }
@@ -48,7 +61,14 @@ impl MyHash for Node {
 
 impl Node {
     /// Creates a new node with the given variable and children.
+    ///
+    /// The `next` pointer is initialized to `Ref::ZERO` (end of chain).
     pub fn new(variable: Var, low: Ref, high: Ref) -> Self {
-        Self { variable, low, high }
+        Self {
+            variable,
+            low,
+            high,
+            next: Ref::ZERO,
+        }
     }
 }

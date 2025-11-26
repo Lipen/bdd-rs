@@ -71,8 +71,6 @@ pub mod raw;
 pub mod reference;
 pub mod reorder;
 pub mod sat;
-pub mod storage;
 pub mod subtable;
-pub mod table;
 pub mod types;
 pub mod utils;

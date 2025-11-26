@@ -350,10 +350,11 @@ impl Bdd {
     ///
     /// This is primarily used internally for variable reordering.
     pub fn get_nodes_at_level(&self, level: Level) -> Vec<u32> {
+        let nodes = self.nodes();
         self.subtables
             .borrow()
             .get(level.index())
-            .map(|st| st.indices().collect())
+            .map(|st| st.indices(&nodes).collect())
             .unwrap_or_default()
     }
 
@@ -670,10 +671,11 @@ impl Bdd {
         // Get the level for this variable (guaranteed to exist now)
         let level = self.get_level(v).expect("Variable should be registered");
 
-        // Check if node exists in subtable
+        // Check if node exists in subtable (needs read access to nodes for chain traversal)
         {
+            let nodes = self.nodes();
             let subtables = self.subtables.borrow();
-            if let Some(index) = subtables[level.index()].find(low, high) {
+            if let Some(index) = subtables[level.index()].find(low, high, &nodes) {
                 return Ref::positive(index);
             }
         }
@@ -694,7 +696,12 @@ impl Bdd {
                 idx
             }
         };
-        self.subtables.borrow_mut()[level.index()].insert(low, high, index);
+
+        // Insert into subtable (needs mutable access to nodes for setting next pointer)
+        {
+            let mut nodes = self.nodes_mut();
+            self.subtables.borrow_mut()[level.index()].insert(low, high, index, &mut nodes);
+        }
 
         Ref::positive(index)
     }
@@ -2480,32 +2487,20 @@ impl Bdd {
         let alive = self.descendants(roots.iter().copied());
         debug!("Alive nodes: {:?}", alive);
 
-        // Collect dead node indices to add to free list
-        let mut dead_indices = Vec::new();
-
-        // Walk through all subtables and remove dead nodes
-        {
-            let mut subtables = self.subtables.borrow_mut();
-            for subtable in subtables.iter_mut() {
-                // Collect entries to remove (can't remove while iterating)
-                let to_remove: Vec<(Ref, Ref)> = subtable
-                    .iter()
-                    .filter(|&(_, _, idx)| !alive.contains(&idx))
-                    .map(|(low, high, idx)| {
-                        dead_indices.push(idx);
-                        (low, high)
-                    })
-                    .collect();
-
-                // Remove dead entries
-                for (low, high) in to_remove {
-                    subtable.remove(low, high);
-                }
-            }
-        }
+        // Collect dead node indices (those not in alive set)
+        let dead_indices: Vec<u32> = {
+            let nodes = self.nodes();
+            let free_set: HashSet<u32> = self.free_list.borrow().iter().copied().collect();
+            (2..nodes.len() as u32)
+                .filter(|&idx| !free_set.contains(&idx) && !alive.contains(&idx))
+                .collect()
+        };
 
         // Add dead indices to free list for reuse
         self.free_list.borrow_mut().extend(dead_indices);
+
+        // Rebuild subtables from alive nodes (simpler and avoids iteration issues)
+        self.rebuild_subtables();
 
         debug!("Garbage collection complete");
     }
@@ -2712,32 +2707,40 @@ impl Bdd {
         let mut new_subtables: Vec<Subtable> = var_order.iter().map(|&v| Subtable::new(v)).collect();
         drop(var_order);
 
-        let nodes = self.nodes();
-        let free_set: HashSet<u32> = self.free_list.borrow().iter().copied().collect();
-        let level_map = self.level_map.borrow();
+        // Collect (level, low, high, index) for all non-free nodes first
+        let entries: Vec<(usize, Ref, Ref, u32)> = {
+            let nodes = self.nodes();
+            let free_set: HashSet<u32> = self.free_list.borrow().iter().copied().collect();
+            let level_map = self.level_map.borrow();
 
-        // Rebuild subtables from all non-free nodes
-        for index in 2..nodes.len() {
-            // Skip index 0 (reserved), index 1 (terminal), and free slots
-            if free_set.contains(&(index as u32)) {
-                continue;
-            }
+            (2..nodes.len())
+                .filter_map(|index| {
+                    let idx = index as u32;
+                    if free_set.contains(&idx) {
+                        return None;
+                    }
 
-            let node = &nodes[index];
-            let var = node.variable;
+                    let node = &nodes[index];
+                    let var = node.variable;
 
-            // Skip terminal nodes (variable 0)
-            if var.is_terminal() {
-                continue;
-            }
+                    // Skip terminal nodes (variable 0)
+                    if var.is_terminal() {
+                        return None;
+                    }
 
-            if let Some(&level) = level_map.get(&var) {
-                new_subtables[level.index()].insert(node.low, node.high, index as u32);
+                    level_map.get(&var).map(|&level| (level.index(), node.low, node.high, idx))
+                })
+                .collect()
+        };
+
+        // Now insert with mutable access to nodes
+        {
+            let mut nodes = self.nodes_mut();
+            for (level_idx, low, high, index) in entries {
+                new_subtables[level_idx].insert(low, high, index, &mut nodes);
             }
         }
 
-        drop(level_map);
-        drop(nodes);
         *self.subtables.borrow_mut() = new_subtables;
         debug!("subtables rebuilt");
     }
@@ -2759,7 +2762,7 @@ impl Bdd {
         }
 
         let index = node_ref.index();
-        let Node { variable, low, high } = self.node(index);
+        let Node { variable, low, high, .. } = self.node(index);
 
         format!(
             "{}:({}, {}, {})",
