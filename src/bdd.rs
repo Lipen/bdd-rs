@@ -305,10 +305,17 @@ impl Bdd {
         self.nodes.borrow_mut()
     }
 
+    fn free_set(&self) -> cell::Ref<'_, HashSet<u32>> {
+        self.free_set.borrow()
+    }
+    fn free_set_mut(&self) -> cell::RefMut<'_, HashSet<u32>> {
+        self.free_set.borrow_mut()
+    }
+
     /// Returns the number of allocated nodes (excluding reserved slot 0 and free slots).
     pub fn num_nodes(&self) -> usize {
         // nodes.len() includes reserved slot 0, subtract 1 for that
-        self.nodes().len() - 1 - self.free_set.borrow().len()
+        self.nodes().len() - 1 - self.free_set().len()
     }
 
     /// Returns a reference to the operation cache.
@@ -683,7 +690,7 @@ impl Bdd {
         // Node doesn't exist - allocate and insert
         let node = Node::new(v, low, high);
         let index = {
-            let mut free_set = self.free_set.borrow_mut();
+            let mut free_set = self.free_set_mut();
             if let Some(&idx) = free_set.iter().next() {
                 // Reuse a freed slot
                 free_set.remove(&idx);
@@ -2495,7 +2502,7 @@ impl Bdd {
             let mut nodes = self.nodes_mut();
             let mut subtables = self.subtables.borrow_mut();
             let level_map = self.level_map.borrow();
-            let free_set = self.free_set.borrow();
+            let free_set = self.free_set();
 
             (2..num_nodes as u32)
                 .filter(|&idx| {
@@ -2520,7 +2527,7 @@ impl Bdd {
         };
 
         // Add dead indices to free set for reuse
-        self.free_set.borrow_mut().extend(dead_indices);
+        self.free_set_mut().extend(dead_indices);
 
         debug!("Garbage collection complete");
     }
@@ -2760,7 +2767,7 @@ impl Bdd {
         // Collect (level, low, high, index) for all non-free nodes first
         let entries: Vec<(usize, Ref, Ref, u32)> = {
             let nodes = self.nodes();
-            let free_set = self.free_set.borrow();
+            let free_set = self.free_set();
             let level_map = self.level_map.borrow();
 
             (2..nodes.len())
