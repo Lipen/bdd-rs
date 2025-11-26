@@ -1,82 +1,25 @@
-//! Binary Decision Diagram (BDD) implementation.
+//! Binary Decision Diagram (BDD) manager.
 //!
-//! This module provides a **reduced ordered BDD** (ROBDD) with a **shared multi-rooted graph**
-//! representation and **complement edges**. BDDs are a canonical data structure for representing
-//! and manipulating Boolean functions efficiently.
+//! This module provides a **reduced ordered BDD** (ROBDD) implementation with
+//! **complement edges** and a **shared multi-rooted graph** representation.
 //!
-//! # Architecture
+//! # Overview
 //!
-//! The implementation follows a **manager-centric design** with **per-level subtables** (similar to CUDD):
+//! A BDD is a compact data structure for representing Boolean functions as directed
+//! acyclic graphs. This implementation uses a manager-centric design where:
 //!
-//! ```text
-//! ┌──────────────────────────────────────────────────────────────────────────┐
-//! │                           Bdd (Manager)                                  │
-//! │  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────────────────┐  │
-//! │  │   Storage   │  │    Cache    │  │       Variable Ordering          │  │
-//! │  │ (raw node   │  │  (ITE ops)  │  │    (level ↔ variable map)        │  │
-//! │  │   data)     │  │             │  │                                  │  │
-//! │  └─────────────┘  └─────────────┘  └──────────────────────────────────┘  │
-//! │                                                                          │
-//! │  ┌────────────────────────────────────────────────────────────────────┐  │
-//! │  │                    Per-Level Subtables                             │  │
-//! │  │  ┌────────────┐  ┌────────────┐  ┌────────────┐                    │  │
-//! │  │  │ Level 0    │  │ Level 1    │  │ Level 2    │  ...               │  │
-//! │  │  │ (var x1)   │  │ (var x2)   │  │ (var x3)   │                    │  │
-//! │  │  │ HashMap    │  │ HashMap    │  │ HashMap    │                    │  │
-//! │  │  │ (lo,hi)→idx│  │ (lo,hi)→idx│  │ (lo,hi)→idx│                    │  │
-//! │  │  └────────────┘  └────────────┘  └────────────┘                    │  │
-//! │  └────────────────────────────────────────────────────────────────────┘  │
-//! └──────────────────────────────────────────────────────────────────────────┘
-//!          │
-//!          ▼
-//! ┌─────────────────┐
-//! │   Ref (handle)  │  32-bit: index (31 bits) + complement flag (1 bit)
-//! └─────────────────┘
-//! ```
+//! - [`Bdd`] is the central manager that owns all nodes and handles operations
+//! - [`Ref`] is a lightweight 32-bit handle to a node (index + complement flag)
+//! - Nodes are stored in a shared pool with per-level hash tables for uniqueness
 //!
-//! - All BDD nodes live in a **shared storage pool** managed by [`Bdd`]
-//! - **Per-level subtables** enable efficient node lookup by (low, high) children
-//! - Variable reordering swaps subtables, making it efficient
-//! - Multiple BDD roots can share subgraphs (structural sharing)
-//! - [`Ref`] is a lightweight handle to a node in the pool
-//! - Negation uses **complement edges** (flipping a bit, no new nodes)
+//! # Key Features
 //!
-//! # Terminology
+//! - **Complement edges**: Negation is O(1), just flip a bit — no new nodes created
+//! - **Per-level subtables**: Efficient node lookup using intrusive hash tables
+//! - **Dynamic reordering**: Variables can be reordered to minimize BDD size
+//! - **Operation caching**: ITE results are memoized for performance
 //!
-//! | Term | Description |
-//! |------|-------------|
-//! | **BDD** | A directed acyclic graph representing a Boolean function. In this crate, often refers to a [`Ref`] pointing to the root. |
-//! | **Manager** ([`Bdd`]) | The central structure managing node storage, caching, and variable ordering. |
-//! | **Node** ([`Node`]) | A decision node with a variable and two children (low/high edges). |
-//! | **Reference** ([`Ref`]) | A 32-bit handle: 31-bit index + 1-bit complement flag. |
-//! | **Terminal** | Leaf nodes `zero` (⊥) and `one` (⊤) representing constants. |
-//! | **Low edge** | Followed when the decision variable is false. |
-//! | **High edge** | Followed when the decision variable is true. |
-//! | **Complement edge** | A negated reference (complement flag set). Only low edges can be complemented. |
-//! | **Level** | Position in the variable ordering (0 = top/root). |
-//! | **Forwarding pointer** | Temporary redirect during variable reordering. |
-//!
-//! # Key Properties
-//!
-//! - **Canonical**: Each Boolean function has exactly one BDD representation (up to complement)
-//! - **Reduced**: No redundant nodes (if low == high, node is eliminated)
-//! - **Ordered**: Variables appear in consistent order on all paths (enables efficient operations)
-//! - **Shared**: Isomorphic subgraphs are shared (hash consing)
-//! - **Complement edges**: Negation is O(1), no node duplication
-//!
-//! # Variable Ordering
-//!
-//! The BDD uses **explicit variable ordering** where:
-//! - Variable IDs are stable identifiers (never change)
-//! - Variable levels determine position in the BDD (can change via reordering)
-//! - Lower level = closer to root = decided earlier
-//!
-//! Good variable ordering can exponentially reduce BDD size. Use [`sift_all_variables`](Bdd::sift_all_variables)
-//! for automatic optimization.
-//!
-//! # Examples
-//!
-//! ## Basic Operations
+//! # Quick Start
 //!
 //! ```
 //! use bdd_rs::bdd::Bdd;
@@ -88,16 +31,17 @@
 //! let y = bdd.mk_var(2);
 //!
 //! // Boolean operations
-//! let f = bdd.apply_and(x, y);  // x ∧ y
-//! let g = bdd.apply_or(x, -y);  // x ∨ ¬y  (negation via complement edge)
-//! let h = bdd.apply_xor(x, y);  // x ⊕ y
+//! let f = bdd.apply_and(x, y);    // x ∧ y
+//! let g = bdd.apply_or(x, -y);    // x ∨ ¬y
+//! let h = bdd.apply_xor(x, y);    // x ⊕ y
 //!
-//! // Check satisfiability
-//! assert!(!bdd.is_zero(f));     // f is satisfiable
-//! assert!(bdd.is_zero(bdd.apply_and(x, -x)));  // x ∧ ¬x is unsatisfiable
+//! // Check properties
+//! assert!(!bdd.is_zero(f));                      // satisfiable
+//! assert!(bdd.is_zero(bdd.apply_and(x, -x)));   // contradiction
+//! assert!(bdd.is_one(bdd.apply_or(x, -x)));     // tautology
 //! ```
 //!
-//! ## Quantification
+//! # Quantification
 //!
 //! ```
 //! use bdd_rs::bdd::Bdd;
@@ -106,33 +50,53 @@
 //! let bdd = Bdd::default();
 //! let x = bdd.mk_var(1);
 //! let y = bdd.mk_var(2);
+//! let f = bdd.apply_and(x, y);
 //!
-//! let f = bdd.apply_and(x, y);  // x ∧ y
+//! // Existential: ∃x.(x ∧ y) = y
+//! let ex = bdd.exists(f, [Var::new(1)]);
+//! assert_eq!(ex, y);
 //!
-//! // Existential: ∃x. (x ∧ y) = y
-//! let exists_x = bdd.exists(f, [Var::new(1)]);
-//! assert_eq!(exists_x, y);
-//!
-//! // Universal: ∀x. (x ∧ y) = ⊥
-//! let forall_x = bdd.forall(f, [Var::new(1)]);
-//! assert!(bdd.is_zero(forall_x));
+//! // Universal: ∀x.(x ∧ y) = ⊥
+//! let fa = bdd.forall(f, [Var::new(1)]);
+//! assert!(bdd.is_zero(fa));
 //! ```
 //!
-//! ## Variable Reordering
+//! # Architecture
 //!
+//! ```text
+//!                              Bdd Manager
+//!  ┌────────────────────────────────────────────────────────────────┐
+//!  │  nodes: Vec<Node>     cache: Cache      var_order: Vec<Var>    │
+//!  │  ┌──────────────┐     ┌──────────┐      ┌──────────────────┐   │
+//!  │  │ [0] reserved │     │ ITE ops  │      │ level → variable │   │
+//!  │  │ [1] terminal │     │ memoized │      │ variable → level │   │
+//!  │  │ [2] node     │     └──────────┘      └──────────────────┘   │
+//!  │  │ ...          │                                              │
+//!  │  └──────────────┘     subtables: Vec<Subtable>                 │
+//!  │                       ┌─────────┐ ┌─────────┐ ┌─────────┐      │
+//!  │                       │ Level 0 │ │ Level 1 │ │ Level 2 │ ...  │
+//!  │                       │ buckets │ │ buckets │ │ buckets │      │
+//!  │                       └─────────┘ └─────────┘ └─────────┘      │
+//!  └────────────────────────────────────────────────────────────────┘
+//!                                    │
+//!                                    ▼
+//!                    Ref: 32-bit handle (31-bit index + 1-bit complement)
 //! ```
-//! use bdd_rs::bdd::Bdd;
-//! use bdd_rs::types::Level;
 //!
-//! let bdd = Bdd::default();
-//! let x = bdd.mk_var(1);
-//! let y = bdd.mk_var(2);
-//! let mut f = bdd.apply_and(x, y);
+//! # Node Structure
 //!
-//! // Swap adjacent levels and remap references
-//! let mapping = bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
-//! f = bdd.apply_mapping(f, &mapping);  // Update reference using the mapping
-//! ```
+//! Each node contains:
+//! - `variable`: The decision variable at this node
+//! - `low`: Child when variable is false (may be complemented)
+//! - `high`: Child when variable is true (never complemented)
+//! - `next`: Collision chain pointer for the hash table
+//!
+//! # Invariants
+//!
+//! - **Canonical form**: High edges are never complemented
+//! - **Reduced**: No node has `low == high` (would be redundant)
+//! - **Ordered**: Parent variable always precedes children in the ordering
+//! - **Unique**: No two nodes have the same (variable, low, high) triple
 
 use std::cell;
 use std::cell::{Cell, RefCell};
@@ -150,7 +114,7 @@ use crate::types::{Level, Lit, Var};
 use crate::utils::OpKey;
 
 // ============================================================================
-// Bdd struct and constructors
+// Bdd manager struct and constructors
 // ============================================================================
 
 /// The BDD manager: a shared multi-rooted graph with complement edges.
@@ -306,7 +270,7 @@ impl Debug for Bdd {
 }
 
 // ============================================================================
-// Internal accessors
+// Internal state accessors
 // ============================================================================
 
 impl Bdd {
@@ -369,7 +333,7 @@ impl Bdd {
 }
 
 // ============================================================================
-// Node inspection
+// Node data access
 // ============================================================================
 
 impl Bdd {
@@ -425,7 +389,7 @@ impl Bdd {
 }
 
 // ============================================================================
-// Predicates
+// Terminal predicates
 // ============================================================================
 
 impl Bdd {
@@ -650,7 +614,7 @@ impl Bdd {
 }
 
 // ============================================================================
-// Node constructors (mk_*)
+// BDD construction
 // ============================================================================
 
 impl Bdd {
@@ -946,7 +910,7 @@ impl Bdd {
 }
 
 // ============================================================================
-// Boolean operations
+// Boolean operations (apply_*)
 // ============================================================================
 
 impl Bdd {
@@ -2569,7 +2533,7 @@ impl Bdd {
 }
 
 // ============================================================================
-// Analysis
+// BDD analysis
 // ============================================================================
 
 impl Bdd {
@@ -2688,7 +2652,7 @@ impl Bdd {
 }
 
 // ============================================================================
-// Memory management
+// Garbage collection
 // ============================================================================
 
 impl Bdd {
@@ -2800,7 +2764,7 @@ impl Bdd {
 }
 
 // ============================================================================
-// Variable reordering
+// Dynamic variable reordering
 // ============================================================================
 
 impl Bdd {
@@ -3046,7 +3010,7 @@ impl Bdd {
 }
 
 // ============================================================================
-// Serialization
+// String representation
 // ============================================================================
 
 impl Bdd {
