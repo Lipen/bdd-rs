@@ -135,7 +135,7 @@
 //! ```
 
 use std::cell;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::cmp::{min, Ordering};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -213,7 +213,7 @@ pub struct Bdd {
     var_order: RefCell<Vec<Var>>,            // level -> variable
     level_map: RefCell<HashMap<Var, Level>>, // variable -> level
     subtables: RefCell<Vec<Subtable>>,       // level -> subtable
-    next_var_id: RefCell<u32>,               // next variable ID to allocate
+    next_var_id: Cell<u32>,                  // next variable ID to allocate
 }
 
 impl Bdd {
@@ -270,7 +270,7 @@ impl Bdd {
             var_order: RefCell::new(Vec::new()),
             level_map: RefCell::new(HashMap::new()),
             subtables: RefCell::new(Vec::new()),
-            next_var_id: RefCell::new(1), // Variables start at 1
+            next_var_id: Cell::new(1), // Variables start at 1
         }
     }
 }
@@ -290,7 +290,7 @@ impl Debug for Bdd {
                 "order",
                 &format_args!(
                     "[{}]",
-                    self.var_order.borrow().iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", ")
+                    self.var_order().iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", ")
                 ),
             )
             .finish()
@@ -305,11 +305,32 @@ impl Bdd {
         self.nodes.borrow_mut()
     }
 
-    fn free_set(&self) -> cell::Ref<'_, HashSet<u32>> {
+    pub fn free_set(&self) -> cell::Ref<'_, HashSet<u32>> {
         self.free_set.borrow()
     }
     fn free_set_mut(&self) -> cell::RefMut<'_, HashSet<u32>> {
         self.free_set.borrow_mut()
+    }
+
+    pub fn var_order(&self) -> cell::Ref<'_, Vec<Var>> {
+        self.var_order.borrow()
+    }
+    fn var_order_mut(&self) -> cell::RefMut<'_, Vec<Var>> {
+        self.var_order.borrow_mut()
+    }
+
+    pub fn level_map(&self) -> cell::Ref<'_, HashMap<Var, Level>> {
+        self.level_map.borrow()
+    }
+    fn level_map_mut(&self) -> cell::RefMut<'_, HashMap<Var, Level>> {
+        self.level_map.borrow_mut()
+    }
+
+    pub fn subtables(&self) -> cell::Ref<'_, Vec<Subtable>> {
+        self.subtables.borrow()
+    }
+    fn subtables_mut(&self) -> cell::RefMut<'_, Vec<Subtable>> {
+        self.subtables.borrow_mut()
     }
 
     /// Returns the number of allocated nodes (excluding reserved slot 0 and free slots).
@@ -338,19 +359,19 @@ impl Bdd {
     ///
     /// The i-th element is the variable at level i. Level 0 is the root level.
     pub fn get_variable_order(&self) -> Vec<Var> {
-        self.var_order.borrow().clone()
+        self.var_order().clone()
     }
 
     /// Returns the variable at a given level, if it exists.
     pub fn get_variable_at_level(&self, level: Level) -> Option<Var> {
-        self.var_order.borrow().get(level.index()).copied()
+        self.var_order().get(level.index()).copied()
     }
 
     /// Returns the level of a variable in the current ordering.
     ///
     /// Returns `None` if the variable has not been registered.
     pub fn get_level(&self, var: Var) -> Option<Level> {
-        self.level_map.borrow().get(&var).copied()
+        self.level_map().get(&var).copied()
     }
 
     /// Returns all node indices at a specific level.
@@ -358,8 +379,7 @@ impl Bdd {
     /// This is primarily used internally for variable reordering.
     pub fn get_nodes_at_level(&self, level: Level) -> Vec<u32> {
         let nodes = self.nodes();
-        self.subtables
-            .borrow()
+        self.subtables()
             .get(level.index())
             .map(|st| st.indices(&nodes).collect())
             .unwrap_or_default()
@@ -367,7 +387,7 @@ impl Bdd {
 
     /// Returns the number of levels (registered variables) in the ordering.
     pub fn num_levels(&self) -> usize {
-        self.var_order.borrow().len()
+        self.var_order().len()
     }
 
     /// Gets a copy of the node at the given index.
@@ -436,15 +456,15 @@ impl Bdd {
     /// let x = bdd.mk_var(var);  // Can pass Var directly
     /// ```
     pub fn allocate_variable(&self) -> Var {
-        let var_id = *self.next_var_id.borrow();
-        *self.next_var_id.borrow_mut() = var_id + 1;
+        let var_id = self.next_var_id.get();
+        self.next_var_id.set(var_id + 1);
 
         let var = Var::new(var_id);
-        let level = Level::new(self.var_order.borrow().len());
+        let level = Level::new(self.var_order().len());
 
-        self.var_order.borrow_mut().push(var);
-        self.level_map.borrow_mut().insert(var, level);
-        self.subtables.borrow_mut().push(Subtable::new(var));
+        self.var_order_mut().push(var);
+        self.level_map_mut().insert(var, level);
+        self.subtables_mut().push(Subtable::new(var));
 
         var
     }
@@ -455,16 +475,16 @@ impl Bdd {
     fn register_variable(&self, var_id: u32) {
         let var = Var::new(var_id);
 
-        if !self.level_map.borrow().contains_key(&var) {
-            let level = Level::new(self.var_order.borrow().len());
-            self.var_order.borrow_mut().push(var);
-            self.level_map.borrow_mut().insert(var, level);
-            self.subtables.borrow_mut().push(Subtable::new(var));
+        if !self.level_map().contains_key(&var) {
+            let level = Level::new(self.var_order().len());
+            self.var_order_mut().push(var);
+            self.level_map_mut().insert(var, level);
+            self.subtables_mut().push(Subtable::new(var));
 
             // Update next_var_id if needed
-            let next_val = *self.next_var_id.borrow();
+            let next_val = self.next_var_id.get();
             if var_id >= next_val {
-                *self.next_var_id.borrow_mut() = var_id + 1;
+                self.next_var_id.set(var_id + 1);
             }
         }
     }
@@ -681,7 +701,7 @@ impl Bdd {
         // Check if node exists in subtable (needs read access to nodes for chain traversal)
         {
             let nodes = self.nodes();
-            let subtables = self.subtables.borrow();
+            let subtables = self.subtables();
             if let Some(index) = subtables[level.index()].find(low, high, &nodes) {
                 return Ref::positive(index);
             }
@@ -708,7 +728,7 @@ impl Bdd {
         // Insert into subtable (needs mutable access to nodes for setting next pointer)
         {
             let mut nodes = self.nodes_mut();
-            self.subtables.borrow_mut()[level.index()].insert(low, high, index, &mut nodes);
+            self.subtables_mut()[level.index()].insert(low, high, index, &mut nodes);
         }
 
         Ref::positive(index)
@@ -2500,8 +2520,8 @@ impl Bdd {
         // Collect dead node indices and remove from subtables
         let dead_indices: Vec<u32> = {
             let mut nodes = self.nodes_mut();
-            let mut subtables = self.subtables.borrow_mut();
-            let level_map = self.level_map.borrow();
+            let mut subtables = self.subtables_mut();
+            let level_map = self.level_map();
             let free_set = self.free_set();
 
             (2..num_nodes as u32)
@@ -2685,9 +2705,9 @@ impl Bdd {
         }
 
         // Swap ordering metadata
-        self.var_order.borrow_mut().swap(level.index(), level.next().index());
-        self.level_map.borrow_mut().insert(var_x, level.next());
-        self.level_map.borrow_mut().insert(var_y, level);
+        self.var_order_mut().swap(level.index(), level.next().index());
+        self.level_map_mut().insert(var_x, level.next());
+        self.level_map_mut().insert(var_y, level);
 
         // Rebuild subtables from scratch (simpler and more correct)
         self.rebuild_subtables();
@@ -2758,7 +2778,7 @@ impl Bdd {
     fn rebuild_subtables(&self) {
         debug!("Rebuilding subtables");
 
-        let var_order = self.var_order.borrow();
+        let var_order = self.var_order();
 
         // Create fresh subtables for each level
         let mut new_subtables: Vec<Subtable> = var_order.iter().map(|&v| Subtable::new(v)).collect();
@@ -2768,7 +2788,7 @@ impl Bdd {
         let entries: Vec<(usize, Ref, Ref, u32)> = {
             let nodes = self.nodes();
             let free_set = self.free_set();
-            let level_map = self.level_map.borrow();
+            let level_map = self.level_map();
 
             (2..nodes.len())
                 .filter_map(|index| {
@@ -2798,7 +2818,7 @@ impl Bdd {
             }
         }
 
-        *self.subtables.borrow_mut() = new_subtables;
+        *self.subtables_mut() = new_subtables;
         debug!("subtables rebuilt");
     }
 
