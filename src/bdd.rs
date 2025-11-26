@@ -2484,25 +2484,76 @@ impl Bdd {
         self.cache_mut().clear();
         self.size_cache_mut().clear();
 
-        let alive = self.descendants(roots.iter().copied());
-        debug!("Alive nodes: {:?}", alive);
+        let num_nodes = self.nodes().len();
 
-        // Collect dead node indices (those not in alive set)
+        // Mark alive nodes using bit vector
+        let alive = self.mark_alive(roots, num_nodes);
+
+        // Build set of currently free indices for quick lookup
+        let free_set: HashSet<u32> = self.free_list.borrow().iter().copied().collect();
+
+        // Collect dead node indices and remove from subtables
         let dead_indices: Vec<u32> = {
-            let nodes = self.nodes();
-            let free_set: HashSet<u32> = self.free_list.borrow().iter().copied().collect();
-            (2..nodes.len() as u32)
-                .filter(|&idx| !free_set.contains(&idx) && !alive.contains(&idx))
+            let mut nodes = self.nodes_mut();
+            let mut subtables = self.subtables.borrow_mut();
+            let level_map = self.level_map.borrow();
+
+            (2..num_nodes as u32)
+                .filter(|&idx| {
+                    // Skip if already free or alive
+                    if free_set.contains(&idx) || alive[idx as usize] {
+                        return false;
+                    }
+
+                    // Dead node: remove from its subtable
+                    let node = &nodes[idx as usize];
+                    let var = node.variable;
+                    if !var.is_terminal() {
+                        if let Some(&level) = level_map.get(&var) {
+                            let low = node.low;
+                            let high = node.high;
+                            subtables[level.index()].remove(low, high, &mut nodes);
+                        }
+                    }
+                    true
+                })
                 .collect()
         };
 
         // Add dead indices to free list for reuse
         self.free_list.borrow_mut().extend(dead_indices);
 
-        // Rebuild subtables from alive nodes (simpler and avoids iteration issues)
-        self.rebuild_subtables();
-
         debug!("Garbage collection complete");
+    }
+
+    /// Mark all nodes reachable from roots using a bit vector.
+    ///
+    /// Returns a vector where `result[i]` is true if node `i` is alive.
+    fn mark_alive(&self, roots: &[Ref], num_nodes: usize) -> Vec<bool> {
+        let mut alive = vec![false; num_nodes];
+        alive[1] = true; // Terminal node is always alive
+
+        let mut stack: Vec<u32> = roots.iter().map(|r| r.index()).collect();
+
+        while let Some(idx) = stack.pop() {
+            if alive[idx as usize] {
+                continue;
+            }
+            alive[idx as usize] = true;
+
+            let node = self.node(idx);
+            let low_idx = node.low.index();
+            let high_idx = node.high.index();
+
+            if !alive[low_idx as usize] {
+                stack.push(low_idx);
+            }
+            if !alive[high_idx as usize] {
+                stack.push(high_idx);
+            }
+        }
+
+        alive
     }
 
     /// Swaps two adjacent levels in the variable ordering.
