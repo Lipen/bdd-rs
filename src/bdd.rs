@@ -2727,7 +2727,7 @@ impl Bdd {
     /// A tuple (f|_{var_y=0}, f|_{var_y=1}):
     /// - If f has top variable var_y: returns (low child, high child)
     /// - If f is terminal or has different top variable: returns (f, f)
-    pub(crate) fn extract_grandchildren(&self, f: Ref, var_y: Var) -> (Ref, Ref) {
+    fn extract_grandchildren(&self, f: Ref, var_y: Var) -> (Ref, Ref) {
         if self.is_terminal(f) {
             return (f, f);
         }
