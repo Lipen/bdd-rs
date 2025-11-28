@@ -30,13 +30,15 @@ use crate::utils::MyHash;
 /// +----------+-----+------+------+
 ///     4B       4B    4B     4B    = 16 bytes total
 /// ```
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub struct Node {
     pub variable: Var,
     pub low: Ref,
     pub high: Ref,
     /// Next node in collision chain. `0` means end of chain.
     pub next: u32,
+    /// Precomputed hash of (variable, low, high) for fast comparisons.
+    hash: u64,
 }
 
 impl Default for Node {
@@ -46,16 +48,8 @@ impl Default for Node {
             low: Ref::ZERO,
             high: Ref::ZERO,
             next: 0,
+            hash: 0,
         }
-    }
-}
-
-impl MyHash for Node {
-    fn hash(&self) -> u64 {
-        let x = self.variable.id() as u64;
-        let y = MyHash::hash(&self.low);
-        let z = MyHash::hash(&self.high);
-        MyHash::hash(&(y, z, x))
     }
 }
 
@@ -64,11 +58,32 @@ impl Node {
     ///
     /// The `next` pointer is initialized to `0` (end of chain).
     pub fn new(variable: Var, low: Ref, high: Ref) -> Self {
+        let hash = {
+            let x = variable.id() as u64;
+            let y = MyHash::hash(&low);
+            let z = MyHash::hash(&high);
+            MyHash::hash(&(y, z, x))
+        };
         Self {
             variable,
             low,
             high,
             next: 0,
+            hash,
         }
     }
 }
+
+impl MyHash for Node {
+    fn hash(&self) -> u64 {
+        self.hash
+    }
+}
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Self) -> bool {
+        self.variable == other.variable && self.low == other.low && self.high == other.high
+    }
+}
+
+impl Eq for Node {}
