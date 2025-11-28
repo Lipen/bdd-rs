@@ -32,6 +32,7 @@ use std::collections::BTreeMap;
 
 use crate::bdd::Bdd;
 use crate::reference::Ref;
+use crate::types::NodeId;
 
 /// Configuration options for DOT output generation.
 ///
@@ -193,14 +194,25 @@ impl Bdd {
     pub fn to_dot_with_config(&self, roots: &[Ref], config: &DotConfig) -> Result<String, std::fmt::Error> {
         use std::fmt::Write as _;
 
+        let node_name = |n: NodeId| -> String { format!("n{}", n.index()) };
+        let ref_name = |r: Ref| -> String {
+            if self.is_one(r) {
+                "one".to_string()
+            } else if self.is_zero(r) {
+                "zero".to_string()
+            } else {
+                node_name(r.id())
+            }
+        };
+
         let mut dot = String::new();
         writeln!(dot, "graph {{")?;
         writeln!(dot, "node [shape={}, fixedsize=true];", config.node_shape)?;
 
         // Terminal nodes (0 and 1)
         writeln!(dot, "{{ rank=sink")?;
-        writeln!(dot, "0 [shape={}, label=\"0\"];", config.terminal_shape)?;
-        writeln!(dot, "1 [shape={}, label=\"1\"];", config.terminal_shape)?;
+        writeln!(dot, "{} [shape={}, label=\"1\"];", ref_name(self.one), config.terminal_shape)?;
+        writeln!(dot, "{} [shape={}, label=\"0\"];", ref_name(self.zero), config.terminal_shape)?;
         writeln!(dot, "}}")?;
 
         // Get all reachable nodes from roots
@@ -208,10 +220,10 @@ impl Bdd {
 
         // Organize nodes by variable level for better layout
         // This groups nodes at the same level together in the visualization
-        let mut levels = BTreeMap::<usize, Vec<u32>>::new();
+        let mut levels = BTreeMap::<usize, Vec<NodeId>>::new();
         // Group nodes by their variable level
         for &id in all_nodes.iter() {
-            if id == 1 {
+            if id.is_terminal() {
                 continue; // Skip terminal node (handled separately)
             }
             let level = self.variable(id).id() as usize;
@@ -224,11 +236,11 @@ impl Bdd {
             for &id in level.iter() {
                 // Label shows variable index
                 let label = if config.use_html_labels {
-                    format!("<x<SUB>{}</SUB>>", self.variable(id))
+                    format!("<x<SUB>{}</SUB>>", self.variable(id).id())
                 } else {
-                    format!("\"x{}\"", self.variable(id))
+                    format!("\"{}\"", self.variable(id).id())
                 };
-                writeln!(dot, "{} [label={}];", id, label)?;
+                writeln!(dot, "n{} [label={}];", id.index(), label)?;
             }
             writeln!(dot, "}}")?;
         }
@@ -236,35 +248,35 @@ impl Bdd {
         // Render edges from each node
         // High edges are solid, low edges are dashed, negated edges are dotted with hollow circle
         for &id in all_nodes.iter() {
-            if id == 1 {
+            if id.is_terminal() {
                 continue; // Terminal node has no outgoing edges
             }
 
             // High edge (then branch) - configured style
             let high = self.high(id);
             assert!(!high.is_negated()); // BDD canonicity: high edges are never negated
-            writeln!(dot, "{} -- {} [style={}];", id, high.index(), config.high_edge_style)?;
+            writeln!(dot, "{} -- {} [style={}];", node_name(id), ref_name(high), config.high_edge_style)?;
 
             // Low edge (else branch) - configured style or dotted depending on negation
             let low = self.low(id);
             if low.is_negated() {
-                if low.index() == 1 {
+                if low.id().is_terminal() {
                     // Negated terminal (points to 0)
                     assert_eq!(low, self.zero);
-                    writeln!(dot, "{} -- 0 [style={}];", id, config.low_edge_style)?;
+                    writeln!(dot, "{} -- {} [style={}];", node_name(id), ref_name(low), config.low_edge_style)?;
                 } else {
                     // Negated non-terminal edge (dotted with hollow circle)
                     writeln!(
                         dot,
                         "{} -- {} [style={}, dir=forward, arrowhead=odot];",
-                        id,
-                        low.index(),
+                        node_name(id),
+                        ref_name(low),
                         config.negated_edge_style
                     )?;
                 }
             } else {
                 // Regular low edge
-                writeln!(dot, "{} -- {} [style={}];", id, low.index(), config.low_edge_style)?;
+                writeln!(dot, "{} -- {} [style={}];", node_name(id), ref_name(low), config.low_edge_style)?;
             }
         }
 
@@ -277,17 +289,13 @@ impl Bdd {
 
         // Render edges from roots to their respective BDD nodes
         for (i, &root) in roots.iter().enumerate() {
-            if root.is_negated() {
-                if root.index() == 1 {
-                    // Root points to constant 0
-                    writeln!(dot, "r{} -- 0;", i)?;
-                } else {
-                    // Root points to negated node
-                    writeln!(dot, "r{} -- {} [dir=forward, arrowhead=odot];", i, root.index())?;
-                }
+            let target = ref_name(root);
+            if root.is_negated() && !root.id().is_terminal() {
+                // Negated non-terminal: show with odot arrowhead
+                writeln!(dot, "r{} -- {} [dir=forward, arrowhead=odot];", i, target)?;
             } else {
-                // Root points to positive node
-                writeln!(dot, "r{} -- {};", i, root.index())?;
+                // Positive or terminal
+                writeln!(dot, "r{} -- {};", i, target)?;
             }
         }
 

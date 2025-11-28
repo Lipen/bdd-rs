@@ -23,6 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let x = bdd.mk_var(1);
         println!("  Formula: x1");
         println!("  BDD size: {}", bdd.size(x));
+        println!("  BDD: {}", bdd.to_bracket_string(x));
         let dot = bdd.to_dot(&[x])?;
         fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
         examples.push(name);
@@ -38,6 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let and = bdd.apply_and(x1, x2);
         println!("  Formula: x1 ∧ x2");
         println!("  BDD size: {}", bdd.size(and));
+        println!("  BDD: {}", bdd.to_bracket_string(and));
         let dot = bdd.to_dot(&[and])?;
         fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
         examples.push(name);
@@ -53,6 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let or = bdd.apply_or(x1, x2);
         println!("  Formula: x1 ∨ x2");
         println!("  BDD size: {}", bdd.size(or));
+        println!("  BDD: {}", bdd.to_bracket_string(or));
         let dot = bdd.to_dot(&[or])?;
         fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
         examples.push(name);
@@ -68,6 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let xor = bdd.apply_xor(x1, x2);
         println!("  Formula: x1 ⊕ x2");
         println!("  BDD size: {}", bdd.size(xor));
+        println!("  BDD: {}", bdd.to_bracket_string(xor));
         let dot = bdd.to_dot(&[xor])?;
         fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
         examples.push(name);
@@ -84,6 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let complex = bdd.apply_or(bdd.apply_and(x1, x2), bdd.apply_and(-x1, x3));
         println!("  Formula: (x1 ∧ x2) ∨ (¬x1 ∧ x3)");
         println!("  BDD size: {}", bdd.size(complex));
+        println!("  BDD: {}", bdd.to_bracket_string(complex));
         let dot = bdd.to_dot(&[complex])?;
         fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
         examples.push(name);
@@ -101,6 +106,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let xor = bdd.apply_xor(x1, x2);
         println!("  Formulas: AND, OR, XOR of x1 and x2");
         println!("  BDD sizes: AND={}, OR={}, XOR={}", bdd.size(and), bdd.size(or), bdd.size(xor));
+        println!("  BDD AND: {}", bdd.to_bracket_string(and));
+        println!("  BDD OR: {}", bdd.to_bracket_string(or));
+        println!("  BDD XOR: {}", bdd.to_bracket_string(xor));
         let dot = bdd.to_dot(&[and, or, xor])?;
         fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
         examples.push(name);
@@ -114,6 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let cube = bdd.mk_cube([-1, 2, -3]);
         println!("  Formula: ¬x1 ∧ x2 ∧ ¬x3");
         println!("  BDD size: {}", bdd.size(cube));
+        println!("  BDD: {}", bdd.to_bracket_string(cube));
         let dot = bdd.to_dot(&[cube])?;
         fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
         examples.push(name);
@@ -130,7 +139,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let complex = bdd.apply_or(bdd.apply_and(x1, x2), bdd.apply_and(-x1, x3));
         println!("  Formula: (x1 ∧ x2) ∨ (¬x1 ∧ x3)");
         println!("  BDD size: {}", bdd.size(complex));
-        println!("  Custom shapes and plain text labels");
+        println!("  BDD: {}", bdd.to_bracket_string(complex));
         let config = DotConfig {
             node_shape: "ellipse",
             terminal_shape: "box",
@@ -154,6 +163,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ite = bdd.apply_ite(x1, x2, x4);
         println!("  Formula: ITE(x1, x2, x4) = (x1 -> x2) ∧ (¬x1 -> x4)");
         println!("  BDD size: {}", bdd.size(ite));
+        println!("  BDD: {}", bdd.to_bracket_string(ite));
         let dot = bdd.to_dot(&[ite])?;
         fs::write(output_dir.join(format!("{}.dot", name)), &dot)?;
         examples.push(name);

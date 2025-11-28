@@ -112,7 +112,7 @@ impl MyHash for (u64, u64, u64) {
 
 impl MyHash for Ref {
     fn hash(&self) -> u64 {
-        self.hashy()
+        mix64(self.raw() as u64)
     }
 }
 

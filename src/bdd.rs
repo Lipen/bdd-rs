@@ -110,7 +110,7 @@ use crate::cache::Cache;
 use crate::node::Node;
 use crate::reference::Ref;
 use crate::subtable::Subtable;
-use crate::types::{Level, Lit, Var};
+use crate::types::{Level, Lit, NodeId, Var};
 use crate::utils::OpKey;
 
 // ============================================================================
@@ -220,12 +220,14 @@ impl Bdd {
         let cache_bits = 16;
         let capacity = 1 << storage_bits;
 
-        // Initialize node storage with reserved slot 0 and terminal node at index 1
+        // Initialize node storage with the terminal node at index 0.
+        // Terminal has variable 0 and invalid children (terminals have no children).
         let mut nodes = Vec::with_capacity(capacity);
-        nodes.push(Node::default()); // Index 0 is reserved (unused)
-        nodes.push(Node::default()); // Index 1 is the terminal node (@1)
+        nodes.push(Node::new(Var::ZERO, Ref::INVALID, Ref::INVALID));
 
-        let one = Ref::positive(1);
+        // "one" is @0 (positive reference to terminal)
+        // "zero" is ~@0 (negated reference to terminal)
+        let one = Ref::positive(0);
         let zero = -one;
 
         Self {
@@ -309,10 +311,10 @@ impl Bdd {
         self.subtables.borrow_mut()
     }
 
-    /// Returns the number of allocated nodes (excluding reserved slot 0 and free slots).
+    /// Returns the number of allocated nodes (excluding free slots).
     pub fn num_nodes(&self) -> usize {
-        // nodes.len() includes reserved slot 0, subtract 1 for that
-        self.nodes().len() - 1 - self.free_set().len()
+        // nodes.len() is the total number of nodes including terminal at index 0
+        self.nodes().len() - self.free_set().len()
     }
 
     /// Returns a reference to the operation cache.
@@ -338,22 +340,22 @@ impl Bdd {
 
 impl Bdd {
     /// Gets a copy of the node at the given index.
-    pub fn node(&self, index: u32) -> Node {
-        self.nodes()[index as usize]
+    pub fn node(&self, index: NodeId) -> Node {
+        self.nodes()[index.index()]
     }
 
     /// Gets the low child of a node.
     ///
     /// Returns the low edge of the node at the given index.
-    pub fn low(&self, index: u32) -> Ref {
-        self.nodes()[index as usize].low
+    pub fn low(&self, index: NodeId) -> Ref {
+        self.nodes()[index.index()].low
     }
 
     /// Gets the high child of a node.
     ///
     /// Returns the high edge of the node at the given index.
-    pub fn high(&self, index: u32) -> Ref {
-        self.nodes()[index as usize].high
+    pub fn high(&self, index: NodeId) -> Ref {
+        self.nodes()[index.index()].high
     }
 
     /// Gets the low child of a BDD node, respecting complement edges.
@@ -361,7 +363,7 @@ impl Bdd {
     /// If the node reference is negated, the returned child is also negated.
     /// This maintains the complement edge semantics throughout traversal.
     pub fn low_node(&self, node_ref: Ref) -> Ref {
-        let low = self.low(node_ref.index());
+        let low = self.low(node_ref.id());
         if node_ref.is_negated() {
             -low
         } else {
@@ -374,7 +376,7 @@ impl Bdd {
     /// If the node reference is negated, the returned child is also negated.
     /// This maintains the complement edge semantics throughout traversal.
     pub fn high_node(&self, node_ref: Ref) -> Ref {
-        let high = self.high(node_ref.index());
+        let high = self.high(node_ref.id());
         if node_ref.is_negated() {
             -high
         } else {
@@ -383,8 +385,8 @@ impl Bdd {
     }
 
     /// Gets the variable of a node at the given index.
-    pub fn variable(&self, index: u32) -> Var {
-        self.nodes()[index as usize].variable
+    pub fn variable(&self, index: NodeId) -> Var {
+        self.nodes()[index.index()].variable
     }
 }
 
@@ -599,11 +601,11 @@ impl Bdd {
     /// Returns all node indices at a specific level.
     ///
     /// This is primarily used internally for variable reordering.
-    pub fn get_nodes_at_level(&self, level: Level) -> Vec<u32> {
+    pub fn get_nodes_at_level(&self, level: Level) -> Vec<NodeId> {
         let nodes = self.nodes();
         self.subtables()
             .get(level.index())
-            .map(|st| st.indices(&nodes).collect())
+            .map(|st| st.indices(&nodes).map(|idx| NodeId::new(idx)).collect())
             .unwrap_or_default()
     }
 
@@ -956,7 +958,7 @@ impl Bdd {
             return (node_ref, node_ref);
         }
 
-        let index = node_ref.index();
+        let index = node_ref.id();
         let node = self.node(index);
 
         // Check if v comes before node.variable in the ordering
@@ -988,7 +990,7 @@ impl Bdd {
     /// let y = bdd.mk_var(2);
     /// let z = bdd.mk_var(3);
     /// let f = bdd.apply_ite(x, y, z);
-    /// assert_eq!(f, bdd.mk_node(bdd.variable(x.index()), z, y));
+    /// assert_eq!(f, bdd.mk_node(bdd.variable(x.id()), z, y));
     /// let  x_and_y = bdd.apply_and(x, y);
     /// let  not_x_and_z = bdd.apply_and(-x, z);
     /// assert_eq!(f, bdd.apply_or(x_and_y, not_x_and_z));
@@ -1070,9 +1072,9 @@ impl Bdd {
             return self.apply_ite(f, g, self.one);
         }
 
-        let i = self.variable(f.index());
-        let j = self.variable(g.index());
-        let k = self.variable(h.index());
+        let i = self.variable(f.id());
+        let j = self.variable(g.id());
+        let k = self.variable(h.id());
         assert!(!i.is_terminal());
 
         // Equivalent pairs:
@@ -1263,9 +1265,9 @@ impl Bdd {
             return None;
         }
 
-        let i = self.variable(f.index());
-        let j = self.variable(g.index());
-        let k = self.variable(h.index());
+        let i = self.variable(f.id());
+        let j = self.variable(g.id());
+        let k = self.variable(h.id());
         assert!(!i.is_terminal());
 
         // Determine the top variable:
@@ -1597,7 +1599,7 @@ impl Bdd {
             return f;
         }
 
-        let i = self.variable(f.index());
+        let i = self.variable(f.id());
 
         if self.var_precedes(v, i) {
             // 'v' comes before 'i' in ordering, so 'f' does not depend on 'v'
@@ -1670,7 +1672,7 @@ impl Bdd {
             return res;
         }
 
-        let i = self.variable(f.index());
+        let i = self.variable(f.id());
         let res = if let Some(&b) = values.get(&i) {
             if b {
                 // `i` needs to be assigned true
@@ -1744,7 +1746,7 @@ impl Bdd {
             return res;
         }
 
-        let t = self.variable(f.index()); // top variable of `f`
+        let t = self.variable(f.id()); // top variable of `f`
         let lit = cube[0];
         let u = lit.var();
 
@@ -1830,7 +1832,7 @@ impl Bdd {
             return f;
         }
 
-        let i = self.variable(f.index());
+        let i = self.variable(f.id());
         assert!(!i.is_terminal());
         if self.var_precedes(v, i) {
             // 'v' comes before 'i' in ordering, so 'f' does not depend on 'v'
@@ -1843,7 +1845,7 @@ impl Bdd {
         }
 
         let res = if v == i {
-            let node = self.node(f.index());
+            let node = self.node(f.id());
             let res = self.apply_ite(g, node.high, node.low);
             if f.is_negated() {
                 -res
@@ -1856,7 +1858,7 @@ impl Bdd {
             let m = if self.is_terminal(g) {
                 i
             } else {
-                self.top_variable(i, self.variable(g.index()))
+                self.top_variable(i, self.variable(g.id()))
             };
             assert!(!m.is_terminal());
 
@@ -1976,8 +1978,8 @@ impl Bdd {
         }
 
         // TODO: is it necessary to compute min var, or we can just use var(g)?
-        let i = self.variable(f.index());
-        let j = self.variable(g.index());
+        let i = self.variable(f.id());
+        let j = self.variable(g.id());
         let v = self.top_variable(i, j);
         debug!("top variable = {}", v);
 
@@ -2071,8 +2073,8 @@ impl Bdd {
             return res;
         }
 
-        let i = self.variable(f.index());
-        let j = self.variable(g.index());
+        let i = self.variable(f.id());
+        let j = self.variable(g.id());
         let v = self.top_variable(i, j);
 
         let (f0, f1) = self.top_cofactors(f, v);
@@ -2220,7 +2222,7 @@ impl Bdd {
         let f_positive = if is_negated { -f } else { f };
 
         // Get the variable and children
-        let index = f_positive.index();
+        let index = f_positive.id();
         let v = self.variable(index);
         let low = self.low(index);
         let high = self.high(index);
@@ -2336,7 +2338,7 @@ impl Bdd {
             return res;
         }
 
-        let v = self.variable(node.index());
+        let v = self.variable(node.id());
         let current_var = vars[var_idx];
 
         let res = if self.var_precedes(v, current_var) {
@@ -2507,8 +2509,8 @@ impl Bdd {
             return res;
         }
 
-        let i = self.variable(u.index());
-        let j = self.variable(v.index());
+        let i = self.variable(u.id());
+        let j = self.variable(v.id());
         let m = self.top_variable(i, j);
 
         let (u0, u1) = self.top_cofactors(u, m);
@@ -2549,12 +2551,13 @@ impl Bdd {
     /// # Returns
     ///
     /// A `HashSet<u32>` containing all unique node indices reachable from the given roots,
-    /// including the terminal node (index 1).
+    /// including the terminal node (index 0).
     ///
     /// # Examples
     ///
     /// ```
     /// use bdd_rs::bdd::Bdd;
+    /// use bdd_rs::types::NodeId;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -2563,15 +2566,15 @@ impl Bdd {
     /// // Single variable: the variable node + terminal
     /// let desc = bdd.descendants([x]);
     /// assert_eq!(desc.len(), 2);
-    /// assert!(desc.contains(&x.index()));
-    /// assert!(desc.contains(&1)); // terminal
+    /// assert!(desc.contains(&x.id()));
+    /// assert!(desc.contains(&NodeId::TERMINAL)); // terminal
     ///
     /// // AND of two variables
     /// let f = bdd.apply_and(x, y);
     /// let desc = bdd.descendants([f]);
-    /// assert!(desc.contains(&f.index()));
-    /// assert!(desc.contains(&y.index()));
-    /// assert!(desc.contains(&1)); // terminal
+    /// assert!(desc.contains(&f.id()));
+    /// assert!(desc.contains(&y.id()));
+    /// assert!(desc.contains(&NodeId::TERMINAL)); // terminal
     /// ```
     ///
     /// # Multiple Roots
@@ -2589,24 +2592,24 @@ impl Bdd {
     ///
     /// // Descendants from multiple roots (shared nodes counted once)
     /// let desc = bdd.descendants([f1, f2]);
-    /// assert!(desc.contains(&f1.index()));
-    /// assert!(desc.contains(&f2.index()));
-    /// assert!(desc.contains(&y.index())); // shared
+    /// assert!(desc.contains(&f1.id()));
+    /// assert!(desc.contains(&f2.id()));
+    /// assert!(desc.contains(&y.id())); // shared
     /// ```
-    pub fn descendants(&self, nodes: impl IntoIterator<Item = Ref>) -> HashSet<u32> {
+    pub fn descendants(&self, nodes: impl IntoIterator<Item = Ref>) -> HashSet<NodeId> {
         let mut visited = HashSet::new();
-        visited.insert(self.one.index());
-        let mut stack = Vec::from_iter(nodes.into_iter().map(|node_ref| node_ref.index()));
+        visited.insert(self.one.id());
+        let mut stack = Vec::from_iter(nodes.into_iter().map(|node_ref| node_ref.id()));
 
         while let Some(i) = stack.pop() {
             if visited.insert(i) {
                 let node = self.node(i);
-                let low = node.low.index();
-                if low != 1 {
+                let low = node.low.id();
+                if !low.is_terminal() {
                     stack.push(low);
                 }
-                let high = node.high.index();
-                if high != 1 {
+                let high = node.high.id();
+                if !high.is_terminal() {
                     stack.push(high);
                 }
             }
@@ -2704,7 +2707,7 @@ impl Bdd {
             let level_map = self.level_map();
             let free_set = self.free_set();
 
-            (2..num_nodes as u32)
+            (1..num_nodes as u32)
                 .filter(|&idx| {
                     // Skip if already free or alive
                     if free_set.contains(&idx) || alive[idx as usize] {
@@ -2737,24 +2740,24 @@ impl Bdd {
     /// Returns a vector where `result[i]` is true if node `i` is alive.
     fn mark_alive(&self, roots: &[Ref], num_nodes: usize) -> Vec<bool> {
         let mut alive = vec![false; num_nodes];
-        alive[1] = true; // Terminal node is always alive
+        alive[0] = true; // Terminal node is always alive
 
-        let mut stack: Vec<u32> = roots.iter().map(|r| r.index()).collect();
+        let mut stack: Vec<NodeId> = roots.iter().map(|r| r.id()).collect();
 
         while let Some(idx) = stack.pop() {
-            if alive[idx as usize] {
+            if alive[idx.index()] {
                 continue;
             }
-            alive[idx as usize] = true;
+            alive[idx.index()] = true;
 
             let node = self.node(idx);
-            let low_idx = node.low.index();
-            let high_idx = node.high.index();
+            let low_idx = node.low.id();
+            let high_idx = node.high.id();
 
-            if !alive[low_idx as usize] {
+            if !alive[low_idx.index()] {
                 stack.push(low_idx);
             }
-            if !alive[high_idx as usize] {
+            if !alive[high_idx.index()] {
                 stack.push(high_idx);
             }
         }
@@ -2813,7 +2816,7 @@ impl Bdd {
     /// // Update f using the mapping
     /// f = bdd.apply_mapping(f, &mapping);
     /// ```
-    pub fn swap_adjacent_inplace(&self, level: Level) -> Result<HashMap<u32, Ref>, String> {
+    pub fn swap_adjacent_inplace(&self, level: Level) -> Result<HashMap<NodeId, Ref>, String> {
         if level.next().index() >= self.num_levels() {
             return Err(format!(
                 "Level {} out of bounds (only {} levels)",
@@ -2836,7 +2839,7 @@ impl Bdd {
         debug!("  Nodes at level {}: {} nodes", level.index(), nodes_at_x.len());
 
         // Build a mapping from old node index to new reference
-        let mut mapping: HashMap<u32, Ref> = HashMap::new();
+        let mut mapping: HashMap<NodeId, Ref> = HashMap::new();
 
         // Transform each node with var_x
         for &node_idx in &nodes_at_x {
@@ -2911,8 +2914,8 @@ impl Bdd {
     ///
     /// If the reference's index is in the mapping, returns the mapped value
     /// with negation preserved. Otherwise returns the original reference.
-    pub fn apply_mapping(&self, r: Ref, mapping: &HashMap<u32, Ref>) -> Ref {
-        if let Some(&new_ref) = mapping.get(&r.index()) {
+    pub fn apply_mapping(&self, r: Ref, mapping: &HashMap<NodeId, Ref>) -> Ref {
+        if let Some(&new_ref) = mapping.get(&r.id()) {
             if r.is_negated() {
                 -new_ref
             } else {
@@ -2944,7 +2947,7 @@ impl Bdd {
             return (f, f);
         }
 
-        let node = self.node(f.index());
+        let node = self.node(f.id());
 
         if node.variable == var_y {
             // This node has var_y, extract its children
@@ -2976,7 +2979,7 @@ impl Bdd {
             let free_set = self.free_set();
             let level_map = self.level_map();
 
-            (2..nodes.len())
+            (1..nodes.len())
                 .filter_map(|index| {
                     let idx = index as u32;
                     if free_set.contains(&idx) {
@@ -3019,18 +3022,18 @@ impl Bdd {
         self.node_to_str(node_ref, &mut visited)
     }
 
-    fn node_to_str(&self, node_ref: Ref, visited: &mut HashSet<u32>) -> String {
+    fn node_to_str(&self, node_ref: Ref, visited: &mut HashSet<NodeId>) -> String {
         if self.is_zero(node_ref) {
             return "⊥".to_string();
         } else if self.is_one(node_ref) {
             return "⊤".to_string();
         }
 
-        if !visited.insert(node_ref.index()) {
+        if !visited.insert(node_ref.id()) {
             return format!("{}", node_ref);
         }
 
-        let index = node_ref.index();
+        let index = node_ref.id();
         let Node { variable, low, high, .. } = self.node(index);
 
         format!(
@@ -3055,7 +3058,7 @@ mod tests {
 
         let x = bdd.mk_var(1);
 
-        assert_eq!(bdd.variable(x.index()), Var::new(1));
+        assert_eq!(bdd.variable(x.id()), Var::new(1));
         assert_eq!(bdd.high_node(x), bdd.one);
         assert_eq!(bdd.low_node(x), bdd.zero);
     }
@@ -3067,7 +3070,7 @@ mod tests {
         let x = bdd.mk_var(1);
         let not_x = -x;
 
-        assert_eq!(bdd.variable(not_x.index()), Var::new(1));
+        assert_eq!(bdd.variable(not_x.id()), Var::new(1));
         assert_eq!(bdd.high_node(not_x), bdd.zero);
         assert_eq!(bdd.low_node(not_x), bdd.one);
     }
@@ -3084,13 +3087,14 @@ mod tests {
         assert_eq!(bdd.is_zero(bdd.one), false);
         assert_eq!(bdd.is_one(bdd.one), true);
 
-        assert_eq!(bdd.variable(bdd.zero.index()), Var::ZERO);
-        assert_eq!(bdd.low(bdd.zero.index()).index(), 0);
-        assert_eq!(bdd.high(bdd.zero.index()).index(), 0);
+        // Terminal node has variable 0 and invalid children (terminals have no children)
+        assert_eq!(bdd.variable(bdd.zero.id()), Var::ZERO);
+        assert_eq!(bdd.low(bdd.zero.id()).id(), NodeId::INVALID);
+        assert_eq!(bdd.high(bdd.zero.id()).id(), NodeId::INVALID);
 
-        assert_eq!(bdd.variable(bdd.one.index()), Var::ZERO);
-        assert_eq!(bdd.low(bdd.one.index()).index(), 0);
-        assert_eq!(bdd.high(bdd.one.index()).index(), 0);
+        assert_eq!(bdd.variable(bdd.one.id()), Var::ZERO);
+        assert_eq!(bdd.low(bdd.one.id()).id(), NodeId::INVALID);
+        assert_eq!(bdd.high(bdd.one.id()).id(), NodeId::INVALID);
     }
 
     #[test]
@@ -3202,7 +3206,7 @@ mod tests {
         let f = bdd.mk_var(6);
         let g = bdd.mk_var(7);
         let h = bdd.mk_var(8);
-        let result = bdd.mk_node(bdd.variable(f.index()), -g, -h);
+        let result = bdd.mk_node(bdd.variable(f.id()), -g, -h);
         assert_eq!(bdd.apply_ite(-f, -g, -h), result);
     }
 
@@ -3464,7 +3468,7 @@ mod tests {
         let g = -bdd.apply_eq(x1, x2);
         println!("g of size {} = {}", bdd.size(g), bdd.to_bracket_string(g));
 
-        let h = bdd.compose(f, bdd.variable(x3.index()).id(), g);
+        let h = bdd.compose(f, bdd.variable(x3.id()).id(), g);
         println!("h of size {} = {}", bdd.size(h), bdd.to_bracket_string(h));
         assert!(bdd.is_zero(h));
     }
@@ -3634,22 +3638,22 @@ mod tests {
     fn test_descendants_terminal() {
         let bdd = Bdd::default();
 
-        // Terminal zero (index 1) has no descendants except itself
+        // Terminal zero (index 0) has no descendants except itself
         let desc = bdd.descendants([bdd.zero]);
         println!("descendants of zero: {:?}", desc);
         assert_eq!(desc.len(), 1);
-        assert!(desc.contains(&1));
+        assert!(desc.contains(&NodeId::TERMINAL));
 
-        // Terminal one (index 1) has itself as descendant
+        // Terminal one (index 0) has itself as descendant
         let desc = bdd.descendants([bdd.one]);
         println!("descendants of one: {:?}", desc);
         assert_eq!(desc.len(), 1);
-        assert!(desc.contains(&1));
+        assert!(desc.contains(&NodeId::TERMINAL));
 
         // Both terminals together
         let desc = bdd.descendants([bdd.zero, bdd.one]);
         assert_eq!(desc.len(), 1);
-        assert!(desc.contains(&1));
+        assert!(desc.contains(&NodeId::TERMINAL));
     }
 
     #[test]
@@ -3657,12 +3661,12 @@ mod tests {
         let bdd = Bdd::default();
 
         let x = bdd.mk_var(1);
-        // Variable node x1 points to: high=one (1), low=zero (negated 1)
-        // So descendants should be: x.index() and 1 (terminal)
+        // Variable node x1 points to: high=one (0), low=zero (negated 0)
+        // So descendants should be: x.index() and 0 (terminal)
         let desc = bdd.descendants([x]);
         assert_eq!(desc.len(), 2);
-        assert!(desc.contains(&x.index()));
-        assert!(desc.contains(&1)); // terminal
+        assert!(desc.contains(&x.id()));
+        assert!(desc.contains(&NodeId::TERMINAL)); // terminal
     }
 
     #[test]
@@ -3675,8 +3679,8 @@ mod tests {
         // Negated reference points to same node, so descendants are the same
         let desc = bdd.descendants([not_x]);
         assert_eq!(desc.len(), 2);
-        assert!(desc.contains(&x.index()));
-        assert!(desc.contains(&1)); // terminal
+        assert!(desc.contains(&x.id()));
+        assert!(desc.contains(&NodeId::TERMINAL)); // terminal
     }
 
     #[test]
@@ -3688,14 +3692,14 @@ mod tests {
         let f = bdd.apply_and(x1, x2);
 
         // f = x1 AND x2 creates a structure:
-        // f_node -> (low=negated 1, high=x2_node)
-        // x2_node -> (low=negated 1, high=1)
+        // f_node -> (low=negated 0, high=x2_node)
+        // x2_node -> (low=negated 0, high=0)
         let desc = bdd.descendants([f]);
 
-        // Should include: f's index, x2's index, and terminal (1)
-        assert!(desc.contains(&f.index()));
-        assert!(desc.contains(&x2.index()));
-        assert!(desc.contains(&1));
+        // Should include: f's index, x2's index, and terminal (0)
+        assert!(desc.contains(&f.id()));
+        assert!(desc.contains(&x2.id()));
+        assert!(desc.contains(&NodeId::TERMINAL));
 
         // Should be at least 3 nodes
         assert!(desc.len() >= 3);
@@ -3712,8 +3716,8 @@ mod tests {
         let desc = bdd.descendants([f]);
 
         // Should include the root and all reachable nodes
-        assert!(desc.contains(&f.index()));
-        assert!(desc.contains(&1)); // terminal
+        assert!(desc.contains(&f.id()));
+        assert!(desc.contains(&NodeId::TERMINAL)); // terminal
         assert!(desc.len() >= 2);
     }
 
@@ -3723,14 +3727,15 @@ mod tests {
 
         let f = bdd.mk_cube([1, 2, 3]);
         let desc = bdd.descendants([f]);
+        println!("cube descendants: {:?}, len = {}", desc, desc.len());
 
         // Cube x1 AND x2 AND x3 creates a chain:
         // x1_node -> x2_node -> x3_node -> terminal
-        assert!(desc.contains(&f.index()));
-        assert!(desc.contains(&1)); // terminal
+        assert!(desc.contains(&f.id()));
+        assert!(desc.contains(&NodeId::TERMINAL)); // terminal
 
         // Should have at least 4 nodes: 3 variable nodes + 1 terminal
-        assert!(desc.len() >= 4);
+        assert!(desc.len() >= 4, "desc.len() = {} < 4", desc.len());
     }
 
     #[test]
@@ -3748,10 +3753,10 @@ mod tests {
         let desc = bdd.descendants([f1, f2]);
 
         // Should include nodes from both formulas
-        assert!(desc.contains(&f1.index()));
-        assert!(desc.contains(&f2.index()));
-        assert!(desc.contains(&x2.index())); // shared node
-        assert!(desc.contains(&1)); // terminal
+        assert!(desc.contains(&f1.id()));
+        assert!(desc.contains(&f2.id()));
+        assert!(desc.contains(&x2.id())); // shared node
+        assert!(desc.contains(&NodeId::TERMINAL)); // terminal
     }
 
     #[test]
@@ -3778,10 +3783,10 @@ mod tests {
     fn test_descendants_empty() {
         let bdd = Bdd::default();
 
-        // Empty iterator should return just the terminal 1 (added by default)
+        // Empty iterator should return just the terminal 0 (added by default)
         let desc = bdd.descendants(std::iter::empty());
         assert_eq!(desc.len(), 1);
-        assert!(desc.contains(&1));
+        assert!(desc.contains(&NodeId::TERMINAL));
     }
 
     #[test]
@@ -3799,8 +3804,8 @@ mod tests {
         let desc = bdd.descendants([f]);
 
         // Should include all nodes in the formula
-        assert!(desc.contains(&f.index()));
-        assert!(desc.contains(&1)); // terminal
+        assert!(desc.contains(&f.id()));
+        assert!(desc.contains(&NodeId::TERMINAL)); // terminal
 
         // XOR creates a larger structure
         assert!(desc.len() >= 4);
@@ -3831,8 +3836,8 @@ mod tests {
         let desc = bdd.descendants([f]);
 
         // Negated edges don't create new nodes, just traverse to existing ones
-        assert!(desc.contains(&f.index()));
-        assert!(desc.contains(&1)); // terminal
+        assert!(desc.contains(&f.id()));
+        assert!(desc.contains(&NodeId::TERMINAL)); // terminal
     }
 
     #[test]
@@ -3855,7 +3860,7 @@ mod tests {
         let x2 = bdd.mk_var(2);
         let f = bdd.apply_and(x1, x2);
         println!("f = x1 ∧ x2 = {}", bdd.to_bracket_string(f));
-        assert_eq!(bdd.to_bracket_string(f), "@4:(x1, @3:(x2, ⊤, ⊥), ⊥)");
+        assert_eq!(bdd.to_bracket_string(f), "@3:(x1, @2:(x2, ⊤, ⊥), ⊥)");
     }
 
     #[test]
@@ -3868,7 +3873,7 @@ mod tests {
         let x3 = bdd.mk_var(3);
         let f = bdd.apply_or(-x1, bdd.apply_and(-x2, x3));
         println!("f = ~x1 ∨ (~x2 ∧ x3) = {}", bdd.to_bracket_string(f));
-        assert_eq!(bdd.to_bracket_string(f), "~@6:(x1, @5:(x2, ⊤, ~@4:(x3, ⊤, ⊥)), ⊥)");
+        assert_eq!(bdd.to_bracket_string(f), "~@5:(x1, @4:(x2, ⊤, ~@3:(x3, ⊤, ⊥)), ⊥)");
     }
 
     #[test]

@@ -17,7 +17,7 @@ impl Bdd {
             return Some(path);
         }
 
-        let v = self.variable(node.index()).id() as i32;
+        let v = self.variable(node.id()).id() as i32;
 
         let high = self.high_node(node);
         let mut path_high = path.clone();
@@ -53,8 +53,8 @@ impl Bdd {
             return count.clone();
         }
 
-        let low = self.low(node.index());
-        let high = self.high(node.index());
+        let low = self.low(node.id());
+        let high = self.high(node.id());
 
         let count_low = self._sat_count(low, max, cache);
         let count_high = self._sat_count(high, max, cache);

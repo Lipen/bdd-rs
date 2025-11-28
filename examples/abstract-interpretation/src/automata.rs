@@ -390,7 +390,7 @@ impl Predicate for BddCharPredicate {
         let mut curr = self.node;
         // Traverse the BDD
         while !self.manager.is_terminal(curr) {
-            let var_idx = self.manager.variable(curr.index()).id();
+            let var_idx = self.manager.variable(curr.id()).id();
             if var_idx > 21 {
                 // Should not happen for char predicates
                 return false;
@@ -436,7 +436,7 @@ impl Predicate for BddCharPredicate {
 
     fn canonical_key(&self) -> String {
         // BDD node index is canonical within the manager.
-        self.node.index().to_string()
+        self.node.id().to_string()
     }
 
     fn compute_minterms(preds: &[Self]) -> Vec<Self> {
@@ -483,9 +483,9 @@ impl PartialOrd for BddCharPredicate {
 
 impl Ord for BddCharPredicate {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        // Compare by node index and negation.
-        let i1 = self.node.index();
-        let i2 = other.node.index();
+        // Compare by node index and negation (arbitrary but consistent ordering).
+        let i1 = self.node.id().raw();
+        let i2 = other.node.id().raw();
         match i1.cmp(&i2) {
             std::cmp::Ordering::Equal => self.node.is_negated().cmp(&other.node.is_negated()),
             ord => ord,

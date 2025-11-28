@@ -64,7 +64,7 @@ pub struct Subtable {
     pub variable: Var,
 
     /// Bucket array: each entry is a head pointer (node index) to a collision chain.
-    /// `0` indicates an empty bucket.
+    /// [`NO_NEXT`](Node::NO_NEXT) indicates an empty bucket.
     buckets: Vec<u32>,
 
     /// Bitmask for hash function: `bucket_index = hash & bitmask`.
@@ -86,7 +86,7 @@ impl Subtable {
         let bitmask = (num_buckets - 1) as u64;
         Self {
             variable,
-            buckets: vec![0; num_buckets],
+            buckets: vec![Node::NO_NEXT; num_buckets],
             bitmask,
             count: 0,
         }
@@ -106,7 +106,7 @@ impl Subtable {
         let bucket_idx = self.bucket_index(low, high);
         let mut current = self.buckets[bucket_idx];
 
-        while current != 0 {
+        while current != Node::NO_NEXT {
             let node = &nodes[current as usize];
             if node.low == low && node.high == high {
                 return Some(current);
@@ -150,15 +150,15 @@ impl Subtable {
     /// Returns true if the node was found and removed.
     pub fn remove(&mut self, low: Ref, high: Ref, nodes: &mut [Node]) -> bool {
         let bucket_idx = self.bucket_index(low, high);
-        let mut prev: u32 = 0;
+        let mut prev: u32 = Node::NO_NEXT;
         let mut current = self.buckets[bucket_idx];
 
-        while current != 0 {
+        while current != Node::NO_NEXT {
             let node = &nodes[current as usize];
 
             if node.low == low && node.high == high {
                 // Found it - unlink from chain
-                if prev == 0 {
+                if prev == Node::NO_NEXT {
                     // Removing head of chain
                     self.buckets[bucket_idx] = node.next;
                 } else {
@@ -166,7 +166,7 @@ impl Subtable {
                     nodes[prev as usize].next = node.next;
                 }
                 // Clear the removed node's next pointer
-                nodes[current as usize].next = 0;
+                nodes[current as usize].next = Node::NO_NEXT;
                 self.count -= 1;
                 return true;
             }
@@ -198,7 +198,7 @@ impl Subtable {
     /// **Note**: This only clears bucket heads. Caller should handle node cleanup.
     pub fn clear(&mut self) {
         for bucket in &mut self.buckets {
-            *bucket = 0;
+            *bucket = Node::NO_NEXT;
         }
         self.count = 0;
     }
@@ -244,7 +244,7 @@ impl Iterator for ChainIter<'_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current == 0 {
+        if self.current == Node::NO_NEXT {
             return None;
         }
         let idx = self.current;
@@ -258,14 +258,14 @@ mod tests {
     use super::*;
 
     fn make_test_nodes() -> Vec<Node> {
-        // Create nodes: index 0 reserved, index 1 is terminal
+        // Create nodes: index 0 is terminal
         let mut nodes = vec![Node::default(); 10];
-        // Node at index 2: var=1, low=~@1, high=@1
-        nodes[2] = Node::new(Var::new(1), -Ref::positive(1), Ref::positive(1));
-        // Node at index 3: var=1, low=@2, high=@1
-        nodes[3] = Node::new(Var::new(1), Ref::positive(2), Ref::positive(1));
-        // Node at index 4: var=1, low=~@1, high=@3
-        nodes[4] = Node::new(Var::new(1), -Ref::positive(1), Ref::positive(3));
+        // Node at index 1: var=1, low=~@0, high=@0
+        nodes[1] = Node::new(Var::new(1), -Ref::positive(0), Ref::positive(0));
+        // Node at index 2: var=1, low=@1, high=@0
+        nodes[2] = Node::new(Var::new(1), Ref::positive(1), Ref::positive(0));
+        // Node at index 3: var=1, low=~@0, high=@2
+        nodes[3] = Node::new(Var::new(1), -Ref::positive(0), Ref::positive(2));
         nodes
     }
 
@@ -274,15 +274,15 @@ mod tests {
         let mut nodes = make_test_nodes();
         let mut st = Subtable::new(Var::new(1));
 
-        let low = -Ref::positive(1);
-        let high = Ref::positive(1);
+        let low = -Ref::positive(0);
+        let high = Ref::positive(0);
 
         // Should not find before insert
         assert!(st.find(low, high, &nodes).is_none());
 
-        // Insert node at index 2
-        st.insert(low, high, 2, &mut nodes);
-        assert_eq!(st.find(low, high, &nodes), Some(2));
+        // Insert node at index 1
+        st.insert(low, high, 1, &mut nodes);
+        assert_eq!(st.find(low, high, &nodes), Some(1));
         assert_eq!(st.len(), 1);
 
         // Remove
@@ -297,14 +297,14 @@ mod tests {
         let mut st = Subtable::new(Var::new(1));
 
         // Insert multiple nodes
-        st.insert(-Ref::positive(1), Ref::positive(1), 2, &mut nodes);
-        st.insert(Ref::positive(2), Ref::positive(1), 3, &mut nodes);
-        st.insert(-Ref::positive(1), Ref::positive(3), 4, &mut nodes);
+        st.insert(-Ref::positive(0), Ref::positive(0), 1, &mut nodes);
+        st.insert(Ref::positive(1), Ref::positive(0), 2, &mut nodes);
+        st.insert(-Ref::positive(0), Ref::positive(2), 3, &mut nodes);
 
         assert_eq!(st.len(), 3);
-        assert_eq!(st.find(-Ref::positive(1), Ref::positive(1), &nodes), Some(2));
-        assert_eq!(st.find(Ref::positive(2), Ref::positive(1), &nodes), Some(3));
-        assert_eq!(st.find(-Ref::positive(1), Ref::positive(3), &nodes), Some(4));
+        assert_eq!(st.find(-Ref::positive(0), Ref::positive(0), &nodes), Some(1));
+        assert_eq!(st.find(Ref::positive(1), Ref::positive(0), &nodes), Some(2));
+        assert_eq!(st.find(-Ref::positive(0), Ref::positive(2), &nodes), Some(3));
     }
 
     #[test]
@@ -313,25 +313,25 @@ mod tests {
         let mut nodes = make_test_nodes();
         let mut st = Subtable::with_bucket_bits(Var::new(1), 1); // Only 2 buckets!
 
-        st.insert(-Ref::positive(1), Ref::positive(1), 2, &mut nodes);
-        st.insert(Ref::positive(2), Ref::positive(1), 3, &mut nodes);
-        st.insert(-Ref::positive(1), Ref::positive(3), 4, &mut nodes);
+        st.insert(-Ref::positive(0), Ref::positive(0), 1, &mut nodes);
+        st.insert(Ref::positive(1), Ref::positive(0), 2, &mut nodes);
+        st.insert(-Ref::positive(0), Ref::positive(2), 3, &mut nodes);
 
         assert_eq!(st.len(), 3);
 
         // All should be findable despite collisions
-        assert_eq!(st.find(-Ref::positive(1), Ref::positive(1), &nodes), Some(2));
-        assert_eq!(st.find(Ref::positive(2), Ref::positive(1), &nodes), Some(3));
-        assert_eq!(st.find(-Ref::positive(1), Ref::positive(3), &nodes), Some(4));
+        assert_eq!(st.find(-Ref::positive(0), Ref::positive(0), &nodes), Some(1));
+        assert_eq!(st.find(Ref::positive(1), Ref::positive(0), &nodes), Some(2));
+        assert_eq!(st.find(-Ref::positive(0), Ref::positive(2), &nodes), Some(3));
 
         // Remove middle element from a chain
-        assert!(st.remove(Ref::positive(2), Ref::positive(1), &mut nodes));
+        assert!(st.remove(Ref::positive(1), Ref::positive(0), &mut nodes));
         assert_eq!(st.len(), 2);
-        assert!(st.find(Ref::positive(2), Ref::positive(1), &nodes).is_none());
+        assert!(st.find(Ref::positive(1), Ref::positive(0), &nodes).is_none());
 
         // Others should still be there
-        assert_eq!(st.find(-Ref::positive(1), Ref::positive(1), &nodes), Some(2));
-        assert_eq!(st.find(-Ref::positive(1), Ref::positive(3), &nodes), Some(4));
+        assert_eq!(st.find(-Ref::positive(0), Ref::positive(0), &nodes), Some(1));
+        assert_eq!(st.find(-Ref::positive(0), Ref::positive(2), &nodes), Some(3));
     }
 
     #[test]
@@ -339,12 +339,12 @@ mod tests {
         let mut nodes = make_test_nodes();
         let mut st = Subtable::new(Var::new(1));
 
-        st.insert(-Ref::positive(1), Ref::positive(1), 2, &mut nodes);
-        st.insert(Ref::positive(2), Ref::positive(1), 3, &mut nodes);
+        st.insert(-Ref::positive(0), Ref::positive(0), 1, &mut nodes);
+        st.insert(Ref::positive(1), Ref::positive(0), 2, &mut nodes);
 
         let mut indices: Vec<_> = st.indices(&nodes).collect();
         indices.sort();
-        assert_eq!(indices, vec![2, 3]);
+        assert_eq!(indices, vec![1, 2]);
     }
 
     #[test]
@@ -353,15 +353,15 @@ mod tests {
         let mut st = Subtable::new(Var::new(1));
 
         // Initial inserts
-        st.insert(-Ref::positive(1), Ref::positive(1), 2, &mut nodes);
-        st.insert(Ref::positive(2), Ref::positive(1), 3, &mut nodes);
+        st.insert(-Ref::positive(0), Ref::positive(0), 1, &mut nodes);
+        st.insert(Ref::positive(1), Ref::positive(0), 2, &mut nodes);
 
         // Rebuild from indices
-        st.rebuild([2u32, 3, 4].into_iter(), &mut nodes);
+        st.rebuild([1u32, 2, 3].into_iter(), &mut nodes);
 
         assert_eq!(st.len(), 3);
-        assert_eq!(st.find(-Ref::positive(1), Ref::positive(1), &nodes), Some(2));
-        assert_eq!(st.find(Ref::positive(2), Ref::positive(1), &nodes), Some(3));
-        assert_eq!(st.find(-Ref::positive(1), Ref::positive(3), &nodes), Some(4));
+        assert_eq!(st.find(-Ref::positive(0), Ref::positive(0), &nodes), Some(1));
+        assert_eq!(st.find(Ref::positive(1), Ref::positive(0), &nodes), Some(2));
+        assert_eq!(st.find(-Ref::positive(0), Ref::positive(2), &nodes), Some(3));
     }
 }

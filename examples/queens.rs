@@ -85,7 +85,11 @@ fn main() -> color_eyre::Result<()> {
     for var_id in 1..=(n * n) as u32 {
         bdd.mk_var(var_id);
     }
-    println!("Pre-allocated {} variables: {:?}", n * n, bdd.var_order());
+    println!(
+        "Pre-allocated {} variables: [{}]",
+        n * n,
+        bdd.var_order().iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", ")
+    );
 
     let res = encode_queens_board(&bdd, n, args.gc);
     println!("res = {} of size {}", res, bdd.size(res));
@@ -117,7 +121,7 @@ fn encode_queens_square(bdd: &Bdd, n: usize, i: usize, j: usize) -> Ref {
         for col in (0..n).rev() {
             let var = Var::new(queen(n, row, col));
 
-            assert!(bdd.is_terminal(node) || var.id() < bdd.variable(node.index()).id());
+            assert!(bdd.is_terminal(node) || var.id() < bdd.variable(node.id()).id());
 
             // Queen must be placed here
             if row == i && col == j {

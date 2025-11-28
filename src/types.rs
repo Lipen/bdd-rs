@@ -1,10 +1,102 @@
-///! Type-safe wrappers for BDD variables, levels, and literals.
+///! Type-safe wrappers for BDD variables, levels, literals, and node IDs.
 ///!
 ///! This module provides newtype wrappers that enforce compile-time distinction
-///! between variable IDs and level indices, preventing common mistakes in BDD
-///! manipulation code.
+///! between variable IDs, level indices, and node IDs, preventing common mistakes
+///! in BDD manipulation code.
 use std::fmt;
 use std::ops::Neg;
+
+/// A node identifier (index into the node storage array).
+///
+/// `NodeId` is a type-safe wrapper around `u32` that represents an index
+/// into the BDD manager's node storage. It prevents accidentally using
+/// raw integers or other index types where a node ID is expected.
+///
+/// # Invariants
+///
+/// - `NodeId(0)` is the terminal node
+/// - `NodeId::INVALID` (0x7FFF_FFFE) is a sentinel for uninitialized references
+/// - Valid node IDs are in the range `0..0x7FFF_FFFE`
+///
+/// # Usage
+///
+/// `NodeId` is primarily obtained from [`Ref::index()`][crate::reference::Ref::index]
+/// and used to index into the node storage via [`Bdd::node()`][crate::bdd::Bdd::node].
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct NodeId(u32);
+
+impl NodeId {
+    /// The terminal node (index 0).
+    pub const TERMINAL: NodeId = NodeId(0);
+
+    /// Sentinel value for invalid/uninitialized node references.
+    pub const INVALID: NodeId = NodeId(0x7FFF_FFFF);
+
+    /// Creates a new NodeId from a raw index.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index >= 0x7FFF_FFFF`.
+    pub const fn new(index: u32) -> Self {
+        debug_assert!(index < 0x7FFF_FFFF, "NodeId index is too large");
+        NodeId(index)
+    }
+
+    /// Creates a NodeId from a raw index without checking.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `index < 0x7FFF_FFFF`.
+    pub const unsafe fn from_raw_unchecked(index: u32) -> Self {
+        NodeId(index)
+    }
+
+    /// Returns the inner value of NodeId.
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+
+    /// Returns the node index as a `usize` for array indexing.
+    pub const fn index(self) -> usize {
+        self.0 as usize
+    }
+
+    /// Returns true if this is the terminal node.
+    pub const fn is_terminal(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Returns true if this is the INVALID sentinel.
+    pub const fn is_invalid(self) -> bool {
+        self.0 == 0x7FFF_FFFF
+    }
+}
+
+impl fmt::Display for NodeId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "@{}", self.0)
+    }
+}
+
+impl From<u32> for NodeId {
+    fn from(index: u32) -> Self {
+        NodeId::new(index)
+    }
+}
+
+// Into<u32>
+impl From<NodeId> for u32 {
+    fn from(id: NodeId) -> Self {
+        id.0
+    }
+}
+
+// Into<usize>
+impl From<NodeId> for usize {
+    fn from(id: NodeId) -> Self {
+        id.0 as usize
+    }
+}
 
 /// A variable identifier (1-indexed).
 ///

@@ -93,7 +93,7 @@ impl Bdd {
             };
         }
 
-        let node = self.node(node_ref.index());
+        let node = self.node(node_ref.id());
         let variable = node.variable;
         let level = self.get_level(variable).map(|l| l.index());
 

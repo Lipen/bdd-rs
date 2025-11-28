@@ -35,7 +35,7 @@ pub struct Node {
     pub variable: Var,
     pub low: Ref,
     pub high: Ref,
-    /// Next node in collision chain. `0` means end of chain.
+    /// Next node in collision chain. [`NO_NEXT`][Node::NO_NEXT] means end of chain.
     pub next: u32,
     /// Precomputed hash of (variable, low, high) for fast comparisons.
     hash: u64,
@@ -45,18 +45,21 @@ impl Default for Node {
     fn default() -> Self {
         Self {
             variable: Var::ZERO,
-            low: Ref::ZERO,
-            high: Ref::ZERO,
-            next: 0,
+            low: Ref::INVALID,
+            high: Ref::INVALID,
+            next: Self::NO_NEXT,
             hash: 0,
         }
     }
 }
 
 impl Node {
+    /// Sentinel value for end of hash collision chain.
+    pub const NO_NEXT: u32 = u32::MAX;
+
     /// Creates a new node with the given variable and children.
     ///
-    /// The `next` pointer is initialized to `0` (end of chain).
+    /// The `next` pointer is initialized to `NO_NEXT` (end of chain).
     pub fn new(variable: Var, low: Ref, high: Ref) -> Self {
         let hash = {
             let x = variable.id() as u64;
@@ -68,7 +71,7 @@ impl Node {
             variable,
             low,
             high,
-            next: 0,
+            next: Self::NO_NEXT,
             hash,
         }
     }
@@ -82,7 +85,7 @@ impl MyHash for Node {
 
 impl PartialEq for Node {
     fn eq(&self, other: &Self) -> bool {
-        self.variable == other.variable && self.low == other.low && self.high == other.high
+        self.hash == other.hash && self.variable == other.variable && self.low == other.low && self.high == other.high
     }
 }
 

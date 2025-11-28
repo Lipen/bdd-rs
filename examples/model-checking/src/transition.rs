@@ -168,8 +168,8 @@ impl TransitionSystem {
         TransitionSystem {
             bdd,
             var_manager: VarManager::new(),
-            initial: Ref::ZERO,
-            transition: Ref::ZERO,
+            initial: Ref::INVALID,
+            transition: Ref::INVALID,
             labels: HashMap::new(),
         }
     }

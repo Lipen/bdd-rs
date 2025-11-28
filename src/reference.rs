@@ -1,36 +1,49 @@
 use std::fmt::{Display, Formatter};
 use std::ops::Neg;
 
-use crate::utils::mix64;
+use crate::types::NodeId;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 pub struct Ref(u32);
 
 impl Ref {
-    pub const ZERO: Self = Self(0);
+    /// Sentinel value representing an invalid/uninitialized reference.
+    /// Uses maximum u32 value - we don't care about index/sign interpretation for sentinels.
+    pub const INVALID: Self = Self(0xFFFF_FFFF);
 
-    pub const fn new(index: u32, negated: bool) -> Self {
-        debug_assert!(index > 0, "Index is zero, use Ref::ZERO instead");
-        debug_assert!(index < 0x8000_0000, "Index is too large");
-        Self((index << 1) | (negated as u32))
+    /// Creates a new reference with the given node ID and negation flag.
+    pub fn new(id: impl Into<NodeId>, negated: bool) -> Self {
+        Self((id.into().raw() << 1) | (negated as u32))
     }
-    pub const fn positive(index: u32) -> Self {
-        Self::new(index, false)
+
+    /// Creates a positive (non-negated) reference.
+    pub fn positive(id: impl Into<NodeId>) -> Self {
+        Self::new(id, false)
     }
-    pub const fn negative(index: u32) -> Self {
-        Self::new(index, true)
+
+    /// Creates a negative (negated) reference.
+    pub fn negative(id: impl Into<NodeId>) -> Self {
+        Self::new(id, true)
     }
-    pub const fn index(self) -> u32 {
-        self.0 >> 1
+
+    /// Returns the node ID this reference points to.
+    #[inline]
+    pub const fn id(self) -> NodeId {
+        // SAFETY: The index is always < 0x7FFF_FFFF due to the check in `new`
+        unsafe { NodeId::from_raw_unchecked(self.0 >> 1) }
     }
+
+    /// Returns true if this reference is negated.
+    #[inline]
     pub const fn is_negated(self) -> bool {
         (self.0 & 1) != 0
     }
 
-    pub(crate) const fn hashy(self) -> u64 {
-        // self.0 as u64
-        mix64(self.0 as u64)
+    /// Returns the raw underlying value.
+    #[inline]
+    pub const fn raw(self) -> u32 {
+        self.0
     }
 }
 
@@ -45,6 +58,10 @@ impl Neg for Ref {
 
 impl Display for Ref {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}@{}", if self.is_negated() { "~" } else { "" }, self.index())
+        if self.is_negated() {
+            write!(f, "~{}", self.id())
+        } else {
+            write!(f, "{}", self.id())
+        }
     }
 }

@@ -80,7 +80,7 @@ use log::debug;
 
 use crate::bdd::Bdd;
 use crate::reference::Ref;
-use crate::types::{Level, Var};
+use crate::types::{Level, NodeId, Var};
 
 /// Statistics collected during reordering.
 #[derive(Debug, Clone, Default)]
@@ -404,7 +404,7 @@ impl Bdd {
     /// (preserving negation). Otherwise returns the reference unchanged.
     ///
     /// This is a public wrapper around the internal `apply_mapping` used during swaps.
-    pub fn remap_ref(&self, r: Ref, mapping: &HashMap<u32, Ref>) -> Ref {
+    pub fn remap_ref(&self, r: Ref, mapping: &HashMap<NodeId, Ref>) -> Ref {
         self.apply_mapping(r, mapping)
     }
 
@@ -434,7 +434,7 @@ impl Bdd {
     /// bdd.remap_roots(&mut roots, &mapping);
     /// // roots[0] now points to the updated BDD
     /// ```
-    pub fn remap_roots(&self, roots: &mut [Ref], mapping: &HashMap<u32, Ref>) {
+    pub fn remap_roots(&self, roots: &mut [Ref], mapping: &HashMap<NodeId, Ref>) {
         for root in roots.iter_mut() {
             *root = self.apply_mapping(*root, mapping);
         }
@@ -456,10 +456,10 @@ impl Bdd {
     /// The total number of unique nodes (including ONE terminal)
     pub fn count_nodes(&self, roots: &[Ref]) -> usize {
         let mut visited = HashSet::new();
-        visited.insert(self.one.index());
+        visited.insert(self.one.id());
 
         for &root in roots {
-            let mut stack = vec![root.index()];
+            let mut stack = vec![root.id()];
 
             while let Some(idx) = stack.pop() {
                 if visited.insert(idx) {
@@ -470,10 +470,10 @@ impl Bdd {
                     let low = self.low_node(node_ref);
                     let high = self.high_node(node_ref);
                     if !self.is_terminal(low) {
-                        stack.push(low.index());
+                        stack.push(low.id());
                     }
                     if !self.is_terminal(high) {
-                        stack.push(high.index());
+                        stack.push(high.id());
                     }
                 }
             }
@@ -502,7 +502,7 @@ impl Bdd {
             }
             visited.insert(node_ref);
 
-            let node = self.node(node_ref.index());
+            let node = self.node(node_ref.id());
             vars.insert(node.variable);
 
             stack.push(node.low);
@@ -557,7 +557,7 @@ impl Bdd {
                 continue;
             }
 
-            let node = self.node(node_ref.index());
+            let node = self.node(node_ref.id());
             *counts.entry(node.variable).or_insert(0) += 1;
 
             if !visited.contains(&node.low) {
@@ -738,10 +738,10 @@ mod tests {
         // Debug: print original BDD structure
         println!("Original BDD structure:");
         if !bdd.is_terminal(roots[0]) {
-            let node = bdd.node(roots[0].index());
+            let node = bdd.node(roots[0].id());
             println!(
                 "  Root @{}: var={}, low={}, high={}",
-                roots[0].index(),
+                roots[0].id(),
                 node.variable,
                 bdd.low_node(roots[0]),
                 bdd.high_node(roots[0])
@@ -749,10 +749,10 @@ mod tests {
 
             if !bdd.is_terminal(bdd.low_node(roots[0])) {
                 let low_ref = bdd.low_node(roots[0]);
-                let low_node = bdd.node(low_ref.index());
+                let low_node = bdd.node(low_ref.id());
                 println!(
                     "    Low child @{}: var={}, low={}, high={}",
-                    low_ref.index(),
+                    low_ref.id(),
                     low_node.variable,
                     bdd.low_node(low_ref),
                     bdd.high_node(low_ref)
@@ -761,10 +761,10 @@ mod tests {
 
             if !bdd.is_terminal(bdd.high_node(roots[0])) {
                 let high_ref = bdd.high_node(roots[0]);
-                let high_node = bdd.node(high_ref.index());
+                let high_node = bdd.node(high_ref.id());
                 println!(
                     "    High child @{}: var={}, low={}, high={}",
-                    high_ref.index(),
+                    high_ref.id(),
                     high_node.variable,
                     bdd.low_node(high_ref),
                     bdd.high_node(high_ref)
@@ -801,7 +801,7 @@ mod tests {
         // Debug: print BDD structure
         println!("BDD structure after swap:");
         if !bdd.is_terminal(roots[0]) {
-            let node = bdd.node(roots[0].index());
+            let node = bdd.node(roots[0].id());
             println!(
                 "  Root: var={}, low={}, high={}",
                 node.variable,
@@ -810,7 +810,7 @@ mod tests {
             );
 
             if !bdd.is_terminal(bdd.low_node(roots[0])) {
-                let low_node = bdd.node(bdd.low_node(roots[0]).index());
+                let low_node = bdd.node(bdd.low_node(roots[0]).id());
                 println!(
                     "    Low child: var={}, low={}, high={}",
                     low_node.variable,
@@ -820,7 +820,7 @@ mod tests {
             }
 
             if !bdd.is_terminal(bdd.high_node(roots[0])) {
-                let high_node = bdd.node(bdd.high_node(roots[0]).index());
+                let high_node = bdd.node(bdd.high_node(roots[0]).id());
                 println!(
                     "    High child: var={}, low={}, high={}",
                     high_node.variable,
