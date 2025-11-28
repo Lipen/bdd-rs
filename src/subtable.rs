@@ -24,7 +24,7 @@
 //! ```text
 //! Subtable for level k:
 //! ┌─────────────────────────────────────────────────┐
-//! │ buckets: [Ref; 2^shift]                         │
+//! │ buckets: [u32; 2^bits]                          │
 //! │   [0] ─────► Node@5 ──► Node@12 ──► ∅           │
 //! │   [1] ─────► ∅                                   │
 //! │   [2] ─────► Node@3 ──► ∅                       │
@@ -36,7 +36,7 @@
 //!
 //! Hash is computed from `(low, high)` children (variable is implicit):
 //! ```text
-//! bucket_index = hash(low, high) >> shift
+//! bucket_index = hash(low, high) & bitmask
 //! ```
 //!
 //! # Benefits
@@ -51,24 +51,24 @@ use crate::reference::Ref;
 use crate::types::Var;
 use crate::utils::MyHash;
 
-/// Default number of bucket bits (2^10 = 1024 buckets initially).
-const DEFAULT_BUCKET_BITS: usize = 10;
+/// Default number of bucket bits (2^16 = 65536 buckets per level).
+const DEFAULT_BUCKET_BITS: usize = 16;
 
 /// A subtable storing BDD nodes for a single variable/level.
 ///
 /// Uses intrusive hashing: collision chains are stored via `Node.next`,
-/// and `buckets` array holds head pointers to each chain.
+/// and `buckets` array holds head pointers (node indices) to each chain.
 #[derive(Debug, Clone)]
 pub struct Subtable {
     /// The variable for all nodes in this subtable.
     pub variable: Var,
 
-    /// Bucket array: each entry is a head pointer to a collision chain.
-    /// `Ref::ZERO` indicates an empty bucket.
-    buckets: Vec<Ref>,
+    /// Bucket array: each entry is a head pointer (node index) to a collision chain.
+    /// `0` indicates an empty bucket.
+    buckets: Vec<u32>,
 
-    /// Bit shift for hash function: `bucket_index = hash >> shift`.
-    shift: u32,
+    /// Bitmask for hash function: `bucket_index = hash & bitmask`.
+    bitmask: u64,
 
     /// Number of nodes in this subtable.
     count: usize,
@@ -83,11 +83,11 @@ impl Subtable {
     /// Create a new subtable with specified bucket count (2^bits).
     pub fn with_bucket_bits(variable: Var, bits: usize) -> Self {
         let num_buckets = 1usize << bits;
-        let shift = (64 - bits) as u32;
+        let bitmask = (num_buckets - 1) as u64;
         Self {
             variable,
-            buckets: vec![Ref::ZERO; num_buckets],
-            shift,
+            buckets: vec![0; num_buckets],
+            bitmask,
             count: 0,
         }
     }
@@ -96,7 +96,7 @@ impl Subtable {
     #[inline]
     fn bucket_index(&self, low: Ref, high: Ref) -> usize {
         let hash = hash_children(low, high);
-        (hash >> self.shift) as usize
+        (hash & self.bitmask) as usize
     }
 
     /// Look up a node by its children, using the given node storage.
@@ -106,11 +106,10 @@ impl Subtable {
         let bucket_idx = self.bucket_index(low, high);
         let mut current = self.buckets[bucket_idx];
 
-        while current != Ref::ZERO {
-            let idx = current.index() as usize;
-            let node = &nodes[idx];
+        while current != 0 {
+            let node = &nodes[current as usize];
             if node.low == low && node.high == high {
-                return Some(idx as u32);
+                return Some(current);
             }
             current = node.next;
         }
@@ -121,7 +120,7 @@ impl Subtable {
     /// Insert a node into the subtable (prepend to collision chain).
     ///
     /// **Important**: Caller must set `nodes[index].next` to the returned value.
-    /// This is done via `insert_with_nodes` for convenience.
+    /// This is done via `insert` for convenience.
     ///
     /// # Arguments
     ///
@@ -132,10 +131,10 @@ impl Subtable {
     /// # Returns
     ///
     /// The previous head of the bucket (to be stored in `nodes[index].next`).
-    pub fn insert_raw(&mut self, low: Ref, high: Ref, index: u32) -> Ref {
+    pub fn insert_raw(&mut self, low: Ref, high: Ref, index: u32) -> u32 {
         let bucket_idx = self.bucket_index(low, high);
         let old_head = self.buckets[bucket_idx];
-        self.buckets[bucket_idx] = Ref::positive(index);
+        self.buckets[bucket_idx] = index;
         self.count += 1;
         old_head
     }
@@ -151,24 +150,23 @@ impl Subtable {
     /// Returns true if the node was found and removed.
     pub fn remove(&mut self, low: Ref, high: Ref, nodes: &mut [Node]) -> bool {
         let bucket_idx = self.bucket_index(low, high);
-        let mut prev = Ref::ZERO;
+        let mut prev: u32 = 0;
         let mut current = self.buckets[bucket_idx];
 
-        while current != Ref::ZERO {
-            let idx = current.index() as usize;
-            let node = &nodes[idx];
+        while current != 0 {
+            let node = &nodes[current as usize];
 
             if node.low == low && node.high == high {
                 // Found it - unlink from chain
-                if prev == Ref::ZERO {
+                if prev == 0 {
                     // Removing head of chain
                     self.buckets[bucket_idx] = node.next;
                 } else {
                     // Removing from middle/end
-                    nodes[prev.index() as usize].next = node.next;
+                    nodes[prev as usize].next = node.next;
                 }
                 // Clear the removed node's next pointer
-                nodes[idx].next = Ref::ZERO;
+                nodes[current as usize].next = 0;
                 self.count -= 1;
                 return true;
             }
@@ -200,7 +198,7 @@ impl Subtable {
     /// **Note**: This only clears bucket heads. Caller should handle node cleanup.
     pub fn clear(&mut self) {
         for bucket in &mut self.buckets {
-            *bucket = Ref::ZERO;
+            *bucket = 0;
         }
         self.count = 0;
     }
@@ -232,12 +230,12 @@ fn hash_children(low: Ref, high: Ref) -> u64 {
 
 /// Iterator over a collision chain.
 struct ChainIter<'a> {
-    current: Ref,
+    current: u32,
     nodes: &'a [Node],
 }
 
 impl<'a> ChainIter<'a> {
-    fn new(head: Ref, nodes: &'a [Node]) -> Self {
+    fn new(head: u32, nodes: &'a [Node]) -> Self {
         Self { current: head, nodes }
     }
 }
@@ -246,10 +244,10 @@ impl Iterator for ChainIter<'_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current == Ref::ZERO {
+        if self.current == 0 {
             return None;
         }
-        let idx = self.current.index();
+        let idx = self.current;
         self.current = self.nodes[idx as usize].next;
         Some(idx)
     }
