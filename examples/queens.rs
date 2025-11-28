@@ -3,35 +3,41 @@
 //! This example solves the classic N-Queens problem using Binary Decision Diagrams (BDDs).
 //!
 //! **Problem Statement**:
-//! Place N queens on an N × N chessboard such that no two queens attack each other.
+//! Place N queens on an `N × N` chessboard such that no two queens attack each other.
 //!
-//! **BDD Approach**:
-//! 1. **Variables**: Each square (i, j) is a boolean variable x_{i,j}.
+//! **BDD Approach** (one-hot encoding):
+//! 1. **Variables**: Each square `(i, j)` is a boolean variable `x_{i,j}`.
 //! 2. **Constraints**:
-//!    - One queen per row: (x_{i,1} ∨ ... ∨ x_{i,N}) ∧ (¬(x_{i,j} ∧ x_{i,k}) for all j ≠ k)
-//!    - One queen per column: Similar to row constraint.
-//!    - Diagonals: No two queens on any diagonal.
+//!    - At least one queen per row: `x_{i,0} ∨ x_{i,1} ∨ ... ∨ x_{i,n-1}`
+//!    - At most one queen per row: `x_{i,j} → ¬x_{i,k}` for all `k ≠ j`
+//!    - At most one queen per column: `x_{i,j} → ¬x_{k,j}` for all `k ≠ i`
+//!    - At most one queen per diagonal: similar at-most-one constraints
 //! 3. **Solution**: The BDD represents the set of all valid solutions.
-//!    - `sat_count` gives the number of solutions.
-//!    - Paths to `True` terminal represent valid board configurations.
 //!
-//! **Note**:
-//! - 20 bits (default) are enough to encode at most n=10 queens (time=0.4s).
-//! - 23 bits are required for n=11 queens (time=15s).
-//! - 25 bits are required for n=12 queens (time=720s).
-//!
-//! **Example**:
-//! For n=5, the BDD represents all valid configurations of 5 queens on a 5x5 board.
+//! **Reference**:
+//! Henrik R. Andersen, "An introduction to binary decision diagrams",
+//! Lecture notes for "Efficient Algorithms and Programs", 1999,
+//! The IT University of Copenhagen, Section 6.1
 //!
 //! **Usage**:
 //! ```bash
-//! cargo run --example queens -- 5
+//! cargo run --release --example queens -- 8
 //! ```
+
+use std::time::Instant;
 
 use bdd_rs::bdd::Bdd;
 use bdd_rs::reference::Ref;
-use bdd_rs::types::Var;
 use clap::Parser;
+
+/// Statistics collected during constraint building.
+#[derive(Debug, Default)]
+struct Stats {
+    /// BDD size after each constraint phase.
+    sizes: Vec<(&'static str, u64)>,
+    /// Time spent in each constraint phase (seconds).
+    times: Vec<(&'static str, f64)>,
+}
 
 #[derive(Debug, Parser)]
 #[command(author, version)]
@@ -47,6 +53,10 @@ struct Cli {
     /// Enable garbage collection.
     #[clap(long)]
     gc: bool,
+
+    /// Enable verbose step-by-step output.
+    #[clap(short, long)]
+    verbose: bool,
 }
 
 fn main() -> color_eyre::Result<()> {
@@ -59,135 +69,248 @@ fn main() -> color_eyre::Result<()> {
         simplelog::ColorChoice::Auto,
     )?;
 
-    let time_total = std::time::Instant::now();
+    let time_total = Instant::now();
 
     let args = Cli::parse();
     println!("args = {:?}", args);
 
-    // Note:
-    // - 20 bits (default) are enough to encode at most n=10 queens (time=0.4s).
-    // - 23 bits are required for n=11 queens (time=15s).
-    // - 25 bits are required for n=12 queens (time=720s).
-
     let bdd = Bdd::new(args.size);
-    println!("bdd = {:?}", bdd);
-
-    // Encode N-queens problem:
-    // - N queens on an NxN board
-    // - One queen per row
-    // - One queen per column
-    // - No two queens on the same diagonal
     let n = args.n;
-    println!("Encoding n-queens problem with n = {}", n);
+    let num_vars = n * n;
+    println!("Solving {}-Queens problem ({} variables)...", n, num_vars);
 
-    // Pre-allocate variables in natural order (1, 2, 3, ..., n*n)
-    // This ensures the variable ordering matches variable IDs
-    for var_id in 1..=(n * n) as u32 {
+    // Pre-allocate variables in natural order
+    for var_id in 1..=num_vars as u32 {
         bdd.mk_var(var_id);
     }
+
+    let (res, stats) = solve_queens(&bdd, n, args.gc, args.verbose);
+
+    // Print results
+    println!();
+    println!("=== Results ===");
+    println!("Result Size: {} nodes", bdd.size(res));
+
+    let num_solutions = bdd.sat_count(res, num_vars);
+    println!("Number of solutions: {}", num_solutions);
+
+    // Print timing breakdown
+    println!();
+    println!("=== Timing ===");
+    for (phase, time) in &stats.times {
+        println!("  {:30} {:>8.3}s", phase, time);
+    }
+    println!("  {:30} {:>8.3}s", "Total", time_total.elapsed().as_secs_f64());
+
+    // Print size progression (subgraph sizes, not total allocated)
+    println!();
+    println!("=== Subgraph Size Progression ===");
+    for (phase, size) in &stats.sizes {
+        println!("  {:30} {:>10} nodes", phase, size);
+    }
+
+    // Print BDD storage stats
+    println!();
+    println!("=== BDD Storage ===");
+    println!("  Allocated nodes: {} (total in storage, including garbage)", bdd.num_nodes());
+    let cache = bdd.cache();
+    let total_lookups = cache.hits() + cache.misses();
+    let hit_rate = if total_lookups > 0 {
+        100.0 * cache.hits() as f64 / total_lookups as f64
+    } else {
+        0.0
+    };
     println!(
-        "Pre-allocated {} variables: [{}]",
-        n * n,
-        bdd.var_order().iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", ")
+        "  Cache: {} hits, {} misses, {} faults ({:.1}% hit rate)",
+        cache.hits(),
+        cache.misses(),
+        cache.faults(),
+        hit_rate
     );
-
-    let res = encode_queens_board(&bdd, n, args.gc);
-    println!("res = {} of size {}", res, bdd.size(res));
-
-    let num_solutions = bdd.sat_count(res, n * n);
-    println!("solutions: {}", num_solutions);
-
-    println!("bdd = {:?}", bdd);
-    println!("cache hits: {}", bdd.cache().hits());
-    println!("cache faults: {}", bdd.cache().faults());
-    println!("cache misses: {}", bdd.cache().misses());
-    println!("cache size: {}", 1usize << 20); // 2^20
-
-    let time_total = time_total.elapsed();
-    println!("Done in {:.3} s", time_total.as_secs_f64());
 
     Ok(())
 }
 
-fn queen(n: usize, row: usize, col: usize) -> u32 {
+/// Returns the variable ID for the cell at `(row, col)`.
+/// Variables are 1-indexed: `x_{0,0} = 1`, `x_{0,1} = 2`, etc.
+fn var(n: usize, row: usize, col: usize) -> u32 {
     (row * n + col + 1) as u32
 }
 
-fn encode_queens_square(bdd: &Bdd, n: usize, i: usize, j: usize) -> Ref {
-    // println!("Encoding square ({}, {})...", i, j);
-    let mut node = bdd.one;
+/// Solves the N-Queens problem and returns the BDD representing all solutions.
+fn solve_queens(bdd: &Bdd, n: usize, gc: bool, verbose: bool) -> (Ref, Stats) {
+    let mut stats = Stats::default();
+    let mut result = bdd.one;
 
-    for row in (0..n).rev() {
-        for col in (0..n).rev() {
-            let var = Var::new(queen(n, row, col));
+    // Constraint 1: At least one queen per row
+    println!("[1/5] At least one queen per row...");
+    let t = Instant::now();
+    let at_least_one = at_least_one_queen_per_row(bdd, n, verbose);
+    result = bdd.apply_and(result, at_least_one);
+    stats.times.push(("At least one per row", t.elapsed().as_secs_f64()));
+    stats.sizes.push(("After at-least-one", bdd.size(result)));
+    println!("       Done. Size: {} nodes, allocated: {}", bdd.size(result), bdd.num_nodes());
 
-            assert!(bdd.is_terminal(node) || var.id() < bdd.variable(node.id()).id());
+    // Constraint 2: At most one queen per row
+    println!("[2/5] At most one queen per row...");
+    let t = Instant::now();
+    let row_amo = at_most_one_queen_per_line(bdd, n, true, gc, &mut result, verbose);
+    result = bdd.apply_and(result, row_amo);
+    stats.times.push(("At most one per row", t.elapsed().as_secs_f64()));
+    stats.sizes.push(("After row AMO", bdd.size(result)));
+    println!("       Done. Size: {} nodes, allocated: {}", bdd.size(result), bdd.num_nodes());
 
-            // Queen must be placed here
-            if row == i && col == j {
-                let low = bdd.zero;
-                let high = node;
-                node = bdd.mk_node(var, low, high);
-                continue;
-            }
+    // Constraint 3: At most one queen per column
+    println!("[3/5] At most one queen per column...");
+    let t = Instant::now();
+    let col_amo = at_most_one_queen_per_line(bdd, n, false, gc, &mut result, verbose);
+    result = bdd.apply_and(result, col_amo);
+    stats.times.push(("At most one per column", t.elapsed().as_secs_f64()));
+    stats.sizes.push(("After column AMO", bdd.size(result)));
+    println!("       Done. Size: {} nodes, allocated: {}", bdd.size(result), bdd.num_nodes());
 
-            // Conflicting row, column, or diagonal with Queen placement
-            let row_diff = (row as i32 - i as i32).abs();
-            let col_diff = (col as i32 - j as i32).abs();
+    // Constraint 4: At most one queen per anti-diagonal (/)
+    println!("[4/5] At most one queen per anti-diagonal (/)...");
+    let t = Instant::now();
+    let slash = at_most_one_queen_per_diagonal(bdd, n, true, gc, &result, verbose);
+    result = bdd.apply_and(result, slash);
+    stats.times.push(("At most one per anti-diag", t.elapsed().as_secs_f64()));
+    stats.sizes.push(("After anti-diagonal AMO", bdd.size(result)));
+    println!("       Done. Size: {} nodes, allocated: {}", bdd.size(result), bdd.num_nodes());
 
-            if row == i || col == j || (row_diff == col_diff) {
-                let low = node;
-                let high = bdd.zero;
-                node = bdd.mk_node(var, low, high);
-                continue;
-            }
+    // Constraint 5: At most one queen per diagonal (\)
+    println!("[5/5] At most one queen per diagonal (\\)...");
+    let t = Instant::now();
+    let backslash = at_most_one_queen_per_diagonal(bdd, n, false, gc, &result, verbose);
+    result = bdd.apply_and(result, backslash);
+    stats.times.push(("At most one per diagonal", t.elapsed().as_secs_f64()));
+    stats.sizes.push(("After diagonal AMO", bdd.size(result)));
+    println!("       Done. Size: {} nodes, allocated: {}", bdd.size(result), bdd.num_nodes());
 
-            // No conflicts
-            node = bdd.mk_node(var, node, node);
+    (result, stats)
+}
+
+/// At least one queen per row: `⋀_i (⋁_j x_{i,j})`
+fn at_least_one_queen_per_row(bdd: &Bdd, n: usize, verbose: bool) -> Ref {
+    let mut result = bdd.one;
+
+    for row in 0..n {
+        // Build disjunction: `x_{row,0} ∨ x_{row,1} ∨ ... ∨ x_{row,n-1}`
+        let mut row_clause = bdd.zero;
+        for col in 0..n {
+            let x = bdd.mk_var(var(n, row, col));
+            row_clause = bdd.apply_or(row_clause, x);
+        }
+        result = bdd.apply_and(result, row_clause);
+        if verbose {
+            println!("       Row {}/{}: size = {}", row + 1, n, bdd.size(result));
         }
     }
 
-    node
+    result
 }
 
-fn encode_queens_row(bdd: &Bdd, n: usize, r: usize) -> Ref {
-    // println!("Encoding row {}...", r);
-    let mut node = bdd.zero;
+/// At most one queen per row/column.
+/// For each line: `⋀_{x ∈ line} (x → ¬(⋁_{y ∈ line, y≠x} y))`
+fn at_most_one_queen_per_line(bdd: &Bdd, n: usize, is_row: bool, gc: bool, current: &Ref, verbose: bool) -> Ref {
+    let mut result = bdd.one;
+    let kind = if is_row { "Row" } else { "Col" };
 
-    for c in 0..n {
-        let square = encode_queens_square(bdd, n, r, c);
-        // println!("Merging column {}...", c);
-        node = bdd.apply_or(node, square);
-    }
+    for i in 0..n {
+        // Get all variables in this line
+        let vars: Vec<u32> = (0..n).map(|j| if is_row { var(n, i, j) } else { var(n, j, i) }).collect();
 
-    node
-}
+        let amo = encode_at_most_one(bdd, &vars);
+        result = bdd.apply_and(result, amo);
 
-fn encode_queens_board(bdd: &Bdd, n: usize, gc: bool) -> Ref {
-    // println!("Encoding board of size n = {}...", n);
-    let mut node = bdd.one;
-
-    for r in 0..n {
-        println!("Encoding row {}...", r);
-        let row = encode_queens_row(bdd, n, r);
-        println!("Row {} encoded, size = {}", r, bdd.size(row));
-        println!(
-            "Merging row {}... size so far = {}, solutions = {}",
-            r,
-            bdd.size(node),
-            bdd.sat_count(node, n * n)
-        );
-        let time_start = std::time::Instant::now();
-
-        node = bdd.apply_and(node, row);
-        println!("apply_and done in {:.3}s", time_start.elapsed().as_secs_f64());
+        if verbose {
+            println!("       {} {}/{}: size = {}", kind, i + 1, n, bdd.size(result));
+        }
 
         if gc {
-            // println!("bdd before GC = {:?}", bdd);
-            bdd.collect_garbage(&[node]);
-            // println!("bdd after GC = {:?}", bdd);
+            bdd.collect_garbage(&[result, *current]);
         }
     }
 
-    node
+    result
+}
+
+/// At most one queen per diagonal.
+/// `slash=true` for anti-diagonals (`/`), `slash=false` for diagonals (`\`).
+fn at_most_one_queen_per_diagonal(bdd: &Bdd, n: usize, slash: bool, gc: bool, current: &Ref, verbose: bool) -> Ref {
+    let mut result = bdd.one;
+
+    let (a, b) = if slash { (-(n as i32), n as i32) } else { (0, 2 * n as i32) };
+    let total_diags = (b - a) as usize;
+    let mut diag_count = 0;
+
+    for k in a..b {
+        // Collect cells on this diagonal
+        let cells: Vec<(usize, usize)> = (0..n)
+            .filter_map(|i| {
+                let j = if slash { (i as i32 + k) as usize } else { (k - i as i32) as usize };
+                if j < n {
+                    Some((i, j))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        diag_count += 1;
+
+        if cells.len() <= 1 {
+            continue; // No constraint needed for single cell or empty diagonal
+        }
+
+        let vars: Vec<u32> = cells.iter().map(|&(i, j)| var(n, i, j)).collect();
+        let amo = encode_at_most_one(bdd, &vars);
+        result = bdd.apply_and(result, amo);
+
+        if verbose {
+            println!(
+                "       Diag {}/{} (len {}): size = {}, nodes = {}",
+                diag_count,
+                total_diags,
+                cells.len(),
+                bdd.size(result),
+                bdd.num_nodes(),
+            );
+        }
+
+        if gc {
+            bdd.collect_garbage(&[result, *current]);
+        }
+    }
+
+    result
+}
+
+/// Encodes an at-most-one constraint: at most one variable can be true.
+/// For each `x`: `x → ¬(⋁_{y≠x} y)`, which is equivalent to `¬x ∨ ¬(⋁_{y≠x} y)`.
+fn encode_at_most_one(bdd: &Bdd, vars: &[u32]) -> Ref {
+    if vars.len() <= 1 {
+        return bdd.one;
+    }
+
+    let mut result = bdd.one;
+
+    for (idx, &x_var) in vars.iter().enumerate() {
+        let x = bdd.mk_var(x_var);
+
+        // Build disjunction of all other variables
+        let mut others = bdd.zero;
+        for (other_idx, &y_var) in vars.iter().enumerate() {
+            if other_idx != idx {
+                let y = bdd.mk_var(y_var);
+                others = bdd.apply_or(others, y);
+            }
+        }
+
+        // x → ¬others, which is ¬x ∨ ¬others
+        let implication = bdd.apply_or(-x, -others);
+        result = bdd.apply_and(result, implication);
+    }
+
+    result
 }
