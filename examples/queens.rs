@@ -80,6 +80,13 @@ fn main() -> color_eyre::Result<()> {
     let n = args.n;
     println!("Encoding n-queens problem with n = {}", n);
 
+    // Pre-allocate variables in natural order (1, 2, 3, ..., n*n)
+    // This ensures the variable ordering matches variable IDs
+    for var_id in 1..=(n * n) as u32 {
+        bdd.mk_var(var_id);
+    }
+    println!("Pre-allocated {} variables: {:?}", n * n, bdd.var_order());
+
     let res = encode_queens_board(&bdd, n, args.gc);
     println!("res = {} of size {}", res, bdd.size(res));
 
