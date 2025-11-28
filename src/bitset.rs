@@ -68,25 +68,23 @@ impl BitSet {
 
     /// Gets the word index and bit position for a given bit index.
     #[inline]
-    fn word_and_bit(index: usize) -> (usize, usize) {
+    const fn word_and_bit(index: usize) -> (usize, usize) {
         let word = index / Self::BITS_PER_WORD;
         let bit = index % Self::BITS_PER_WORD;
         (word, bit)
     }
 
     /// Returns true if the bit at the given index is set.
-    #[inline]
     pub fn contains(&self, index: usize) -> bool {
         let (word_idx, bit_idx) = Self::word_and_bit(index);
         if word_idx >= self.words.len() {
             return false;
         }
-        let mask = 1u64 << bit_idx;
+        let mask = 1 << bit_idx;
         (self.words[word_idx] & mask) != 0
     }
 
     /// Sets the bit at the given index. Returns true if the bit was not previously set.
-    #[inline]
     pub fn insert(&mut self, index: usize) -> bool {
         let (word_idx, bit_idx) = Self::word_and_bit(index);
 
@@ -95,7 +93,7 @@ impl BitSet {
             self.words.resize(word_idx + 1, 0);
         }
 
-        let mask = 1u64 << bit_idx;
+        let mask = 1 << bit_idx;
         let was_clear = (self.words[word_idx] & mask) == 0;
 
         if was_clear {
@@ -110,7 +108,6 @@ impl BitSet {
     }
 
     /// Clears the bit at the given index. Returns true if the bit was previously set.
-    #[inline]
     pub fn remove(&mut self, index: usize) -> bool {
         let (word_idx, bit_idx) = Self::word_and_bit(index);
 
@@ -118,7 +115,7 @@ impl BitSet {
             return false;
         }
 
-        let mask = 1u64 << bit_idx;
+        let mask = 1 << bit_idx;
         let was_set = (self.words[word_idx] & mask) != 0;
 
         if was_set {
@@ -132,7 +129,6 @@ impl BitSet {
     }
 
     /// Finds and removes the first set bit. Returns its index, or None if empty.
-    #[inline]
     pub fn pop_first(&mut self) -> Option<usize> {
         if self.count == 0 {
             return None;
@@ -146,7 +142,7 @@ impl BitSet {
                 let index = word_idx * Self::BITS_PER_WORD + bit_idx;
 
                 // Clear the bit
-                self.words[word_idx] &= !(1u64 << bit_idx);
+                self.words[word_idx] &= !(1 << bit_idx);
                 self.count -= 1;
 
                 // Update min_word hint
