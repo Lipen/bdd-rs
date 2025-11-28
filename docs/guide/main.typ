@@ -45,7 +45,7 @@
 // Part I: Foundations
 // ============================================================================
 
-#part[Foundations]
+#part[Foundations] <part-foundations>
 
 This part establishes the theoretical foundations of Binary Decision Diagrams.
 We begin with motivation and intuition, then develop the formal mathematical framework.
@@ -65,7 +65,7 @@ By the end, you will understand what BDDs are, why they work, and when to use th
 // Part II: Implementation
 // ============================================================================
 
-#part[Implementation]
+#part[Implementation] <part-implementation>
 
 This part covers practical implementation of a BDD library.
 We examine data structures, algorithms, and engineering trade-offs.
@@ -87,7 +87,7 @@ The discussion is grounded in the `bdd-rs` library architecture.
 // Part III: Advanced Topics
 // ============================================================================
 
-#part[Advanced Topics]
+#part[Advanced Topics] <part-advanced>
 
 This part explores advanced BDD techniques and extensions.
 We cover variable ordering, garbage collection, and variants like ZDDs and ADDs.
@@ -104,7 +104,7 @@ We cover variable ordering, garbage collection, and variants like ZDDs and ADDs.
 // Part IV: Applications
 // ============================================================================
 
-#part[Applications]
+#part[Applications] <part-applications>
 
 This part demonstrates BDDs in practice across various domains.
 From hardware verification to combinatorial problems, BDDs prove their versatility.
@@ -121,7 +121,7 @@ From hardware verification to combinatorial problems, BDDs prove their versatili
 // Part V: Ecosystem and Comparison
 // ============================================================================
 
-#part[Ecosystem and Comparison]
+#part[Ecosystem and Comparison] <part-ecosystem>
 
 This part surveys the BDD landscape.
 We compare approaches, examine existing libraries, and discuss design trade-offs.

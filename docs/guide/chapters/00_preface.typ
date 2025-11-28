@@ -26,25 +26,25 @@ By the end of this guide, you will understand:
 
 *Path 1: Foundations First*
 
-Read sequentially through Parts I and II.
+Read sequentially through @part-foundations and @part-implementation.
 This builds complete understanding from first principles.
 Best for students and those new to BDDs.
 
 *Path 2: Implementation Focus*
 
-Skim Part I for notation, then dive into Part II.
-Reference Part III for advanced techniques as needed.
+Skim @part-foundations for notation, then dive into @part-implementation.
+Reference @part-advanced for advanced techniques as needed.
 Best for engineers building BDD-based systems.
 
 *Path 3: Application-Driven*
 
-Start with Part IV to see BDDs in action.
+Start with @part-applications to see BDDs in action.
 Return to earlier parts when you encounter unfamiliar concepts.
 Best for practitioners with specific use cases.
 
 *Path 4: Comparative Analysis*
 
-Jump to Part V for ecosystem overview and comparisons.
+Jump to @part-ecosystem for ecosystem overview and comparisons.
 Use earlier parts as reference.
 Best for those evaluating BDD libraries or approaches.
 
