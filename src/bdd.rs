@@ -217,8 +217,7 @@ impl Bdd {
     pub fn new(storage_bits: usize) -> Self {
         assert!(storage_bits <= 31, "Storage bits should be in the range 0..=31");
 
-        // Cache should be at least as large as storage for good performance
-        let cache_bits = storage_bits;
+        let cache_bits = 16;
         let capacity = 1 << storage_bits;
 
         // Initialize node storage with reserved slot 0 and terminal node at index 1
