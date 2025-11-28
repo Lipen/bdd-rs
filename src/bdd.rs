@@ -258,13 +258,13 @@ impl Debug for Bdd {
         f.debug_struct("Bdd")
             .field("capacity", &self.nodes().capacity())
             .field("size", &self.num_nodes())
-            .field(
-                "order",
-                &format_args!(
-                    "[{}]",
-                    self.var_order().iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", ")
-                ),
-            )
+            // .field(
+            //     "order",
+            //     &format_args!(
+            //         "[{}]",
+            //         self.var_order().iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", ")
+            //     ),
+            // )
             .finish()
     }
 }
