@@ -106,6 +106,7 @@ use std::fmt::Debug;
 
 use log::debug;
 
+use crate::bitset::BitSet;
 use crate::cache::Cache;
 use crate::node::Node;
 use crate::reference::Ref;
@@ -173,7 +174,7 @@ pub struct Bdd {
     /// Index 0 is reserved (unused), index 1 is the terminal node (@1).
     nodes: RefCell<Vec<Node>>,
     /// Set of free (recycled) node indices available for reuse.
-    free_set: RefCell<HashSet<u32>>,
+    free_set: RefCell<HashSet<usize>>,
     cache: RefCell<Cache<OpKey, Ref>>,
     size_cache: RefCell<Cache<Ref, u64>>,
     pub zero: Ref,
@@ -283,10 +284,10 @@ impl Bdd {
         self.nodes.borrow_mut()
     }
 
-    pub fn free_set(&self) -> cell::Ref<'_, HashSet<u32>> {
+    pub fn free_set(&self) -> cell::Ref<'_, HashSet<usize>> {
         self.free_set.borrow()
     }
-    fn free_set_mut(&self) -> cell::RefMut<'_, HashSet<u32>> {
+    fn free_set_mut(&self) -> cell::RefMut<'_, HashSet<usize>> {
         self.free_set.borrow_mut()
     }
 
@@ -720,10 +721,10 @@ impl Bdd {
         let index = {
             let mut free_set = self.free_set_mut();
             if let Some(&idx) = free_set.iter().next() {
-                // Reuse a freed slot
                 free_set.remove(&idx);
-                self.nodes_mut()[idx as usize] = node;
-                idx
+                // Reuse a freed slot
+                self.nodes_mut()[idx] = node;
+                idx as u32
             } else {
                 // Allocate new slot
                 let mut nodes = self.nodes_mut();
@@ -2701,21 +2702,21 @@ impl Bdd {
         let alive = self.mark_alive(roots, num_nodes);
 
         // Collect dead node indices and remove from subtables
-        let dead_indices: Vec<u32> = {
+        let dead_indices: Vec<usize> = {
             let mut nodes = self.nodes_mut();
             let mut subtables = self.subtables_mut();
             let level_map = self.level_map();
             let free_set = self.free_set();
 
-            (1..num_nodes as u32)
+            (1..num_nodes)
                 .filter(|&idx| {
                     // Skip if already free or alive
-                    if free_set.contains(&idx) || alive[idx as usize] {
+                    if free_set.contains(&idx) || alive.contains(idx) {
                         return false;
                     }
 
                     // Dead node: remove from its subtable
-                    let node = &nodes[idx as usize];
+                    let node = &nodes[idx];
                     let var = node.variable;
                     if !var.is_terminal() {
                         if let Some(&level) = level_map.get(&var) {
@@ -2735,29 +2736,29 @@ impl Bdd {
         debug!("Garbage collection complete");
     }
 
-    /// Mark all nodes reachable from roots using a bit vector.
+    /// Mark all nodes reachable from roots using a bit set.
     ///
     /// Returns a vector where `result[i]` is true if node `i` is alive.
-    fn mark_alive(&self, roots: &[Ref], num_nodes: usize) -> Vec<bool> {
-        let mut alive = vec![false; num_nodes];
-        alive[0] = true; // Terminal node is always alive
+    fn mark_alive(&self, roots: &[Ref], num_nodes: usize) -> BitSet {
+        let mut alive = BitSet::new(num_nodes);
+        alive.insert(0); // Terminal node is always alive
 
         let mut stack: Vec<NodeId> = roots.iter().map(|r| r.id()).collect();
 
         while let Some(idx) = stack.pop() {
-            if alive[idx.index()] {
+            if !alive.insert(idx.index()) {
+                // Already marked alive
                 continue;
             }
-            alive[idx.index()] = true;
 
             let node = self.node(idx);
             let low_idx = node.low.id();
             let high_idx = node.high.id();
 
-            if !alive[low_idx.index()] {
+            if !alive.contains(low_idx.index()) {
                 stack.push(low_idx);
             }
-            if !alive[high_idx.index()] {
+            if !alive.contains(high_idx.index()) {
                 stack.push(high_idx);
             }
         }
@@ -2981,8 +2982,7 @@ impl Bdd {
 
             (1..nodes.len())
                 .filter_map(|index| {
-                    let idx = index as u32;
-                    if free_set.contains(&idx) {
+                    if free_set.contains(&index) {
                         return None;
                     }
 
@@ -2994,7 +2994,7 @@ impl Bdd {
                         return None;
                     }
 
-                    level_map.get(&var).map(|&level| (level.index(), node.low, node.high, idx))
+                    level_map.get(&var).map(|&level| (level.index(), node.low, node.high, index as u32))
                 })
                 .collect()
         };

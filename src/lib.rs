@@ -61,6 +61,7 @@
 //! For a deep dive into the implementation details, check the [`bdd`] module documentation.
 
 pub mod bdd;
+pub mod bitset;
 pub mod cache;
 pub mod debug;
 pub mod dot;
