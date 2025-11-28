@@ -108,7 +108,9 @@ jobs:
           fontist-version: "^1.21"
 
       - name: Install fonts
-        run: fontist install "Libertinus Sans"
+        run: |
+          fontist install "Libertinus Sans"
+          fontist install "JetBrains Mono"
 
       - name: Setup Typst
         uses: typst-community/setup-typst@v4
