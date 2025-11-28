@@ -58,6 +58,40 @@ pub fn pairing4(a: u64, b: u64, c: u64, d: u64) -> u64 {
     pairing2(pairing2(a, b), pairing2(c, d))
 }
 
+#[inline]
+pub fn mix64(mut x: u64) -> u64 {
+    // MurmurHash3 finalizer constants
+    x = x.wrapping_mul(0xff51afd7ed558ccd);
+    x ^= x >> 33;
+    x = x.wrapping_mul(0xc4ceb9fe1a85ec53);
+    x ^= x >> 33;
+    x
+}
+
+/// Fast combine for two u64s.
+#[inline]
+pub fn combine2(a: u64, b: u64) -> u64 {
+    // Choose two large odd constants (from SplitMix/Murmur)
+    const C1: u64 = 0x9e3779b97f4a7c15; // golden ratio
+    const C2: u64 = 0xbf58476d1ce4e5b9; // splitmix constant
+
+    // Multiply-and-xor combining (cheap, mixes input entropy)
+    let z = a.wrapping_mul(C1) ^ b.wrapping_mul(C2);
+    // Finalize to avalanche bits and remove linear artifacts
+    mix64(z)
+}
+
+/// Combine three values.
+#[inline]
+pub fn combine3(a: u64, b: u64, c: u64) -> u64 {
+    // simple tree combine, but use different constants to avoid symmetry
+    const D1: u64 = 0x94d049bb133111eb;
+    let z = a.wrapping_mul(0x9e3779b97f4a7c15)
+            .wrapping_add(b.wrapping_mul(0xbf58476d1ce4e5b9))
+            .wrapping_add(c.wrapping_mul(D1));
+    mix64(z)
+}
+
 pub trait MyHash {
     // TODO: maybe return `u32` instead of `u64`? or `usize`?
     fn hash(&self) -> u64;
@@ -65,13 +99,13 @@ pub trait MyHash {
 
 impl MyHash for (u64, u64) {
     fn hash(&self) -> u64 {
-        pairing2(self.0, self.1)
+        combine2(self.0, self.1)
     }
 }
 
 impl MyHash for (u64, u64, u64) {
     fn hash(&self) -> u64 {
-        pairing3(self.0, self.1, self.2)
+        combine3(self.0, self.1, self.2)
     }
 }
 
@@ -197,5 +231,22 @@ mod tests {
         assert_eq!(pairing_szudzik(0, 4), 16);
         assert_eq!(pairing_szudzik(4, 0), 20);
         assert_eq!(pairing_szudzik(4, 4), 24);
+    }
+
+    #[test]
+    fn test_combine() {
+        let a = 123456789u64;
+        let b = 987654321u64;
+        let c = 555555555u64;
+
+        let h1 = combine2(a, b);
+        let h2 = combine2(a, b);
+        assert_eq!(h1, h2, "combine2 should be deterministic");
+
+        let h3 = combine3(a, b, c);
+        let h4 = combine3(a, b, c);
+        assert_eq!(h3, h4, "combine3 should be deterministic");
+
+        assert_ne!(h1, h3, "combine2 and combine3 should produce different hashes");
     }
 }
