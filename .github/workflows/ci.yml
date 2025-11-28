@@ -92,3 +92,78 @@ jobs:
 
       - name: Run clippy
         run: cargo clippy --workspace --tests
+
+  build-pdf:
+    name: Build PDFs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Fontist
+        uses: fontist/setup-fontist@v2
+        with:
+          fontist-version: "^1.21"
+
+      - name: Install fonts
+        run: fontist install "Libertinus Sans"
+
+      - name: Setup Typst
+        uses: typst-community/setup-typst@v4
+        with:
+          typst-version: ^0.14
+
+      - name: Show Typst version
+        run: typst --version
+
+      - name: List available fonts
+        run: typst fonts --font-path ~/.fontist/fonts
+
+      - name: Compile guide on BDDs
+        working-directory: docs/guide
+        run: typst compile --font-path ~/.fontist/fonts main.typ guide-bdd.pdf
+
+      - name: Compile guide on Abstract Interpretation
+        working-directory: examples/abstract-interpretation/guide
+        run: typst compile --font-path ~/.fontist/fonts main.typ guide-ai.pdf
+
+      - name: Upload PDFs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf
+          path: |
+            docs/guide/guide-bdd.pdf
+            examples/abstract-interpretation/guide/guide-ai.pdf
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build-pdf]
+    concurrency:
+      group: "pages"
+      cancel-in-progress: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: "*"
+
+      - name: Show downloaded files
+        run: ls -R
+
+      - name: Prepare files for gh-pages
+        run: |
+          # Create public directory
+          mkdir -p public
+
+          # Copy all Typst PDFs
+          cp pdf/*.pdf public/
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          force_orphan: true
