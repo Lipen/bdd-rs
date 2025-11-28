@@ -1,6 +1,8 @@
 use std::fmt::{Display, Formatter};
 use std::ops::Neg;
 
+use crate::utils::mix64;
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 pub struct Ref(u32);
@@ -27,7 +29,8 @@ impl Ref {
     }
 
     pub(crate) const fn hashy(self) -> u64 {
-        self.0 as u64
+        // self.0 as u64
+        mix64(self.0 as u64)
     }
 }
 
