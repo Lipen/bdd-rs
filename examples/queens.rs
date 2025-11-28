@@ -97,6 +97,7 @@ fn main() -> color_eyre::Result<()> {
     println!("cache hits: {}", bdd.cache().hits());
     println!("cache faults: {}", bdd.cache().faults());
     println!("cache misses: {}", bdd.cache().misses());
+    println!("cache size: {}", 1usize << 20); // 2^20
 
     let time_total = time_total.elapsed();
     println!("Done in {:.3} s", time_total.as_secs_f64());
@@ -163,14 +164,19 @@ fn encode_queens_board(bdd: &Bdd, n: usize, gc: bool) -> Ref {
     let mut node = bdd.one;
 
     for r in 0..n {
+        println!("Encoding row {}...", r);
         let row = encode_queens_row(bdd, n, r);
+        println!("Row {} encoded, size = {}", r, bdd.size(row));
         println!(
-            "Merging row {}... size for far = {}, solutions = {}",
+            "Merging row {}... size so far = {}, solutions = {}",
             r,
             bdd.size(node),
             bdd.sat_count(node, n * n)
         );
+        let time_start = std::time::Instant::now();
+
         node = bdd.apply_and(node, row);
+        println!("apply_and done in {:.3}s", time_start.elapsed().as_secs_f64());
 
         if gc {
             // println!("bdd before GC = {:?}", bdd);
