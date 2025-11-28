@@ -93,8 +93,8 @@ jobs:
       - name: Run clippy
         run: cargo clippy --workspace --tests
 
-  build-pdf:
-    name: Build PDFs
+  render:
+    name: Render PDFs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -127,39 +127,14 @@ jobs:
         working-directory: examples/abstract-interpretation/guide
         run: typst compile --font-path ~/.fontist/fonts main.typ guide-ai.pdf
 
-      - name: Upload PDFs as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pdf
-          path: |
-            docs/guide/guide-bdd.pdf
-            examples/abstract-interpretation/guide/guide-ai.pdf
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: [build-pdf]
-    concurrency:
-      group: "pages"
-      cancel-in-progress: false
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v5
-        with:
-          pattern: "*"
-
-      - name: Show downloaded files
-        run: ls -R
-
       - name: Prepare files for gh-pages
         run: |
           # Create public directory
           mkdir -p public
 
           # Copy all Typst PDFs
-          cp pdf/*.pdf public/
+          cp docs/guide/guide-bdd.pdf public/
+          cp examples/abstract-interpretation/guide/guide-ai.pdf public/
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v4
