@@ -1,5 +1,5 @@
 use crate::reference::Ref;
-use crate::types::Var;
+use crate::types::{NodeId, Var};
 use crate::utils::MyHash;
 
 /// A BDD node representing a decision point in the diagram.
@@ -36,8 +36,8 @@ pub struct Node {
     pub low: Ref,
     pub high: Ref,
     /// Next node in collision chain. [`NO_NEXT`][Node::NO_NEXT] means end of chain.
-    pub next: u32,
-    /// Precomputed hash of (variable, low, high) for fast comparisons.
+    pub next: NodeId,
+    /// Precomputed hash of `(variable, low, high)` for fast comparisons.
     hash: u64,
 }
 
@@ -55,7 +55,7 @@ impl Default for Node {
 
 impl Node {
     /// Sentinel value for end of hash collision chain.
-    pub const NO_NEXT: u32 = u32::MAX;
+    pub const NO_NEXT: NodeId = NodeId::INVALID;
 
     /// Creates a new node with the given variable and children.
     ///

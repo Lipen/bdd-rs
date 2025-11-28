@@ -174,7 +174,7 @@ pub struct Bdd {
     /// Index 0 is reserved (unused), index 1 is the terminal node (@1).
     nodes: RefCell<Vec<Node>>,
     /// Set of free (recycled) node indices available for reuse.
-    free_set: RefCell<HashSet<usize>>,
+    free_set: RefCell<HashSet<NodeId>>,
     cache: RefCell<Cache<OpKey, Ref>>,
     size_cache: RefCell<Cache<Ref, u64>>,
     pub zero: Ref,
@@ -284,10 +284,10 @@ impl Bdd {
         self.nodes.borrow_mut()
     }
 
-    pub fn free_set(&self) -> cell::Ref<'_, HashSet<usize>> {
+    pub fn free_set(&self) -> cell::Ref<'_, HashSet<NodeId>> {
         self.free_set.borrow()
     }
-    fn free_set_mut(&self) -> cell::RefMut<'_, HashSet<usize>> {
+    fn free_set_mut(&self) -> cell::RefMut<'_, HashSet<NodeId>> {
         self.free_set.borrow_mut()
     }
 
@@ -341,22 +341,22 @@ impl Bdd {
 
 impl Bdd {
     /// Gets a copy of the node at the given index.
-    pub fn node(&self, index: NodeId) -> Node {
-        self.nodes()[index.index()]
+    pub fn node(&self, id: NodeId) -> Node {
+        self.nodes()[id.index()]
     }
 
     /// Gets the low child of a node.
     ///
     /// Returns the low edge of the node at the given index.
-    pub fn low(&self, index: NodeId) -> Ref {
-        self.nodes()[index.index()].low
+    pub fn low(&self, id: NodeId) -> Ref {
+        self.nodes()[id.index()].low
     }
 
     /// Gets the high child of a node.
     ///
     /// Returns the high edge of the node at the given index.
-    pub fn high(&self, index: NodeId) -> Ref {
-        self.nodes()[index.index()].high
+    pub fn high(&self, id: NodeId) -> Ref {
+        self.nodes()[id.index()].high
     }
 
     /// Gets the low child of a BDD node, respecting complement edges.
@@ -386,8 +386,8 @@ impl Bdd {
     }
 
     /// Gets the variable of a node at the given index.
-    pub fn variable(&self, index: NodeId) -> Var {
-        self.nodes()[index.index()].variable
+    pub fn variable(&self, id: NodeId) -> Var {
+        self.nodes()[id.index()].variable
     }
 }
 
@@ -606,7 +606,7 @@ impl Bdd {
         let nodes = self.nodes();
         self.subtables()
             .get(level.index())
-            .map(|st| st.indices(&nodes).map(|idx| NodeId::new(idx)).collect())
+            .map(|st| st.indices(&nodes).collect())
             .unwrap_or_default()
     }
 
@@ -711,36 +711,36 @@ impl Bdd {
         {
             let nodes = self.nodes();
             let subtables = self.subtables();
-            if let Some(index) = subtables[level.index()].find(low, high, &nodes) {
-                return Ref::positive(index);
+            if let Some(id) = subtables[level.index()].find(low, high, &nodes) {
+                return Ref::positive(id);
             }
         }
 
         // Node doesn't exist - allocate and insert
         let node = Node::new(v, low, high);
-        let index = {
+        let id = {
             let mut free_set = self.free_set_mut();
-            if let Some(&idx) = free_set.iter().next() {
-                free_set.remove(&idx);
+            if let Some(&id) = free_set.iter().next() {
+                free_set.remove(&id);
                 // Reuse a freed slot
-                self.nodes_mut()[idx] = node;
-                idx as u32
+                self.nodes_mut()[id.index()] = node;
+                id
             } else {
                 // Allocate new slot
                 let mut nodes = self.nodes_mut();
-                let idx = nodes.len() as u32;
+                let id = NodeId::new(nodes.len() as u32);
                 nodes.push(node);
-                idx
+                id
             }
         };
 
         // Insert into subtable (needs mutable access to nodes for setting next pointer)
         {
             let mut nodes = self.nodes_mut();
-            self.subtables_mut()[level.index()].insert(low, high, index, &mut nodes);
+            self.subtables_mut()[level.index()].insert(low, high, id, &mut nodes);
         }
 
-        Ref::positive(index)
+        Ref::positive(id)
     }
 
     /// Creates a BDD representing a single Boolean variable.
@@ -928,7 +928,7 @@ impl Bdd {
     /// # Parameters
     ///
     /// * `node_ref` - The BDD to compute cofactors for
-    /// * `v` - Variable index (must be non-zero and ≤ top variable of `node_ref`)
+    /// * `v` - Variable (must be non-zero and ≤ top variable of `node_ref`)
     ///
     /// # Returns
     ///
@@ -959,8 +959,8 @@ impl Bdd {
             return (node_ref, node_ref);
         }
 
-        let index = node_ref.id();
-        let node = self.node(index);
+        let id = node_ref.id();
+        let node = self.node(id);
 
         // Check if v comes before node.variable in the ordering
         if self.var_precedes(v, node.variable) {
@@ -1560,7 +1560,7 @@ impl Bdd {
     /// # Arguments
     ///
     /// * `f` - The BDD to substitute in
-    /// * `v` - Variable index to substitute (must be non-zero)
+    /// * `v` - Variable to substitute (must be non-zero)
     /// * `b` - Boolean value to substitute (true or false)
     ///
     /// # Examples
@@ -1728,7 +1728,7 @@ impl Bdd {
             .map(|l| l.into())
             .filter(|lit| self.get_level(lit.var()).is_some())
             .collect();
-        lits.sort_by_key(|lit| self.get_level(lit.var()).unwrap().index());
+        lits.sort_by_key(|lit| self.get_level(lit.var()).unwrap());
         let mut cache = HashMap::new();
         self.cofactor_cube_(f, &lits, &mut cache)
     }
@@ -2223,10 +2223,10 @@ impl Bdd {
         let f_positive = if is_negated { -f } else { f };
 
         // Get the variable and children
-        let index = f_positive.id();
-        let v = self.variable(index);
-        let low = self.low(index);
-        let high = self.high(index);
+        let id = f_positive.id();
+        let v = self.variable(id);
+        let low = self.low(id);
+        let high = self.high(id);
 
         // Recursively rename variables in children
         let low_new = self.rename_vars_(low, permutation, cache);
@@ -2316,7 +2316,7 @@ impl Bdd {
         if vars_sorted.is_empty() {
             return f;
         }
-        vars_sorted.sort_by_key(|&v| self.get_level(v).unwrap().index());
+        vars_sorted.sort_by_key(|&v| self.get_level(v).unwrap());
         let mut cache = Cache::new(16);
         self.exists_(f, &vars_sorted, 0, &mut cache)
     }
@@ -2482,7 +2482,7 @@ impl Bdd {
         if vars_sorted.is_empty() {
             return self.apply_and(u, v);
         }
-        vars_sorted.sort_by_key(|&v| self.get_level(v).unwrap().index());
+        vars_sorted.sort_by_key(|&v| self.get_level(v).unwrap());
         let mut cache = Cache::new(16);
         self.rel_product_(u, v, &vars_sorted, 0, &mut cache)
     }
@@ -2543,7 +2543,7 @@ impl Bdd {
     /// Returns all node indices reachable from the given BDD references.
     ///
     /// This performs a depth-first traversal from the root nodes to collect all reachable
-    /// node indices. The terminal node (index 1) is always included in the result.
+    /// node indices. The terminal node (index 0) is always included in the result.
     ///
     /// # Arguments
     ///
@@ -2702,17 +2702,19 @@ impl Bdd {
         let alive = self.mark_alive(roots, num_nodes);
 
         // Collect dead node indices and remove from subtables
-        let dead_indices: Vec<usize> = {
+        let dead_indices: Vec<NodeId> = {
             let mut nodes = self.nodes_mut();
             let mut subtables = self.subtables_mut();
             let level_map = self.level_map();
             let free_set = self.free_set();
 
             (1..num_nodes)
-                .filter(|&idx| {
+                .filter_map(|idx| {
+                    let id = NodeId::new(idx as u32);
+
                     // Skip if already free or alive
-                    if free_set.contains(&idx) || alive.contains(idx) {
-                        return false;
+                    if free_set.contains(&id) || alive.contains(idx) {
+                        return None;
                     }
 
                     // Dead node: remove from its subtable
@@ -2725,7 +2727,7 @@ impl Bdd {
                             subtables[level.index()].remove(low, high, &mut nodes);
                         }
                     }
-                    true
+                    Some(id)
                 })
                 .collect()
         };
@@ -2745,21 +2747,21 @@ impl Bdd {
 
         let mut stack: Vec<NodeId> = roots.iter().map(|r| r.id()).collect();
 
-        while let Some(idx) = stack.pop() {
-            if !alive.insert(idx.index()) {
+        while let Some(id) = stack.pop() {
+            if !alive.insert(id.index()) {
                 // Already marked alive
                 continue;
             }
 
-            let node = self.node(idx);
-            let low_idx = node.low.id();
-            let high_idx = node.high.id();
+            let node = self.node(id);
+            let low_id = node.low.id();
+            let high_id = node.high.id();
 
-            if !alive.contains(low_idx.index()) {
-                stack.push(low_idx);
+            if !alive.contains(low_id.index()) {
+                stack.push(low_id);
             }
-            if !alive.contains(high_idx.index()) {
-                stack.push(high_idx);
+            if !alive.contains(high_id.index()) {
+                stack.push(high_id);
             }
         }
 
@@ -2819,25 +2821,21 @@ impl Bdd {
     /// ```
     pub fn swap_adjacent_inplace(&self, level: Level) -> Result<HashMap<NodeId, Ref>, String> {
         if level.next().index() >= self.num_levels() {
-            return Err(format!(
-                "Level {} out of bounds (only {} levels)",
-                level.next().index(),
-                self.num_levels()
-            ));
+            return Err(format!("Level {} out of bounds (only {} levels)", level.next(), self.num_levels()));
         }
 
         let var_x = self
             .get_variable_at_level(level)
-            .ok_or_else(|| format!("No variable at level {}", level.index()))?;
+            .ok_or_else(|| format!("No variable at level {}", level))?;
         let var_y = self
             .get_variable_at_level(level.next())
-            .ok_or_else(|| format!("No variable at level {}", level.next().index()))?;
+            .ok_or_else(|| format!("No variable at level {}", level.next()))?;
 
         debug!("Swap: var {} (level {}) <-> var {} (level {})", var_x, level, var_y, level.next());
 
         // Get nodes at level_x (these have var_x)
         let nodes_at_x = self.get_nodes_at_level(level);
-        debug!("  Nodes at level {}: {} nodes", level.index(), nodes_at_x.len());
+        debug!("  Nodes at level {}: {} nodes", level, nodes_at_x.len());
 
         // Build a mapping from old node index to new reference
         let mut mapping: HashMap<NodeId, Ref> = HashMap::new();
@@ -2913,7 +2911,7 @@ impl Bdd {
 
     /// Applies a node mapping to a reference, handling negation.
     ///
-    /// If the reference's index is in the mapping, returns the mapped value
+    /// If the reference's node id is in the mapping, returns the mapped value
     /// with negation preserved. Otherwise returns the original reference.
     pub fn apply_mapping(&self, r: Ref, mapping: &HashMap<NodeId, Ref>) -> Ref {
         if let Some(&new_ref) = mapping.get(&r.id()) {
@@ -2974,19 +2972,21 @@ impl Bdd {
         let mut new_subtables: Vec<Subtable> = var_order.iter().map(|&v| Subtable::new(v)).collect();
         drop(var_order);
 
-        // Collect (level, low, high, index) for all non-free nodes first
-        let entries: Vec<(usize, Ref, Ref, u32)> = {
+        // Collect (level, low, high, id) for all non-free nodes first
+        let entries: Vec<(usize, Ref, Ref, NodeId)> = {
             let nodes = self.nodes();
             let free_set = self.free_set();
             let level_map = self.level_map();
 
             (1..nodes.len())
-                .filter_map(|index| {
-                    if free_set.contains(&index) {
+                .filter_map(|idx| {
+                    let id = NodeId::new(idx as u32);
+
+                    if free_set.contains(&id) {
                         return None;
                     }
 
-                    let node = &nodes[index];
+                    let node = &nodes[idx];
                     let var = node.variable;
 
                     // Skip terminal nodes (variable 0)
@@ -2994,7 +2994,7 @@ impl Bdd {
                         return None;
                     }
 
-                    level_map.get(&var).map(|&level| (level.index(), node.low, node.high, index as u32))
+                    level_map.get(&var).map(|&level| (level.index(), node.low, node.high, id))
                 })
                 .collect()
         };
@@ -3002,8 +3002,8 @@ impl Bdd {
         // Now insert with mutable access to nodes
         {
             let mut nodes = self.nodes_mut();
-            for (level_idx, low, high, index) in entries {
-                new_subtables[level_idx].insert(low, high, index, &mut nodes);
+            for (level_idx, low, high, id) in entries {
+                new_subtables[level_idx].insert(low, high, id, &mut nodes);
             }
         }
 
@@ -3033,8 +3033,8 @@ impl Bdd {
             return format!("{}", node_ref);
         }
 
-        let index = node_ref.id();
-        let Node { variable, low, high, .. } = self.node(index);
+        let id = node_ref.id();
+        let Node { variable, low, high, .. } = self.node(id);
 
         format!(
             "{}:({}, {}, {})",
