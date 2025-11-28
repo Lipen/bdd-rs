@@ -225,7 +225,7 @@ impl Subtable {
 /// Hash function for (low, high) children pair.
 #[inline]
 fn hash_children(low: Ref, high: Ref) -> u64 {
-    MyHash::hash(&(low.hashy(), high.hashy()))
+    MyHash::hash(&(low, high))
 }
 
 /// Iterator over a collision chain.
