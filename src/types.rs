@@ -15,8 +15,8 @@ use std::ops::Neg;
 /// # Invariants
 ///
 /// - `NodeId(0)` is the terminal node
-/// - `NodeId::INVALID` (0x7FFF_FFFE) is a sentinel for uninitialized references
-/// - Valid node IDs are in the range `0..0x7FFF_FFFE`
+/// - `NodeId::INVALID` (0x7FFF_FFFF) is a sentinel for uninitialized references
+/// - Valid node IDs are in the range `0..0x7FFF_FFFF`
 ///
 /// # Usage
 ///
