@@ -35,8 +35,8 @@ pub struct Node {
     pub variable: Var,
     pub low: Ref,
     pub high: Ref,
-    /// Next node in collision chain. `Ref::ZERO` means end of chain.
-    pub next: Ref,
+    /// Next node in collision chain. `0` means end of chain.
+    pub next: u32,
 }
 
 impl Default for Node {
@@ -45,7 +45,7 @@ impl Default for Node {
             variable: Var::ZERO,
             low: Ref::ZERO,
             high: Ref::ZERO,
-            next: Ref::ZERO,
+            next: 0,
         }
     }
 }
@@ -62,13 +62,13 @@ impl MyHash for Node {
 impl Node {
     /// Creates a new node with the given variable and children.
     ///
-    /// The `next` pointer is initialized to `Ref::ZERO` (end of chain).
+    /// The `next` pointer is initialized to `0` (end of chain).
     pub fn new(variable: Var, low: Ref, high: Ref) -> Self {
         Self {
             variable,
             low,
             high,
-            next: Ref::ZERO,
+            next: 0,
         }
     }
 }
