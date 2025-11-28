@@ -322,8 +322,7 @@
         fill: colors.text-muted,
         font: fonts.heading,
         tracking: 0.3em,
-        upper(it.caption.body),
-      )
+      )[PART #it.counter.display("I")]
       #v(spacing.medium)
       #line(length: 20%, stroke: 1.5pt + colors.accent)
       #v(spacing.large)
@@ -396,8 +395,8 @@
 
 #let part(title) = figure(
   kind: "part",
-  supplement: none,
-  numbering: none,
+  supplement: [Part],
+  numbering: "I",
   outlined: false,
   title,
   caption: title,
