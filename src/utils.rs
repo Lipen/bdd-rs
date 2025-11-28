@@ -7,7 +7,7 @@ use crate::reference::Ref;
 /// ```
 ///
 /// [cantor-pairing]: https://en.wikipedia.org/wiki/Pairing_function#Cantor_pairing_function
-pub fn pairing_cantor(a: u64, b: u64) -> u64 {
+pub const fn pairing_cantor(a: u64, b: u64) -> u64 {
     (a + b) * (a + b + 1) / 2 + b
 }
 
@@ -18,7 +18,7 @@ pub fn pairing_cantor(a: u64, b: u64) -> u64 {
 /// ```
 ///
 /// [hopcroft-pairing]: https://en.wikipedia.org/wiki/Pairing_function#Hopcroft_and_Ullman_pairing_function
-pub fn pairing_hopcroft(a: u64, b: u64) -> u64 {
+pub const fn pairing_hopcroft(a: u64, b: u64) -> u64 {
     assert!(a > 0);
     assert!(b > 0);
     (a + b - 2) * (a + b - 1) / 2 + a
@@ -31,7 +31,7 @@ pub fn pairing_hopcroft(a: u64, b: u64) -> u64 {
 /// ```
 ///
 /// [szudzik-pairing]: http://szudzik.com/ElegantPairing.pdf
-pub fn pairing_szudzik(a: u64, b: u64) -> u64 {
+pub const fn pairing_szudzik(a: u64, b: u64) -> u64 {
     if a < b {
         // b * b + a
         b.wrapping_mul(b).wrapping_add(a)
@@ -44,22 +44,22 @@ pub fn pairing_szudzik(a: u64, b: u64) -> u64 {
 /// [Pairing function][pairing] for two `u64` values.
 ///
 /// [pairing]: https://en.wikipedia.org/wiki/Pairing_function
-pub fn pairing2(a: u64, b: u64) -> u64 {
+pub const fn pairing2(a: u64, b: u64) -> u64 {
     pairing_szudzik(a, b)
 }
 
 /// Pairing function for three `u64` values.
-pub fn pairing3(a: u64, b: u64, c: u64) -> u64 {
+pub const fn pairing3(a: u64, b: u64, c: u64) -> u64 {
     pairing2(pairing2(a, b), c)
 }
 
 /// Pairing function for four `u64` values.
-pub fn pairing4(a: u64, b: u64, c: u64, d: u64) -> u64 {
+pub const fn pairing4(a: u64, b: u64, c: u64, d: u64) -> u64 {
     pairing2(pairing2(a, b), pairing2(c, d))
 }
 
 #[inline]
-pub fn mix64(mut x: u64) -> u64 {
+pub const fn mix64(mut x: u64) -> u64 {
     // MurmurHash3 finalizer constants
     x = x.wrapping_mul(0xff51afd7ed558ccd);
     x ^= x >> 33;
@@ -86,9 +86,10 @@ pub fn combine2(a: u64, b: u64) -> u64 {
 pub fn combine3(a: u64, b: u64, c: u64) -> u64 {
     // simple tree combine, but use different constants to avoid symmetry
     const D1: u64 = 0x94d049bb133111eb;
-    let z = a.wrapping_mul(0x9e3779b97f4a7c15)
-            .wrapping_add(b.wrapping_mul(0xbf58476d1ce4e5b9))
-            .wrapping_add(c.wrapping_mul(D1));
+    let z = a
+        .wrapping_mul(0x9e3779b97f4a7c15)
+        .wrapping_add(b.wrapping_mul(0xbf58476d1ce4e5b9))
+        .wrapping_add(c.wrapping_mul(D1));
     mix64(z)
 }
 
