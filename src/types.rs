@@ -172,6 +172,7 @@ impl fmt::Display for Var {
     }
 }
 
+// Into<u32>
 impl From<Var> for u32 {
     fn from(var: Var) -> Self {
         var.0
@@ -179,11 +180,6 @@ impl From<Var> for u32 {
 }
 
 impl From<u32> for Var {
-    /// Converts a `u32` to a `Var`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `id == 0`. Variables must be 1-indexed.
     fn from(id: u32) -> Self {
         Var::new(id)
     }
