@@ -280,13 +280,73 @@ pub struct Bdd {
     level_map: RefCell<HashMap<Var, Level>>, // variable -> level
     subtables: RefCell<Vec<Subtable>>,       // level -> subtable
     next_var_id: Cell<u32>,                  // next variable ID to allocate
+    config: BddConfig,                       // configuration
+}
+
+/// Configuration for the BDD manager.
+///
+/// Use this to customize initial capacities for advanced use cases.
+/// For most uses, `Bdd::default()` is sufficient as all structures auto-resize.
+///
+/// # Example
+///
+/// ```
+/// use bdd_rs::bdd::{Bdd, BddConfig};
+///
+/// // Custom configuration for large problems
+/// let config = BddConfig::default()
+///     .with_initial_nodes(1 << 20)  // 1M nodes
+///     .with_cache_bits(18);         // 256K cache entries
+///
+/// let bdd = Bdd::with_config(config);
+/// ```
+#[derive(Debug, Clone)]
+pub struct BddConfig {
+    /// Initial capacity for node storage.
+    pub initial_nodes: usize,
+    /// Cache size in bits (size = 2^bits).
+    pub cache_bits: usize,
+    /// Subtable bucket bits (buckets = 2^bits per level).
+    pub subtable_bits: usize,
+}
+
+impl Default for BddConfig {
+    fn default() -> Self {
+        Self {
+            initial_nodes: 1024, // Start small, will grow as needed
+            cache_bits: 20,
+            subtable_bits: 12,   // 4K buckets per level
+        }
+    }
+}
+
+impl BddConfig {
+    /// Set the initial node storage capacity.
+    pub fn with_initial_nodes(mut self, capacity: usize) -> Self {
+        self.initial_nodes = capacity;
+        self
+    }
+
+    /// Set the cache size in bits (size = 2^bits).
+    pub fn with_cache_bits(mut self, bits: usize) -> Self {
+        self.cache_bits = bits;
+        self
+    }
+
+    /// Set the subtable bucket bits (buckets = 2^bits per level).
+    pub fn with_subtable_bits(mut self, bits: usize) -> Self {
+        self.subtable_bits = bits;
+        self
+    }
 }
 
 impl Bdd {
+    #[deprecated = "Use Bdd::default() or Bdd::with_config() instead"]
     /// Creates a new BDD manager with the specified storage capacity.
     ///
-    /// The capacity is specified in bits, so the actual number of nodes is `2^storage_bits`.
-    /// The cache size is automatically configured to `min(storage_bits, 16)` bits.
+    /// **Deprecated**: Prefer `Bdd::default()` or `Bdd::with_config()` instead.
+    /// The BDD automatically resizes as needed, so pre-allocating capacity
+    /// is usually unnecessary.
     ///
     /// # Arguments
     ///
@@ -314,24 +374,42 @@ impl Bdd {
     /// ```
     pub fn new(storage_bits: usize) -> Self {
         assert!(storage_bits <= 31, "Storage bits should be in the range 0..=31");
+        let config = BddConfig::default().with_initial_nodes(1 << storage_bits);
+        Self::with_config(config)
+    }
 
-        let cache_bits = 16;
-        let capacity = 1 << storage_bits;
-
+    /// Creates a new BDD manager with the given configuration.
+    ///
+    /// For most use cases, `Bdd::default()` is sufficient. Use this method
+    /// when you need to tune initial capacities for performance.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bdd_rs::bdd::{Bdd, BddConfig};
+    ///
+    /// let config = BddConfig::default()
+    ///     .with_initial_nodes(1 << 18)
+    ///     .with_cache_bits(16);
+    ///
+    /// let bdd = Bdd::with_config(config);
+    /// ```
+    pub fn with_config(config: BddConfig) -> Self {
         // Initialize node storage with the terminal node at index 0.
         // Terminal has variable 0 and invalid children (terminals have no children).
-        let mut nodes = Vec::with_capacity(capacity);
+        let mut nodes = Vec::with_capacity(config.initial_nodes);
         nodes.push(Node::new(Var::ZERO, Ref::INVALID, Ref::INVALID));
 
         Self {
             nodes: RefCell::new(nodes),
             free_set: RefCell::new(HashSet::new()),
-            cache: RefCell::new(Cache::new(cache_bits)),
-            size_cache: RefCell::new(Cache::new(cache_bits)),
+            cache: RefCell::new(Cache::new(config.cache_bits)),
+            size_cache: RefCell::new(Cache::new(config.cache_bits)),
             var_order: RefCell::new(Vec::new()),
             level_map: RefCell::new(HashMap::new()),
             subtables: RefCell::new(Vec::new()),
             next_var_id: Cell::new(1), // Variables start at 1
+            config,
         }
     }
 }
@@ -342,7 +420,7 @@ impl Bdd {
 
 impl Default for Bdd {
     fn default() -> Self {
-        Bdd::new(20)
+        Bdd::with_config(BddConfig::default())
     }
 }
 
@@ -400,6 +478,16 @@ impl Bdd {
     }
     fn subtables_mut(&self) -> cell::RefMut<'_, Vec<Subtable>> {
         self.subtables.borrow_mut()
+    }
+
+    /// Returns the configuration used by this BDD manager.
+    pub fn config(&self) -> &BddConfig {
+        &self.config
+    }
+
+    /// Creates a new subtable for the given variable using the configured bucket bits.
+    fn make_subtable(&self, var: Var) -> Subtable {
+        Subtable::with_bucket_bits(var, self.config.subtable_bits)
     }
 
     /// Returns the number of allocated nodes (excluding free slots).
@@ -610,7 +698,7 @@ impl Bdd {
 
         self.var_order_mut().push(var);
         self.level_map_mut().insert(var, level);
-        self.subtables_mut().push(Subtable::new(var));
+        self.subtables_mut().push(self.make_subtable(var));
 
         var
     }
@@ -625,7 +713,7 @@ impl Bdd {
             let level = Level::new(self.var_order().len());
             self.var_order_mut().push(var);
             self.level_map_mut().insert(var, level);
-            self.subtables_mut().push(Subtable::new(var));
+            self.subtables_mut().push(self.make_subtable(var));
 
             // Update next_var_id if needed
             let next_val = self.next_var_id.get();
@@ -863,7 +951,7 @@ impl Bdd {
         // Insert into subtable (needs mutable access to nodes for setting next pointer)
         {
             let mut nodes = self.nodes_mut();
-            self.subtables_mut()[level.index()].insert(low, high, id, &mut nodes);
+            self.subtables_mut()[level.index()].insert_with_resize(low, high, id, &mut nodes);
         }
 
         Ref::positive(id)
@@ -3097,7 +3185,10 @@ impl Bdd {
         let var_order = self.var_order();
 
         // Create fresh subtables for each level
-        let mut new_subtables: Vec<Subtable> = var_order.iter().map(|&v| Subtable::new(v)).collect();
+        let mut new_subtables: Vec<Subtable> = var_order
+            .iter()
+            .map(|&v| Subtable::with_bucket_bits(v, self.config.subtable_bits))
+            .collect();
         drop(var_order);
 
         // Collect (level, low, high, id) for all non-free nodes first

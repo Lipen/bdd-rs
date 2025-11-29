@@ -2,6 +2,9 @@ use std::cell::Cell;
 
 use crate::utils::MyHash;
 
+/// Default cache size in bits (2^14 = 16K entries).
+const DEFAULT_CACHE_BITS: usize = 14;
+
 struct Entry<K, V> {
     key: K,
     value: V,
@@ -15,7 +18,18 @@ pub struct Cache<K, V> {
     misses: Cell<usize>, // total misses, including unsuccessful lookups
 }
 
+impl<K, V> Default for Cache<K, V> {
+    fn default() -> Self {
+        Self::new(DEFAULT_CACHE_BITS)
+    }
+}
+
 impl<K, V> Cache<K, V> {
+    /// Create a new cache with default size.
+    pub fn with_default_size() -> Self {
+        Self::default()
+    }
+
     /// Create a new table of size `2^bits`.
     pub fn new(bits: usize) -> Self {
         assert!(bits <= 31, "Bits should be in the range 0..=31");

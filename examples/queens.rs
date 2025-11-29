@@ -26,7 +26,7 @@
 
 use std::time::Instant;
 
-use bdd_rs::bdd::Bdd;
+use bdd_rs::bdd::{Bdd, BddConfig};
 use bdd_rs::reference::Ref;
 use clap::Parser;
 
@@ -47,8 +47,8 @@ struct Cli {
     n: usize,
 
     /// BDD size (in bits, so the actual size is `2^size` nodes).
-    #[clap(long, value_name = "INT", default_value = "20")]
-    size: usize,
+    #[clap(long, value_name = "INT")]
+    size: Option<usize>,
 
     /// Enable garbage collection.
     #[clap(long)]
@@ -74,7 +74,11 @@ fn main() -> color_eyre::Result<()> {
     let args = Cli::parse();
     println!("args = {:?}", args);
 
-    let bdd = Bdd::new(args.size);
+    let bdd = if let Some(size) = args.size {
+        Bdd::with_config(BddConfig::default().with_initial_nodes(1 << size))
+    } else {
+        Bdd::default()
+    };
     let n = args.n;
     let num_vars = n * n;
     println!("Solving {}-Queens problem ({} variables)...", n, num_vars);
