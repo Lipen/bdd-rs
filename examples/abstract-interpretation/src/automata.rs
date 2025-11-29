@@ -1336,7 +1336,7 @@ mod tests {
 
     #[test]
     fn test_bdd_predicate() {
-        let manager = Rc::new(Bdd::new(16));
+        let manager = Rc::new(Bdd::default());
 
         // Single char 'a'
         let p_a = BddCharPredicate::single(manager.clone(), 'a');
