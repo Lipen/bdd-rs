@@ -32,6 +32,7 @@ fn correct_abs(x: i64) -> i64 {
 }
 
 /// Buggy factorial (overflows for large inputs).
+#[allow(dead_code)]
 fn buggy_factorial(n: i64) -> i64 {
     if n <= 1 {
         1
@@ -41,6 +42,7 @@ fn buggy_factorial(n: i64) -> i64 {
 }
 
 /// Division that doesn't check for zero.
+#[allow(dead_code)]
 fn unsafe_div(a: i64, b: i64) -> i64 {
     a / b // Will panic on b == 0!
 }

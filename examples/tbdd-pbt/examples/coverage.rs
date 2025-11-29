@@ -11,7 +11,6 @@
 use std::collections::HashMap;
 
 use bdd_rs::bdd::Bdd;
-use bdd_rs::types::Var;
 use tbdd_pbt::{
     CheckResult, CoverageTracker, GeneratorConfig, IntervalSolver, Predicate, PredicateUniverse, Property, PropertyChecker, TestGenerator,
 };
@@ -98,9 +97,9 @@ fn demo_path_explosion_3() {
     let bdd = Bdd::default();
     let mut universe = PredicateUniverse::new();
 
-    let va = universe.register(Predicate::gt("a", 0), &bdd);
-    let vb = universe.register(Predicate::gt("b", 0), &bdd);
-    let vc = universe.register(Predicate::gt("c", 0), &bdd);
+    universe.register(Predicate::gt("a", 0), &bdd);
+    universe.register(Predicate::gt("b", 0), &bdd);
+    universe.register(Predicate::gt("c", 0), &bdd);
 
     println!("  Path space analysis:");
     println!("    Variables: 3 (a>0, b>0, c>0)");

@@ -113,7 +113,7 @@ fn demo_compare() {
     ];
 
     println!("  Path Analysis:");
-    for (name, constraint, formula) in &path_info {
+    for (name, constraint, _formula) in &path_info {
         let tests = generator.generate(*constraint);
         print!("    \"{}\": ", name);
 
