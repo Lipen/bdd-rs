@@ -48,6 +48,7 @@ use crate::bitset::BitSet;
 use crate::cache::Cache;
 use crate::node::Node;
 use crate::reference::Ref;
+use crate::reorder::ReorderStats;
 use crate::subtable::Subtable;
 use crate::types::{Level, Lit, NodeId, Var};
 use crate::utils::OpKey;
@@ -827,6 +828,165 @@ impl Bdd {
     /// Returns the number of levels (registered variables) in the ordering.
     pub fn num_levels(&self) -> usize {
         self.var_order().len()
+    }
+
+    /// Sets the variable ordering for the BDD manager.
+    ///
+    /// This method should be called **before** creating any BDD nodes (other than
+    /// terminal). It pre-allocates levels for the given variables in the specified
+    /// order.
+    ///
+    /// # Arguments
+    ///
+    /// * `vars` - Variable IDs in the desired order (level 0 = first element)
+    ///
+    /// # Panics
+    ///
+    /// Panics if any BDD nodes have already been created (except the terminal node),
+    /// or if duplicate variables are provided.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    ///
+    /// // Define variable order: y (level 0) < x (level 1) < z (level 2)
+    /// bdd.set_variable_order([2, 1, 3]);
+    ///
+    /// // Now create BDDs - variables will use the defined order
+    /// let x = bdd.mk_var(1);  // x is at level 1
+    /// let y = bdd.mk_var(2);  // y is at level 0 (root)
+    /// let z = bdd.mk_var(3);  // z is at level 2
+    ///
+    /// assert_eq!(bdd.get_level(bdd.variable(y.id())).unwrap().index(), 0);
+    /// assert_eq!(bdd.get_level(bdd.variable(x.id())).unwrap().index(), 1);
+    /// assert_eq!(bdd.get_level(bdd.variable(z.id())).unwrap().index(), 2);
+    /// ```
+    pub fn set_variable_order(&self, vars: impl IntoIterator<Item = impl Into<Var>>) {
+        // Check that no BDD nodes have been created yet
+        assert!(
+            self.num_nodes() == 1,
+            "set_variable_order must be called before creating any BDD nodes"
+        );
+        assert!(self.var_order().is_empty(), "Variable order has already been set");
+
+        let vars: Vec<Var> = vars.into_iter().map(|v| v.into()).collect();
+
+        // Check for duplicates
+        let mut seen = HashSet::new();
+        for &var in &vars {
+            assert!(seen.insert(var), "Duplicate variable in ordering: {:?}", var);
+            assert!(!var.is_terminal(), "Terminal variable (0) cannot be in ordering");
+        }
+
+        // Set up the ordering
+        let mut var_order = self.var_order_mut();
+        let mut level_map = self.level_map_mut();
+        let mut subtables = self.subtables_mut();
+
+        for (level_idx, var) in vars.iter().enumerate() {
+            let level = Level::new(level_idx);
+            var_order.push(*var);
+            level_map.insert(*var, level);
+            subtables.push(Subtable::with_bucket_bits(*var, self.config.subtable_bits));
+        }
+
+        // Update next_var_id to be greater than any defined variable
+        let max_var_id = vars.iter().map(|v| v.id()).max().unwrap_or(0);
+        if max_var_id >= self.next_var_id.get() {
+            self.next_var_id.set(max_var_id + 1);
+        }
+    }
+
+    /// Applies a new variable ordering to an existing BDD by sifting variables.
+    ///
+    /// This method reorders variables in a BDD that already has nodes. It moves
+    /// each variable to its target position using adjacent swaps, which preserves
+    /// the represented Boolean function.
+    ///
+    /// # Arguments
+    ///
+    /// * `roots` - Mutable slice of BDD roots to update after reordering
+    /// * `new_order` - Variable IDs in the desired order (level 0 = first element).
+    ///   Variables not in `new_order` but present in the BDD will be moved to the end.
+    ///
+    /// # Returns
+    ///
+    /// Statistics about the reordering operation.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let z = bdd.mk_var(3);
+    /// let f = bdd.apply_and(x, bdd.apply_or(y, z));
+    ///
+    /// // Initial order: 1, 2, 3 (in allocation order)
+    /// assert_eq!(bdd.get_variable_order(), vec![
+    ///     bdd_rs::types::Var::new(1),
+    ///     bdd_rs::types::Var::new(2),
+    ///     bdd_rs::types::Var::new(3)
+    /// ]);
+    ///
+    /// // Apply new order: 3, 1, 2
+    /// let mut roots = vec![f];
+    /// bdd.apply_variable_order(&mut roots, [3u32, 1, 2]);
+    ///
+    /// assert_eq!(bdd.get_variable_order(), vec![
+    ///     bdd_rs::types::Var::new(3),
+    ///     bdd_rs::types::Var::new(1),
+    ///     bdd_rs::types::Var::new(2)
+    /// ]);
+    /// ```
+    pub fn apply_variable_order(&self, roots: &mut [Ref], new_order: impl IntoIterator<Item = impl Into<Var>>) -> ReorderStats {
+        let new_order: Vec<Var> = new_order.into_iter().map(|v| v.into()).collect();
+
+        let initial_size = self.count_nodes(roots);
+        let mut stats = ReorderStats {
+            initial_size,
+            final_size: initial_size,
+            best_size: initial_size,
+            swaps: 0,
+            variables_processed: 0,
+        };
+
+        if new_order.is_empty() {
+            return stats;
+        }
+
+        // Build target level for each variable
+        let mut target_levels: HashMap<Var, Level> = HashMap::new();
+        for (level_idx, var) in new_order.iter().enumerate() {
+            target_levels.insert(*var, Level::new(level_idx));
+        }
+
+        // Move each variable to its target position, starting from the first
+        // This is done by iterating through target levels and moving variables there
+        for target_level_idx in 0..new_order.len() {
+            let target_var = new_order[target_level_idx];
+            let target_level = Level::new(target_level_idx);
+
+            // Skip if variable is not in the BDD
+            let Some(current_level) = self.get_level(target_var) else {
+                continue;
+            };
+
+            if current_level != target_level {
+                let swaps = self.move_variable_to_level(roots, target_var, target_level);
+                stats.swaps += swaps;
+                stats.variables_processed += 1;
+            }
+        }
+
+        stats.final_size = self.count_nodes(roots);
+        stats.best_size = stats.final_size.min(stats.best_size);
+        stats
     }
 }
 
@@ -4452,5 +4612,151 @@ mod tests {
 
         // This should panic
         let _g = bdd.rename_vars(f, &perm);
+    }
+
+    // ========================================================================
+    // Variable ordering API tests
+    // ========================================================================
+
+    #[test]
+    fn test_set_variable_order_basic() {
+        let bdd = Bdd::default();
+
+        // Set custom order: y < x < z (by level)
+        bdd.set_variable_order([2u32, 1, 3]);
+
+        // Create variables - they should be at the defined levels
+        let x = bdd.mk_var(1);
+        let y = bdd.mk_var(2);
+        let _z = bdd.mk_var(3);
+
+        // Check ordering
+        let order = bdd.get_variable_order();
+        assert_eq!(order, vec![Var::new(2), Var::new(1), Var::new(3)]);
+
+        // Check levels
+        assert_eq!(bdd.get_level(Var::new(2)).unwrap().index(), 0); // y at level 0
+        assert_eq!(bdd.get_level(Var::new(1)).unwrap().index(), 1); // x at level 1
+        assert_eq!(bdd.get_level(Var::new(3)).unwrap().index(), 2); // z at level 2
+
+        // Verify y is the root variable in y ∧ x
+        let f = bdd.apply_and(y, x);
+        assert_eq!(bdd.variable(f.id()), Var::new(2)); // y is root
+    }
+
+    #[test]
+    fn test_set_variable_order_preserves_function() {
+        let bdd = Bdd::default();
+
+        // Custom order: 3 < 1 < 2
+        bdd.set_variable_order([3u32, 1, 2]);
+
+        let x = bdd.mk_var(1);
+        let y = bdd.mk_var(2);
+        let z = bdd.mk_var(3);
+
+        // f = x ∧ (y ∨ z)
+        let f = bdd.apply_and(x, bdd.apply_or(y, z));
+
+        // Verify the function computes correctly
+        assert!(bdd.is_one(bdd.cofactor_cube(f, [1, 2, 3]))); // x=1, y=1, z=1
+        assert!(bdd.is_one(bdd.cofactor_cube(f, [1, 2, -3]))); // x=1, y=1, z=0
+        assert!(bdd.is_one(bdd.cofactor_cube(f, [1, -2, 3]))); // x=1, y=0, z=1
+        assert!(bdd.is_zero(bdd.cofactor_cube(f, [1, -2, -3]))); // x=1, y=0, z=0
+        assert!(bdd.is_zero(bdd.cofactor_cube(f, [-1, 2, 3]))); // x=0, y=1, z=1
+    }
+
+    #[test]
+    #[should_panic(expected = "set_variable_order must be called before creating any BDD nodes")]
+    fn test_set_variable_order_after_nodes_panics() {
+        let bdd = Bdd::default();
+
+        // Create a BDD node first
+        let _x = bdd.mk_var(1);
+
+        // This should panic - order must be set before nodes are created
+        bdd.set_variable_order([2u32, 1, 3]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Variable order has already been set")]
+    fn test_set_variable_order_twice_panics() {
+        let bdd = Bdd::default();
+
+        bdd.set_variable_order([1u32, 2, 3]);
+
+        // This should panic - order already set
+        bdd.set_variable_order([3u32, 2, 1]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Duplicate variable")]
+    fn test_set_variable_order_duplicates_panics() {
+        let bdd = Bdd::default();
+
+        // This should panic - duplicate variable 1
+        bdd.set_variable_order([1u32, 2, 1]);
+    }
+
+    #[test]
+    fn test_apply_variable_order_basic() {
+        let bdd = Bdd::default();
+
+        // Create BDD with default order 1, 2, 3
+        let x = bdd.mk_var(1);
+        let y = bdd.mk_var(2);
+        let z = bdd.mk_var(3);
+        let f = bdd.apply_and(x, bdd.apply_or(y, z));
+
+        assert_eq!(bdd.get_variable_order(), vec![Var::new(1), Var::new(2), Var::new(3)]);
+
+        // Apply new order: 3, 1, 2
+        let mut roots = vec![f];
+        let stats = bdd.apply_variable_order(&mut roots, [3u32, 1, 2]);
+
+        // Check new order
+        assert_eq!(bdd.get_variable_order(), vec![Var::new(3), Var::new(1), Var::new(2)]);
+
+        // Verify function is preserved
+        let f_new = roots[0];
+        assert!(bdd.is_one(bdd.cofactor_cube(f_new, [1, 2, 3]))); // x=1, y=1, z=1
+        assert!(bdd.is_one(bdd.cofactor_cube(f_new, [1, 2, -3]))); // x=1, y=1, z=0
+        assert!(bdd.is_one(bdd.cofactor_cube(f_new, [1, -2, 3]))); // x=1, y=0, z=1
+        assert!(bdd.is_zero(bdd.cofactor_cube(f_new, [1, -2, -3]))); // x=1, y=0, z=0
+        assert!(bdd.is_zero(bdd.cofactor_cube(f_new, [-1, 2, 3]))); // x=0, y=1, z=1
+
+        // Check stats
+        assert!(stats.swaps > 0);
+    }
+
+    #[test]
+    fn test_apply_variable_order_reverse() {
+        let bdd = Bdd::default();
+
+        let x1 = bdd.mk_var(1);
+        let x2 = bdd.mk_var(2);
+        let x3 = bdd.mk_var(3);
+        let x4 = bdd.mk_var(4);
+
+        // f = (x1 ∧ x2) ∨ (x3 ∧ x4)
+        let f = bdd.apply_or(bdd.apply_and(x1, x2), bdd.apply_and(x3, x4));
+
+        let original_size = bdd.size(f);
+
+        // Reverse the order
+        let mut roots = vec![f];
+        bdd.apply_variable_order(&mut roots, [4u32, 3, 2, 1]);
+
+        assert_eq!(bdd.get_variable_order(), vec![Var::new(4), Var::new(3), Var::new(2), Var::new(1)]);
+
+        // Function should still compute the same thing
+        let f_new = roots[0];
+        assert!(bdd.is_one(bdd.cofactor_cube(f_new, [1, 2, -3, -4]))); // x1∧x2
+        assert!(bdd.is_one(bdd.cofactor_cube(f_new, [-1, -2, 3, 4]))); // x3∧x4
+        assert!(bdd.is_zero(bdd.cofactor_cube(f_new, [-1, -2, -3, -4]))); // all false
+
+        // Size might change due to different ordering
+        let new_size = bdd.size(f_new);
+        println!("Size before: {}, after reverse: {}", original_size, new_size);
     }
 }
