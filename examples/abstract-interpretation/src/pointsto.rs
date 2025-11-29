@@ -933,9 +933,9 @@ impl PointsToDomain {
         for path in paths {
             // Each path represents a conjunction of literals
             // Extract positive literals (locations present)
-            for &lit in &path {
-                if lit > 0 {
-                    let var = lit.abs() as usize;
+            for lit in &path {
+                if lit.is_positive() {
+                    let var = lit.var().id() as usize;
                     if let Some(loc) = self.locations.borrow().get_location(var) {
                         locations.insert(loc.clone());
                     }

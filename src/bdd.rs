@@ -3692,7 +3692,8 @@ mod tests {
             println!("path = {:?}", path);
         }
         assert_eq!(paths.len(), 1);
-        assert_eq!(paths[0], vec![1, -2, 3]);
+        let expected: Vec<Lit> = [1, -2, 3].into_iter().map(Lit::from).collect();
+        assert_eq!(paths[0], expected);
     }
 
     #[test]
@@ -3709,8 +3710,10 @@ mod tests {
             println!("path = {:?}", path);
         }
         assert_eq!(paths.len(), 2);
-        assert!(paths.contains(&vec![1, -2, 3]));
-        assert!(paths.contains(&vec![1, 2, -3]));
+        let expected1: Vec<Lit> = [1, -2, 3].into_iter().map(Lit::from).collect();
+        let expected2: Vec<Lit> = [1, 2, -3].into_iter().map(Lit::from).collect();
+        assert!(paths.contains(&expected1));
+        assert!(paths.contains(&expected2));
     }
 
     #[test]
@@ -3725,7 +3728,7 @@ mod tests {
             println!("path = {:?}", path);
         }
         assert_eq!(paths.len(), 1);
-        assert_eq!(paths[0], vec![]);
+        assert!(paths[0].is_empty());
     }
 
     #[test]
