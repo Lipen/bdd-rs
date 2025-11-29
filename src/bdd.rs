@@ -314,7 +314,7 @@ impl Default for BddConfig {
     fn default() -> Self {
         Self {
             initial_nodes: 1024, // Start small, will grow as needed
-            cache_bits: 20,
+            cache_bits: 20,      // 1M entries
             subtable_bits: 12,   // 4K buckets per level
         }
     }
