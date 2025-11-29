@@ -150,6 +150,9 @@ fn solve_queens(bdd: &Bdd, n: usize, gc: bool, verbose: bool) -> (Ref, Stats) {
     println!("[1/5] At least one queen per row...");
     let t = Instant::now();
     let at_least_one = at_least_one_queen_per_row(bdd, n, verbose);
+    if verbose {
+        println!("       Combining initial constraints...");
+    }
     result = bdd.apply_and(result, at_least_one);
     stats.times.push(("At least one per row", t.elapsed().as_secs_f64()));
     stats.sizes.push(("After at-least-one", bdd.size(result)));
@@ -159,6 +162,9 @@ fn solve_queens(bdd: &Bdd, n: usize, gc: bool, verbose: bool) -> (Ref, Stats) {
     println!("[2/5] At most one queen per row...");
     let t = Instant::now();
     let row_amo = at_most_one_queen_per_line(bdd, n, true, gc, &mut result, verbose);
+    if verbose {
+        println!("       Combining row constraints...");
+    }
     result = bdd.apply_and(result, row_amo);
     stats.times.push(("At most one per row", t.elapsed().as_secs_f64()));
     stats.sizes.push(("After row AMO", bdd.size(result)));
@@ -168,6 +174,9 @@ fn solve_queens(bdd: &Bdd, n: usize, gc: bool, verbose: bool) -> (Ref, Stats) {
     println!("[3/5] At most one queen per column...");
     let t = Instant::now();
     let col_amo = at_most_one_queen_per_line(bdd, n, false, gc, &mut result, verbose);
+    if verbose {
+        println!("       Combining column constraints...");
+    }
     result = bdd.apply_and(result, col_amo);
     stats.times.push(("At most one per column", t.elapsed().as_secs_f64()));
     stats.sizes.push(("After column AMO", bdd.size(result)));
@@ -177,6 +186,9 @@ fn solve_queens(bdd: &Bdd, n: usize, gc: bool, verbose: bool) -> (Ref, Stats) {
     println!("[4/5] At most one queen per anti-diagonal (/)...");
     let t = Instant::now();
     let slash = at_most_one_queen_per_diagonal(bdd, n, true, gc, &result, verbose);
+    if verbose {
+        println!("       Combining anti-diagonal constraints...");
+    }
     result = bdd.apply_and(result, slash);
     stats.times.push(("At most one per anti-diag", t.elapsed().as_secs_f64()));
     stats.sizes.push(("After anti-diagonal AMO", bdd.size(result)));
@@ -186,6 +198,9 @@ fn solve_queens(bdd: &Bdd, n: usize, gc: bool, verbose: bool) -> (Ref, Stats) {
     println!("[5/5] At most one queen per diagonal (\\)...");
     let t = Instant::now();
     let backslash = at_most_one_queen_per_diagonal(bdd, n, false, gc, &result, verbose);
+    if verbose {
+        println!("       Combining diagonal constraints...");
+    }
     result = bdd.apply_and(result, backslash);
     stats.times.push(("At most one per diagonal", t.elapsed().as_secs_f64()));
     stats.sizes.push(("After diagonal AMO", bdd.size(result)));
