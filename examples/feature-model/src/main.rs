@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::path::PathBuf;
 
-use bdd_rs::bdd::Bdd;
+use bdd_rs::bdd::{Bdd, BddConfig};
 use clap::{Parser, Subcommand};
 use color_eyre::Result;
 use feature_model::{encode_to_bdd, parse_dimacs, parse_simple, FeatureAnalyzer, FeatureModel};
@@ -17,9 +17,9 @@ struct Cli {
     #[arg(short, long, default_value = "simple")]
     format: String,
 
-    /// BDD storage size in bits (default: 20 = 1M nodes)
-    #[arg(long, default_value = "20")]
-    bdd_size: usize,
+    /// BDD storage size in bits
+    #[arg(long, value_name = "INT")]
+    bdd_size: Option<usize>,
 
     #[command(subcommand)]
     command: Commands,
@@ -104,8 +104,13 @@ fn main() -> Result<()> {
     );
 
     // Create BDD and encode the model
-    log::info!("Creating BDD with 2^{} nodes", cli.bdd_size);
-    let bdd = Bdd::new(cli.bdd_size);
+    let bdd = if let Some(size) = cli.bdd_size {
+        log::info!("Creating BDD with size 2^{}...", size);
+        Bdd::with_config(BddConfig::default().with_initial_nodes(1 << size))
+    } else {
+        log::info!("Creating BDD with default size...");
+        Bdd::default()
+    };
 
     log::info!("Encoding feature model as BDD...");
     let valid_configs = encode_to_bdd(&model, &bdd);
