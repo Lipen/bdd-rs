@@ -2,13 +2,32 @@
 
 A novel approach to property-based testing that combines Binary Decision Diagrams (BDDs) with theory solvers for intelligent test generation.
 
-## Overview
+## What is T-BDD?
 
-T-BDD bridges the gap between symbolic execution and property-based testing:
+**T-BDD** (Theory-aware BDD-guided Property-Based Testing) combines three powerful techniques:
 
-- **Symbolic Execution**: Explores program paths symbolically but faces path explosion
-- **Property-Based Testing**: Generates random inputs but may miss edge cases
-- **T-BDD**: Uses BDDs to compactly represent the path space, theory solvers to prune infeasible paths, and guided generation to maximize coverage
+1. **Binary Decision Diagrams (BDDs)** — Canonical, compact representation of boolean functions
+2. **Theory Solvers** — Reasoning about arithmetic, arrays, and other first-order theories
+3. **Property-Based Testing** — Automatic generation of test inputs
+
+## Core Idea
+
+Traditional property-based testing generates random inputs, hoping to find bugs.
+T-BDD instead:
+
+1. **Encodes program branching** as predicates (e.g., `x < 0`, `y == 10`)
+2. **Builds a BDD** representing all feasible execution paths
+3. **Uses theory solvers** to prune infeasible paths and generate witnesses
+4. **Produces targeted test inputs** that exercise specific program behaviors
+
+## Key Benefits
+
+| Aspect | Random Testing | Symbolic Execution | T-BDD |
+|--------|---------------|-------------------|-------|
+| Path coverage | ✗ Random | ✓ Systematic | ✓ Systematic |
+| Scalability | ✓ Fast | ✗ Path explosion | ✓ BDD compaction |
+| Constraint solving | ✗ None | ✓ SMT queries | ✓ Lightweight solvers |
+| Representation | N/A | Explicit paths | ✓ Canonical BDD |
 
 ## Architecture
 
@@ -33,8 +52,8 @@ T-BDD bridges the gap between symbolic execution and property-based testing:
 │              ┌─────────────────┴─────────────────┐              │
 │              ▼                                   ▼              │
 │  ┌─────────────────────┐           ┌─────────────────────────┐  │
-│  │   Theory Checker    │           │    Test Generator       │  │
-│  │  (Interval Domain)  │           │  (concrete witnesses)   │  │
+│  │   Theory Solvers    │           │    Test Generator       │  │
+│  │  (see table below)  │           │  (concrete witnesses)   │  │
 │  └─────────────────────┘           └─────────────────────────┘  │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -47,51 +66,79 @@ T-BDD bridges the gap between symbolic execution and property-based testing:
 Maps program conditions to BDD variables:
 
 ```rust
-// Extract predicates from program branches
-let p1 = Predicate::lt("x", 0);      // x < 0
-let p2 = Predicate::eq("x", 0);      // x == 0
-let p3 = Predicate::lt("x", 100);    // x < 100
+let p1 = Predicate::lt("x", 0);        // x < 0
+let p2 = Predicate::ge("x", 100);      // x >= 100
+let p3 = Predicate::lt_var("x", "y");  // x < y (relational)
 
-// Register with BDD
 let v1 = universe.register(p1, &bdd);
 let v2 = universe.register(p2, &bdd);
 let v3 = universe.register(p3, &bdd);
 ```
 
-### 2. Theory Solver (`theory.rs`)
+### 2. Theory Solvers (`theory.rs`)
 
-Checks feasibility of path constraints using interval arithmetic:
+Check path feasibility and generate concrete witnesses:
+
+| Solver | Handles | Algorithm |
+|--------|---------|-----------|
+| `IntervalSolver` | `x < 10`, `y >= 0` | Interval abstract interpretation |
+| `RelationalSolver` | `x < y`, `a == b` | Bellman-Ford on difference constraints |
+| `ModularSolver` | `x % n == 0` | Modular arithmetic enumeration |
+| `ArrayBoundsSolver` | `0 <= i < len` | Array index bounds verification |
+| `BitwiseSolver` | Power-of-2, alignment | Bit manipulation post-processing |
+| `CombinedSolver<S1, S2>` | Chain solvers | Theory combination |
 
 ```rust
-// Path: x < 0 AND x >= 10 → UNSAT (impossible!)
 let solver = IntervalSolver::new();
 let result = solver.solve(&assignments, &universe);
 
 match result {
     SolveResult::Sat(witness) => { /* use witness for testing */ }
     SolveResult::Unsat => { /* prune this path */ }
-    SolveResult::Unknown => { /* conservative: try anyway */ }
+    SolveResult::Unknown => { /* solver couldn't determine */ }
 }
 ```
 
 ### 3. Test Generator (`generator.rs`)
 
-Generates concrete test inputs from BDD paths:
+Multiple generation strategies for BDD paths:
+
+| Generator | Description |
+|-----------|-------------|
+| `TestGenerator` | Basic path enumeration with theory solving |
+| `RandomizedGenerator` | Randomized path exploration order |
+| `PrioritizedGenerator` | Priority-based path selection |
+| `SymbolicExecutor` | Full symbolic execution with path tracking |
 
 ```rust
 let generator = TestGenerator::new(&bdd, &universe, &solver, config);
-
-// Generate tests for a specific path constraint
 let tests = generator.generate(path_constraint);
 
 for test in tests {
-    // test.witness contains concrete values
     let x = test.witness.get("x").unwrap();
     run_test_with_input(x);
 }
 ```
 
-### 4. Coverage Tracker (`coverage.rs`)
+### 4. Property Checker (`property.rs`)
+
+Property-based testing with BDD-guided exploration:
+
+```rust
+let property = Property::new("abs is non-negative", |inputs| {
+    let x = inputs.get("x").unwrap();
+    x.abs() >= 0
+});
+
+let checker = PropertyChecker::new(&bdd, &universe, &solver);
+match checker.check(&property, constraint) {
+    CheckResult::Pass { test_count, .. } => println!("Passed {} tests", test_count),
+    CheckResult::Fail { counterexample, .. } => println!("Found: {:?}", counterexample),
+    CheckResult::Vacuous => println!("All paths pruned as infeasible"),
+}
+```
+
+### 5. Coverage Tracker (`coverage.rs`)
 
 Uses BDD operations for efficient coverage tracking:
 
@@ -101,8 +148,13 @@ let mut coverage = CoverageTracker::new(&bdd, target_paths);
 // Record test execution
 coverage.record_assignments(&test.path_assignments);
 
-// Check what's left to cover
-let uncovered = coverage.uncovered();  // Returns BDD of uncovered paths
+// Get coverage summary
+let summary = coverage.summary();
+println!("Coverage: {:.1}%", summary.predicate_coverage_ratio * 100.0);
+println!("Complete: {}", summary.is_complete);
+
+// Get uncovered paths as BDD
+let uncovered = coverage.uncovered();
 ```
 
 ## Key Insights
@@ -125,12 +177,49 @@ BDDs only reason about boolean structure. Theory solvers handle:
 ## Usage
 
 ```bash
-# Run the example
-cargo run -p tbdd-pbt
-
 # Run tests
 cargo test -p tbdd-pbt
 ```
+
+### Running Examples
+
+```bash
+# Basic usage
+cargo run -p tbdd-pbt --example basic
+
+# Multi-variable constraints
+cargo run -p tbdd-pbt --example multi_variable
+
+# Property testing with shrinking
+cargo run -p tbdd-pbt --example property_testing
+
+# Coverage analysis
+cargo run -p tbdd-pbt --example coverage
+
+# Advanced theory solvers
+cargo run -p tbdd-pbt --example advanced_theory
+
+# Bug hunting patterns
+cargo run -p tbdd-pbt --example bug_hunting
+```
+
+## Example: Function Categorization
+
+```rust
+fn categorize(x: i64) -> &'static str {
+    if x < 0 { "negative" }
+    else if x == 0 { "zero" }
+    else if x < 100 { "small" }
+    else { "large" }
+}
+```
+
+T-BDD automatically:
+
+1. Identifies 4 distinct paths
+2. Prunes infeasible combinations (e.g., `x < 0 ∧ x == 0`)
+3. Generates witnesses: `x = -1`, `x = 0`, `x = 50`, `x = 100`
+4. Achieves 100% path coverage
 
 ## Example Output
 
@@ -211,15 +300,14 @@ T-BDD sits at the intersection of these approaches, offering:
 
 - `bdd-rs`: BDD library with complement edges
 - `rand`: Randomized test generation
-- `thiserror`: Error handling
+- `color-eyre`: Error handling
 
 ### Limitations
 
-Current implementation has some simplifications:
+Current implementation:
 
 1. **Manual Predicate Extraction**: Predicates must be specified manually
-2. **Simple Theory**: Only interval arithmetic (no SMT)
+2. **Lightweight Theories**: Custom solvers, no SMT integration
 3. **No Loop Handling**: Assumes acyclic control flow
-4. **Single Variable Comparisons**: No `x < y` constraints
 
 These can be addressed in future work.
