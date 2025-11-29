@@ -15,6 +15,7 @@ members = [
     "examples/symbolic-execution",
     "examples/model-checking",
     "examples/abstract-interpretation",
+    "examples/tbdd-pbt",
 ]
 
 [dependencies]

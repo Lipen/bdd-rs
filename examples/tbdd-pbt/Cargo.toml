@@ -1,0 +1,14 @@
+[package]
+name = "tbdd-pbt"
+version = "0.1.0"
+edition = "2021"
+description = "Theory-Aware BDD-Guided Property-Based Testing"
+
+[dependencies]
+bdd-rs = { path = "../.." }
+color-eyre = "0.6"
+rand = "0.8"
+
+[[bin]]
+name = "tbdd-pbt"
+path = "src/main.rs"
