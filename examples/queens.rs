@@ -30,6 +30,129 @@ use bdd_rs::bdd::{Bdd, BddConfig};
 use bdd_rs::reference::Ref;
 use clap::Parser;
 
+/// Tracker for step-by-step statistics with concise output.
+struct StepTracker<'a> {
+    bdd: &'a Bdd,
+    verbose: bool,
+    // Snapshot of cache stats at start of tracking
+    prev_hits: usize,
+    prev_misses: usize,
+    prev_nodes: usize,
+    step_start: Instant,
+}
+
+impl<'a> StepTracker<'a> {
+    fn new(bdd: &'a Bdd, verbose: bool) -> Self {
+        let cache = bdd.cache();
+        Self {
+            bdd,
+            verbose,
+            prev_hits: cache.hits(),
+            prev_misses: cache.misses(),
+            prev_nodes: bdd.num_nodes(),
+            step_start: Instant::now(),
+        }
+    }
+
+    /// Print table header for verbose output.
+    fn print_header(&self) {
+        if !self.verbose {
+            return;
+        }
+        println!(
+            "  {:<12} {:<9} {:<9} {:<9} {:>8}  {}",
+            "step", "constr", "result", "Δnodes", "time", "cache hits/misses"
+        );
+        println!("  {}", "-".repeat(70));
+    }
+
+    /// Print a micro-step line (only in verbose mode).
+    fn micro_step(&mut self, label: &str, constraint_size: u64, result_size: u64) {
+        if !self.verbose {
+            return;
+        }
+        let cache = self.bdd.cache();
+        let hits = cache.hits();
+        let misses = cache.misses();
+        let nodes = self.bdd.num_nodes();
+
+        let delta_hits = hits - self.prev_hits;
+        let delta_misses = misses - self.prev_misses;
+        let delta_nodes = nodes - self.prev_nodes;
+        let delta_total = delta_hits + delta_misses;
+        let hit_rate = if delta_total > 0 {
+            100.0 * delta_hits as f64 / delta_total as f64
+        } else {
+            0.0
+        };
+        let elapsed_ms = self.step_start.elapsed().as_secs_f64() * 1000.0;
+
+        // Format time adaptively
+        let time_str = if elapsed_ms < 1000.0 {
+            format!("{:>6.0}ms", elapsed_ms)
+        } else {
+            format!("{:>6.0}s ", elapsed_ms / 1000.0)
+        };
+
+        println!(
+            "  {:<12} {:>9} {:>9} {:>9} {:>8}  {}/{}({:.0}%)",
+            label,
+            fmt_num(constraint_size),
+            fmt_num(result_size),
+            fmt_num(delta_nodes as u64),
+            time_str,
+            fmt_num(delta_hits as u64),
+            fmt_num(delta_misses as u64),
+            hit_rate
+        );
+
+        // Update snapshots for next step
+        self.prev_hits = hits;
+        self.prev_misses = misses;
+        self.prev_nodes = nodes;
+        self.step_start = Instant::now();
+    }
+
+    /// Print phase summary line.
+    fn phase_done(&self, phase: &str, result_size: u64, phase_time: f64) {
+        let cache = self.bdd.cache();
+        let total = cache.hits() + cache.misses();
+        let hit_rate = if total > 0 {
+            100.0 * cache.hits() as f64 / total as f64
+        } else {
+            0.0
+        };
+        println!(
+            "{} => size={} storage={} {:.3}s (cache {:.1}%)",
+            phase,
+            fmt_num(result_size),
+            fmt_num(self.bdd.num_nodes() as u64),
+            phase_time,
+            hit_rate
+        );
+    }
+
+    /// Reset step timer (for micro-step tracking within a phase).
+    fn reset_step(&mut self) {
+        let cache = self.bdd.cache();
+        self.prev_hits = cache.hits();
+        self.prev_misses = cache.misses();
+        self.prev_nodes = self.bdd.num_nodes();
+        self.step_start = Instant::now();
+    }
+}
+
+/// Format a number with thousand separators for readability.
+fn fmt_num(n: u64) -> String {
+    if n < 1000 {
+        n.to_string()
+    } else if n < 1_000_000 {
+        format!("{}K", n / 1000)
+    } else {
+        format!("{:.1}M", n as f64 / 1_000_000.0)
+    }
+}
+
 /// Statistics collected during constraint building.
 #[derive(Debug, Default)]
 struct Stats {
@@ -145,72 +268,69 @@ fn var(n: usize, row: usize, col: usize) -> u32 {
 fn solve_queens(bdd: &Bdd, n: usize, gc: bool, verbose: bool) -> (Ref, Stats) {
     let mut stats = Stats::default();
     let mut result = bdd.one();
+    let mut tracker = StepTracker::new(bdd, verbose);
+    tracker.print_header();
 
     // Constraint 1: At least one queen per row
-    println!("[1/5] At least one queen per row...");
+    println!("[1/5] At-least-one per row");
     let t = Instant::now();
-    let at_least_one = at_least_one_queen_per_row(bdd, n, verbose);
-    if verbose {
-        println!("       Combining initial constraints...");
-    }
+    tracker.reset_step();
+    let at_least_one = at_least_one_queen_per_row(bdd, n, &mut tracker);
     result = bdd.apply_and(result, at_least_one);
-    stats.times.push(("At least one per row", t.elapsed().as_secs_f64()));
+    let elapsed = t.elapsed().as_secs_f64();
+    stats.times.push(("At least one per row", elapsed));
     stats.sizes.push(("After at-least-one", bdd.size(result)));
-    println!("       Done. Size: {} nodes, allocated: {}", bdd.size(result), bdd.num_nodes());
+    tracker.phase_done("[1/5] At-least-one/row", bdd.size(result), elapsed);
 
     // Constraint 2: At most one queen per row
-    println!("[2/5] At most one queen per row...");
+    println!("[2/5] At-most-one per row");
     let t = Instant::now();
-    let row_amo = at_most_one_queen_per_line(bdd, n, true, gc, &mut result, verbose);
-    if verbose {
-        println!("       Combining row constraints...");
-    }
+    tracker.reset_step();
+    let row_amo = at_most_one_queen_per_line(bdd, n, true, gc, &mut result, &mut tracker);
     result = bdd.apply_and(result, row_amo);
-    stats.times.push(("At most one per row", t.elapsed().as_secs_f64()));
+    let elapsed = t.elapsed().as_secs_f64();
+    stats.times.push(("At most one per row", elapsed));
     stats.sizes.push(("After row AMO", bdd.size(result)));
-    println!("       Done. Size: {} nodes, allocated: {}", bdd.size(result), bdd.num_nodes());
+    tracker.phase_done("[2/5] At-most-one/row", bdd.size(result), elapsed);
 
     // Constraint 3: At most one queen per column
-    println!("[3/5] At most one queen per column...");
+    println!("[3/5] At-most-one per column");
     let t = Instant::now();
-    let col_amo = at_most_one_queen_per_line(bdd, n, false, gc, &mut result, verbose);
-    if verbose {
-        println!("       Combining column constraints...");
-    }
+    tracker.reset_step();
+    let col_amo = at_most_one_queen_per_line(bdd, n, false, gc, &mut result, &mut tracker);
     result = bdd.apply_and(result, col_amo);
-    stats.times.push(("At most one per column", t.elapsed().as_secs_f64()));
+    let elapsed = t.elapsed().as_secs_f64();
+    stats.times.push(("At most one per column", elapsed));
     stats.sizes.push(("After column AMO", bdd.size(result)));
-    println!("       Done. Size: {} nodes, allocated: {}", bdd.size(result), bdd.num_nodes());
+    tracker.phase_done("[3/5] At-most-one/col", bdd.size(result), elapsed);
 
     // Constraint 4: At most one queen per anti-diagonal (/)
-    println!("[4/5] At most one queen per anti-diagonal (/)...");
+    println!("[4/5] At-most-one per anti-diagonal (/)");
     let t = Instant::now();
-    let slash = at_most_one_queen_per_diagonal(bdd, n, true, gc, &result, verbose);
-    if verbose {
-        println!("       Combining anti-diagonal constraints...");
-    }
+    tracker.reset_step();
+    let slash = at_most_one_queen_per_diagonal(bdd, n, true, gc, &result, &mut tracker);
     result = bdd.apply_and(result, slash);
-    stats.times.push(("At most one per anti-diag", t.elapsed().as_secs_f64()));
+    let elapsed = t.elapsed().as_secs_f64();
+    stats.times.push(("At most one per anti-diag", elapsed));
     stats.sizes.push(("After anti-diagonal AMO", bdd.size(result)));
-    println!("       Done. Size: {} nodes, allocated: {}", bdd.size(result), bdd.num_nodes());
+    tracker.phase_done("[4/5] At-most-one/anti-diag", bdd.size(result), elapsed);
 
     // Constraint 5: At most one queen per diagonal (\)
-    println!("[5/5] At most one queen per diagonal (\\)...");
+    println!("[5/5] At-most-one per diagonal (\\)");
     let t = Instant::now();
-    let backslash = at_most_one_queen_per_diagonal(bdd, n, false, gc, &result, verbose);
-    if verbose {
-        println!("       Combining diagonal constraints...");
-    }
+    tracker.reset_step();
+    let backslash = at_most_one_queen_per_diagonal(bdd, n, false, gc, &result, &mut tracker);
     result = bdd.apply_and(result, backslash);
-    stats.times.push(("At most one per diagonal", t.elapsed().as_secs_f64()));
+    let elapsed = t.elapsed().as_secs_f64();
+    stats.times.push(("At most one per diagonal", elapsed));
     stats.sizes.push(("After diagonal AMO", bdd.size(result)));
-    println!("       Done. Size: {} nodes, allocated: {}", bdd.size(result), bdd.num_nodes());
+    tracker.phase_done("[5/5] At-most-one/diag", bdd.size(result), elapsed);
 
     (result, stats)
 }
 
 /// At least one queen per row: `⋀_i (⋁_j x_{i,j})`
-fn at_least_one_queen_per_row(bdd: &Bdd, n: usize, verbose: bool) -> Ref {
+fn at_least_one_queen_per_row(bdd: &Bdd, n: usize, tracker: &mut StepTracker) -> Ref {
     let mut result = bdd.one();
 
     for row in 0..n {
@@ -220,10 +340,9 @@ fn at_least_one_queen_per_row(bdd: &Bdd, n: usize, verbose: bool) -> Ref {
             let x = bdd.mk_var(var(n, row, col));
             row_clause = bdd.apply_or(row_clause, x);
         }
+        let clause_size = bdd.size(row_clause);
         result = bdd.apply_and(result, row_clause);
-        if verbose {
-            println!("       Row {}/{}: size = {}", row + 1, n, bdd.size(result));
-        }
+        tracker.micro_step(&format!("row {}/{}", row + 1, n), clause_size, bdd.size(result));
     }
 
     result
@@ -231,20 +350,18 @@ fn at_least_one_queen_per_row(bdd: &Bdd, n: usize, verbose: bool) -> Ref {
 
 /// At most one queen per row/column.
 /// For each line: `⋀_{x ∈ line} (x → ¬(⋁_{y ∈ line, y≠x} y))`
-fn at_most_one_queen_per_line(bdd: &Bdd, n: usize, is_row: bool, gc: bool, current: &Ref, verbose: bool) -> Ref {
+fn at_most_one_queen_per_line(bdd: &Bdd, n: usize, is_row: bool, gc: bool, current: &Ref, tracker: &mut StepTracker) -> Ref {
     let mut result = bdd.one();
-    let kind = if is_row { "Row" } else { "Col" };
+    let kind = if is_row { "row" } else { "col" };
 
     for i in 0..n {
         // Get all variables in this line
         let vars: Vec<u32> = (0..n).map(|j| if is_row { var(n, i, j) } else { var(n, j, i) }).collect();
 
         let amo = encode_at_most_one(bdd, &vars);
+        let amo_size = bdd.size(amo);
         result = bdd.apply_and(result, amo);
-
-        if verbose {
-            println!("       {} {}/{}: size = {}", kind, i + 1, n, bdd.size(result));
-        }
+        tracker.micro_step(&format!("{} {}/{}", kind, i + 1, n), amo_size, bdd.size(result));
 
         if gc {
             bdd.collect_garbage(&[result, *current]);
@@ -256,8 +373,9 @@ fn at_most_one_queen_per_line(bdd: &Bdd, n: usize, is_row: bool, gc: bool, curre
 
 /// At most one queen per diagonal.
 /// `slash=true` for anti-diagonals (`/`), `slash=false` for diagonals (`\`).
-fn at_most_one_queen_per_diagonal(bdd: &Bdd, n: usize, slash: bool, gc: bool, current: &Ref, verbose: bool) -> Ref {
+fn at_most_one_queen_per_diagonal(bdd: &Bdd, n: usize, slash: bool, gc: bool, current: &Ref, tracker: &mut StepTracker) -> Ref {
     let mut result = bdd.one();
+    let kind = if slash { "/" } else { "\\" };
 
     let (a, b) = if slash { (-(n as i32), n as i32) } else { (0, 2 * n as i32) };
     let total_diags = (b - a) as usize;
@@ -284,18 +402,9 @@ fn at_most_one_queen_per_diagonal(bdd: &Bdd, n: usize, slash: bool, gc: bool, cu
 
         let vars: Vec<u32> = cells.iter().map(|&(i, j)| var(n, i, j)).collect();
         let amo = encode_at_most_one(bdd, &vars);
+        let amo_size = bdd.size(amo);
         result = bdd.apply_and(result, amo);
-
-        if verbose {
-            println!(
-                "       Diag {}/{} (len {}): size = {}, nodes = {}",
-                diag_count,
-                total_diags,
-                cells.len(),
-                bdd.size(result),
-                bdd.num_nodes(),
-            );
-        }
+        tracker.micro_step(&format!("{}d {}/{}", kind, diag_count, total_diags), amo_size, bdd.size(result));
 
         if gc {
             bdd.collect_garbage(&[result, *current]);
