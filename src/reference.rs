@@ -80,3 +80,183 @@ impl Display for Ref {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ref_constants() {
+        // ONE is positive terminal
+        assert_eq!(Ref::ONE.id(), NodeId::TERMINAL);
+        assert!(!Ref::ONE.is_negated());
+
+        // ZERO is negative terminal
+        assert_eq!(Ref::ZERO.id(), NodeId::TERMINAL);
+        assert!(Ref::ZERO.is_negated());
+
+        // ONE and ZERO point to same node but differ in negation
+        assert_eq!(Ref::ONE.id(), Ref::ZERO.id());
+        assert_ne!(Ref::ONE, Ref::ZERO);
+    }
+
+    #[test]
+    fn test_ref_positive_negative() {
+        let id = NodeId::new(42);
+
+        let pos = Ref::positive(id);
+        assert_eq!(pos.id(), id);
+        assert!(!pos.is_negated());
+
+        let neg = Ref::negative(id);
+        assert_eq!(neg.id(), id);
+        assert!(neg.is_negated());
+
+        // Same ID, different polarity
+        assert_eq!(pos.id(), neg.id());
+        assert_ne!(pos, neg);
+    }
+
+    #[test]
+    fn test_ref_new() {
+        let id = NodeId::new(123);
+
+        let pos = Ref::new(id, false);
+        assert_eq!(pos.id(), id);
+        assert!(!pos.is_negated());
+
+        let neg = Ref::new(id, true);
+        assert_eq!(neg.id(), id);
+        assert!(neg.is_negated());
+    }
+
+    #[test]
+    fn test_ref_from_helpers() {
+        let pos = Ref::positive_from(10u32);
+        assert_eq!(pos.id(), NodeId::new(10));
+        assert!(!pos.is_negated());
+
+        let neg = Ref::negative_from(20u32);
+        assert_eq!(neg.id(), NodeId::new(20));
+        assert!(neg.is_negated());
+    }
+
+    #[test]
+    fn test_ref_negation() {
+        let id = NodeId::new(5);
+        let pos = Ref::positive(id);
+        let neg = Ref::negative(id);
+
+        // Negating positive gives negative
+        assert_eq!(-pos, neg);
+        // Negating negative gives positive
+        assert_eq!(-neg, pos);
+        // Double negation is identity
+        assert_eq!(-(-pos), pos);
+        assert_eq!(-(-neg), neg);
+    }
+
+    #[test]
+    fn test_ref_negation_constants() {
+        // -ONE == ZERO
+        assert_eq!(-Ref::ONE, Ref::ZERO);
+        // -ZERO == ONE
+        assert_eq!(-Ref::ZERO, Ref::ONE);
+    }
+
+    #[test]
+    fn test_ref_raw() {
+        // Raw encoding: (id << 1) | negated
+        let id = NodeId::new(100);
+
+        let pos = Ref::positive(id);
+        assert_eq!(pos.raw(), 100 << 1); // 200
+
+        let neg = Ref::negative(id);
+        assert_eq!(neg.raw(), (100 << 1) | 1); // 201
+    }
+
+    #[test]
+    fn test_ref_display() {
+        let id = NodeId::new(42);
+
+        let pos = Ref::positive(id);
+        assert_eq!(format!("{}", pos), "@42");
+
+        let neg = Ref::negative(id);
+        assert_eq!(format!("{}", neg), "~@42");
+
+        // Terminal display
+        assert_eq!(format!("{}", Ref::ONE), "@0");
+        assert_eq!(format!("{}", Ref::ZERO), "~@0");
+    }
+
+    #[test]
+    fn test_ref_equality() {
+        let id1 = NodeId::new(10);
+        let id2 = NodeId::new(20);
+
+        let r1 = Ref::positive(id1);
+        let r2 = Ref::positive(id1);
+        let r3 = Ref::negative(id1);
+        let r4 = Ref::positive(id2);
+
+        // Same node, same polarity
+        assert_eq!(r1, r2);
+        // Same node, different polarity
+        assert_ne!(r1, r3);
+        // Different node
+        assert_ne!(r1, r4);
+    }
+
+    #[test]
+    fn test_ref_hash() {
+        use std::collections::HashSet;
+
+        let mut set = HashSet::new();
+        let id = NodeId::new(7);
+
+        let pos = Ref::positive(id);
+        let neg = Ref::negative(id);
+
+        set.insert(pos);
+        assert!(set.contains(&pos));
+        assert!(!set.contains(&neg));
+
+        set.insert(neg);
+        assert!(set.contains(&pos));
+        assert!(set.contains(&neg));
+        assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn test_ref_copy_clone() {
+        let r = Ref::positive(NodeId::new(99));
+        let copied = r; // Copy
+        let cloned = r.clone(); // Clone
+
+        assert_eq!(r, copied);
+        assert_eq!(r, cloned);
+    }
+
+    #[test]
+    fn test_ref_debug() {
+        let r = Ref::positive(NodeId::new(5));
+        let debug_str = format!("{:?}", r);
+        assert!(debug_str.contains("Ref"));
+    }
+
+    #[test]
+    fn test_ref_large_id() {
+        // Test with a large but valid node ID
+        let large_id = NodeId::new(0x3FFF_FFFF); // Max valid ID
+        let pos = Ref::positive(large_id);
+        let neg = Ref::negative(large_id);
+
+        assert_eq!(pos.id(), large_id);
+        assert_eq!(neg.id(), large_id);
+        assert!(!pos.is_negated());
+        assert!(neg.is_negated());
+        assert_eq!(-pos, neg);
+    }
+}
