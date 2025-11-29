@@ -451,7 +451,7 @@ impl Bdd {
     /// assert!(!bdd.is_terminal(x));
     /// ```
     pub fn is_terminal(&self, node_ref: Ref) -> bool {
-        self.is_zero(node_ref) || self.is_one(node_ref)
+        node_ref.id() == NodeId::TERMINAL
     }
 }
 
