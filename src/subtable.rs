@@ -244,6 +244,13 @@ impl Subtable {
     ///
     /// This doubles the bucket count and rebuilds all collision chains.
     pub fn resize(&mut self, nodes: &mut [Node]) {
+        log::debug!(
+            "Resizing subtable for var {:?}: {} -> {} buckets",
+            self.variable,
+            self.buckets.len(),
+            self.buckets.len() * 2
+        );
+
         let new_bits = (self.buckets.len().trailing_zeros() + 1) as usize;
         let new_num_buckets = 1 << new_bits;
         let new_bitmask = (new_num_buckets - 1) as u64;
