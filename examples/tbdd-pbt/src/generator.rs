@@ -187,6 +187,289 @@ impl<'a, S: ConstraintSolver, R: Rng> RandomizedGenerator<'a, S, R> {
     }
 }
 
+// =============================================================================
+// Path Prioritization: Heuristic-based path ordering
+// =============================================================================
+
+/// Path priority heuristics for guided exploration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PathPriority {
+    /// Higher priority for shorter paths (fewer predicates).
+    ShortestFirst,
+    /// Higher priority for longer paths (more constraints).
+    LongestFirst,
+    /// Prioritize paths with more positive (true) assignments.
+    MorePositive,
+    /// Prioritize paths with more negative (false) assignments.
+    MoreNegative,
+    /// Prioritize boundary/edge case paths.
+    BoundaryFirst,
+    /// Random ordering.
+    Random,
+}
+
+/// Path with associated priority score.
+#[derive(Debug, Clone)]
+pub struct PrioritizedPath {
+    /// The boolean assignments defining this path.
+    pub assignments: HashMap<Var, bool>,
+    /// Priority score (higher = more priority).
+    pub score: i64,
+    /// Reason for this priority.
+    pub reason: String,
+}
+
+impl PrioritizedPath {
+    fn new(assignments: HashMap<Var, bool>) -> Self {
+        Self {
+            assignments,
+            score: 0,
+            reason: String::new(),
+        }
+    }
+}
+
+/// Prioritized test generator with heuristic-based path ordering.
+pub struct PrioritizedGenerator<'a, S: ConstraintSolver> {
+    bdd: &'a Bdd,
+    universe: &'a PredicateUniverse,
+    solver: &'a S,
+    priorities: Vec<PathPriority>,
+}
+
+impl<'a, S: ConstraintSolver> PrioritizedGenerator<'a, S> {
+    pub fn new(bdd: &'a Bdd, universe: &'a PredicateUniverse, solver: &'a S) -> Self {
+        Self {
+            bdd,
+            universe,
+            solver,
+            priorities: vec![PathPriority::ShortestFirst],
+        }
+    }
+
+    /// Set the prioritization strategy.
+    pub fn with_priority(mut self, priority: PathPriority) -> Self {
+        self.priorities = vec![priority];
+        self
+    }
+
+    /// Add multiple prioritization strategies (combined).
+    pub fn with_priorities(mut self, priorities: Vec<PathPriority>) -> Self {
+        self.priorities = priorities;
+        self
+    }
+
+    /// Generate tests in priority order.
+    pub fn generate_prioritized(&self, constraint: Ref, max_tests: usize) -> Vec<TestCase> {
+        let mut paths = self.enumerate_and_score(constraint);
+
+        // Sort by score (descending)
+        paths.sort_by(|a, b| b.score.cmp(&a.score));
+
+        let mut tests = Vec::new();
+        for (i, path) in paths.into_iter().enumerate() {
+            if i >= max_tests {
+                break;
+            }
+
+            match self.solver.solve(&path.assignments, self.universe) {
+                SolveResult::Sat(witness) => {
+                    tests.push(TestCase {
+                        witness,
+                        path_id: i,
+                        path_assignments: path.assignments,
+                    });
+                }
+                SolveResult::Unsat => continue,
+                SolveResult::Unknown => continue,
+            }
+        }
+
+        tests
+    }
+
+    fn enumerate_and_score(&self, node: Ref) -> Vec<PrioritizedPath> {
+        let mut paths = Vec::new();
+        let mut assignment = HashMap::new();
+        self.enumerate_and_score_rec(node, &mut assignment, &mut paths);
+
+        // Apply scoring
+        for path in &mut paths {
+            path.score = self.compute_score(path);
+        }
+
+        paths
+    }
+
+    fn enumerate_and_score_rec(&self, node: Ref, assignment: &mut HashMap<Var, bool>, paths: &mut Vec<PrioritizedPath>) {
+        if self.bdd.is_zero(node) {
+            return;
+        }
+        if self.bdd.is_one(node) {
+            paths.push(PrioritizedPath::new(assignment.clone()));
+            return;
+        }
+
+        let var = self.bdd.variable(node.id());
+        let low = self.bdd.low_node(node);
+        let high = self.bdd.high_node(node);
+
+        assignment.insert(var, false);
+        self.enumerate_and_score_rec(low, assignment, paths);
+
+        assignment.insert(var, true);
+        self.enumerate_and_score_rec(high, assignment, paths);
+
+        assignment.remove(&var);
+    }
+
+    fn compute_score(&self, path: &PrioritizedPath) -> i64 {
+        let mut score = 0i64;
+
+        for priority in &self.priorities {
+            score += match priority {
+                PathPriority::ShortestFirst => -(path.assignments.len() as i64),
+                PathPriority::LongestFirst => path.assignments.len() as i64,
+                PathPriority::MorePositive => path.assignments.values().filter(|&&v| v).count() as i64,
+                PathPriority::MoreNegative => path.assignments.values().filter(|&&v| !v).count() as i64,
+                PathPriority::BoundaryFirst => {
+                    // Score higher for paths with all-true or all-false assignments
+                    let all_true = path.assignments.values().all(|&v| v);
+                    let all_false = path.assignments.values().all(|&v| !v);
+                    if all_true || all_false {
+                        100
+                    } else {
+                        0
+                    }
+                }
+                PathPriority::Random => 0, // Will shuffle later
+            };
+        }
+
+        score
+    }
+}
+
+// =============================================================================
+// Symbolic Execution Pattern
+// =============================================================================
+
+/// State for symbolic execution trace.
+#[derive(Debug, Clone)]
+pub struct SymbolicState {
+    /// Path condition as BDD.
+    pub path_condition: Ref,
+    /// Current variable assignments.
+    pub assignments: HashMap<Var, bool>,
+    /// Execution trace (sequence of branch decisions).
+    pub trace: Vec<(Var, bool)>,
+}
+
+impl SymbolicState {
+    pub fn new(path_condition: Ref) -> Self {
+        Self {
+            path_condition,
+            assignments: HashMap::new(),
+            trace: Vec::new(),
+        }
+    }
+
+    /// Fork execution: create two states for a branch.
+    pub fn fork(&self, bdd: &Bdd, var: Var) -> (SymbolicState, SymbolicState) {
+        let var_node = bdd.mk_var(var);
+
+        // True branch
+        let mut true_state = self.clone();
+        true_state.path_condition = bdd.apply_and(self.path_condition, var_node);
+        true_state.assignments.insert(var, true);
+        true_state.trace.push((var, true));
+
+        // False branch
+        let mut false_state = self.clone();
+        false_state.path_condition = bdd.apply_and(self.path_condition, -var_node);
+        false_state.assignments.insert(var, false);
+        false_state.trace.push((var, false));
+
+        (true_state, false_state)
+    }
+
+    /// Check if this state's path condition is satisfiable.
+    pub fn is_feasible(&self, bdd: &Bdd) -> bool {
+        !bdd.is_zero(self.path_condition)
+    }
+}
+
+/// Symbolic executor for BDD-guided path exploration.
+pub struct SymbolicExecutor<'a, S: ConstraintSolver> {
+    bdd: &'a Bdd,
+    universe: &'a PredicateUniverse,
+    solver: &'a S,
+    /// Maximum path depth before stopping.
+    pub max_depth: usize,
+    /// Maximum number of paths to explore.
+    pub max_paths: usize,
+}
+
+impl<'a, S: ConstraintSolver> SymbolicExecutor<'a, S> {
+    pub fn new(bdd: &'a Bdd, universe: &'a PredicateUniverse, solver: &'a S) -> Self {
+        Self {
+            bdd,
+            universe,
+            solver,
+            max_depth: 20,
+            max_paths: 100,
+        }
+    }
+
+    /// Execute symbolically from the given constraint.
+    pub fn execute(&self, constraint: Ref) -> Vec<ExecutionResult> {
+        let mut results = Vec::new();
+        let mut worklist = vec![SymbolicState::new(constraint)];
+        let mut explored = 0;
+
+        while let Some(state) = worklist.pop() {
+            if explored >= self.max_paths {
+                break;
+            }
+
+            if state.trace.len() >= self.max_depth {
+                continue;
+            }
+
+            if !state.is_feasible(self.bdd) {
+                continue;
+            }
+
+            // Try to solve the current path condition
+            match self.solver.solve(&state.assignments, self.universe) {
+                SolveResult::Sat(witness) => {
+                    results.push(ExecutionResult {
+                        witness,
+                        trace: state.trace.clone(),
+                        path_condition: state.path_condition,
+                    });
+                    explored += 1;
+                }
+                SolveResult::Unsat => continue,
+                SolveResult::Unknown => continue,
+            }
+        }
+
+        results
+    }
+}
+
+/// Result of symbolic execution.
+#[derive(Debug, Clone)]
+pub struct ExecutionResult {
+    /// Concrete witness values.
+    pub witness: Witness,
+    /// Execution trace.
+    pub trace: Vec<(Var, bool)>,
+    /// Path condition as BDD.
+    pub path_condition: Ref,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

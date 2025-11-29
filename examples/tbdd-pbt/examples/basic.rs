@@ -1,10 +1,12 @@
-//! T-BDD Example: Testing a simple function with BDD-guided exploration.
+//! Basic T-BDD Example: Testing a simple categorization function.
 //!
-//! This example demonstrates how to use T-BDD to:
-//! 1. Define program predicates
+//! This example demonstrates the core T-BDD workflow:
+//! 1. Define program predicates from branch conditions
 //! 2. Build BDD path constraints
 //! 3. Generate test inputs using theory solving
 //! 4. Track coverage
+//!
+//! Run with: `cargo run -p tbdd-pbt --example basic`
 
 use bdd_rs::bdd::Bdd;
 use tbdd_pbt::{CoverageTracker, GeneratorConfig, IntervalSolver, Predicate, PredicateUniverse, TestGenerator};
@@ -118,8 +120,7 @@ fn main() {
         println!("    BDD size: {} node(s)", bdd.size(path_bdd));
         println!("    BDD: {}\n", bdd.to_bracket_string(path_bdd));
     }
-    // println!("\n  Total: {} paths, combined BDD = {} node(s)\n", PATHS.len(), bdd.size(all_paths));
-    println!();
+
     println!("  Total: {} paths", PATHS.len());
     println!("  Combined BDD size: {} node(s)", bdd.size(all_paths));
     println!("  Combined BDD: {}", bdd.to_bracket_string(all_paths));
@@ -196,7 +197,7 @@ fn main() {
     assert!(tests2.is_empty(), "Should prune infeasible path: x>=100 ∧ x<0");
 
     println!("══════════════════════════════════════════════════════════════");
-    println!("  All assertions passed. T-BDD demo complete!");
+    println!("  All assertions passed. Basic T-BDD demo complete!");
     println!("══════════════════════════════════════════════════════════════");
 }
 

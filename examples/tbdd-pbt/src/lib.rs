@@ -46,17 +46,26 @@
 //! ## Modules
 //!
 //! - [`predicate`]: Predicate abstraction and universe
-//! - [`theory`]: Theory solver integration (interval arithmetic)
+//! - [`theory`]: Theory solver integration (interval, relational, modular)
 //! - [`generator`]: Test input generation from BDD paths
 //! - [`coverage`]: Coverage tracking using BDD operations
+//! - [`property`]: Property-based testing API with counterexample search
 
 pub mod coverage;
 pub mod generator;
 pub mod predicate;
+pub mod property;
 pub mod theory;
 
 // Re-exports
 pub use coverage::{CoverageSummary, CoverageTracker};
-pub use generator::{GeneratorConfig, TestCase, TestGenerator};
+pub use generator::{
+    ExecutionResult, GeneratorConfig, PathPriority, PrioritizedGenerator, PrioritizedPath, SymbolicExecutor, SymbolicState, TestCase,
+    TestGenerator,
+};
 pub use predicate::{CompareOp, Operand, Predicate, PredicateUniverse, ProgramVar};
-pub use theory::{ConstraintSolver, IntervalSolver, SolveResult, Witness};
+pub use property::{CheckResult, CheckerConfig, Property, PropertyChecker};
+pub use theory::{
+    ArrayBoundsSolver, ArrayConstraint, ArrayLength, BitwiseConstraint, BitwiseSolver, BoundaryValueGenerator, CombinedSolver,
+    ConstraintSolver, Interval, IntervalRelationalSolver, IntervalSolver, ModularSolver, RelationalSolver, SolveResult, Witness,
+};

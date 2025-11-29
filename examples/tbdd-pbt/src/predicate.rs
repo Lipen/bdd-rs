@@ -104,6 +104,16 @@ impl Predicate {
         Self::new(ProgramVar::new(var), CompareOp::Lt, Operand::Const(val))
     }
 
+    /// Convenience: `var <= const`
+    pub fn le(var: impl Into<String>, val: i64) -> Self {
+        Self::new(ProgramVar::new(var), CompareOp::Le, Operand::Const(val))
+    }
+
+    /// Convenience: `var > const`
+    pub fn gt(var: impl Into<String>, val: i64) -> Self {
+        Self::new(ProgramVar::new(var), CompareOp::Gt, Operand::Const(val))
+    }
+
     /// Convenience: `var >= const`
     pub fn ge(var: impl Into<String>, val: i64) -> Self {
         Self::new(ProgramVar::new(var), CompareOp::Ge, Operand::Const(val))
@@ -112,6 +122,11 @@ impl Predicate {
     /// Convenience: `var == const`
     pub fn eq(var: impl Into<String>, val: i64) -> Self {
         Self::new(ProgramVar::new(var), CompareOp::Eq, Operand::Const(val))
+    }
+
+    /// Convenience: `var != const`
+    pub fn ne(var: impl Into<String>, val: i64) -> Self {
+        Self::new(ProgramVar::new(var), CompareOp::Ne, Operand::Const(val))
     }
 
     /// Convenience: `var1 < var2`

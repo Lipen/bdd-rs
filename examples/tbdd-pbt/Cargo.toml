@@ -8,7 +8,3 @@ description = "Theory-Aware BDD-Guided Property-Based Testing"
 bdd-rs = { path = "../.." }
 color-eyre = "0.6"
 rand = "0.8"
-
-[[bin]]
-name = "tbdd-pbt"
-path = "src/main.rs"
