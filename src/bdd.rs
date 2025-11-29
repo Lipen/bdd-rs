@@ -963,6 +963,8 @@ impl Bdd {
             self.register_variable(lit.var().id());
         }
 
+        // TODO: instead of sorting before registering, we should first register, and then sort by level
+
         // Now reverse and build bottom-up
         literals.reverse();
         let mut current = self.one();
