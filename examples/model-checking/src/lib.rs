@@ -42,7 +42,7 @@
 //! ts.set_transition(transition);
 //!
 //! // Add labels
-//! ts.add_label("safe".to_string(), ts.bdd().one);
+//! ts.add_label("safe".to_string(), ts.bdd().one());
 //!
 //! // Check a CTL property
 //! let ts = Rc::new(ts);

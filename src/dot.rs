@@ -211,8 +211,8 @@ impl Bdd {
 
         // Terminal nodes (0 and 1)
         writeln!(dot, "{{ rank=sink")?;
-        writeln!(dot, "{} [shape={}, label=\"1\"];", ref_name(self.one), config.terminal_shape)?;
-        writeln!(dot, "{} [shape={}, label=\"0\"];", ref_name(self.zero), config.terminal_shape)?;
+        writeln!(dot, "{} [shape={}, label=\"1\"];", ref_name(self.one()), config.terminal_shape)?;
+        writeln!(dot, "{} [shape={}, label=\"0\"];", ref_name(self.zero()), config.terminal_shape)?;
         writeln!(dot, "}}")?;
 
         // Get all reachable nodes from roots
@@ -262,7 +262,7 @@ impl Bdd {
             if low.is_negated() {
                 if low.id().is_terminal() {
                     // Negated terminal (points to 0)
-                    assert_eq!(low, self.zero);
+                    assert_eq!(low, self.zero());
                     writeln!(dot, "{} -- {} [style={}];", node_name(id), ref_name(low), config.low_edge_style)?;
                 } else {
                     // Negated non-terminal edge (dotted with hollow circle)
@@ -332,7 +332,7 @@ mod tests {
         let f = bdd.apply_and(x1, x2);
 
         // Should handle multiple roots without errors
-        let dot = bdd.to_dot(&[f, bdd.zero, bdd.one]).unwrap();
+        let dot = bdd.to_dot(&[f, bdd.zero(), bdd.one()]).unwrap();
         assert!(dot.starts_with("graph {"));
         assert!(!dot.is_empty());
     }
@@ -343,7 +343,7 @@ mod tests {
         let bdd = Bdd::default();
 
         // Should handle terminal nodes
-        let dot = bdd.to_dot(&[bdd.zero, bdd.one]).unwrap();
+        let dot = bdd.to_dot(&[bdd.zero(), bdd.one()]).unwrap();
         assert!(dot.starts_with("graph {"));
         assert!(!dot.is_empty());
     }

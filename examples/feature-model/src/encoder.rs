@@ -8,7 +8,7 @@ use crate::model::{Constraint, FeatureModel};
 /// Each feature is represented by a variable in the BDD.
 /// The resulting BDD represents all valid configurations.
 pub fn encode_to_bdd(model: &FeatureModel, bdd: &Bdd) -> Ref {
-    let mut result = bdd.one;
+    let mut result = bdd.one();
 
     for constraint in &model.constraints {
         let constraint_bdd = encode_constraint(constraint, bdd);
@@ -38,7 +38,7 @@ fn encode_constraint(constraint: &Constraint, bdd: &Bdd) -> Ref {
         Constraint::AtLeastOne(features) => {
             // f1 OR f2 OR ... OR fn
             if features.is_empty() {
-                return bdd.zero;
+                return bdd.zero();
             }
             let vars: Vec<Ref> = features.iter().map(|&f| bdd.mk_var(f)).collect();
             bdd.apply_or_many(vars)
@@ -47,13 +47,13 @@ fn encode_constraint(constraint: &Constraint, bdd: &Bdd) -> Ref {
         Constraint::ExactlyOne(features) => {
             // Exactly one: at least one AND at most one
             if features.is_empty() {
-                return bdd.zero;
+                return bdd.zero();
             }
 
             let at_least_one = encode_constraint(&Constraint::AtLeastOne(features.clone()), bdd);
 
             // At most one: pairwise exclusion
-            let mut at_most_one = bdd.one;
+            let mut at_most_one = bdd.one();
             for i in 0..features.len() {
                 for j in (i + 1)..features.len() {
                     let excl = encode_constraint(&Constraint::Excludes(features[i], features[j]), bdd);
@@ -71,13 +71,13 @@ fn encode_constraint(constraint: &Constraint, bdd: &Bdd) -> Ref {
 
         Constraint::Optional(_f) => {
             // No constraint (always satisfiable)
-            bdd.one
+            bdd.one()
         }
 
         Constraint::Clause(literals) => {
             // Disjunction of literals
             if literals.is_empty() {
-                return bdd.zero;
+                return bdd.zero();
             }
 
             let vars: Vec<Ref> = literals
@@ -115,7 +115,7 @@ pub fn encode_configuration(config: &[(u32, bool)], bdd: &Bdd) -> Ref {
         .collect();
 
     if literals.is_empty() {
-        bdd.one
+        bdd.one()
     } else {
         bdd.mk_cube(literals)
     }

@@ -270,7 +270,7 @@ impl BddCharPredicate {
     /// Create a predicate for a single character.
     pub fn single(manager: Rc<Bdd>, c: char) -> Self {
         let val = c as u32;
-        let mut node = manager.one;
+        let mut node = manager.one();
         // Encode bits 0..20 into variables 1..21
         // We build a cube (conjunction of literals)
         // Variable i corresponds to bit i-1
@@ -312,7 +312,7 @@ impl BddCharPredicate {
         //
         // We iterate i from 0 to 20, building the BDD bottom-up.
 
-        let mut res = manager.one; // True for the "equal" case at the end (val == limit is >= limit)
+        let mut res = manager.one(); // True for the "equal" case at the end (val == limit is >= limit)
 
         for i in 0..21 {
             let bit_idx = i;
@@ -343,7 +343,7 @@ impl BddCharPredicate {
         //   if limit[i] == 0: v_i=0 AND LE(i-1, limit)
         //   if limit[i] == 1: v_i=0 OR LE(i-1, limit)
 
-        let mut res = manager.one;
+        let mut res = manager.one();
 
         for i in 0..21 {
             let bit_idx = i;
@@ -446,7 +446,7 @@ impl Predicate for BddCharPredicate {
         // All preds share the same manager (assumed)
         let manager = preds[0].manager.clone();
 
-        let mut partition = vec![BddCharPredicate::new(manager.clone(), manager.one)];
+        let mut partition = vec![BddCharPredicate::new(manager.clone(), manager.one())];
 
         for p in preds {
             let mut next_partition = Vec::new();
@@ -467,7 +467,7 @@ impl Predicate for BddCharPredicate {
         // Filter out regions where no predicate holds
         let union_all = preds
             .iter()
-            .fold(BddCharPredicate::new(manager.clone(), manager.zero), |acc, p| acc.or(p));
+            .fold(BddCharPredicate::new(manager.clone(), manager.zero()), |acc, p| acc.or(p));
 
         partition.retain(|m| !m.and(&union_all).is_empty());
 
@@ -1384,7 +1384,7 @@ mod tests {
         // We need a "full" predicate for complement
         // Let's use range 0..10FFFF as full, or just BddCharPredicate::range(..., '\0', '\u{10FFFF}')
         // Or simpler: BddCharPredicate::new(manager, manager.one)
-        let full = BddCharPredicate::new(manager.clone(), manager.one);
+        let full = BddCharPredicate::new(manager.clone(), manager.one());
         let dfa_compl = dfa.complement(full);
         assert!(!dfa_compl.accepts("a"));
         assert!(dfa_compl.accepts("b"));

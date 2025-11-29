@@ -128,12 +128,12 @@ impl ControlState {
 
     /// Check if this control state is satisfiable (not false).
     pub fn is_sat(&self) -> bool {
-        self.phi != self.manager.zero
+        self.phi != self.manager.zero()
     }
 
     /// Check if this control state is a tautology (true).
     pub fn is_tautology(&self) -> bool {
-        self.phi == self.manager.one
+        self.phi == self.manager.one()
     }
 
     /// Check if this control state is satisfiable (has at least one solution).
@@ -164,9 +164,9 @@ impl fmt::Debug for ControlState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(desc) = &self.description {
             write!(f, "ControlState({})", desc)
-        } else if self.phi == self.manager.zero {
+        } else if self.phi == self.manager.zero() {
             write!(f, "ControlState(⊥)")
-        } else if self.phi == self.manager.one {
+        } else if self.phi == self.manager.one() {
             write!(f, "ControlState(⊤)")
         } else {
             write!(f, "ControlState(φ:{})", self.phi)
@@ -178,9 +178,9 @@ impl fmt::Display for ControlState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(desc) = &self.description {
             write!(f, "{}", desc)
-        } else if self.phi == self.manager.zero {
+        } else if self.phi == self.manager.zero() {
             write!(f, "⊥")
-        } else if self.phi == self.manager.one {
+        } else if self.phi == self.manager.one() {
             write!(f, "⊤")
         } else {
             write!(f, "φ({})", self.phi)
@@ -386,12 +386,12 @@ impl BddControlDomain {
 
     /// Create a tautology (⊤) control state.
     pub fn mk_true(&self) -> ControlState {
-        ControlState::new(self.manager.one, Rc::clone(&self.manager))
+        ControlState::new(self.manager.one(), Rc::clone(&self.manager))
     }
 
     /// Create a contradiction (⊥) control state.
     pub fn mk_false(&self) -> ControlState {
-        ControlState::new(self.manager.zero, Rc::clone(&self.manager))
+        ControlState::new(self.manager.zero(), Rc::clone(&self.manager))
     }
 
     /// Get all allocated variable names.
@@ -444,7 +444,7 @@ impl AbstractDomain for BddControlDomain {
     /// assert!(!bottom.is_sat()); // No satisfying assignments
     /// ```
     fn bottom(&self) -> Self::Element {
-        ControlState::new_with_description(self.manager.zero, Rc::clone(&self.manager), "⊥".to_string())
+        ControlState::new_with_description(self.manager.zero(), Rc::clone(&self.manager), "⊥".to_string())
     }
 
     /// Create the top element (all paths reachable/true).
@@ -469,7 +469,7 @@ impl AbstractDomain for BddControlDomain {
     /// assert!(top.is_tautology()); // Always true
     /// ```
     fn top(&self) -> Self::Element {
-        ControlState::new_with_description(self.manager.one, Rc::clone(&self.manager), "⊤".to_string())
+        ControlState::new_with_description(self.manager.one(), Rc::clone(&self.manager), "⊤".to_string())
     }
 
     /// Check if an element is bottom (unreachable).
@@ -489,7 +489,7 @@ impl AbstractDomain for BddControlDomain {
     /// assert!(domain.is_bottom(&impossible));
     /// ```
     fn is_bottom(&self, elem: &Self::Element) -> bool {
-        elem.phi == self.manager.zero
+        elem.phi == self.manager.zero()
     }
 
     /// Check if an element is top (all paths reachable).
@@ -509,7 +509,7 @@ impl AbstractDomain for BddControlDomain {
     /// assert!(domain.is_top(&all_paths));
     /// ```
     fn is_top(&self, elem: &Self::Element) -> bool {
-        elem.phi == self.manager.one
+        elem.phi == self.manager.one()
     }
 
     /// Partial order: `φ₁ ⊑ φ₂` iff `φ₁ ⇒ φ₂` (logical implication).
@@ -663,11 +663,11 @@ mod tests {
     fn test_control_state_creation() {
         let domain = BddControlDomain::new();
 
-        let bottom = ControlState::new(domain.manager.zero, Rc::clone(&domain.manager));
+        let bottom = ControlState::new(domain.manager.zero(), Rc::clone(&domain.manager));
         assert!(!bottom.is_sat());
         assert!(!bottom.is_tautology());
 
-        let top = ControlState::new(domain.manager.one, Rc::clone(&domain.manager));
+        let top = ControlState::new(domain.manager.one(), Rc::clone(&domain.manager));
         assert!(top.is_sat());
         assert!(top.is_tautology());
     }
@@ -731,8 +731,8 @@ mod tests {
         domain.allocate_var("flag");
 
         let state_true = domain.mk_var_true("flag");
-        let top = ControlState::new(domain.manager.one, Rc::clone(&domain.manager));
-        let bottom = ControlState::new(domain.manager.zero, Rc::clone(&domain.manager));
+        let top = ControlState::new(domain.manager.one(), Rc::clone(&domain.manager));
+        let bottom = ControlState::new(domain.manager.zero(), Rc::clone(&domain.manager));
 
         // flag=true ⇒ ⊤
         assert!(domain.implies(&state_true, &top));
@@ -772,10 +772,10 @@ mod tests {
         let both = domain.and(&s1, &s2);
         assert!(both.has_solution());
 
-        let top = ControlState::new(domain.manager.one, Rc::clone(&domain.manager));
+        let top = ControlState::new(domain.manager.one(), Rc::clone(&domain.manager));
         assert!(top.has_solution());
 
-        let bottom = ControlState::new(domain.manager.zero, Rc::clone(&domain.manager));
+        let bottom = ControlState::new(domain.manager.zero(), Rc::clone(&domain.manager));
         assert!(!bottom.has_solution());
     }
 

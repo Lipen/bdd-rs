@@ -140,7 +140,7 @@ fn var(n: usize, row: usize, col: usize) -> u32 {
 /// Solves the N-Queens problem and returns the BDD representing all solutions.
 fn solve_queens(bdd: &Bdd, n: usize, gc: bool, verbose: bool) -> (Ref, Stats) {
     let mut stats = Stats::default();
-    let mut result = bdd.one;
+    let mut result = bdd.one();
 
     // Constraint 1: At least one queen per row
     println!("[1/5] At least one queen per row...");
@@ -192,11 +192,11 @@ fn solve_queens(bdd: &Bdd, n: usize, gc: bool, verbose: bool) -> (Ref, Stats) {
 
 /// At least one queen per row: `⋀_i (⋁_j x_{i,j})`
 fn at_least_one_queen_per_row(bdd: &Bdd, n: usize, verbose: bool) -> Ref {
-    let mut result = bdd.one;
+    let mut result = bdd.one();
 
     for row in 0..n {
         // Build disjunction: `x_{row,0} ∨ x_{row,1} ∨ ... ∨ x_{row,n-1}`
-        let mut row_clause = bdd.zero;
+        let mut row_clause = bdd.zero();
         for col in 0..n {
             let x = bdd.mk_var(var(n, row, col));
             row_clause = bdd.apply_or(row_clause, x);
@@ -213,7 +213,7 @@ fn at_least_one_queen_per_row(bdd: &Bdd, n: usize, verbose: bool) -> Ref {
 /// At most one queen per row/column.
 /// For each line: `⋀_{x ∈ line} (x → ¬(⋁_{y ∈ line, y≠x} y))`
 fn at_most_one_queen_per_line(bdd: &Bdd, n: usize, is_row: bool, gc: bool, current: &Ref, verbose: bool) -> Ref {
-    let mut result = bdd.one;
+    let mut result = bdd.one();
     let kind = if is_row { "Row" } else { "Col" };
 
     for i in 0..n {
@@ -238,7 +238,7 @@ fn at_most_one_queen_per_line(bdd: &Bdd, n: usize, is_row: bool, gc: bool, curre
 /// At most one queen per diagonal.
 /// `slash=true` for anti-diagonals (`/`), `slash=false` for diagonals (`\`).
 fn at_most_one_queen_per_diagonal(bdd: &Bdd, n: usize, slash: bool, gc: bool, current: &Ref, verbose: bool) -> Ref {
-    let mut result = bdd.one;
+    let mut result = bdd.one();
 
     let (a, b) = if slash { (-(n as i32), n as i32) } else { (0, 2 * n as i32) };
     let total_diags = (b - a) as usize;
@@ -290,16 +290,16 @@ fn at_most_one_queen_per_diagonal(bdd: &Bdd, n: usize, slash: bool, gc: bool, cu
 /// For each `x`: `x → ¬(⋁_{y≠x} y)`, which is equivalent to `¬x ∨ ¬(⋁_{y≠x} y)`.
 fn encode_at_most_one(bdd: &Bdd, vars: &[u32]) -> Ref {
     if vars.len() <= 1 {
-        return bdd.one;
+        return bdd.one();
     }
 
-    let mut result = bdd.one;
+    let mut result = bdd.one();
 
     for (idx, &x_var) in vars.iter().enumerate() {
         let x = bdd.mk_var(x_var);
 
         // Build disjunction of all other variables
-        let mut others = bdd.zero;
+        let mut others = bdd.zero();
         for (other_idx, &y_var) in vars.iter().enumerate() {
             if other_idx != idx {
                 let y = bdd.mk_var(y_var);

@@ -161,7 +161,7 @@ impl Bdd {
     /// let swapped = bdd.swap_variables_shannon(f, Var::new(1), Var::new(2));
     ///
     /// // The function is semantically unchanged (conjunction is commutative)
-    /// assert_eq!(bdd.apply_xor(f, swapped), bdd.zero);
+    /// assert_eq!(bdd.apply_xor(f, swapped), bdd.zero());
     /// ```
     pub fn swap_variables_shannon(&self, f: Ref, var_x: Var, var_y: Var) -> Ref {
         if var_x == var_y {
@@ -445,7 +445,7 @@ impl Bdd {
     /// This efficiently counts the total number of unique nodes reachable
     /// from the given set of roots, avoiding double-counting shared nodes.
     /// This matches the behavior of `size()` - counting unique node indices
-    /// including the ONE terminal but not counting separate visits.
+    /// including the terminal but not counting separate visits.
     ///
     /// # Arguments
     ///
@@ -453,29 +453,26 @@ impl Bdd {
     ///
     /// # Returns
     ///
-    /// The total number of unique nodes (including ONE terminal)
+    /// The total number of unique nodes (including terminal)
     pub fn count_nodes(&self, roots: &[Ref]) -> usize {
         let mut visited = HashSet::new();
-        visited.insert(self.one.id());
+        visited.insert(NodeId::TERMINAL);
 
-        for &root in roots {
-            let mut stack = vec![root.id()];
+        let mut stack = roots.iter().map(|r| r.id()).collect::<Vec<_>>();
 
-            while let Some(idx) = stack.pop() {
-                if visited.insert(idx) {
-                    let node_ref = Ref::positive(idx);
-                    if self.is_terminal(node_ref) {
-                        continue;
-                    }
-                    let low = self.low_node(node_ref);
-                    let high = self.high_node(node_ref);
-                    if !self.is_terminal(low) {
-                        stack.push(low.id());
-                    }
-                    if !self.is_terminal(high) {
-                        stack.push(high.id());
-                    }
-                }
+        while let Some(id) = stack.pop() {
+            if !visited.insert(id) {
+                continue;
+            }
+
+            let node = self.node(id);
+            let low_id = node.low.id();
+            let high_id = node.high.id();
+            if !low_id.is_terminal() {
+                stack.push(low_id);
+            }
+            if !high_id.is_terminal() {
+                stack.push(high_id);
             }
         }
 
@@ -493,20 +490,28 @@ impl Bdd {
     /// A vector of variables that appear in the BDD, sorted by their level in the ordering
     pub fn support_variables(&self, root: Ref) -> Vec<Var> {
         let mut vars = HashSet::new();
-        let mut stack = vec![root];
-        let mut visited = HashSet::new();
 
-        while let Some(node_ref) = stack.pop() {
-            if visited.contains(&node_ref) || self.is_terminal(node_ref) {
+        let mut visited = HashSet::new();
+        visited.insert(NodeId::TERMINAL);
+
+        let mut stack = vec![root.id()];
+
+        while let Some(id) = stack.pop() {
+            if !visited.insert(id) {
                 continue;
             }
-            visited.insert(node_ref);
 
-            let node = self.node(node_ref.id());
+            let node = self.node(id);
             vars.insert(node.variable);
 
-            stack.push(node.low);
-            stack.push(node.high);
+            let low_id = node.low.id();
+            let high_id = node.high.id();
+            if !low_id.is_terminal() {
+                stack.push(low_id);
+            }
+            if !high_id.is_terminal() {
+                stack.push(high_id);
+            }
         }
 
         let mut result: Vec<Var> = vars.into_iter().collect();
@@ -521,10 +526,7 @@ impl Bdd {
     ///
     /// Note: "maximum" refers to the variable closest to the terminals (highest level).
     pub fn max_variable(&self, root: Ref) -> Option<Var> {
-        self.support_variables(root)
-            .into_iter()
-            // .max_by_key(|v| self.get_level(*v).unwrap())
-            .max_by_key(|v| self.get_level(*v).map(|l| l.index()).unwrap_or(0))
+        self.support_variables(root).into_iter().max_by_key(|v| self.get_level(*v).unwrap())
     }
 
     /// Count how many nodes use each variable.
@@ -541,33 +543,27 @@ impl Bdd {
     /// A map from variable to the number of nodes using that variable
     pub fn variable_usage_counts(&self, roots: &[Ref]) -> HashMap<Var, usize> {
         let mut counts: HashMap<Var, usize> = HashMap::new();
+
         let mut visited = HashSet::new();
-        let mut stack = Vec::new();
+        visited.insert(NodeId::TERMINAL);
 
-        // Add all roots
-        for &root in roots {
-            if !visited.contains(&root) {
-                stack.push(root);
-                visited.insert(root);
-            }
-        }
+        let mut stack = roots.iter().map(|r| r.id()).collect::<Vec<_>>();
 
-        while let Some(node_ref) = stack.pop() {
-            if self.is_terminal(node_ref) {
+        while let Some(id) = stack.pop() {
+            if !visited.insert(id) {
                 continue;
             }
 
-            let node = self.node(node_ref.id());
+            let node = self.node(id);
             *counts.entry(node.variable).or_insert(0) += 1;
 
-            if !visited.contains(&node.low) {
-                stack.push(node.low);
-                visited.insert(node.low);
+            let low_id = node.low.id();
+            if !low_id.is_terminal() {
+                stack.push(low_id);
             }
-
-            if !visited.contains(&node.high) {
-                stack.push(node.high);
-                visited.insert(node.high);
+            let high_id = node.high.id();
+            if !high_id.is_terminal() {
+                stack.push(high_id);
             }
         }
 

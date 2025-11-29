@@ -148,10 +148,10 @@ use crate::utils::OpKey;
 /// ...
 /// ```
 ///
-/// # Fields
+/// # Methods
 ///
-/// - `zero`: The constant false terminal (index 1, negated)
-/// - `one`: The constant true terminal (index 1, positive)
+/// - `zero()`: Returns the constant false terminal (index 0, negated)
+/// - `one()`: Returns the constant true terminal (index 0, positive)
 ///
 /// # Thread Safety
 ///
@@ -177,8 +177,6 @@ pub struct Bdd {
     free_set: RefCell<HashSet<NodeId>>,
     cache: RefCell<Cache<OpKey, Ref>>,
     size_cache: RefCell<Cache<Ref, u64>>,
-    pub zero: Ref,
-    pub one: Ref,
     var_order: RefCell<Vec<Var>>,            // level -> variable
     level_map: RefCell<HashMap<Var, Level>>, // variable -> level
     subtables: RefCell<Vec<Subtable>>,       // level -> subtable
@@ -226,18 +224,11 @@ impl Bdd {
         let mut nodes = Vec::with_capacity(capacity);
         nodes.push(Node::new(Var::ZERO, Ref::INVALID, Ref::INVALID));
 
-        // "one" is @0 (positive reference to terminal)
-        // "zero" is ~@0 (negated reference to terminal)
-        let one = Ref::positive(0);
-        let zero = -one;
-
         Self {
             nodes: RefCell::new(nodes),
             free_set: RefCell::new(HashSet::new()),
             cache: RefCell::new(Cache::new(cache_bits)),
             size_cache: RefCell::new(Cache::new(cache_bits)),
-            zero,
-            one,
             var_order: RefCell::new(Vec::new()),
             level_map: RefCell::new(HashMap::new()),
             subtables: RefCell::new(Vec::new()),
@@ -396,6 +387,42 @@ impl Bdd {
 // ============================================================================
 
 impl Bdd {
+    /// Returns the constant true BDD reference.
+    ///
+    /// This is the positive reference to the terminal node (index 0).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let one = bdd.one();
+    /// assert!(bdd.is_one(one));
+    /// ```
+    #[inline]
+    pub fn one(&self) -> Ref {
+        Ref::ONE
+    }
+
+    /// Returns the constant false BDD reference.
+    ///
+    /// This is the negated reference to the terminal node (index 0).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bdd_rs::bdd::Bdd;
+    ///
+    /// let bdd = Bdd::default();
+    /// let zero = bdd.zero();
+    /// assert!(bdd.is_zero(zero));
+    /// ```
+    #[inline]
+    pub fn zero(&self) -> Ref {
+        Ref::ZERO
+    }
+
     /// Checks if a BDD node represents the constant false.
     ///
     /// # Examples
@@ -404,15 +431,15 @@ impl Bdd {
     /// use bdd_rs::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
-    /// assert!(bdd.is_zero(bdd.zero));
-    /// assert!(!bdd.is_zero(bdd.one));
+    /// assert!(bdd.is_zero(bdd.zero()));
+    /// assert!(!bdd.is_zero(bdd.one()));
     ///
     /// let x = bdd.mk_var(1);
     /// let contradiction = bdd.apply_and(x, -x);
     /// assert!(bdd.is_zero(contradiction));
     /// ```
     pub fn is_zero(&self, node_ref: Ref) -> bool {
-        node_ref == self.zero
+        node_ref == self.zero()
     }
 
     /// Checks if a BDD node represents the constant true.
@@ -423,15 +450,15 @@ impl Bdd {
     /// use bdd_rs::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
-    /// assert!(bdd.is_one(bdd.one));
-    /// assert!(!bdd.is_one(bdd.zero));
+    /// assert!(bdd.is_one(bdd.one()));
+    /// assert!(!bdd.is_one(bdd.zero()));
     ///
     /// let x = bdd.mk_var(1);
     /// let tautology = bdd.apply_or(x, -x);
     /// assert!(bdd.is_one(tautology));
     /// ```
     pub fn is_one(&self, node_ref: Ref) -> bool {
-        node_ref == self.one
+        node_ref == self.one()
     }
 
     /// Checks if a BDD node is a terminal (constant) node.
@@ -444,8 +471,8 @@ impl Bdd {
     /// use bdd_rs::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
-    /// assert!(bdd.is_terminal(bdd.zero));
-    /// assert!(bdd.is_terminal(bdd.one));
+    /// assert!(bdd.is_terminal(bdd.zero()));
+    /// assert!(bdd.is_terminal(bdd.one()));
     ///
     /// let x = bdd.mk_var(1);
     /// assert!(!bdd.is_terminal(x));
@@ -623,7 +650,7 @@ impl Bdd {
 impl Bdd {
     /// Returns the constant false BDD.
     ///
-    /// This is a convenience method equivalent to accessing `bdd.zero` directly.
+    /// This is a convenience method equivalent to calling `bdd.zero()`.
     ///
     /// # Examples
     ///
@@ -633,15 +660,15 @@ impl Bdd {
     /// let bdd = Bdd::default();
     /// let f = bdd.mk_false();
     /// assert!(bdd.is_zero(f));
-    /// assert_eq!(f, bdd.zero);
+    /// assert_eq!(f, bdd.zero());
     /// ```
     pub fn mk_false(&self) -> Ref {
-        self.zero
+        self.zero()
     }
 
     /// Returns the constant true BDD.
     ///
-    /// This is a convenience method equivalent to accessing `bdd.one` directly.
+    /// This is a convenience method equivalent to calling `bdd.one()`.
     ///
     /// # Examples
     ///
@@ -651,10 +678,10 @@ impl Bdd {
     /// let bdd = Bdd::default();
     /// let t = bdd.mk_true();
     /// assert!(bdd.is_one(t));
-    /// assert_eq!(t, bdd.one);
+    /// assert_eq!(t, bdd.one());
     /// ```
     pub fn mk_true(&self) -> Ref {
-        self.one
+        self.one()
     }
 
     /// Creates or retrieves a BDD node with the given variable and children.
@@ -788,7 +815,7 @@ impl Bdd {
         // Register variable in ordering
         self.register_variable(v.id());
 
-        self.mk_node(v, self.zero, self.one)
+        self.mk_node(v, self.zero(), self.one())
     }
 
     /// Creates a BDD representing a conjunction (AND) of literals.
@@ -839,13 +866,13 @@ impl Bdd {
 
         // Now reverse and build bottom-up
         literals.reverse();
-        let mut current = self.one;
+        let mut current = self.one();
         for lit in literals {
             let var = lit.var();
             current = if lit.is_negative() {
-                self.mk_node(var, current, self.zero)
+                self.mk_node(var, current, self.zero())
             } else {
-                self.mk_node(var, self.zero, current)
+                self.mk_node(var, self.zero(), current)
             };
         }
         current
@@ -899,13 +926,13 @@ impl Bdd {
 
         // Now reverse and build bottom-up
         literals.reverse();
-        let mut current = self.zero;
+        let mut current = self.zero();
         for lit in literals {
             let var = lit.var();
             current = if lit.is_negative() {
-                self.mk_node(var, self.one, current)
+                self.mk_node(var, self.one(), current)
             } else {
-                self.mk_node(var, current, self.one)
+                self.mk_node(var, current, self.one())
             };
         }
         current
@@ -949,7 +976,7 @@ impl Bdd {
     ///
     /// // Cofactors with respect to x
     /// let (f0, f1) = bdd.top_cofactors(f, Var::new(1));
-    /// assert_eq!(f0, bdd.zero);  // x=false: false AND y = false
+    /// assert_eq!(f0, bdd.zero());  // x=false: false AND y = false
     /// assert_eq!(f1, y);         // x=true: true AND y = y
     /// ```
     pub fn top_cofactors(&self, node_ref: Ref, v: Var) -> (Ref, Ref) {
@@ -1036,15 +1063,15 @@ impl Bdd {
         }
         if self.is_one(g) && h == -f {
             debug!("ite(F,1,~F) => 1");
-            return self.one;
+            return self.one();
         }
         if g == f && self.is_one(h) {
             debug!("ite(F,F,1) => 1");
-            return self.one;
+            return self.one();
         }
         if g == -f && self.is_zero(h) {
             debug!("ite(F,~F,0) => 0");
-            return self.zero;
+            return self.zero();
         }
         if self.is_zero(g) && h == f {
             debug!("ite(F,0,F) => F");
@@ -1058,19 +1085,19 @@ impl Bdd {
         //   ite(F,G,~F) => ite(F,G,1)
         if g == f {
             debug!("ite(F,F,H) => ite(F,1,H)");
-            return self.apply_ite(f, self.one, h);
+            return self.apply_ite(f, self.one(), h);
         }
         if h == f {
             debug!("ite(F,G,F) => ite(F,G,0)");
-            return self.apply_ite(f, g, self.zero);
+            return self.apply_ite(f, g, self.zero());
         }
         if g == -f {
             debug!("ite(F,~F,H) => ite(F,0,H)");
-            return self.apply_ite(f, self.zero, h);
+            return self.apply_ite(f, self.zero(), h);
         }
         if h == -f {
             debug!("ite(F,G,~F) => ite(F,G,1)");
-            return self.apply_ite(f, g, self.one);
+            return self.apply_ite(f, g, self.one());
         }
 
         let i = self.variable(f.id());
@@ -1088,22 +1115,22 @@ impl Bdd {
         if self.is_one(g) && self.var_precedes(k, i) {
             assert!(!k.is_terminal());
             debug!("ite(F,1,H) => ite(H,1,F)");
-            return self.apply_ite(h, self.one, f);
+            return self.apply_ite(h, self.one(), f);
         }
         if self.is_zero(h) && self.var_precedes(j, i) {
             assert!(!j.is_terminal());
             debug!("ite(F,G,0) => ite(G,F,0)");
-            return self.apply_ite(g, f, self.zero);
+            return self.apply_ite(g, f, self.zero());
         }
         if self.is_one(h) && self.var_precedes(j, i) {
             assert!(!j.is_terminal());
             debug!("ite(F,G,1) => ite(~G,~F,1)");
-            return self.apply_ite(-g, -f, self.one);
+            return self.apply_ite(-g, -f, self.one());
         }
         if self.is_zero(g) && self.var_precedes(k, i) {
             assert!(!k.is_terminal());
             debug!("ite(F,0,H) => ite(~H,0,~F)");
-            return self.apply_ite(-h, self.zero, -f);
+            return self.apply_ite(-h, self.zero(), -f);
         }
         if g == -h && self.var_precedes(j, i) {
             assert!(!j.is_terminal());
@@ -1309,7 +1336,7 @@ impl Bdd {
     /// as it can short-circuit when the result is determined.
     pub fn is_implies(&self, f: Ref, g: Ref) -> bool {
         debug!("is_implies(f = {}, g = {})", f, g);
-        self.ite_constant(f, g, self.one) == Some(true)
+        self.ite_constant(f, g, self.one()) == Some(true)
     }
 
     /// Returns the negation of a BDD in O(1) time.
@@ -1356,12 +1383,12 @@ impl Bdd {
     /// assert_eq!(bdd.apply_and(x, y), bdd.apply_and(y, x));
     ///
     /// // AND with constants
-    /// assert_eq!(bdd.apply_and(x, bdd.one), x);
-    /// assert!(bdd.is_zero(bdd.apply_and(x, bdd.zero)));
+    /// assert_eq!(bdd.apply_and(x, bdd.one()), x);
+    /// assert!(bdd.is_zero(bdd.apply_and(x, bdd.zero())));
     /// ```
     pub fn apply_and(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_and(u = {}, v = {})", u, v);
-        self.apply_ite(u, v, self.zero)
+        self.apply_ite(u, v, self.zero())
     }
 
     /// Computes the disjunction (OR) of two BDDs: `u ∨ v`.
@@ -1383,12 +1410,12 @@ impl Bdd {
     /// assert_eq!(bdd.apply_or(x, y), bdd.apply_or(y, x));
     ///
     /// // OR with constants
-    /// assert_eq!(bdd.apply_or(x, bdd.zero), x);
-    /// assert!(bdd.is_one(bdd.apply_or(x, bdd.one)));
+    /// assert_eq!(bdd.apply_or(x, bdd.zero()), x);
+    /// assert!(bdd.is_one(bdd.apply_or(x, bdd.one())));
     /// ```
     pub fn apply_or(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_or(u = {}, v = {})", u, v);
-        self.apply_ite(u, self.one, v)
+        self.apply_ite(u, self.one(), v)
     }
 
     /// Computes the exclusive OR (XOR) of two BDDs: `u ⊕ v`.
@@ -1477,7 +1504,7 @@ impl Bdd {
     /// ```
     pub fn apply_imply(&self, u: Ref, v: Ref) -> Ref {
         debug!("apply_imply(u = {}, v = {})", u, v);
-        self.apply_ite(u, v, self.one)
+        self.apply_ite(u, v, self.one())
     }
 
     /// Computes the conjunction (AND) of multiple BDDs.
@@ -1506,7 +1533,7 @@ impl Bdd {
     /// ```
     pub fn apply_and_many(&self, nodes: impl IntoIterator<Item = Ref>) -> Ref {
         debug!("apply_and_many(...)");
-        let mut res = self.one;
+        let mut res = self.one();
         for node_ref in nodes.into_iter() {
             res = self.apply_and(res, node_ref);
         }
@@ -1539,7 +1566,7 @@ impl Bdd {
     /// ```
     pub fn apply_or_many(&self, nodes: impl IntoIterator<Item = Ref>) -> Ref {
         debug!("apply_or_many(...)");
-        let mut res = self.zero;
+        let mut res = self.zero();
         for node_ref in nodes.into_iter() {
             res = self.apply_or(res, node_ref);
         }
@@ -1651,7 +1678,7 @@ impl Bdd {
     /// values.insert(Var::new(2), false); // y = false
     ///
     /// let result = bdd.substitute_multi(f, &values);
-    /// assert_eq!(result, bdd.zero); // true AND false = false
+    /// assert_eq!(result, bdd.zero()); // true AND false = false
     /// ```
     pub fn substitute_multi(&self, f: Ref, values: &HashMap<Var, bool>) -> Ref {
         let mut cache = HashMap::new();
@@ -1715,11 +1742,11 @@ impl Bdd {
     ///
     /// // Cofactor with respect to x=true, y=false (using DIMACS-style integers)
     /// let result = bdd.cofactor_cube(f, [1, -2]);
-    /// assert_eq!(result, bdd.one); // true OR false = true
+    /// assert_eq!(result, bdd.one()); // true OR false = true
     ///
     /// // Or using Lit type directly
     /// let result = bdd.cofactor_cube(f, [Var::new(1).pos(), Var::new(2).neg()]);
-    /// assert_eq!(result, bdd.one);
+    /// assert_eq!(result, bdd.one());
     /// ```
     pub fn cofactor_cube(&self, f: Ref, cube: impl IntoIterator<Item = impl Into<Lit>>) -> Ref {
         // Filter out variables not in the ordering and sort by level
@@ -1919,13 +1946,13 @@ impl Bdd {
     /// let f = bdd.mk_var(2);
     ///
     /// // f|1 = f
-    /// assert_eq!(bdd.constrain(f, bdd.one), f);
+    /// assert_eq!(bdd.constrain(f, bdd.one()), f);
     ///
     /// // f|0 = 0
-    /// assert_eq!(bdd.constrain(f, bdd.zero), bdd.zero);
+    /// assert_eq!(bdd.constrain(f, bdd.zero()), bdd.zero());
     ///
     /// // f|f = 1
-    /// assert_eq!(bdd.constrain(x, x), bdd.one);
+    /// assert_eq!(bdd.constrain(x, x), bdd.one());
     ///
     /// // Example 2: Simplification
     /// // f = x1*x3 + ~x1*(x2^x3)
@@ -1953,7 +1980,7 @@ impl Bdd {
 
         if self.is_zero(g) {
             debug!("g is zero => f|g = 0");
-            return self.zero;
+            return self.zero();
         }
         if self.is_one(g) {
             debug!("g is one => f|g = f");
@@ -1965,11 +1992,11 @@ impl Bdd {
         }
         if f == g {
             debug!("f = g => f|g = 1");
-            return self.one;
+            return self.one();
         }
         if f == -g {
             debug!("f = ~g => f|g = 0");
-            return self.zero;
+            return self.zero();
         }
 
         let key = OpKey::Constrain(f, g);
@@ -2049,23 +2076,23 @@ impl Bdd {
     ///
     /// // Restrict f by setting x = true
     /// let result = bdd.restrict(f, x);
-    /// assert_eq!(result, bdd.one); // (true OR y) = true
+    /// assert_eq!(result, bdd.one()); // (true OR y) = true
     /// ```
     pub fn restrict(&self, f: Ref, g: Ref) -> Ref {
         debug!("restrict(f = {}, g = {})", f, g);
 
         if self.is_zero(g) {
             log::warn!("g is zero => f|g = 0");
-            return self.zero;
+            return self.zero();
         }
         if self.is_one(g) || self.is_terminal(f) {
             return f;
         }
         if f == g {
-            return self.one;
+            return self.one();
         }
         if f == -g {
-            return self.zero;
+            return self.zero();
         }
 
         let key = OpKey::Restrict(f, g);
@@ -2093,7 +2120,7 @@ impl Bdd {
             let high = self.restrict(f1, g1);
             self.mk_node(v, low, high)
         } else {
-            self.restrict(f, self.apply_ite(g1, self.one, g0))
+            self.restrict(f, self.apply_ite(g1, self.one(), g0))
         };
         self.cache_mut().insert(key, res);
         res
@@ -2299,7 +2326,7 @@ impl Bdd {
     ///
     /// // Quantify out both: ∃x,y.(x ∧ y) = true (using Var)
     /// let result = bdd.exists(f, [Var::new(1), Var::new(2)]);
-    /// assert_eq!(result, bdd.one);
+    /// assert_eq!(result, bdd.one());
     /// ```
     ///
     /// # Performance
@@ -2410,7 +2437,7 @@ impl Bdd {
     ///
     /// // Quantify out both: ∀x,y.(x ∨ y) = false
     /// let result = bdd.forall(f, [1, 2]);
-    /// assert_eq!(result, bdd.zero);
+    /// assert_eq!(result, bdd.zero());
     /// ```
     pub fn forall(&self, f: Ref, vars: impl IntoIterator<Item = impl Into<Var>>) -> Ref {
         let vars: Vec<Var> = vars.into_iter().map(|v| v.into()).collect();
@@ -2492,10 +2519,10 @@ impl Bdd {
 
         // Terminal cases
         if self.is_zero(u) || self.is_zero(v) {
-            return self.zero;
+            return self.zero();
         }
         if self.is_one(u) && self.is_one(v) {
-            return self.one;
+            return self.one();
         }
         if self.is_one(u) {
             return self.exists_(v, vars, var_idx, &mut Cache::new(16));
@@ -2599,7 +2626,7 @@ impl Bdd {
     /// ```
     pub fn descendants(&self, nodes: impl IntoIterator<Item = Ref>) -> HashSet<NodeId> {
         let mut visited = HashSet::new();
-        visited.insert(self.one.id());
+        visited.insert(self.one().id());
         let mut stack = Vec::from_iter(nodes.into_iter().map(|node_ref| node_ref.id()));
 
         while let Some(i) = stack.pop() {
@@ -2640,7 +2667,7 @@ impl Bdd {
     /// assert_eq!(bdd.size(and), 3);
     ///
     /// // Tautology (just the terminal)
-    /// assert_eq!(bdd.size(bdd.one), 1);
+    /// assert_eq!(bdd.size(bdd.one()), 1);
     /// ```
     pub fn size(&self, node_ref: Ref) -> u64 {
         debug!("size(f = {})", node_ref);
@@ -3059,8 +3086,8 @@ mod tests {
         let x = bdd.mk_var(1);
 
         assert_eq!(bdd.variable(x.id()), Var::new(1));
-        assert_eq!(bdd.high_node(x), bdd.one);
-        assert_eq!(bdd.low_node(x), bdd.zero);
+        assert_eq!(bdd.high_node(x), bdd.one());
+        assert_eq!(bdd.low_node(x), bdd.zero());
     }
 
     #[test]
@@ -3071,30 +3098,30 @@ mod tests {
         let not_x = -x;
 
         assert_eq!(bdd.variable(not_x.id()), Var::new(1));
-        assert_eq!(bdd.high_node(not_x), bdd.zero);
-        assert_eq!(bdd.low_node(not_x), bdd.one);
+        assert_eq!(bdd.high_node(not_x), bdd.zero());
+        assert_eq!(bdd.low_node(not_x), bdd.one());
     }
 
     #[test]
     fn test_terminal() {
         let bdd = Bdd::default();
 
-        assert_eq!(bdd.is_terminal(bdd.zero), true);
-        assert_eq!(bdd.is_zero(bdd.zero), true);
-        assert_eq!(bdd.is_one(bdd.zero), false);
+        assert_eq!(bdd.is_terminal(bdd.zero()), true);
+        assert_eq!(bdd.is_zero(bdd.zero()), true);
+        assert_eq!(bdd.is_one(bdd.zero()), false);
 
-        assert_eq!(bdd.is_terminal(bdd.one), true);
-        assert_eq!(bdd.is_zero(bdd.one), false);
-        assert_eq!(bdd.is_one(bdd.one), true);
+        assert_eq!(bdd.is_terminal(bdd.one()), true);
+        assert_eq!(bdd.is_zero(bdd.one()), false);
+        assert_eq!(bdd.is_one(bdd.one()), true);
 
         // Terminal node has variable 0 and invalid children (terminals have no children)
-        assert_eq!(bdd.variable(bdd.zero.id()), Var::ZERO);
-        assert_eq!(bdd.low(bdd.zero.id()).id(), NodeId::INVALID);
-        assert_eq!(bdd.high(bdd.zero.id()).id(), NodeId::INVALID);
+        assert_eq!(bdd.variable(bdd.zero().id()), Var::ZERO);
+        assert_eq!(bdd.low(bdd.zero().id()).id(), NodeId::INVALID);
+        assert_eq!(bdd.high(bdd.zero().id()).id(), NodeId::INVALID);
 
-        assert_eq!(bdd.variable(bdd.one.id()), Var::ZERO);
-        assert_eq!(bdd.low(bdd.one.id()).id(), NodeId::INVALID);
-        assert_eq!(bdd.high(bdd.one.id()).id(), NodeId::INVALID);
+        assert_eq!(bdd.variable(bdd.one().id()), Var::ZERO);
+        assert_eq!(bdd.low(bdd.one().id()).id(), NodeId::INVALID);
+        assert_eq!(bdd.high(bdd.one().id()).id(), NodeId::INVALID);
     }
 
     #[test]
@@ -3164,7 +3191,7 @@ mod tests {
         let f = bdd.apply_and(x, y);
 
         let res = bdd.apply_xor(f, f);
-        assert_eq!(res, bdd.zero);
+        assert_eq!(res, bdd.zero());
     }
 
     #[test]
@@ -3176,7 +3203,7 @@ mod tests {
         let f = bdd.apply_and(x, y);
 
         let res = bdd.apply_xor(f, -f);
-        assert_eq!(res, bdd.one);
+        assert_eq!(res, bdd.one());
     }
 
     #[test]
@@ -3186,21 +3213,21 @@ mod tests {
         // Terminal cases
         let g = bdd.mk_var(2);
         let h = bdd.mk_var(3);
-        assert_eq!(bdd.apply_ite(bdd.one, g, h), g);
-        assert_eq!(bdd.apply_ite(bdd.zero, g, h), h);
+        assert_eq!(bdd.apply_ite(bdd.one(), g, h), g);
+        assert_eq!(bdd.apply_ite(bdd.zero(), g, h), h);
 
         // Functions
-        let f = bdd.mk_node(Var::new(4), bdd.one, h);
+        let f = bdd.mk_node(Var::new(4), bdd.one(), h);
         assert_eq!(bdd.apply_ite(f, f, h), bdd.apply_or(f, h));
         assert_eq!(bdd.apply_ite(f, g, f), bdd.apply_and(f, g));
-        assert_eq!(bdd.apply_ite(f, -g, bdd.one), -bdd.apply_and(f, g));
-        assert_eq!(bdd.apply_ite(f, bdd.zero, -h), -bdd.apply_or(f, h));
+        assert_eq!(bdd.apply_ite(f, -g, bdd.one()), -bdd.apply_and(f, g));
+        assert_eq!(bdd.apply_ite(f, bdd.zero(), -h), -bdd.apply_or(f, h));
 
         // Constants
         let f = bdd.mk_var(5);
         assert_eq!(bdd.apply_ite(f, g, g), g);
-        assert_eq!(bdd.apply_ite(f, bdd.one, bdd.zero), f);
-        assert_eq!(bdd.apply_ite(f, bdd.zero, bdd.one), -f);
+        assert_eq!(bdd.apply_ite(f, bdd.one(), bdd.zero()), f);
+        assert_eq!(bdd.apply_ite(f, bdd.zero(), bdd.one()), -f);
 
         // General case
         let f = bdd.mk_var(6);
@@ -3220,34 +3247,34 @@ mod tests {
         assert_eq!(bdd.cofactor_cube(f, [1]), bdd.mk_cube([2, 3]));
         assert_eq!(bdd.cofactor_cube(f, [2]), bdd.mk_cube([1, 3]));
         assert_eq!(bdd.cofactor_cube(f, [3]), bdd.mk_cube([1, 2]));
-        assert_eq!(bdd.cofactor_cube(f, [-1]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [-2]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [-3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [-1]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [-2]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [-3]), bdd.zero());
 
         assert_eq!(bdd.cofactor_cube(f, [1, 2]), bdd.mk_cube([3]));
         assert_eq!(bdd.cofactor_cube(f, [1, 3]), bdd.mk_cube([2]));
         assert_eq!(bdd.cofactor_cube(f, [2, 3]), bdd.mk_cube([1]));
-        assert_eq!(bdd.cofactor_cube(f, [1, -2]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [1, -3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [2, -3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [-1, 2]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [-1, 3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [-2, 3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [1, -2]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [1, -3]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [2, -3]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [-1, 2]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [-1, 3]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [-2, 3]), bdd.zero());
 
-        assert_eq!(bdd.cofactor_cube(f, [1, 2, 3]), bdd.one);
-        assert_eq!(bdd.cofactor_cube(f, [1, 2, -3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [1, -2, 3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [1, -2, -3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [-1, 2, 3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [-1, 2, -3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [-1, -2, 3]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(f, [-1, -2, -3]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(f, [1, 2, 3]), bdd.one());
+        assert_eq!(bdd.cofactor_cube(f, [1, 2, -3]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [1, -2, 3]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [1, -2, -3]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [-1, 2, 3]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [-1, 2, -3]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [-1, -2, 3]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(f, [-1, -2, -3]), bdd.zero());
 
         assert_eq!(bdd.cofactor_cube(f, std::iter::empty::<i32>()), f);
-        assert_eq!(bdd.cofactor_cube(bdd.one, [1]), bdd.one);
-        assert_eq!(bdd.cofactor_cube(bdd.zero, [1]), bdd.zero);
-        assert_eq!(bdd.cofactor_cube(bdd.one, [-1]), bdd.one);
-        assert_eq!(bdd.cofactor_cube(bdd.zero, [-1]), bdd.zero);
+        assert_eq!(bdd.cofactor_cube(bdd.one(), [1]), bdd.one());
+        assert_eq!(bdd.cofactor_cube(bdd.zero(), [1]), bdd.zero());
+        assert_eq!(bdd.cofactor_cube(bdd.one(), [-1]), bdd.one());
+        assert_eq!(bdd.cofactor_cube(bdd.zero(), [-1]), bdd.zero());
     }
 
     impl Bdd {
@@ -3268,7 +3295,7 @@ mod tests {
         let bdd = Bdd::default();
         {
             let f = bdd.build_example();
-            let g = bdd.one;
+            let g = bdd.one();
             let result = bdd.constrain(f, g);
             assert_eq!(result, f); // When g is 1, the result should be f.
         }
@@ -3276,13 +3303,13 @@ mod tests {
             let f = bdd.build_example();
             let g = f;
             let result = bdd.constrain(f, g);
-            assert_eq!(result, bdd.one); // When g is f, the result should be 1.
+            assert_eq!(result, bdd.one()); // When g is f, the result should be 1.
         }
         {
-            let f = bdd.zero;
+            let f = bdd.zero();
             let g = bdd.build_example();
             let result = bdd.constrain(f, g);
-            assert_eq!(result, bdd.zero); // When f is 0, the result should be 0.
+            assert_eq!(result, bdd.zero()); // When f is 0, the result should be 0.
         }
     }
 
@@ -3296,11 +3323,11 @@ mod tests {
         bdd.mk_var(2);
         bdd.mk_var(3);
 
-        let s = bdd.mk_node(Var::new(3), -bdd.one, bdd.one);
+        let s = bdd.mk_node(Var::new(3), -bdd.one(), bdd.one());
         let p = bdd.mk_node(Var::new(2), -s, s);
-        let r = bdd.mk_node(Var::new(2), s, bdd.one);
-        let q = bdd.mk_node(Var::new(2), -s, bdd.one);
-        let t = bdd.mk_node(Var::new(2), -bdd.one, s);
+        let r = bdd.mk_node(Var::new(2), s, bdd.one());
+        let q = bdd.mk_node(Var::new(2), -s, bdd.one());
+        let t = bdd.mk_node(Var::new(2), -bdd.one(), s);
 
         println!("s = {}", bdd.to_bracket_string(s));
         println!("p = {}", bdd.to_bracket_string(p));
@@ -3312,7 +3339,7 @@ mod tests {
         println!("f = {}", bdd.to_bracket_string(f));
         let g = bdd.mk_node(Var::new(1), -r, q);
         println!("g = {}", bdd.to_bracket_string(g));
-        let h = bdd.mk_node(Var::new(1), -bdd.one, t);
+        let h = bdd.mk_node(Var::new(1), -bdd.one(), t);
         println!("h = {}", bdd.to_bracket_string(h));
 
         let fg = bdd.constrain(f, g);
@@ -3362,11 +3389,11 @@ mod tests {
         let _y = bdd.mk_var(2);
         let z = bdd.mk_var(3);
 
-        let s = bdd.mk_node(Var::new(3), -bdd.one, bdd.one);
+        let s = bdd.mk_node(Var::new(3), -bdd.one(), bdd.one());
         let p = bdd.mk_node(Var::new(2), -s, s);
-        let r = bdd.mk_node(Var::new(2), s, bdd.one);
-        let q = bdd.mk_node(Var::new(2), -s, bdd.one);
-        let t = bdd.mk_node(Var::new(2), -bdd.one, s);
+        let r = bdd.mk_node(Var::new(2), s, bdd.one());
+        let q = bdd.mk_node(Var::new(2), -s, bdd.one());
+        let t = bdd.mk_node(Var::new(2), -bdd.one(), s);
 
         println!("s = {}", bdd.to_bracket_string(s));
         println!("p = {}", bdd.to_bracket_string(p));
@@ -3496,10 +3523,10 @@ mod tests {
         assert!(!bdd.is_implies(f, -x2));
         assert!(bdd.is_implies(f, bdd.apply_and(x1, x2)));
         assert!(bdd.is_implies(f, bdd.apply_or(x1, x2)));
-        assert!(bdd.is_implies(x1, bdd.one));
-        assert!(bdd.is_implies(x2, bdd.one));
-        assert!(bdd.is_implies(bdd.zero, x1));
-        assert!(bdd.is_implies(bdd.zero, x2));
+        assert!(bdd.is_implies(x1, bdd.one()));
+        assert!(bdd.is_implies(x2, bdd.one()));
+        assert!(bdd.is_implies(bdd.zero(), x1));
+        assert!(bdd.is_implies(bdd.zero(), x2));
         assert!(bdd.is_implies(x1, bdd.apply_or(x1, x2)));
         assert!(bdd.is_implies(x2, bdd.apply_or(x1, x2)));
     }
@@ -3589,7 +3616,7 @@ mod tests {
     fn test_all_paths_one() {
         let bdd = Bdd::default();
 
-        let f = bdd.one;
+        let f = bdd.one();
         println!("f = {} of size {}", f, bdd.size(f));
         let paths = bdd.paths(f).collect::<Vec<_>>();
         println!("paths: {}", paths.len());
@@ -3604,7 +3631,7 @@ mod tests {
     fn test_all_paths_zero() {
         let bdd = Bdd::default();
 
-        let f = bdd.zero;
+        let f = bdd.zero();
         println!("f = {} of size {}", f, bdd.size(f));
         let paths = bdd.paths(f).collect::<Vec<_>>();
         println!("paths: {}", paths.len());
@@ -3639,19 +3666,19 @@ mod tests {
         let bdd = Bdd::default();
 
         // Terminal zero (index 0) has no descendants except itself
-        let desc = bdd.descendants([bdd.zero]);
+        let desc = bdd.descendants([bdd.zero()]);
         println!("descendants of zero: {:?}", desc);
         assert_eq!(desc.len(), 1);
         assert!(desc.contains(&NodeId::TERMINAL));
 
         // Terminal one (index 0) has itself as descendant
-        let desc = bdd.descendants([bdd.one]);
+        let desc = bdd.descendants([bdd.one()]);
         println!("descendants of one: {:?}", desc);
         assert_eq!(desc.len(), 1);
         assert!(desc.contains(&NodeId::TERMINAL));
 
         // Both terminals together
-        let desc = bdd.descendants([bdd.zero, bdd.one]);
+        let desc = bdd.descendants([bdd.zero(), bdd.one()]);
         assert_eq!(desc.len(), 1);
         assert!(desc.contains(&NodeId::TERMINAL));
     }
@@ -3844,11 +3871,11 @@ mod tests {
     fn test_to_bracket_string_terminal() {
         let bdd = Bdd::default();
 
-        println!("zero = {}", bdd.to_bracket_string(bdd.zero));
-        assert_eq!(bdd.to_bracket_string(bdd.zero), "⊥");
+        println!("zero = {}", bdd.to_bracket_string(bdd.zero()));
+        assert_eq!(bdd.to_bracket_string(bdd.zero()), "⊥");
 
-        println!("one = {}", bdd.to_bracket_string(bdd.one));
-        assert_eq!(bdd.to_bracket_string(bdd.one), "⊤");
+        println!("one = {}", bdd.to_bracket_string(bdd.one()));
+        assert_eq!(bdd.to_bracket_string(bdd.one()), "⊤");
     }
 
     #[test]
@@ -3918,7 +3945,7 @@ mod tests {
         // ∃x1,x2,x3.(x1 ∧ x2 ∧ x3) = 1
         let result = bdd.exists(f, [1, 2, 3]);
         println!("∃x1,x2,x3.f = {}", bdd.to_bracket_string(result));
-        assert_eq!(result, bdd.one);
+        assert_eq!(result, bdd.one());
     }
 
     #[test]
@@ -3935,12 +3962,12 @@ mod tests {
         // ∃x1.(x1 ∨ x2) = 1
         let result = bdd.exists(f, [1]);
         println!("∃x1.f = {}", bdd.to_bracket_string(result));
-        assert_eq!(result, bdd.one);
+        assert_eq!(result, bdd.one());
 
         // ∃x2.(x1 ∨ x2) = 1
         let result = bdd.exists(f, [2]);
         println!("∃x2.f = {}", bdd.to_bracket_string(result));
-        assert_eq!(result, bdd.one);
+        assert_eq!(result, bdd.one());
     }
 
     #[test]
@@ -4009,7 +4036,7 @@ mod tests {
         // Quantify out x3, x1, x5, x2 (x3,x5 don't appear)
         let result = bdd.exists(f, [3, 1, 5, 2]);
         println!("∃x3,x1,x5,x2.f = {}", bdd.to_bracket_string(result));
-        assert_eq!(result, bdd.one, "Should handle unsorted mix correctly");
+        assert_eq!(result, bdd.one(), "Should handle unsorted mix correctly");
     }
 
     #[test]
@@ -4054,7 +4081,7 @@ mod tests {
         // ∀x1,x2,x3.(x1 ∨ x2 ∨ x3) = 0
         let result = bdd.forall(f, [1, 2, 3]);
         println!("∀x1,x2,x3.f = {}", bdd.to_bracket_string(result));
-        assert_eq!(result, bdd.zero);
+        assert_eq!(result, bdd.zero());
     }
 
     #[test]
@@ -4071,12 +4098,12 @@ mod tests {
         // ∀x1.(x1 ∧ x2) = 0
         let result = bdd.forall(f, [1]);
         println!("∀x1.f = {}", bdd.to_bracket_string(result));
-        assert_eq!(result, bdd.zero);
+        assert_eq!(result, bdd.zero());
 
         // ∀x2.(x1 ∧ x2) = 0
         let result = bdd.forall(f, [2]);
         println!("∀x2.f = {}", bdd.to_bracket_string(result));
-        assert_eq!(result, bdd.zero);
+        assert_eq!(result, bdd.zero());
     }
 
     #[test]
@@ -4150,15 +4177,15 @@ mod tests {
         let x = bdd.mk_var(1);
 
         // rel_product with zero should be zero
-        let result = bdd.rel_product(bdd.zero, x, [1]);
-        assert_eq!(result, bdd.zero);
+        let result = bdd.rel_product(bdd.zero(), x, [1]);
+        assert_eq!(result, bdd.zero());
 
-        let result = bdd.rel_product(x, bdd.zero, [1]);
-        assert_eq!(result, bdd.zero);
+        let result = bdd.rel_product(x, bdd.zero(), [1]);
+        assert_eq!(result, bdd.zero());
 
         // rel_product(1, 1, []) = 1
-        let result = bdd.rel_product(bdd.one, bdd.one, std::iter::empty::<Var>());
-        assert_eq!(result, bdd.one);
+        let result = bdd.rel_product(bdd.one(), bdd.one(), std::iter::empty::<Var>());
+        assert_eq!(result, bdd.one());
     }
 
     #[test]

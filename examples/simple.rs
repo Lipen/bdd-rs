@@ -15,8 +15,8 @@ fn main() -> color_eyre::Result<()> {
     let bdd = Bdd::default();
     println!("bdd = {:?}", bdd);
 
-    println!("zero = {}", bdd.zero);
-    println!("one = {}", bdd.one);
+    println!("zero = {}", bdd.zero());
+    println!("one = {}", bdd.one());
 
     let x1 = bdd.mk_var(1);
     println!("x1 = {}", x1);

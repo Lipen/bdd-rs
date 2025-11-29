@@ -76,13 +76,13 @@ mod tests {
     fn test_sat_count_terminal() {
         let bdd = Bdd::default();
 
-        assert_eq!(bdd.sat_count(bdd.zero, 1), 0.to_biguint().unwrap());
-        assert_eq!(bdd.sat_count(bdd.zero, 2), 0.to_biguint().unwrap());
-        assert_eq!(bdd.sat_count(bdd.zero, 3), 0.to_biguint().unwrap());
+        assert_eq!(bdd.sat_count(bdd.zero(), 1), 0.to_biguint().unwrap());
+        assert_eq!(bdd.sat_count(bdd.zero(), 2), 0.to_biguint().unwrap());
+        assert_eq!(bdd.sat_count(bdd.zero(), 3), 0.to_biguint().unwrap());
 
-        assert_eq!(bdd.sat_count(bdd.one, 1), 2.to_biguint().unwrap());
-        assert_eq!(bdd.sat_count(bdd.one, 2), 4.to_biguint().unwrap());
-        assert_eq!(bdd.sat_count(bdd.one, 3), 8.to_biguint().unwrap());
+        assert_eq!(bdd.sat_count(bdd.one(), 1), 2.to_biguint().unwrap());
+        assert_eq!(bdd.sat_count(bdd.one(), 2), 4.to_biguint().unwrap());
+        assert_eq!(bdd.sat_count(bdd.one(), 3), 8.to_biguint().unwrap());
     }
 
     #[test]

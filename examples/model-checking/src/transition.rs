@@ -316,7 +316,7 @@ impl TransitionSystem {
 
     /// Get all states (universe)
     pub fn all_states(&self) -> Ref {
-        self.bdd().one
+        self.bdd().one()
     }
 
     /// Create a transition relation constraint for a single variable assignment.

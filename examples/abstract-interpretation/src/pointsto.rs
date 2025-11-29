@@ -763,9 +763,9 @@ impl PointsToElement {
     /// Returns the zero BDD (empty set) if the variable is not tracked.
     pub fn get(&self, var: &str) -> Ref {
         if self.is_bottom {
-            return self.bdd.zero;
+            return self.bdd.zero();
         }
-        self.points_to.get(var).copied().unwrap_or(self.bdd.zero)
+        self.points_to.get(var).copied().unwrap_or(self.bdd.zero())
     }
 
     /// Set the points-to BDD for a variable.
@@ -906,10 +906,10 @@ impl PointsToDomain {
     /// Encode a set of locations as a BDD (disjunction).
     pub fn encode_location_set(&self, locs: &[Location]) -> Ref {
         if locs.is_empty() {
-            return self.bdd.zero;
+            return self.bdd.zero();
         }
 
-        let mut result = self.bdd.zero;
+        let mut result = self.bdd.zero();
         for loc in locs {
             let loc_bdd = self.encode_location(loc);
             result = self.bdd.apply_or(result, loc_bdd);
@@ -1076,7 +1076,7 @@ impl PointsToDomain {
         }
 
         // Union the points-to sets of all targets
-        let mut result_bdd = self.bdd.zero;
+        let mut result_bdd = self.bdd.zero();
         for target_loc in src_targets {
             // For simplicity, we track heap locations' contents
             // In a full implementation, we'd need a separate map for heap contents

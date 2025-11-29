@@ -82,7 +82,7 @@ impl SymbolicState {
             bdd: bdd as *const Bdd,
             var_map: VarMap::new(),
             store: HashMap::new(),
-            path_condition: bdd.one,
+            path_condition: bdd.one(),
             exception_value: None,
             input_symbolic_values: HashMap::new(),
         }
@@ -181,8 +181,8 @@ impl SymbolicState {
     /// Evaluate an expression to a BDD
     pub fn eval_expr(&mut self, expr: &Expr) -> Ref {
         match expr {
-            Expr::Lit(true) => self.bdd().one,
-            Expr::Lit(false) => self.bdd().zero,
+            Expr::Lit(true) => self.bdd().one(),
+            Expr::Lit(false) => self.bdd().zero(),
             Expr::Var(v) => {
                 // Get or create symbolic variable
                 if let Some(val) = self.get(v) {

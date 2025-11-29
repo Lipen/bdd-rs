@@ -155,10 +155,10 @@ impl CtlChecker {
         match formula {
             CtlFormula::Atom(p) => {
                 // Look up atomic proposition in the labeling function
-                self.ts.get_label(p).unwrap_or(self.bdd().zero)
+                self.ts.get_label(p).unwrap_or(self.bdd().zero())
             }
-            CtlFormula::True => self.bdd().one,
-            CtlFormula::False => self.bdd().zero,
+            CtlFormula::True => self.bdd().one(),
+            CtlFormula::False => self.bdd().zero(),
             CtlFormula::Not(phi) => {
                 let sat_phi = self.check(phi);
                 self.bdd().apply_not(sat_phi)

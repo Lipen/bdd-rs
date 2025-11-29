@@ -12,25 +12,40 @@ impl Ref {
     /// Uses maximum u32 value - we don't care about index/sign interpretation for sentinels.
     pub const INVALID: Self = Self(0xFFFF_FFFF);
 
+    /// Constant reference to the logical TRUE (1) node.
+    pub const ONE: Self = Self::positive(NodeId::TERMINAL);
+    /// Constant reference to the logical FALSE (0) node.
+    pub const ZERO: Self = Self::negative(NodeId::TERMINAL);
+
     /// Creates a new reference with the given node ID and negation flag.
-    pub fn new(id: impl Into<NodeId>, negated: bool) -> Self {
-        Self((id.into().raw() << 1) | (negated as u32))
+    pub const fn new(id: NodeId, negated: bool) -> Self {
+        Self((id.raw() << 1) | (negated as u32))
     }
 
     /// Creates a positive (non-negated) reference.
-    pub fn positive(id: impl Into<NodeId>) -> Self {
+    pub const fn positive(id: NodeId) -> Self {
         Self::new(id, false)
     }
 
     /// Creates a negative (negated) reference.
-    pub fn negative(id: impl Into<NodeId>) -> Self {
+    pub const fn negative(id: NodeId) -> Self {
         Self::new(id, true)
+    }
+
+    pub fn positive_from(id: impl Into<NodeId>) -> Self {
+        Self::new(id.into(), false)
+    }
+
+    pub fn negative_from(id: impl Into<NodeId>) -> Self {
+        Self::new(id.into(), true)
     }
 
     /// Returns the node ID this reference points to.
     #[inline]
     pub const fn id(self) -> NodeId {
-        // SAFETY: The index is always < 0x7FFF_FFFF due to the check in `new`
+        // SAFETY: The index is always < 0x7FFF_FFFF due to the check in `NodeId::new`.
+        // Note: Ref::INVALID (0xFFFF_FFFF) becomes NodeId::INVALID (0x7FFF_FFFF) here,
+        //       which is acceptable.
         unsafe { NodeId::from_raw_unchecked(self.0 >> 1) }
     }
 
