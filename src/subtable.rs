@@ -236,8 +236,8 @@ impl Subtable {
 
     /// Check if the subtable should be resized (load factor > threshold).
     pub fn should_resize(&self) -> bool {
-        // Resize when average chain length exceeds ~2
-        self.count > self.buckets.len() * 2
+        // Resize when average chain length exceeds ~5
+        self.count > self.buckets.len() * 5
     }
 
     /// Resize the subtable to have more buckets, then rehash all nodes.
