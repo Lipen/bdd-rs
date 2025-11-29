@@ -82,7 +82,7 @@ impl Subtable {
 
     /// Create a new subtable with specified bucket count (2^bits).
     pub fn with_bucket_bits(variable: Var, bits: usize) -> Self {
-        let num_buckets = 1usize << bits;
+        let num_buckets = 1 << bits;
         let bitmask = (num_buckets - 1) as u64;
         Self {
             variable,
@@ -107,7 +107,7 @@ impl Subtable {
         let mut current = self.buckets[bucket_idx];
 
         while current != Node::NO_NEXT {
-            let node = &nodes[current.index()];
+            let node = nodes[current.index()];
             if node.low == low && node.high == high {
                 return Some(current);
             }
@@ -131,7 +131,7 @@ impl Subtable {
     /// # Returns
     ///
     /// The previous head of the bucket (to be stored in `nodes[id].next`).
-    pub fn insert_raw(&mut self, low: Ref, high: Ref, id: NodeId) -> NodeId {
+    fn insert_raw(&mut self, low: Ref, high: Ref, id: NodeId) -> NodeId {
         let bucket_idx = self.bucket_index(low, high);
         let old_head = self.buckets[bucket_idx];
         self.buckets[bucket_idx] = id;
@@ -143,6 +143,14 @@ impl Subtable {
     pub fn insert(&mut self, low: Ref, high: Ref, id: NodeId, nodes: &mut [Node]) {
         let old_head = self.insert_raw(low, high, id);
         nodes[id.index()].next = old_head;
+    }
+
+    /// Insert with automatic resizing if load factor is too high.
+    pub fn insert_with_resize(&mut self, low: Ref, high: Ref, id: NodeId, nodes: &mut [Node]) {
+        if self.should_resize() {
+            self.resize(nodes);
+        }
+        self.insert(low, high, id, nodes);
     }
 
     /// Remove a node from the subtable.
@@ -219,6 +227,40 @@ impl Subtable {
     /// Get the number of buckets.
     pub fn num_buckets(&self) -> usize {
         self.buckets.len()
+    }
+
+    /// Get the current load factor (count / num_buckets).
+    pub fn load_factor(&self) -> f64 {
+        self.count as f64 / self.buckets.len() as f64
+    }
+
+    /// Check if the subtable should be resized (load factor > threshold).
+    pub fn should_resize(&self) -> bool {
+        // Resize when average chain length exceeds ~2
+        self.count > self.buckets.len() * 2
+    }
+
+    /// Resize the subtable to have more buckets, then rehash all nodes.
+    ///
+    /// This doubles the bucket count and rebuilds all collision chains.
+    pub fn resize(&mut self, nodes: &mut [Node]) {
+        let new_bits = (self.buckets.len().trailing_zeros() + 1) as usize;
+        let new_num_buckets = 1 << new_bits;
+        let new_bitmask = (new_num_buckets - 1) as u64;
+
+        // Collect all current node indices
+        let indices: Vec<NodeId> = self.indices(nodes).collect();
+
+        // Create new bucket array
+        self.buckets = vec![Node::NO_NEXT; new_num_buckets];
+        self.bitmask = new_bitmask;
+        self.count = 0;
+
+        // Re-insert all nodes
+        for id in indices {
+            let node = &nodes[id.index()];
+            self.insert(node.low, node.high, id, nodes);
+        }
     }
 }
 
@@ -363,5 +405,45 @@ mod tests {
         assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(0), &nodes), Some(NodeId::new(1)));
         assert_eq!(st.find(Ref::positive_from(1), Ref::positive_from(0), &nodes), Some(NodeId::new(2)));
         assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(2), &nodes), Some(NodeId::new(3)));
+    }
+
+    #[test]
+    fn test_subtable_resize() {
+        let mut nodes = make_test_nodes();
+        // Start with just 2 buckets
+        let mut st = Subtable::with_bucket_bits(Var::new(1), 1);
+        assert_eq!(st.num_buckets(), 2);
+
+        st.insert(-Ref::positive_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
+        st.insert(Ref::positive_from(1), Ref::positive_from(0), NodeId::new(2), &mut nodes);
+        st.insert(-Ref::positive_from(0), Ref::positive_from(2), NodeId::new(3), &mut nodes);
+
+        // With 3 nodes and 2 buckets, load factor is 1.5, should_resize should be false
+        // (threshold is count > buckets * 2, i.e., > 4)
+        assert!(!st.should_resize());
+
+        // Manually resize
+        st.resize(&mut nodes);
+        assert_eq!(st.num_buckets(), 4);
+        assert_eq!(st.len(), 3);
+
+        // All nodes should still be findable
+        assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(0), &nodes), Some(NodeId::new(1)));
+        assert_eq!(st.find(Ref::positive_from(1), Ref::positive_from(0), &nodes), Some(NodeId::new(2)));
+        assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(2), &nodes), Some(NodeId::new(3)));
+    }
+
+    #[test]
+    fn test_subtable_load_factor() {
+        let mut nodes = make_test_nodes();
+        let mut st = Subtable::with_bucket_bits(Var::new(1), 2); // 4 buckets
+
+        assert_eq!(st.load_factor(), 0.0);
+
+        st.insert(-Ref::positive_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
+        assert_eq!(st.load_factor(), 0.25);
+
+        st.insert(Ref::positive_from(1), Ref::positive_from(0), NodeId::new(2), &mut nodes);
+        assert_eq!(st.load_factor(), 0.5);
     }
 }
