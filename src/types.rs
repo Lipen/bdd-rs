@@ -178,13 +178,6 @@ impl From<u32> for Var {
     }
 }
 
-// Into<u32>
-impl From<Var> for u32 {
-    fn from(var: Var) -> Self {
-        var.0
-    }
-}
-
 /// A literal (possibly negated variable).
 ///
 /// Literals are represented efficiently using a single `u32` where:
@@ -353,12 +346,6 @@ impl Level {
 impl fmt::Display for Level {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "L{}", self.0)
-    }
-}
-
-impl From<Level> for usize {
-    fn from(level: Level) -> Self {
-        level.0
     }
 }
 
