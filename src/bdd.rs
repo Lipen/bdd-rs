@@ -12,12 +12,7 @@
 //! - [`Ref`] is a lightweight 32-bit handle to a node (index + complement flag)
 //! - Nodes are stored in a shared pool with per-level hash tables for uniqueness
 //!
-//! # Key Features
-//!
-//! - **Complement edges**: Negation is O(1), just flip a bit — no new nodes created
-//! - **Per-level subtables**: Efficient node lookup using intrusive hash tables
-//! - **Dynamic reordering**: Variables can be reordered to minimize BDD size
-//! - **Operation caching**: ITE results are memoized for performance
+//! See the [`Bdd`] struct documentation for a complete method reference.
 //!
 //! # Quick Start
 //!
@@ -40,63 +35,6 @@
 //! assert!(bdd.is_zero(bdd.apply_and(x, -x)));   // contradiction
 //! assert!(bdd.is_one(bdd.apply_or(x, -x)));     // tautology
 //! ```
-//!
-//! # Quantification
-//!
-//! ```
-//! use bdd_rs::bdd::Bdd;
-//! use bdd_rs::types::Var;
-//!
-//! let bdd = Bdd::default();
-//! let x = bdd.mk_var(1);
-//! let y = bdd.mk_var(2);
-//! let f = bdd.apply_and(x, y);
-//!
-//! // Existential: ∃x.(x ∧ y) = y
-//! let ex = bdd.exists(f, [Var::new(1)]);
-//! assert_eq!(ex, y);
-//!
-//! // Universal: ∀x.(x ∧ y) = ⊥
-//! let fa = bdd.forall(f, [Var::new(1)]);
-//! assert!(bdd.is_zero(fa));
-//! ```
-//!
-//! # Architecture
-//!
-//! ```text
-//!                              Bdd Manager
-//!  ┌────────────────────────────────────────────────────────────────┐
-//!  │  nodes: Vec<Node>     cache: Cache      var_order: Vec<Var>    │
-//!  │  ┌──────────────┐     ┌──────────┐      ┌──────────────────┐   │
-//!  │  │ [0] reserved │     │ ITE ops  │      │ level → variable │   │
-//!  │  │ [1] terminal │     │ memoized │      │ variable → level │   │
-//!  │  │ [2] node     │     └──────────┘      └──────────────────┘   │
-//!  │  │ ...          │                                              │
-//!  │  └──────────────┘     subtables: Vec<Subtable>                 │
-//!  │                       ┌─────────┐ ┌─────────┐ ┌─────────┐      │
-//!  │                       │ Level 0 │ │ Level 1 │ │ Level 2 │ ...  │
-//!  │                       │ buckets │ │ buckets │ │ buckets │      │
-//!  │                       └─────────┘ └─────────┘ └─────────┘      │
-//!  └────────────────────────────────────────────────────────────────┘
-//!                                    │
-//!                                    ▼
-//!                    Ref: 32-bit handle (31-bit index + 1-bit complement)
-//! ```
-//!
-//! # Node Structure
-//!
-//! Each node contains:
-//! - `variable`: The decision variable at this node
-//! - `low`: Child when variable is false (may be complemented)
-//! - `high`: Child when variable is true (never complemented)
-//! - `next`: Collision chain pointer for the hash table
-//!
-//! # Invariants
-//!
-//! - **Canonical form**: High edges are never complemented
-//! - **Reduced**: No node has `low == high` (would be redundant)
-//! - **Ordered**: Parent variable always precedes children in the ordering
-//! - **Unique**: No two nodes have the same (variable, low, high) triple
 
 use std::cell;
 use std::cell::{Cell, RefCell};
@@ -113,10 +51,6 @@ use crate::reference::Ref;
 use crate::subtable::Subtable;
 use crate::types::{Level, Lit, NodeId, Var};
 use crate::utils::OpKey;
-
-// ============================================================================
-// Bdd manager struct and constructors
-// ============================================================================
 
 /// The BDD manager: a shared multi-rooted graph with complement edges.
 ///
@@ -135,43 +69,208 @@ use crate::utils::OpKey;
 /// - **Reduction**: Redundant nodes are eliminated automatically
 /// - **Canonicity**: Each function has exactly one representation
 ///
-/// ## Architecture
+/// # Key Features
+///
+/// - **Complement edges**: Negation is O(1), just flip a bit — no new nodes created
+/// - **Per-level subtables**: Efficient node lookup using intrusive hash tables
+/// - **Dynamic reordering**: Variables can be reordered to minimize BDD size
+/// - **Operation caching**: ITE results are memoized for performance
+///
+/// # Architecture
 ///
 /// ```text
-/// nodes[0] = (unused, sentinel)
-/// nodes[1] = Terminal ONE node
-/// nodes[2] = First variable node
-/// ...
+///                                 Bdd Manager
+///  ┌─────────────────────────────────────────────────────────────────┐
+///  │                                                                 │
+///  │  nodes: Vec<Node>         cache: Cache      size_cache: Cache   │
+///  │  ┌────────────────┐       ┌────────────┐    ┌────────────┐      │
+///  │  │ [0] terminal   │◄──┐   │  ITE ops   │    │  size(f)   │      │
+///  │  │ [1] node       │   │   │  memoized  │    │  memoized  │      │
+///  │  │ [2] node       │   │   └────────────┘    └────────────┘      │
+///  │  │ ...            │   │                                         │
+///  │  └────────────────┘   │                                         │
+///  │                       │                                         │
+///  │  var_order: Vec<Var>  │   level_map: HashMap<Var, Level>        │
+///  │   (level → variable)  │    (variable → level)                   │
+///  │  ┌────────────────┐   │   ┌─────────────────────────────┐       │
+///  │  │ [0] Var(1)     │   │   │  Var(1) → Level(0)          │       │
+///  │  │ [1] Var(2)     │   │   │  Var(2) → Level(1)          │       │
+///  │  │ [2] Var(3)     │   │   │  Var(3) → Level(2)          │       │
+///  │  │ ...            │   │   │  ...                        │       │
+///  │  └────────────────┘   │   └─────────────────────────────┘       │
+///  │                       │                                         │
+///  │  subtables: Vec<Subtable>                                       │
+///  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                │
+///  │  │  Level 0    │ │  Level 1    │ │  Level 2    │ ...            │
+///  │  │  (low,high) │ │  (low,high) │ │  (low,high) │                │
+///  │  │  → NodeId   │ │  → NodeId   │ │  → NodeId   │                │
+///  │  └─────────────┘ └─────────────┘ └─────────────┘                │
+///  │                       │                                         │
+///  └───────────────────────│─────────────────────────────────────────┘
+///                          │
+///                          ▼
+///          Ref: 32-bit handle (31-bit NodeId + 1-bit complement)
+///          ┌─────────────────────────────────┬───┐
+///          │       Node Index (31 bits)      │ C │
+///          └─────────────────────────────────┴───┘
+///                                              └── Complement bit
+///                                                   (negation)
 ///
-/// subtables[0] → HashMap for level 0: (low, high) → node_index
-/// subtables[1] → HashMap for level 1: (low, high) → node_index
-/// ...
+///          Ref::ONE  = positive reference to terminal (node 0)
+///          Ref::ZERO = negative reference to terminal (node 0)
 /// ```
 ///
-/// # Methods
+/// # Node Structure
 ///
-/// - `zero()`: Returns the constant false terminal (index 0, negated)
-/// - `one()`: Returns the constant true terminal (index 0, positive)
+/// Each node contains:
+/// - `variable`: The decision variable at this node
+/// - `low`: Child when variable is false (may be complemented)
+/// - `high`: Child when variable is true (never complemented)
+/// - `next`: Collision chain pointer for the hash table
+///
+/// # Invariants
+///
+/// - **Canonical form**: High edges are never complemented
+/// - **Reduced**: No node has `low == high` (would be redundant)
+/// - **Ordered**: Parent variable always precedes children in the ordering
+/// - **Unique**: No two nodes have the same (variable, low, high) triple
 ///
 /// # Thread Safety
 ///
 /// The manager uses `RefCell` internally and is **not thread-safe**.
 /// For concurrent use, wrap in appropriate synchronization primitives.
 ///
+/// # Method Reference
+///
+/// ## Terminal Constants
+///
+/// - [`one()`][Bdd::one] — Returns the constant TRUE BDD
+/// - [`zero()`][Bdd::zero] — Returns the constant FALSE BDD
+/// - [`is_one()`][Bdd::is_one] — Checks if a BDD is the TRUE constant
+/// - [`is_zero()`][Bdd::is_zero] — Checks if a BDD is the FALSE constant
+/// - [`is_terminal()`][Bdd::is_terminal] — Checks if a BDD is a terminal (TRUE or FALSE)
+///
+/// ## BDD Construction
+///
+/// - [`mk_var()`][Bdd::mk_var] — Creates a BDD for a single variable
+/// - [`mk_node()`][Bdd::mk_node] — Creates a BDD node with given children
+/// - [`mk_cube()`][Bdd::mk_cube] — Creates a conjunction (AND) of literals
+/// - [`mk_clause()`][Bdd::mk_clause] — Creates a disjunction (OR) of literals
+/// - [`mk_true()`][Bdd::mk_true] — Alias for `one()`
+/// - [`mk_false()`][Bdd::mk_false] — Alias for `zero()`
+///
+/// ## Boolean Operations
+///
+/// - [`apply_not()`][Bdd::apply_not] — Negation: `¬f` (O(1) with complement edges)
+/// - [`apply_and()`][Bdd::apply_and] — Conjunction: `f ∧ g`
+/// - [`apply_or()`][Bdd::apply_or] — Disjunction: `f ∨ g`
+/// - [`apply_xor()`][Bdd::apply_xor] — Exclusive OR: `f ⊕ g`
+/// - [`apply_eq()`][Bdd::apply_eq] — Equivalence: `f ↔ g`
+/// - [`apply_imply()`][Bdd::apply_imply] — Implication: `f → g`
+/// - [`apply_ite()`][Bdd::apply_ite] — If-then-else: `(f ∧ g) ∨ (¬f ∧ h)`
+///
+/// ## Quantification
+///
+/// - [`exists()`][Bdd::exists] — Existential quantification: `∃vars. f`
+/// - [`forall()`][Bdd::forall] — Universal quantification: `∀vars. f`
+/// - [`rel_product()`][Bdd::rel_product] — Relational product: `∃vars. (f ∧ g)`
+///
+/// ## Substitution & Cofactors
+///
+/// - [`cofactor_cube()`][Bdd::cofactor_cube] — Restrict `f` by setting variables
+/// - [`compose()`][Bdd::compose] — Substitute variable `v` with BDD `g`
+/// - [`substitute()`][Bdd::substitute] — Substitute variable with constant
+/// - [`constrain()`][Bdd::constrain] — Generalized cofactor (Coudert & Madre)
+///
+/// ## Analysis
+///
+/// - [`size()`][Bdd::size] — Count of nodes in BDD
+/// - [`descendants()`][Bdd::descendants] — All node IDs reachable from roots
+/// - [`is_implies()`][Bdd::is_implies] — Check if `f → g` is a tautology
+///
 /// # Examples
+///
+/// ## Basic Usage
 ///
 /// ```
 /// use bdd_rs::bdd::Bdd;
 ///
-/// // Default: 2^20 (~1M) nodes capacity
 /// let bdd = Bdd::default();
 ///
-/// // Custom capacity for large problems
-/// let big_bdd = Bdd::new(24);  // 2^24 (~16M) nodes
+/// // Create variables (1-indexed)
+/// let x = bdd.mk_var(1);
+/// let y = bdd.mk_var(2);
+///
+/// // Boolean operations
+/// let f = bdd.apply_and(x, y);    // x ∧ y
+/// let g = bdd.apply_or(x, -y);    // x ∨ ¬y  (note: -y is negation)
+/// let h = bdd.apply_xor(x, y);    // x ⊕ y
+///
+/// // Check satisfiability and validity
+/// assert!(!bdd.is_zero(f));                    // f is satisfiable
+/// assert!(bdd.is_zero(bdd.apply_and(x, -x)));  // x ∧ ¬x is unsatisfiable
+/// assert!(bdd.is_one(bdd.apply_or(x, -x)));    // x ∨ ¬x is a tautology
+/// ```
+///
+/// ## Cubes and Clauses
+///
+/// ```
+/// use bdd_rs::bdd::Bdd;
+///
+/// let bdd = Bdd::default();
+///
+/// // Cube (conjunction): x₁ ∧ ¬x₂ ∧ x₃ using DIMACS-style literals
+/// let cube = bdd.mk_cube([1, -2, 3]);
+///
+/// // Clause (disjunction): x₁ ∨ ¬x₂ ∨ x₃
+/// let clause = bdd.mk_clause([1, -2, 3]);
+///
+/// // Evaluate by restricting variables
+/// let result = bdd.cofactor_cube(clause, [1]);  // Set x₁=true
+/// assert!(bdd.is_one(result));  // Clause becomes true
+/// ```
+///
+/// ## Quantification
+///
+/// ```
+/// use bdd_rs::bdd::Bdd;
+/// use bdd_rs::types::Var;
+///
+/// let bdd = Bdd::default();
+/// let x = bdd.mk_var(1);
+/// let y = bdd.mk_var(2);
+/// let f = bdd.apply_and(x, y);  // x ∧ y
+///
+/// // Existential: ∃x.(x ∧ y) = y
+/// let ex = bdd.exists(f, [Var::new(1)]);
+/// assert_eq!(ex, y);
+///
+/// // Universal: ∀x.(x ∧ y) = false (not true for all x)
+/// let fa = bdd.forall(f, [Var::new(1)]);
+/// assert!(bdd.is_zero(fa));
+/// ```
+///
+/// ## Composition
+///
+/// ```
+/// use bdd_rs::bdd::Bdd;
+/// use bdd_rs::types::Var;
+///
+/// let bdd = Bdd::default();
+/// let x = bdd.mk_var(1);
+/// let y = bdd.mk_var(2);
+/// let z = bdd.mk_var(3);
+///
+/// // f = x ∧ y
+/// let f = bdd.apply_and(x, y);
+///
+/// // Substitute x with z: f[x ← z] = z ∧ y
+/// let g = bdd.compose(f, Var::new(1), z);
+/// assert_eq!(g, bdd.apply_and(z, y));
 /// ```
 pub struct Bdd {
-    /// Node storage: Vec of Node, indexed by node ID.
-    /// Index 0 is reserved (unused), index 1 is the terminal node (@1).
+    /// Node storage: Vec of Node, indexed by NodeId.
+    /// Index 0 is the terminal node (Var::ZERO). Decision nodes start at index 1.
     nodes: RefCell<Vec<Node>>,
     /// Set of free (recycled) node indices available for reuse.
     free_set: RefCell<HashSet<NodeId>>,
