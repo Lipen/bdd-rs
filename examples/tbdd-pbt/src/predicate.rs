@@ -9,7 +9,7 @@ use std::fmt;
 
 use bdd_rs::bdd::Bdd;
 use bdd_rs::reference::Ref;
-use bdd_rs::types::Var;
+use bdd_rs::types::Var as BddVar;
 
 /// A program variable (identified by name for simplicity).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -213,67 +213,47 @@ impl fmt::Display for Literal {
 /// This is the bridge between the program's boolean conditions and the BDD
 /// representation of path conditions.
 pub struct PredicateUniverse {
-    /// All registered predicates.
-    predicates: Vec<Predicate>,
-    /// Map from predicate to its index (BDD variable ID = index + 1).
-    pred_to_id: HashMap<Predicate, usize>,
+    /// Map from predicate to its BDD variable.
+    pred_to_var: HashMap<Predicate, BddVar>,
 }
 
 impl PredicateUniverse {
     pub fn new() -> Self {
         Self {
-            predicates: Vec::new(),
-            pred_to_id: HashMap::new(),
+            pred_to_var: HashMap::new(),
         }
     }
 
     /// Register a predicate and return its BDD variable.
     ///
     /// If the predicate already exists, returns the existing variable.
-    pub fn register(&mut self, pred: Predicate, bdd: &Bdd) -> Var {
-        if let Some(&id) = self.pred_to_id.get(&pred) {
-            return Var::new((id + 1) as u32);
-        }
-
-        let id = self.predicates.len();
-        self.predicates.push(pred.clone());
-        self.pred_to_id.insert(pred, id);
-
-        // BDD variables are 1-indexed
-        let var = Var::new((id + 1) as u32);
-        // Ensure the variable is registered in the BDD
-        let _ = bdd.mk_var(var);
-        var
+    pub fn register(&mut self, pred: Predicate, bdd: &Bdd) -> BddVar {
+        *self.pred_to_var.entry(pred).or_insert_with(|| bdd.allocate_variable())
     }
 
     /// Get the BDD variable for a predicate, if registered.
-    pub fn get_var(&self, pred: &Predicate) -> Option<Var> {
-        self.pred_to_id.get(pred).map(|&id| Var::new((id + 1) as u32))
+    pub fn get_var(&self, pred: &Predicate) -> Option<BddVar> {
+        self.pred_to_var.get(pred).copied()
     }
 
     /// Get the predicate for a BDD variable.
-    pub fn get_predicate(&self, var: Var) -> Option<&Predicate> {
-        let id = var.id() as usize;
-        if id == 0 || id > self.predicates.len() {
-            None
-        } else {
-            Some(&self.predicates[id - 1])
-        }
+    pub fn get_predicate(&self, var: BddVar) -> Option<&Predicate> {
+        self.pred_to_var.iter().find(|(_, &v)| v == var).map(|(pred, _)| pred)
     }
 
     /// Get all registered predicates.
-    pub fn predicates(&self) -> &[Predicate] {
-        &self.predicates
+    pub fn predicates(&self) -> impl Iterator<Item = &Predicate> {
+        self.pred_to_var.keys()
     }
 
     /// Number of predicates.
     pub fn len(&self) -> usize {
-        self.predicates.len()
+        self.pred_to_var.len()
     }
 
     /// Check if empty.
     pub fn is_empty(&self) -> bool {
-        self.predicates.is_empty()
+        self.pred_to_var.is_empty()
     }
 
     /// Create a BDD reference for a literal (predicate with polarity).
@@ -285,7 +265,7 @@ impl PredicateUniverse {
 
     /// Get all program variables mentioned across all predicates.
     pub fn all_program_variables(&self) -> Vec<ProgramVar> {
-        let mut vars: Vec<ProgramVar> = self.predicates.iter().flat_map(|p| p.variables().into_iter().cloned()).collect();
+        let mut vars: Vec<ProgramVar> = self.predicates().flat_map(|p| p.variables().into_iter().cloned()).collect();
         vars.sort_by(|a, b| a.0.cmp(&b.0));
         vars.dedup();
         vars
@@ -300,7 +280,9 @@ impl Default for PredicateUniverse {
 
 impl fmt::Debug for PredicateUniverse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PredicateUniverse").field("predicates", &self.predicates).finish()
+        let mut predicates = self.predicates().collect::<Vec<_>>();
+        predicates.sort_by_key(|p| p.to_string());
+        f.debug_struct("PredicateUniverse").field("predicates", &predicates).finish()
     }
 }
 
