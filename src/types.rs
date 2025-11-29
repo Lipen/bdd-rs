@@ -172,16 +172,16 @@ impl fmt::Display for Var {
     }
 }
 
+impl From<u32> for Var {
+    fn from(id: u32) -> Self {
+        Var::new(id)
+    }
+}
+
 // Into<u32>
 impl From<Var> for u32 {
     fn from(var: Var) -> Self {
         var.0
-    }
-}
-
-impl From<u32> for Var {
-    fn from(id: u32) -> Self {
-        Var::new(id)
     }
 }
 
