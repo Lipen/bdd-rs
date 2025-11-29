@@ -345,18 +345,23 @@ impl Bdd {
         self.nodes()[id.index()]
     }
 
+    /// Gets the variable of a node at the given index.
+    pub fn variable(&self, id: NodeId) -> Var {
+        self.node(id).variable
+    }
+
     /// Gets the low child of a node.
     ///
     /// Returns the low edge of the node at the given index.
     pub fn low(&self, id: NodeId) -> Ref {
-        self.nodes()[id.index()].low
+        self.node(id).low
     }
 
     /// Gets the high child of a node.
     ///
     /// Returns the high edge of the node at the given index.
     pub fn high(&self, id: NodeId) -> Ref {
-        self.nodes()[id.index()].high
+        self.node(id).high
     }
 
     /// Gets the low child of a BDD node, respecting complement edges.
@@ -383,11 +388,6 @@ impl Bdd {
         } else {
             high
         }
-    }
-
-    /// Gets the variable of a node at the given index.
-    pub fn variable(&self, id: NodeId) -> Var {
-        self.nodes()[id.index()].variable
     }
 }
 
