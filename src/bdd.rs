@@ -341,7 +341,6 @@ impl BddConfig {
 }
 
 impl Bdd {
-    #[deprecated = "Use Bdd::default() or Bdd::with_config() instead"]
     /// Creates a new BDD manager with the specified storage capacity.
     ///
     /// **Deprecated**: Prefer `Bdd::default()` or `Bdd::with_config()` instead.
@@ -372,6 +371,7 @@ impl Bdd {
     /// let large_bdd = Bdd::new(24);
     /// assert_eq!(large_bdd.num_nodes(), 1);
     /// ```
+    #[deprecated = "Use Bdd::default() or Bdd::with_config() instead"]
     pub fn new(storage_bits: usize) -> Self {
         assert!(storage_bits <= 31, "Storage bits should be in the range 0..=31");
         let config = BddConfig::default().with_initial_nodes(1 << storage_bits);
