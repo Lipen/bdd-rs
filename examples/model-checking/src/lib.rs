@@ -1,7 +1,8 @@
 //! Symbolic model checking using BDDs.
 //!
 //! This library provides infrastructure for BDD-based symbolic model checking,
-//! including transition systems, CTL/LTL temporal logic, and counterexample generation.
+//! including transition systems, CTL/LTL temporal logic, fairness constraints,
+//! and counterexample generation.
 //!
 //! # Overview
 //!
@@ -12,6 +13,8 @@
 //!
 //! - **Transition Systems**: Symbolic representation of Kripke structures
 //! - **CTL Model Checking**: Computation Tree Logic verification
+//! - **LTL Model Checking**: Linear Temporal Logic via automata-theoretic approach
+//! - **Fairness**: Strong and weak fairness constraints
 //! - **Counterexamples**: Witness traces and looping counterexamples
 //! - **Algorithms**: Reachability, fixpoint computation, image/preimage
 //!
@@ -52,9 +55,15 @@
 //! assert!(holds);
 //! ```
 
+pub mod counterexample;
 pub mod ctl;
+pub mod fairness;
+pub mod ltl;
 pub mod transition;
 
 // Re-export key types
+pub use counterexample::{Counterexample, CounterexampleGenerator, State};
 pub use ctl::{CtlChecker, CtlFormula};
+pub use fairness::{FairnessConstraint, FairnessManager};
+pub use ltl::{LtlChecker, LtlFormula};
 pub use transition::{TransitionSystem, Var, VarManager};
