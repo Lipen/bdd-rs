@@ -90,7 +90,7 @@ fn main() {
     let not_pc1 = bdd.apply_not(pc1_bdd);
 
     // Initial = ¬flag0 ∧ ¬flag1 ∧ ¬pc0 ∧ ¬pc1
-    let initial = bdd.apply_and_many([not_flag0, not_flag1, not_pc0, not_pc1].into_iter());
+    let initial = bdd.apply_and_many([not_flag0, not_flag1, not_pc0, not_pc1]);
     ts.set_initial(initial);
 
     println!("  Initial state: flags=0, both processes idle\n");
@@ -148,7 +148,7 @@ fn main() {
     // Turn alternates on transition (models giving priority to other process)
     let turn_trans = bdd.apply_eq(turn_next_bdd, bdd.apply_not(turn_bdd));
 
-    let transition = bdd.apply_and_many([pc0_trans, pc1_trans, flag0_trans, flag1_trans, turn_trans].into_iter());
+    let transition = bdd.apply_and_many([pc0_trans, pc1_trans, flag0_trans, flag1_trans, turn_trans]);
     ts.set_transition(transition);
 
     println!("  Transition relation built");
