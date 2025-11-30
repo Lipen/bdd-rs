@@ -104,8 +104,8 @@
 
 #part[Applications] <part-applications>
 
-This part demonstrates BDDs in practice across various domains.
-From hardware verification to combinatorial problems, BDDs prove their versatility.
+// This part demonstrates BDDs in practice across various domains.
+// From hardware verification to combinatorial problems, BDDs prove their versatility.
 
 #include "chapters/part4_applications/16_model_checking.typ"
 
@@ -121,8 +121,8 @@ From hardware verification to combinatorial problems, BDDs prove their versatili
 
 #part[Ecosystem and Comparison] <part-ecosystem>
 
-This part surveys the BDD landscape.
-We compare approaches, examine existing libraries, and discuss design trade-offs.
+// This part surveys the BDD landscape.
+// We compare approaches, examine existing libraries, and discuss design trade-offs.
 
 #include "chapters/part5_ecosystem/20_library_comparison.typ"
 
