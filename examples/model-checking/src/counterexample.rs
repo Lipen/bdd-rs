@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use bdd_rs::bdd::Bdd;
 use bdd_rs::reference::Ref;
-use bdd_rs::types::Var as BddVar;
+use bdd_rs::types::{Lit, Var as BddVar};
 
 use crate::transition::{TransitionSystem, Var};
 
@@ -306,7 +306,7 @@ impl CounterexampleGenerator {
 
     /// Pick one state from a state set (non-deterministically).
     /// Returns (BDD cube, literals) to avoid recomputing the assignment.
-    fn pick_one_state(&self, states: Ref) -> (Ref, Vec<i32>) {
+    fn pick_one_state(&self, states: Ref) -> (Ref, Vec<Lit>) {
         if self.bdd().is_zero(states) {
             return (self.bdd().zero(), vec![]);
         }
@@ -319,7 +319,7 @@ impl CounterexampleGenerator {
     }
 
     /// Extract a concrete State from literals.
-    fn extract_state(&self, literals: &[i32]) -> State {
+    fn extract_state(&self, literals: &[Lit]) -> State {
         let mut state = State::new();
 
         // Map BDD variables back to state variable names
@@ -332,8 +332,8 @@ impl CounterexampleGenerator {
             .collect();
 
         for &lit in literals {
-            let bdd_var = BddVar::new(lit.unsigned_abs());
-            let value = lit > 0;
+            let bdd_var = lit.var();
+            let value = lit.is_positive();
             if let Some(var) = present_vars.get(&bdd_var) {
                 state.set(var.name().to_string(), value);
             }
@@ -344,20 +344,16 @@ impl CounterexampleGenerator {
 
     /// Convert a State back to a BDD.
     fn state_to_bdd(&self, state: &State) -> Ref {
-        let literals: Vec<i32> = self
+        let literals: Vec<Lit> = self
             .ts
             .var_manager()
             .vars()
             .iter()
             .filter_map(|var| {
-                self.ts.var_manager().get_present(var).map(|bdd_var| {
-                    let value = state.get(var.name()).unwrap_or(false);
-                    if value {
-                        bdd_var.id() as i32
-                    } else {
-                        -(bdd_var.id() as i32)
-                    }
-                })
+                if let Some(value) = self.ts.var_manager().get_present(var) {
+                    return state.get(var.name()).map(|v| Lit::new(value, !v));
+                }
+                None
             })
             .collect();
 
@@ -433,5 +429,69 @@ mod tests {
             }
             _ => panic!("Expected linear counterexample"),
         }
+    }
+
+    #[test]
+    fn test_lasso_counterexample() {
+        let ts = create_counter_system();
+        let gen = CounterexampleGenerator::new(ts.clone());
+
+        // The 2-bit counter cycles: 00 -> 01 -> 10 -> 11 -> 00
+        // All reachable states can reach all other reachable states,
+        // so EG(true) = all reachable states.
+        let eg_states = ts.reachable();
+
+        let cex = gen.generate_lasso(eg_states);
+        assert!(cex.is_some());
+        let cex = cex.unwrap();
+        println!("{}", cex);
+
+        match &cex {
+            Counterexample::Lasso { stem, loop_states } => {
+                // Stem should start from initial (x=0, y=0)
+                assert!(!stem.is_empty());
+                assert_eq!(stem[0].get("x"), Some(false));
+                assert_eq!(stem[0].get("y"), Some(false));
+
+                // Loop should be non-empty (we have a cycle)
+                assert!(!loop_states.is_empty(), "Loop should contain at least one state");
+
+                println!("Stem length: {}", stem.len());
+                println!("Loop length: {}", loop_states.len());
+            }
+            _ => panic!("Expected lasso counterexample"),
+        }
+    }
+
+    #[test]
+    fn test_lasso_from_unreachable_returns_none() {
+        // Create a simple system where EG states don't include initial
+        let bdd = Rc::new(Bdd::default());
+        let mut ts = TransitionSystem::new(bdd);
+
+        let x = Var::new("x");
+        ts.declare_var(x.clone());
+
+        let x_pres = ts.var_manager().get_present(&x).unwrap();
+        let x_next = ts.var_manager().get_next(&x).unwrap();
+
+        // Initial: x=0
+        let x_bdd = ts.bdd().mk_var(x_pres);
+        let not_x = ts.bdd().apply_not(x_bdd);
+        ts.set_initial(not_x);
+
+        // Transition: x' = 1 (always goes to x=1)
+        let x_next_bdd = ts.bdd().mk_var(x_next);
+        ts.set_transition(x_next_bdd);
+
+        let ts = Rc::new(ts);
+        let gen = CounterexampleGenerator::new(ts.clone());
+
+        // EG states that don't intersect with states reachable from initial
+        // Use a state x=0 but it immediately transitions to x=1, so no cycle at x=0
+        // Actually, let's use the empty set
+        let empty = ts.bdd().zero();
+        let cex = gen.generate_lasso(empty);
+        assert!(cex.is_none());
     }
 }

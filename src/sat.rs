@@ -4,32 +4,41 @@ use num_bigint::{BigUint, ToBigUint};
 
 use crate::bdd::Bdd;
 use crate::reference::Ref;
+use crate::types::Lit;
 
 impl Bdd {
-    pub fn one_sat(&self, node: Ref) -> Option<Vec<i32>> {
-        self._one_sat(node, vec![])
-    }
-
-    fn _one_sat(&self, node: Ref, path: Vec<i32>) -> Option<Vec<i32>> {
+    /// Returns one satisfying assignment for the BDD, if any exists.
+    ///
+    /// The assignment is returned as a vector of literals.
+    /// Use `lit.is_positive()` to check if the variable is true,
+    /// or `lit.to_dimacs()` to get a signed integer representation.
+    ///
+    /// Returns `None` if the BDD represents the constant false function.
+    pub fn one_sat(&self, node: Ref) -> Option<Vec<Lit>> {
         if self.is_zero(node) {
             return None;
-        } else if self.is_one(node) {
-            return Some(path);
         }
 
-        let v = self.variable(node.id()).id() as i32;
+        let mut path = Vec::new();
+        let mut current = node;
 
-        let high = self.high_node(node);
-        let mut path_high = path.clone();
-        path_high.push(v);
-        if let Some(res) = self._one_sat(high, path_high) {
-            return Some(res);
+        // Walk down the BDD, always picking a satisfying branch
+        while !self.is_one(current) {
+            let var = self.variable(current.id());
+            let high = self.high_node(current);
+            let low = self.low_node(current);
+
+            // Prefer high branch if satisfiable, otherwise take low
+            if !self.is_zero(high) {
+                path.push(var.pos());
+                current = high;
+            } else {
+                path.push(var.neg());
+                current = low;
+            }
         }
 
-        let low = self.low_node(node);
-        let mut path_low = path;
-        path_low.push(-v);
-        self._one_sat(low, path_low)
+        Some(path)
     }
 
     pub fn sat_count(&self, node: Ref, num_vars: usize) -> BigUint {
@@ -71,6 +80,56 @@ impl Bdd {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_one_sat() {
+        let bdd = Bdd::default();
+
+        let f = bdd.mk_cube([1, -2, -3]);
+        println!("f = {} of size {}", f, bdd.size(f));
+        let model = bdd.one_sat(f);
+        println!("model = {:?}", model);
+        let expected: Vec<Lit> = vec![1, -2, -3].into_iter().map(Lit::from_dimacs).collect();
+        assert_eq!(model, Some(expected));
+
+        let g = bdd.apply_and(f, -bdd.mk_cube(model.unwrap()));
+        println!("g = {} of size {}", g, bdd.size(g));
+        let model = bdd.one_sat(g);
+        println!("model = {:?}", model);
+        assert_eq!(model, None);
+    }
+
+    #[test]
+    fn test_one_sat_many() {
+        let bdd = Bdd::default();
+
+        let mut all_cubes = Vec::new();
+
+        for &s1 in &[1, -1] {
+            for &s2 in &[1, -1] {
+                for &s3 in &[1, -1] {
+                    all_cubes.push([1 * s1, 2 * s2, 3 * s3]);
+                }
+            }
+        }
+
+        for cube in all_cubes {
+            println!("Testing cube: {:?}", cube);
+
+            let f = bdd.mk_cube(cube);
+            println!("f = {} of size {}", f, bdd.size(f));
+            let model = bdd.one_sat(f);
+            println!("model = {:?}", model);
+            let expected: Vec<Lit> = cube.into_iter().map(Lit::from_dimacs).collect();
+            assert_eq!(model, Some(expected));
+
+            let g = bdd.apply_and(f, -bdd.mk_cube(model.unwrap()));
+            println!("g = {} of size {}", g, bdd.size(g));
+            let model = bdd.one_sat(g);
+            println!("model = {:?}", model);
+            assert_eq!(model, None);
+        }
+    }
 
     #[test]
     fn test_sat_count_terminal() {

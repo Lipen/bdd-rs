@@ -3891,54 +3891,6 @@ mod tests {
     }
 
     #[test]
-    fn test_one_sat() {
-        let bdd = Bdd::default();
-
-        let f = bdd.mk_cube([1, -2, -3]);
-        println!("f = {} of size {}", f, bdd.size(f));
-        let model = bdd.one_sat(f);
-        println!("model = {:?}", model);
-        assert_eq!(model, Some(vec![1, -2, -3]));
-
-        let g = bdd.apply_and(f, -bdd.mk_cube(model.unwrap()));
-        println!("g = {} of size {}", g, bdd.size(g));
-        let model = bdd.one_sat(g);
-        println!("model = {:?}", model);
-        assert_eq!(model, None);
-    }
-
-    #[test]
-    fn test_one_sat_many() {
-        let bdd = Bdd::default();
-
-        let mut all_cubes = Vec::new();
-
-        for &s1 in &[1, -1] {
-            for &s2 in &[1, -1] {
-                for &s3 in &[1, -1] {
-                    all_cubes.push([1 * s1, 2 * s2, 3 * s3]);
-                }
-            }
-        }
-
-        for cube in all_cubes {
-            println!("Testing cube: {:?}", cube);
-
-            let f = bdd.mk_cube(cube);
-            println!("f = {} of size {}", f, bdd.size(f));
-            let model = bdd.one_sat(f);
-            println!("model = {:?}", model);
-            assert_eq!(model, Some(cube.to_vec()));
-
-            let g = bdd.apply_and(f, -bdd.mk_cube(model.unwrap()));
-            println!("g = {} of size {}", g, bdd.size(g));
-            let model = bdd.one_sat(g);
-            println!("model = {:?}", model);
-            assert_eq!(model, None);
-        }
-    }
-
-    #[test]
     fn test_descendants_terminal() {
         let bdd = Bdd::default();
 
