@@ -12,11 +12,6 @@ impl Ref {
     /// Uses maximum u32 value - we don't care about index/sign interpretation for sentinels.
     pub const INVALID: Self = Self(0xFFFF_FFFF);
 
-    /// Constant reference to the logical TRUE (1) node.
-    pub const ONE: Self = Self::positive(NodeId::TERMINAL);
-    /// Constant reference to the logical FALSE (0) node.
-    pub const ZERO: Self = Self::negative(NodeId::TERMINAL);
-
     /// Creates a new reference with the given node ID and negation flag.
     pub const fn new(id: NodeId, negated: bool) -> Self {
         Self((id.raw() << 1) | (negated as u32))
@@ -86,21 +81,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ref_constants() {
-        // ONE is positive terminal
-        assert_eq!(Ref::ONE.id(), NodeId::TERMINAL);
-        assert!(!Ref::ONE.is_negated());
-
-        // ZERO is negative terminal
-        assert_eq!(Ref::ZERO.id(), NodeId::TERMINAL);
-        assert!(Ref::ZERO.is_negated());
-
-        // ONE and ZERO point to same node but differ in negation
-        assert_eq!(Ref::ONE.id(), Ref::ZERO.id());
-        assert_ne!(Ref::ONE, Ref::ZERO);
-    }
-
-    #[test]
     fn test_ref_positive_negative() {
         let id = NodeId::new(42);
 
@@ -157,14 +137,6 @@ mod tests {
     }
 
     #[test]
-    fn test_ref_negation_constants() {
-        // -ONE == ZERO
-        assert_eq!(-Ref::ONE, Ref::ZERO);
-        // -ZERO == ONE
-        assert_eq!(-Ref::ZERO, Ref::ONE);
-    }
-
-    #[test]
     fn test_ref_raw() {
         // Raw encoding: (id << 1) | negated
         let id = NodeId::new(100);
@@ -185,10 +157,6 @@ mod tests {
 
         let neg = Ref::negative(id);
         assert_eq!(format!("{}", neg), "~@42");
-
-        // Terminal display
-        assert_eq!(format!("{}", Ref::ONE), "@0");
-        assert_eq!(format!("{}", Ref::ZERO), "~@0");
     }
 
     #[test]

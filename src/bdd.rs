@@ -116,9 +116,6 @@ use crate::utils::OpKey;
 ///          └─────────────────────────────────┴───┘
 ///                                              └── Complement bit
 ///                                                   (negation)
-///
-///          Ref::ONE  = positive reference to terminal (node 0)
-///          Ref::ZERO = negative reference to terminal (node 0)
 /// ```
 ///
 /// # Node Structure
@@ -575,6 +572,16 @@ impl Bdd {
 // ============================================================================
 
 impl Bdd {
+    /// Constant reference to the logical FALSE (0) node.
+    ///
+    /// **Note:** this is internally represented as `Ref(1)`, the negated node with index 0.
+    pub const ZERO: Ref = Ref::negative(NodeId::TERMINAL);
+
+    /// Constant reference to the logical TRUE (1) node.
+    ///
+    /// **Note:** this is internally represented as `Ref(0)`, the positive node with index 0.
+    pub const ONE: Ref = Ref::positive(NodeId::TERMINAL);
+
     /// Returns the constant true BDD reference.
     ///
     /// This is the positive reference to the terminal node (index 0).
@@ -590,7 +597,7 @@ impl Bdd {
     /// ```
     #[inline]
     pub fn one(&self) -> Ref {
-        Ref::ONE
+        Self::ONE
     }
 
     /// Returns the constant false BDD reference.
@@ -608,7 +615,7 @@ impl Bdd {
     /// ```
     #[inline]
     pub fn zero(&self) -> Ref {
-        Ref::ZERO
+        Self::ZERO
     }
 
     /// Checks if a BDD node represents the constant false.
