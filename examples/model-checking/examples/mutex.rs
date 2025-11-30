@@ -157,15 +157,31 @@ fn main() {
 
     // -- Step 5: Labels --
     //
-    // Labels identify states for use in temporal logic formulas.
+    // Labels are predicates (BDDs) that identify sets of states.
+    // We use them in temporal logic formulas like "AG mutex".
 
-    ts.add_label("critical0".to_string(), pc0_bdd); // P0 in critical
-    ts.add_label("critical1".to_string(), pc1_bdd); // P1 in critical
+    // "critical0" = states where P0 is in critical section (pc0 = 1)
+    ts.add_label("critical0".to_string(), pc0_bdd);
 
-    // Mutual exclusion predicate: not both in critical
+    // "critical1" = states where P1 is in critical section (pc1 = 1)
+    ts.add_label("critical1".to_string(), pc1_bdd);
+
+    // "mutex" = mutual exclusion predicate: ¬(pc0 ∧ pc1)
+    //
+    // This predicate is TRUE in states where at most one process
+    // is in the critical section. We construct it as:
+    //   mutex = ¬(critical0 ∧ critical1) = ¬pc0 ∨ ¬pc1
+    //
+    // When we check "AG mutex", we verify this predicate holds
+    // in ALL reachable states on ALL paths.
     let both_critical = bdd.apply_and(pc0_bdd, pc1_bdd);
     let mutex = bdd.apply_not(both_critical);
     ts.add_label("mutex".to_string(), mutex);
+
+    println!("  Labels (state predicates):");
+    println!("  - critical0 = pc0         (P0 in critical section)");
+    println!("  - critical1 = pc1         (P1 in critical section)");
+    println!("  - mutex = ¬(pc0 ∧ pc1)    (at most one in critical)\n");
 
     let ts = Rc::new(ts);
 
