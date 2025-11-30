@@ -6,6 +6,7 @@
 //! - Lasso-shaped traces for liveness violations (stem + loop)
 
 use std::collections::HashMap;
+use std::fmt;
 use std::rc::Rc;
 
 use bdd_rs::bdd::Bdd;
@@ -43,8 +44,8 @@ impl Default for State {
     }
 }
 
-impl std::fmt::Display for State {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut vars: Vec<_> = self.assignments.iter().collect();
         vars.sort_by_key(|(k, _)| *k);
 
@@ -83,8 +84,8 @@ impl Counterexample {
     }
 }
 
-impl std::fmt::Display for Counterexample {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Counterexample {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Counterexample::Linear(states) => {
                 writeln!(f, "Linear counterexample ({} states):", states.len())?;
