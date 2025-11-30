@@ -23,9 +23,9 @@ Unlike traditional academic papers or reference docs, this guide:
 
 ## 📋 Structure
 
-### Part I: Gentle Introduction (Chapters 1-6)
+### Part I: Gentle Introduction
 
-*~40 pages | Accessible to anyone with programming background*
+*Accessible to anyone with programming background*
 
 Build intuition about program abstraction, control flow, and symbolic representations through concrete examples:
 
@@ -37,9 +37,9 @@ Build intuition about program abstraction, control flow, and symbolic representa
 - **Chapter 5**: Real-world applications
 - **Chapter 6**: The verification landscape (interlude)
 
-### Part II: Deep Dive (Chapters 7-15)
+### Part II: Deep Dive
 
-*~50 pages | Complete theoretical and practical treatment*
+*Complete theoretical and practical treatment*
 
 Mathematical foundations, proofs, implementation, and research connections:
 
@@ -55,7 +55,7 @@ Mathematical foundations, proofs, implementation, and research connections:
 
 ### Part III: Appendices
 
-*~30 pages | Reference material*
+*Reference material*
 
 - **Appendix A**: Mathematical preliminaries
 - **Appendix B**: Rust implementation guide
@@ -63,18 +63,13 @@ Mathematical foundations, proofs, implementation, and research connections:
 - **Appendix D**: Related work compendium
 - **Appendix E**: Glossary and index
 
-**Total**: ~120-150 pages
-
 ## 🚀 Quick Start
 
 ### Build the Guide
 
 ```bash
 # Full guide
-typst compile main.typ guide.pdf
-
-# Watch mode (auto-rebuild)
-typst watch main.typ guide.pdf
+typst compile main.typ guide-ai.pdf
 ```
 
 ### Reading Paths
@@ -88,21 +83,21 @@ We mark sections with icons to help you navigate:
 
 ### Suggested Reading Sequences
 
-**First-Time Learner** (3-4 weeks):
+**First-Time Learner**:
 
 1. Prologue + Chapters 1-2 (understand the basics)
 2. Chapters 3-4 (learn about BDDs and products)
 3. Chapter 5 (see applications)
 4. Select chapters from Part II based on interest
 
-**Practitioner** (1 week):
+**Practitioner**:
 
 1. Skim Prologue and Chapters 1-3
 2. Focus on Chapters 4-5 (applications)
 3. Jump to Chapter 12 (implementation)
 4. Browse Chapter 13 (benchmarks)
 
-**Researcher/Student** (2-3 weeks):
+**Researcher/Student**:
 
 1. Quick read Part I for context
 2. Deep dive Part II (all chapters)
@@ -119,7 +114,7 @@ guide/
 ├── README.md                   # This file
 ├── chapters/
 │   ├── part1_introduction/
-│   │   ├── 00_prologue.typ    # ✅ Complete
+│   │   ├── 00_prologue.typ
 │   │   ├── 01_abstract_interpretation.typ
 │   │   ├── 02_control_flow.typ
 │   │   ├── 03_bdds.typ
@@ -155,33 +150,6 @@ The guide uses a custom Typst theme optimized for learning:
 - **Visual diagrams**: State machines, BDDs, lattices (using CeTZ)
 - **Multiple box types**: Info, Example, Warning, Exercise, Insight
 
-## 📝 Current Status
-
-### Completed ✅
-
-- [x] Project plan (TUTORIAL_PROJECT_PLAN.md)
-- [x] Theme design (theme.typ)
-- [x] Main document structure (main.typ)
-- [x] Prologue (Chapter 0) - Complete first draft
-- [x] File organization
-
-### In Progress 🚧
-
-- [ ] Chapter 1: Abstract Interpretation
-- [ ] Chapter 2: Control Flow
-- [ ] Remaining chapters...
-
-### Timeline
-
-Following the plan in `TUTORIAL_PROJECT_PLAN.md`:
-
-- **Phase 1**: Setup (Complete)
-- **Phase 2**: Part I Content (Weeks 1-3)
-- **Phase 3**: Part II Content (Weeks 4-8)
-- **Phase 4**: Appendices (Week 9)
-- **Phase 5**: Integration (Weeks 10-11)
-- **Phase 6**: Review (Weeks 12-13)
-
 ## 🤝 Contributing
 
 This guide is part of the bdd-rs project. Contributions welcome!
@@ -205,8 +173,6 @@ This guide is part of the bdd-rs project. Contributions welcome!
 
 ### In This Repository
 
-- `../paper/`: Academic paper (concise, formal)
-- `../docs/`: Reference documentation (modular, technical)
 - `../src/`: Rust implementation
 - `../examples/`: Code examples
 
@@ -234,8 +200,3 @@ Part of the bdd-rs project, licensed under MIT License.
 ## 📞 Contact
 
 Questions or feedback? Open an issue on the [bdd-rs repository](https://github.com/Lipen/bdd-rs).
-
----
-
-*Last updated: November 18, 2025*
-*Status: Active development - Prologue complete, working on Chapter 1*
