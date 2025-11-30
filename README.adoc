@@ -18,6 +18,12 @@ image:https://hitsofcode.com/github/Lipen/bdd-rs["Hits-of-Code",link="https://hi
 * *SAT & Model Counting*: Satisfiability checking, model extraction, solution counting
 * *Visualization*: Graphviz DOT export
 
+== Companion Guide
+
+A comprehensive tutorial on BDDs is available:
+link:docs/guide/[`guide/`]
+image:https://img.shields.io/badge/Guide-Binary Decision Diagrams-blue?style=social&logo=gitbook["Comprehensive Guide on BDDs", link="https://lipen.github.io/bdd-rs/guide-bdd.pdf"]
+
 == Installation
 
 Add `bdd-rs` to your `Cargo.toml`:
@@ -58,8 +64,7 @@ assert!(bdd.is_one(result));
 
 === BDD Manager Operations
 
-* `Bdd::new(bits)` -- Create manager with $2^bits$ nodes capacity
-* `Bdd::default()` -- Create manager with default capacity (2^20 nodes)
+* `Bdd::default()` -- Create BDD manager with default parameters
 * `mk_var(var_id)` -- Create BDD for variable (1-indexed)
 * `collect_garbage(roots)` -- Reclaim unused nodes
 
@@ -103,7 +108,10 @@ Comprehensive examples demonstrating BDD applications:
 
 See link:examples/abstract-interpretation/[`examples/abstract-interpretation/`]
 
-Static program analysis framework combining abstract interpretation with BDDs.
+> Static program analysis framework combining abstract interpretation with BDDs.
+
+*Companion Guide*: link:examples/abstract-interpretation/guide/[`guide/`]
+image:https://img.shields.io/badge/Guide-Abstract Interpretation-blue?style=social&logo=gitbook["Guide on Abstract Interpretation", link="https://lipen.github.io/bdd-rs/guide-ai.pdf"]
 
 *Examples*:
 
@@ -117,13 +125,6 @@ Static program analysis framework combining abstract interpretation with BDDs.
 * *Realistic Programs*: Array bounds checking, combined multi-domain analysis
 
 *Tests*: Comprehensive unit and integration tests for all domains
-
-*Companion Guide*: link:examples/abstract-interpretation/guide/[`guide/`] (150+ pages)
-
-* Part I: Gentle Introduction
-* Part II: Lattice theory, fixpoints, domain design
-* Part III: Applications
-
 [source,bash]
 ----
 cd examples/abstract-interpretation
@@ -136,7 +137,10 @@ cargo test  # Run 80+ tests
 
 See link:examples/model-checking/[`examples/model-checking/`]
 
-Symbolic model checking implementing algorithms from Burch et al. (1990).
+> Symbolic model checking implementing algorithms from Burch et al. (1990).
+
+*Companion Guide:* link:examples/model-checking/guide/[`guide/`]
+image:https://img.shields.io/badge/Guide-Model Checking-blue?style=social&logo=gitbook["Guide on Model Checking", link="https://lipen.github.io/bdd-rs/guide-mc.pdf"]
 
 *Features*:
 
@@ -155,7 +159,7 @@ cargo run --bin modelcheck -- example toggle
 
 See link:examples/symbolic-execution/[`examples/symbolic-execution/`]
 
-Symbolic execution for boolean programs with BDD constraint solving.
+> Symbolic execution for boolean programs with BDD constraint solving.
 
 *Features*:
 
