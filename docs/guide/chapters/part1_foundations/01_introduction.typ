@@ -88,8 +88,8 @@ A *Binary Decision Diagram* is a way of drawing a Boolean function as a flowchar
     bdd-terminal-node(one-pos, 1, name: "one")
 
     // Draw decision nodes
-    bdd-decision-node(x-pos, "x", name: "x")
-    bdd-decision-node(y-pos, "y", name: "y")
+    bdd-decision-node(x-pos, $x$, name: "x")
+    bdd-decision-node(y-pos, $y$, name: "y")
 
     // Draw edges
     // x: low -> 0, high -> y
@@ -134,7 +134,7 @@ Consider the function $(x and y) or z$:
     import cetz.draw: *
 
     // BDD for (x AND y) OR z with ordering x < y < z
-    let x-pos = (3, 5)
+    let x-pos = (1, 5)
     let y-pos = (2, 3.5)
     let z1-pos = (1, 2)
     let z2-pos = (3, 2)
@@ -146,26 +146,26 @@ Consider the function $(x and y) or z$:
     bdd-terminal-node(one-pos, 1, name: "one")
 
     // Draw decision nodes
-    bdd-decision-node(x-pos, "x", name: "x")
-    bdd-decision-node(y-pos, "y", name: "y")
-    bdd-decision-node(z1-pos, "z", name: "z1")
-    bdd-decision-node(z2-pos, "z", name: "z2")
+    bdd-decision-node(x-pos, $x$, name: "x")
+    bdd-decision-node(y-pos, $y$, name: "y")
+    bdd-decision-node(z1-pos, $z$, name: "z1")
+    bdd-decision-node(z2-pos, $z$, name: "z2")
 
     // Edges from x
-    bdd-low-edge((x-pos.at(0) - 0.35, x-pos.at(1) - 0.35), (z1-pos.at(0) + 0.25, z1-pos.at(1) + 0.4))
-    bdd-high-edge((x-pos.at(0) + 0.35, x-pos.at(1) - 0.35), (y-pos.at(0) + 0.35, y-pos.at(1) + 0.4))
+    bdd-low-edge((x-pos.at(0) - 0.35, x-pos.at(1) - 0.35), (z1-pos.at(0) - 0.25, z1-pos.at(1) + 0.4))
+    bdd-high-edge((x-pos.at(0) + 0.35, x-pos.at(1) - 0.35), (y-pos.at(0) - 0.2, y-pos.at(1) + 0.4))
 
     // Edges from y
-    bdd-low-edge((y-pos.at(0) - 0.35, y-pos.at(1) - 0.35), (z1-pos.at(0) + 0.35, z1-pos.at(1) + 0.25))
-    bdd-high-edge((y-pos.at(0) + 0.15, y-pos.at(1) - 0.4), (z2-pos.at(0) - 0.15, z2-pos.at(1) + 0.4))
+    bdd-low-edge((y-pos.at(0) - 0.35, y-pos.at(1) - 0.35), (z1-pos.at(0) + 0.35, z1-pos.at(1) + 0.35))
+    bdd-high-edge((y-pos.at(0) + 0.35, y-pos.at(1) - 0.35), (z2-pos.at(0) - 0.2, z2-pos.at(1) + 0.4))
 
     // Edges from z1
-    bdd-low-edge((z1-pos.at(0) - 0.25, z1-pos.at(1) - 0.4), (zero-pos.at(0) + 0.1, zero-pos.at(1) + 0.35))
+    bdd-low-edge((z1-pos.at(0) - 0.25, z1-pos.at(1) - 0.4), (zero-pos.at(0) - 0.1, zero-pos.at(1) + 0.35))
     bdd-high-edge((z1-pos.at(0) + 0.35, z1-pos.at(1) - 0.35), (one-pos.at(0) - 0.35, one-pos.at(1) + 0.35))
 
     // Edges from z2
-    bdd-low-edge((z2-pos.at(0) - 0.35, z2-pos.at(1) - 0.35), (one-pos.at(0) + 0.1, one-pos.at(1) + 0.35))
-    bdd-high-edge((z2-pos.at(0) + 0.25, z2-pos.at(1) - 0.4), (one-pos.at(0) + 0.25, one-pos.at(1) + 0.35))
+    bdd-low-edge((z2-pos.at(0) - 0.35, z2-pos.at(1) - 0.35), (one-pos.at(0) - 0.1, one-pos.at(1) + 0.35))
+    bdd-high-edge((z2-pos.at(0) + 0.35, z2-pos.at(1) - 0.35), (one-pos.at(0) + 0.2, one-pos.at(1) + 0.35))
 
     // Note
     content(
