@@ -114,7 +114,7 @@ fn main() {
 
     let flag0_next_bdd = bdd.mk_var(flag0_next);
     let flag1_next_bdd = bdd.mk_var(flag1_next);
-    let turn_next_bdd = bdd.mk_var(turn_next);
+    let _turn_next_bdd = bdd.mk_var(turn_next);
     let pc0_next_bdd = bdd.mk_var(pc0_next);
     let pc1_next_bdd = bdd.mk_var(pc1_next);
 
@@ -146,7 +146,7 @@ fn main() {
     let flag1_trans = bdd.one();
 
     // Turn alternates on transition (models giving priority to other process)
-    let turn_trans = bdd.apply_eq(turn_next_bdd, bdd.apply_not(turn_bdd));
+    let turn_trans = ts.assign_var(&turn, bdd.apply_not(turn_bdd));
 
     let transition = bdd.apply_and_many([pc0_trans, pc1_trans, flag0_trans, flag1_trans, turn_trans]);
     ts.set_transition(transition);
