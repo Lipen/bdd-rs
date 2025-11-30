@@ -377,27 +377,20 @@ mod tests {
 
         let x_pres = ts.var_manager().get_present(&x).unwrap();
         let y_pres = ts.var_manager().get_present(&y).unwrap();
-        let x_next = ts.var_manager().get_next(&x).unwrap();
-        let y_next = ts.var_manager().get_next(&y).unwrap();
+        let _x_next = ts.var_manager().get_next(&x).unwrap();
+        let _y_next = ts.var_manager().get_next(&y).unwrap();
 
-        // Initial: x=0, y=0
         let x_bdd = ts.bdd().mk_var(x_pres);
         let y_bdd = ts.bdd().mk_var(y_pres);
-        let not_x = ts.bdd().apply_not(x_bdd);
-        let not_y = ts.bdd().apply_not(y_bdd);
-        let initial = ts.bdd().apply_and(not_x, not_y);
+
+        // Initial: x=0, y=0
+        let initial = ts.bdd().mk_cube([x_pres.neg(), y_pres.neg()]);
         ts.set_initial(initial);
 
         // Transitions: x' = x XOR y, y' = !y
-        let x_next_bdd = ts.bdd().mk_var(x_next);
-        let y_next_bdd = ts.bdd().mk_var(y_next);
-
-        let x_next_expr = ts.bdd().apply_xor(x_bdd, y_bdd);
-        let y_next_expr = ts.bdd().apply_not(y_bdd);
-
-        let x_trans = ts.bdd().apply_eq(x_next_bdd, x_next_expr);
-        let y_trans = ts.bdd().apply_eq(y_next_bdd, y_next_expr);
-        let transition = ts.bdd().apply_and(x_trans, y_trans);
+        let x_trans = ts.assign_var(&x, ts.bdd().apply_xor(x_bdd, y_bdd));
+        let y_trans = ts.assign_var(&y, ts.bdd().apply_not(y_bdd));
+        let transition = ts.build_transition(&[x_trans, y_trans]);
         ts.set_transition(transition);
 
         // Label: "overflow" when x=1 AND y=1
@@ -473,16 +466,16 @@ mod tests {
         ts.declare_var(x.clone());
 
         let x_pres = ts.var_manager().get_present(&x).unwrap();
-        let x_next = ts.var_manager().get_next(&x).unwrap();
+        let _x_next = ts.var_manager().get_next(&x).unwrap();
 
         // Initial: x=0
-        let x_bdd = ts.bdd().mk_var(x_pres);
-        let not_x = ts.bdd().apply_not(x_bdd);
-        ts.set_initial(not_x);
+        let initial = ts.bdd().mk_cube([x_pres.neg()]);
+        ts.set_initial(initial);
 
         // Transition: x' = 1 (always goes to x=1)
-        let x_next_bdd = ts.bdd().mk_var(x_next);
-        ts.set_transition(x_next_bdd);
+        let x_trans = ts.assign_var(&x, ts.bdd().one());
+        let transition = ts.build_transition(&[x_trans]);
+        ts.set_transition(transition);
 
         let ts = Rc::new(ts);
         let gen = CounterexampleGenerator::new(ts.clone());
