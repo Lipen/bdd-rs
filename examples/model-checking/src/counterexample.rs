@@ -141,28 +141,40 @@ impl CounterexampleGenerator {
             return None; // No counterexample exists
         }
 
-        // Backward BFS to find shortest path
+        // Check if initial states are already bad
+        let initial_bad = self.bdd().apply_and(initial, bad_states);
+        if !self.bdd().is_zero(initial_bad) {
+            // Initial state is bad - single state counterexample
+            let (_, literals) = self.pick_one_state(initial_bad);
+            let state = self.extract_state(&literals);
+            return Some(Counterexample::Linear(vec![state]));
+        }
+
+        // Backward BFS to find shortest path from initial to bad
+        // layers[i] = states that can reach bad in exactly i steps
         let mut layers: Vec<Ref> = vec![bad_states];
-        let mut current = bad_states;
+        let mut visited = bad_states;
 
         loop {
-            let predecessors = self.ts.preimage(current);
-            let new_states = self.bdd().apply_and(predecessors, self.bdd().apply_not(current));
+            let predecessors = self.ts.preimage(*layers.last().unwrap());
 
             // Check if we've reached initial states
             let initial_in_pre = self.bdd().apply_and(predecessors, initial);
             if !self.bdd().is_zero(initial_in_pre) {
-                // Found a path - now extract concrete states
-                return Some(self.extract_linear_trace(&layers, initial));
+                // Found a path - extract concrete states forward from initial
+                return Some(self.extract_linear_trace(&layers, initial_in_pre));
             }
+
+            // New states = predecessors not yet visited
+            let new_states = self.bdd().apply_and(predecessors, self.bdd().apply_not(visited));
 
             if self.bdd().is_zero(new_states) {
                 // No more states to explore - shouldn't happen if reachable
                 return None;
             }
 
-            current = self.bdd().apply_or(current, new_states);
-            layers.push(current);
+            visited = self.bdd().apply_or(visited, new_states);
+            layers.push(new_states);
 
             // Safety bound
             if layers.len() > 1000 {
@@ -172,27 +184,26 @@ impl CounterexampleGenerator {
         }
     }
 
-    /// Extract a concrete linear trace from backward search layers.
+    /// Extract a concrete linear trace by walking forward from initial through layers.
     fn extract_linear_trace(&self, layers: &[Ref], initial: Ref) -> Counterexample {
         let mut trace = Vec::new();
 
-        // Start from an initial state that can reach bad
-        let first_layer_with_initial = self.bdd().apply_and(layers.last().copied().unwrap_or(initial), initial);
-        let mut current_state_set = self.pick_one_state(first_layer_with_initial);
-        trace.push(self.extract_state(current_state_set));
+        // Pick one initial state that can reach bad
+        let (mut current_bdd, mut current_lits) = self.pick_one_state(initial);
+        trace.push(self.extract_state(&current_lits));
 
-        // Walk forward through layers (reversed since we did backward search)
-        for layer in layers.iter().rev().skip(1) {
-            // Find a successor in the next layer
-            let successors = self.ts.image(current_state_set);
+        // Walk forward through layers (they are in reverse order: layers[0] = bad)
+        for layer in layers.iter().rev() {
+            // Find a successor in this layer
+            let successors = self.ts.image(current_bdd);
             let next_in_layer = self.bdd().apply_and(successors, *layer);
 
             if self.bdd().is_zero(next_in_layer) {
                 break;
             }
 
-            current_state_set = self.pick_one_state(next_in_layer);
-            trace.push(self.extract_state(current_state_set));
+            (current_bdd, current_lits) = self.pick_one_state(next_in_layer);
+            trace.push(self.extract_state(&current_lits));
         }
 
         Counterexample::Linear(trace)
@@ -224,25 +235,25 @@ impl CounterexampleGenerator {
     fn generate_stem(&self, from: Ref, to: Ref) -> Vec<State> {
         let mut trace = Vec::new();
 
-        let mut current = self.pick_one_state(from);
-        trace.push(self.extract_state(current));
+        let (mut current_bdd, mut current_lits) = self.pick_one_state(from);
+        trace.push(self.extract_state(&current_lits));
 
         // BFS forward until we hit target
         for _ in 0..100 {
             // Depth limit
-            let successors = self.ts.image(current);
+            let successors = self.ts.image(current_bdd);
             let hit_target = self.bdd().apply_and(successors, to);
 
             if !self.bdd().is_zero(hit_target) {
                 // Reached target
-                current = self.pick_one_state(hit_target);
-                trace.push(self.extract_state(current));
+                (_, current_lits) = self.pick_one_state(hit_target);
+                trace.push(self.extract_state(&current_lits));
                 break;
             }
 
             // Continue forward
-            current = self.pick_one_state(successors);
-            trace.push(self.extract_state(current));
+            (current_bdd, current_lits) = self.pick_one_state(successors);
+            trace.push(self.extract_state(&current_lits));
         }
 
         trace
@@ -254,11 +265,11 @@ impl CounterexampleGenerator {
 
         // Convert start state back to BDD
         let start_bdd = self.state_to_bdd(start);
-        let mut current = start_bdd;
+        let mut current_bdd = start_bdd;
 
         // Find a cycle by following successors within EG
         for _ in 0..100 {
-            let successors = self.ts.image(current);
+            let successors = self.ts.image(current_bdd);
             let next_in_eg = self.bdd().apply_and(successors, eg_states);
 
             if self.bdd().is_zero(next_in_eg) {
@@ -272,8 +283,9 @@ impl CounterexampleGenerator {
                 break;
             }
 
-            current = self.pick_one_state(next_in_eg);
-            trace.push(self.extract_state(current));
+            let current_lits;
+            (current_bdd, current_lits) = self.pick_one_state(next_in_eg);
+            trace.push(self.extract_state(&current_lits));
         }
 
         trace
@@ -293,44 +305,37 @@ impl CounterexampleGenerator {
     }
 
     /// Pick one state from a state set (non-deterministically).
-    fn pick_one_state(&self, states: Ref) -> Ref {
-        // Use one_sat to get a single satisfying assignment
-        // Returns Vec<i32> where positive means true, negative means false
-        if let Some(assignment) = self.bdd().one_sat(states) {
-            // Convert assignment to a BDD representing that single state
-            let mut result = self.bdd().one();
-            for lit in assignment {
-                let var = BddVar::new(lit.unsigned_abs());
-                let var_bdd = self.bdd().mk_var(var);
-                let literal = if lit > 0 { var_bdd } else { self.bdd().apply_not(var_bdd) };
-                result = self.bdd().apply_and(result, literal);
-            }
-            result
-        } else {
-            self.bdd().zero()
+    /// Returns (BDD cube, literals) to avoid recomputing the assignment.
+    fn pick_one_state(&self, states: Ref) -> (Ref, Vec<i32>) {
+        if self.bdd().is_zero(states) {
+            return (self.bdd().zero(), vec![]);
         }
+
+        // Get a satisfying assignment and build a cube from it.
+        // Partial assignments are fine - they represent a subset of matching states.
+        let literals = self.bdd().one_sat(states).unwrap_or_default();
+        let cube = self.bdd().mk_cube(literals.clone());
+        (cube, literals)
     }
 
-    /// Extract a concrete State from a singleton state set.
-    fn extract_state(&self, state_bdd: Ref) -> State {
+    /// Extract a concrete State from literals.
+    fn extract_state(&self, literals: &[i32]) -> State {
         let mut state = State::new();
 
-        if let Some(assignment) = self.bdd().one_sat(state_bdd) {
-            // Map BDD variables back to state variable names
-            let present_vars: HashMap<BddVar, &Var> = self
-                .ts
-                .var_manager()
-                .vars()
-                .iter()
-                .filter_map(|v| self.ts.var_manager().get_present(v).map(|bdd_var| (bdd_var, v)))
-                .collect();
+        // Map BDD variables back to state variable names
+        let present_vars: HashMap<BddVar, &Var> = self
+            .ts
+            .var_manager()
+            .vars()
+            .iter()
+            .filter_map(|v| self.ts.var_manager().get_present(v).map(|bdd_var| (bdd_var, v)))
+            .collect();
 
-            for lit in assignment {
-                let bdd_var = BddVar::new(lit.unsigned_abs());
-                let value = lit > 0;
-                if let Some(var) = present_vars.get(&bdd_var) {
-                    state.set(var.name().to_string(), value);
-                }
+        for &lit in literals {
+            let bdd_var = BddVar::new(lit.unsigned_abs());
+            let value = lit > 0;
+            if let Some(var) = present_vars.get(&bdd_var) {
+                state.set(var.name().to_string(), value);
             }
         }
 
@@ -339,18 +344,24 @@ impl CounterexampleGenerator {
 
     /// Convert a State back to a BDD.
     fn state_to_bdd(&self, state: &State) -> Ref {
-        let mut result = self.bdd().one();
+        let literals: Vec<i32> = self
+            .ts
+            .var_manager()
+            .vars()
+            .iter()
+            .filter_map(|var| {
+                self.ts.var_manager().get_present(var).map(|bdd_var| {
+                    let value = state.get(var.name()).unwrap_or(false);
+                    if value {
+                        bdd_var.id() as i32
+                    } else {
+                        -(bdd_var.id() as i32)
+                    }
+                })
+            })
+            .collect();
 
-        for var in self.ts.var_manager().vars() {
-            if let Some(bdd_var) = self.ts.var_manager().get_present(var) {
-                let var_bdd = self.bdd().mk_var(bdd_var);
-                let value = state.get(var.name()).unwrap_or(false);
-                let literal = if value { var_bdd } else { self.bdd().apply_not(var_bdd) };
-                result = self.bdd().apply_and(result, literal);
-            }
-        }
-
-        result
+        self.bdd().mk_cube(literals)
     }
 }
 
