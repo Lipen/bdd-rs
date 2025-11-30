@@ -212,74 +212,96 @@ impl CounterexampleGenerator {
     /// Generate a lasso counterexample for liveness violations.
     ///
     /// Finds a stem from initial to a fair cycle.
+    /// The lasso structure:
+    /// - Stem: path from initial to the loop entry (exclusive of loop entry)
+    /// - Loop: cycle starting and ending at the same state
+    ///
+    /// The full trace is: `stem[0] -> stem[1] -> ... -> loop[0] -> loop[1] -> ... -> loop[0] -> ...`
     pub fn generate_lasso(&self, eg_states: Ref) -> Option<Counterexample> {
         let initial = self.ts.initial();
 
-        // Find initial states that can reach EG states
-        let initial_to_eg = self.bdd().apply_and(initial, self.reach_backward(eg_states));
+        // Find initial states that are in EG or can reach EG states
+        let can_reach_eg = self.reach_backward(eg_states);
+        let initial_to_eg = self.bdd().apply_and(initial, can_reach_eg);
         if self.bdd().is_zero(initial_to_eg) {
             return None;
         }
 
-        // Generate stem: path from initial to EG
-        let stem = self.generate_stem(initial_to_eg, eg_states);
+        // Check if initial is already in EG (can start loop immediately)
+        let initial_in_eg = self.bdd().apply_and(initial, eg_states);
 
-        // Generate loop: cycle within EG states
-        let loop_start = stem.last().cloned().unwrap_or_default();
-        let loop_states = self.generate_loop(eg_states, &loop_start);
+        if !self.bdd().is_zero(initial_in_eg) {
+            // Initial state is in EG - empty stem, start loop from initial
+            let (start_bdd, start_lits) = self.pick_one_state(initial_in_eg);
+            let start_state = self.extract_state(&start_lits);
+            let loop_states = self.generate_loop(eg_states, start_bdd, &start_state);
+            return Some(Counterexample::Lasso { stem: vec![], loop_states });
+        }
+
+        // Generate stem: path from initial to first EG state
+        let (stem, loop_entry_bdd, loop_entry_state) = self.generate_stem(initial_to_eg, eg_states);
+
+        // Generate loop: cycle within EG states starting from loop_entry
+        let loop_states = self.generate_loop(eg_states, loop_entry_bdd, &loop_entry_state);
 
         Some(Counterexample::Lasso { stem, loop_states })
     }
 
-    /// Generate stem from initial to target states.
-    fn generate_stem(&self, from: Ref, to: Ref) -> Vec<State> {
-        let mut trace = Vec::new();
+    /// Generate stem from initial to first EG state.
+    /// Returns tuple: (stem states excluding loop entry, loop entry BDD, loop entry State).
+    fn generate_stem(&self, from: Ref, eg_states: Ref) -> (Vec<State>, Ref, State) {
+        let mut stem = Vec::new();
 
         let (mut current_bdd, mut current_lits) = self.pick_one_state(from);
-        trace.push(self.extract_state(&current_lits));
 
-        // BFS forward until we hit target
+        // Walk forward until we hit EG states
         for _ in 0..100 {
-            // Depth limit
-            let successors = self.ts.image(current_bdd);
-            let hit_target = self.bdd().apply_and(successors, to);
+            let current_state = self.extract_state(&current_lits);
 
-            if !self.bdd().is_zero(hit_target) {
-                // Reached target
-                (_, current_lits) = self.pick_one_state(hit_target);
-                trace.push(self.extract_state(&current_lits));
+            // Check if current state is in EG
+            let in_eg = self.bdd().apply_and(current_bdd, eg_states);
+            if !self.bdd().is_zero(in_eg) {
+                // Current state is in EG - this is the loop entry
+                return (stem, current_bdd, current_state);
+            }
+
+            // Add to stem and continue
+            stem.push(current_state);
+
+            let successors = self.ts.image(current_bdd);
+            if self.bdd().is_zero(successors) {
                 break;
             }
 
-            // Continue forward
             (current_bdd, current_lits) = self.pick_one_state(successors);
-            trace.push(self.extract_state(&current_lits));
         }
 
-        trace
+        // Fallback (shouldn't happen if from can reach eg_states)
+        let state = self.extract_state(&current_lits);
+        (stem, current_bdd, state)
     }
 
-    /// Generate a loop within EG states.
-    fn generate_loop(&self, eg_states: Ref, start: &State) -> Vec<State> {
-        let mut trace = Vec::new();
-
-        // Convert start state back to BDD
-        let start_bdd = self.state_to_bdd(start);
+    /// Generate a loop within EG states starting from a specific state.
+    /// Returns the cycle including the start state as `loop[0]`.
+    fn generate_loop(&self, eg_states: Ref, start_bdd: Ref, start_state: &State) -> Vec<State> {
+        let mut trace = vec![start_state.clone()];
         let mut current_bdd = start_bdd;
 
-        // Find a cycle by following successors within EG
+        // Follow successors within EG until we return to start
         for _ in 0..100 {
             let successors = self.ts.image(current_bdd);
             let next_in_eg = self.bdd().apply_and(successors, eg_states);
 
             if self.bdd().is_zero(next_in_eg) {
+                // No successors in EG - shouldn't happen for valid EG states
                 break;
             }
 
-            // Check if we've returned to start
+            // Check if we can return to start (completing the loop)
             let back_to_start = self.bdd().apply_and(next_in_eg, start_bdd);
-            if !self.bdd().is_zero(back_to_start) && !trace.is_empty() {
-                // Completed the loop
+            if !self.bdd().is_zero(back_to_start) {
+                // Can return to start - loop is complete
+                // Don't add start again, it's already at trace[0]
                 break;
             }
 
@@ -343,6 +365,7 @@ impl CounterexampleGenerator {
     }
 
     /// Convert a State back to a BDD.
+    #[allow(dead_code)]
     fn state_to_bdd(&self, state: &State) -> Ref {
         let literals: Vec<Lit> = self
             .ts
@@ -432,6 +455,7 @@ mod tests {
         // The 2-bit counter cycles: 00 -> 01 -> 10 -> 11 -> 00
         // All reachable states can reach all other reachable states,
         // so EG(true) = all reachable states.
+        // Since initial (00) is already in EG, the stem is empty.
         let eg_states = ts.reachable();
 
         let cex = gen.generate_lasso(eg_states);
@@ -441,13 +465,17 @@ mod tests {
 
         match &cex {
             Counterexample::Lasso { stem, loop_states } => {
-                // Stem should start from initial (x=0, y=0)
-                assert!(!stem.is_empty());
-                assert_eq!(stem[0].get("x"), Some(false));
-                assert_eq!(stem[0].get("y"), Some(false));
+                // Initial state (00) is in EG, so stem is empty
+                // Loop starts from initial and cycles through all states
+                assert!(stem.is_empty(), "Stem should be empty when initial is in EG");
 
-                // Loop should be non-empty (we have a cycle)
+                // Loop should contain the full cycle
                 assert!(!loop_states.is_empty(), "Loop should contain at least one state");
+                assert_eq!(loop_states.len(), 4, "Should have all 4 states in the cycle");
+
+                // Loop should start from initial (x=0, y=0)
+                assert_eq!(loop_states[0].get("x"), Some(false));
+                assert_eq!(loop_states[0].get("y"), Some(false));
 
                 println!("Stem length: {}", stem.len());
                 println!("Loop length: {}", loop_states.len());
@@ -486,5 +514,58 @@ mod tests {
         let empty = ts.bdd().zero();
         let cex = gen.generate_lasso(empty);
         assert!(cex.is_none());
+    }
+
+    #[test]
+    fn test_lasso_with_nonempty_stem() {
+        // Create a system where initial is NOT in EG, requiring a stem.
+        // System: x transitions 0 -> 1 -> 1 (self-loop at 1)
+        // Initial: x=0, EG states: x=1 (the self-loop)
+        let bdd = Rc::new(Bdd::default());
+        let mut ts = TransitionSystem::new(bdd);
+
+        let x = Var::new("x");
+        ts.declare_var(x.clone());
+
+        let x_pres = ts.var_manager().get_present(&x).unwrap();
+
+        let x_bdd = ts.bdd().mk_var(x_pres);
+
+        // Initial: x=0
+        let initial = ts.bdd().mk_cube([x_pres.neg()]);
+        ts.set_initial(initial);
+
+        // Transition: x' = 1 (always goes to x=1, stays at x=1)
+        let x_trans = ts.assign_var(&x, ts.bdd().one());
+        let transition = ts.build_transition(&[x_trans]);
+        ts.set_transition(transition);
+
+        let ts = Rc::new(ts);
+        let gen = CounterexampleGenerator::new(ts.clone());
+
+        // EG states = {x=1} (the self-loop)
+        // Initial x=0 is NOT in EG, so stem should be [x=0]
+        let eg_states = x_bdd;
+
+        let cex = gen.generate_lasso(eg_states);
+        assert!(cex.is_some());
+        let cex = cex.unwrap();
+        println!("{}", cex);
+
+        match &cex {
+            Counterexample::Lasso { stem, loop_states } => {
+                // Stem should contain initial state (x=0)
+                assert_eq!(stem.len(), 1, "Stem should have one state (x=0)");
+                assert_eq!(stem[0].get("x"), Some(false));
+
+                // Loop should be x=1 (self-loop, just one state)
+                assert_eq!(loop_states.len(), 1, "Self-loop should have one state");
+                assert_eq!(loop_states[0].get("x"), Some(true));
+
+                println!("Stem length: {}", stem.len());
+                println!("Loop length: {}", loop_states.len());
+            }
+            _ => panic!("Expected lasso counterexample"),
+        }
     }
 }
