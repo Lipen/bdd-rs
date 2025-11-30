@@ -130,13 +130,13 @@ impl Var {
     ///
     /// Panics if `id == 0`. Variables must be 1-indexed.
     /// Use `Var::ZERO` for terminal nodes.
-    pub fn new(id: u32) -> Self {
-        assert_ne!(id, 0, "Variable IDs must be >= 1 (use Var::ZERO for terminals)");
+    pub const fn new(id: u32) -> Self {
+        debug_assert!(id > 0, "Variable IDs must be >= 1 (use Var::ZERO for terminals)");
         Var(id)
     }
 
     /// Returns the raw variable ID as a `u32`.
-    pub fn id(self) -> u32 {
+    pub const fn id(self) -> u32 {
         self.0
     }
 
@@ -151,12 +151,12 @@ impl Var {
     }
 
     /// Returns true if this is the terminal marker (Var::ZERO).
-    pub fn is_terminal(self) -> bool {
+    pub const fn is_terminal(self) -> bool {
         self.0 == 0
     }
 
     /// Creates a positive literal from this variable.
-    pub fn pos(self) -> Lit {
+    pub const fn pos(self) -> Lit {
         Lit::pos(self)
     }
 
@@ -216,16 +216,41 @@ impl From<u32> for Var {
 pub struct Lit(u32);
 
 impl Lit {
+    /// Special zero value representing no literal.
+    pub const ZERO: Lit = Lit(0);
+
+    pub const fn new(var: Var, negated: bool) -> Self {
+        debug_assert!(
+            !var.is_terminal(),
+            "Cannot create literal from terminal variable (use Lit::ZERO instead)"
+        );
+        Self((var.0 << 1) | (negated as u32))
+    }
+
     /// Creates a positive literal from a variable.
-    pub fn pos(var: Var) -> Self {
-        debug_assert!(!var.is_terminal(), "Cannot create literal from terminal variable");
-        Lit(var.0 << 1)
+    pub const fn pos(var: Var) -> Self {
+        Self::new(var, false)
     }
 
     /// Creates a negative literal from a variable.
-    pub fn neg(var: Var) -> Self {
-        debug_assert!(!var.is_terminal(), "Cannot create literal from terminal variable");
-        Lit((var.0 << 1) | 1)
+    pub const fn neg(var: Var) -> Self {
+        Self::new(var, true)
+    }
+
+    /// Returns the variable of this literal.
+    pub const fn var(self) -> Var {
+        // Safety: We only create Lit from valid Var, so this is safe
+        unsafe { Var::from_raw_unchecked(self.0 >> 1) }
+    }
+
+    /// Returns true if this literal is positive (not negated).
+    pub const fn is_positive(self) -> bool {
+        (self.0 & 1) == 0
+    }
+
+    /// Returns true if this literal is negative (negated).
+    pub const fn is_negative(self) -> bool {
+        (self.0 & 1) == 1
     }
 
     /// Creates a literal from a signed integer (DIMACS-style).
@@ -236,37 +261,19 @@ impl Lit {
     /// # Panics
     ///
     /// Panics if `value == 0`.
-    pub fn from_dimacs(value: i32) -> Self {
-        assert_ne!(value, 0, "Literal value cannot be zero");
-        if value > 0 {
-            Lit::pos(Var::new(value as u32))
-        } else {
-            Lit::neg(Var::new((-value) as u32))
-        }
-    }
-
-    /// Returns the variable of this literal.
-    pub fn var(self) -> Var {
-        // Safety: We only create Lit from valid Var, so this is safe
-        unsafe { Var::from_raw_unchecked(self.0 >> 1) }
-    }
-
-    /// Returns true if this literal is positive (not negated).
-    pub fn is_positive(self) -> bool {
-        (self.0 & 1) == 0
-    }
-
-    /// Returns true if this literal is negative (negated).
-    pub fn is_negative(self) -> bool {
-        (self.0 & 1) == 1
+    pub const fn from_dimacs(value: i32) -> Self {
+        debug_assert!(value != 0, "Literal value cannot be zero");
+        let var = Var::new(value.unsigned_abs());
+        let negated = value < 0;
+        Self::new(var, negated)
     }
 
     /// Returns the DIMACS-style signed integer representation.
     ///
     /// Positive literals return positive integers, negative literals
     /// return negative integers.
-    pub fn to_dimacs(self) -> i32 {
-        let var_id = (self.0 >> 1) as i32;
+    pub const fn to_dimacs(self) -> i32 {
+        let var_id = self.var().id() as i32;
         if self.is_positive() {
             var_id
         } else {
