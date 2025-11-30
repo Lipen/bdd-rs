@@ -52,8 +52,8 @@ impl<'a> FeatureAnalyzer<'a> {
 
         let mut config = HashMap::new();
         for lit in assignment {
-            let feature_id = lit.unsigned_abs();
-            let value = lit > 0;
+            let feature_id = lit.var().id();
+            let value = lit.is_positive();
             config.insert(feature_id, value);
         }
 
