@@ -379,14 +379,14 @@ Key design choices in `bdd-rs`:
 
 The remainder of this guide is organized as follows:
 
-*Part I (Chapters 2--5)* establishes the theoretical foundations: Boolean functions, Shannon expansion, the formal BDD definition, the canonicity theorem, and core algorithms.
+*@part-foundations* establishes the theoretical foundations: Boolean functions, Shannon expansion, the formal BDD definition, the canonicity theorem, and core algorithms.
 
-*Part II (Chapters 6--11)* covers implementation: manager architecture, node representation, unique tables, the Apply algorithm, caching, and complement edges.
+*@part-implementation* covers implementation: manager architecture, node representation, unique tables, the Apply algorithm, caching, and complement edges.
 
-*Part III (Chapters 12--15)* explores advanced topics: variable ordering, garbage collection, quantification, and BDD variants.
+*@part-advanced* explores advanced topics: variable ordering, garbage collection, quantification, and BDD variants.
 
-*Part IV (Chapters 16--19)* demonstrates applications: model checking, combinatorial problems, symbolic execution, and configuration management.
+*@part-applications* demonstrates applications: model checking, combinatorial problems, symbolic execution, and configuration management.
 
-*Part V (Chapters 20--22)* surveys the ecosystem: library comparisons, design trade-offs, and future directions.
+*@part-ecosystem* surveys the ecosystem: library comparisons, design trade-offs, and future directions.
 
 Each chapter builds on previous ones, but readers with specific interests can skip ahead using the cross-references provided.
