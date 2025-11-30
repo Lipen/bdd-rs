@@ -152,21 +152,19 @@
     number-align: center,
     fill: colors.bg-main,
     header: context {
-      if counter(page).get().first() > 1 {
-        set text(size: 0.85em, fill: colors.text-muted, font: fonts.heading)
-        line(length: 100%, stroke: 0.4pt + colors.line)
-        v(-0.4em)
-        grid(
-          columns: (1fr, 1fr),
-          align: (left, right),
-          smallcaps(header-title), emph[Chapter #counter(heading).display()],
-        )
-      }
+      set text(size: 0.85em, fill: colors.text-muted, font: fonts.heading)
+      line(length: 100%, stroke: 0.4pt + colors.line)
+      v(-0.4em)
+      grid(
+        columns: (1fr, 1fr),
+        align: (left, right),
+        smallcaps(header-title), emph[Chapter #counter(heading).display()],
+      )
     },
     footer: context {
       set text(size: 0.85em, fill: colors.text-muted)
       set align(center)
-      counter(page).display("1")
+      counter(page).display()
     },
   )
 
@@ -301,19 +299,22 @@
 
   // Part heading
   show figure.where(kind: "part"): it => {
+    set page(header: none, footer: none)
     set par(justify: false)
     set align(center)
-    pagebreak(weak: true)
-    hide[#heading(bookmarked: true, numbering: none)[#it.caption.body]]
+    hide(heading(
+      bookmarked: true,
+      numbering: none,
+    )[#it.supplement #it.counter.display(it.numbering):#h(0.5em, weak: true) #it.caption.body])
     v(1fr)
     block(width: 100%)[
       #text(
-        size: 1.2em,
+        size: 2em,
         weight: "regular",
         fill: colors.text-muted,
         font: fonts.heading,
         tracking: 0.3em,
-      )[PART #it.counter.display("I")]
+      )[PART #it.counter.display(it.numbering)]
       #v(spacing.medium)
       #line(length: 20%, stroke: 1.5pt + colors.accent)
       #v(spacing.large)
@@ -330,7 +331,7 @@
 // ============================================================================
 
 #let make-title() = {
-  set page(numbering: none)
+  set page(header: none, footer: none)
   context {
     let title = doc-title.get()
     let subtitle = doc-subtitle.get()

@@ -17,16 +17,14 @@
 // Title Page
 // ============================================================================
 
-#set page(numbering: none)
-
 #make-title()
+
+#set page(numbering: "i")
+#counter(page).update(1)
 
 // ============================================================================
 // Preface
 // ============================================================================
-
-#set page(numbering: "i")
-#counter(page).update(1)
 
 #include "chapters/00_preface.typ"
 
@@ -47,9 +45,9 @@
 
 #part[Foundations] <part-foundations>
 
-This part establishes the theoretical foundations of Binary Decision Diagrams.
-We begin with motivation and intuition, then develop the formal mathematical framework.
-By the end, you will understand what BDDs are, why they work, and when to use them.
+// This part establishes the theoretical foundations of Binary Decision Diagrams.
+// We begin with motivation and intuition, then develop the formal mathematical framework.
+// By the end, you will understand what BDDs are, why they work, and when to use them.
 
 #include "chapters/part1_foundations/01_introduction.typ"
 
@@ -67,9 +65,9 @@ By the end, you will understand what BDDs are, why they work, and when to use th
 
 #part[Implementation] <part-implementation>
 
-This part covers practical implementation of a BDD library.
-We examine data structures, algorithms, and engineering trade-offs.
-The discussion is grounded in the `bdd-rs` library architecture.
+// This part covers practical implementation of a BDD library.
+// We examine data structures, algorithms, and engineering trade-offs.
+// The discussion is grounded in the `bdd-rs` library architecture.
 
 #include "chapters/part2_implementation/06_architecture.typ"
 
@@ -89,8 +87,8 @@ The discussion is grounded in the `bdd-rs` library architecture.
 
 #part[Advanced Topics] <part-advanced>
 
-This part explores advanced BDD techniques and extensions.
-We cover variable ordering, garbage collection, and variants like ZDDs and ADDs.
+// This part explores advanced BDD techniques and extensions.
+// We cover variable ordering, garbage collection, and variants like ZDDs and ADDs.
 
 #include "chapters/part3_advanced/12_variable_ordering.typ"
 
@@ -136,7 +134,8 @@ We compare approaches, examine existing libraries, and discuss design trade-offs
 // Appendices
 // ============================================================================
 
-#set heading(numbering: "A.1")
+#set heading(numbering: "A.1", supplement: "Appendix")
+#counter(heading).update(0)
 
 #include "chapters/appendices/a_api_reference.typ"
 
