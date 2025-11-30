@@ -225,7 +225,7 @@ Computing $f and g$ or $f or g$ takes time proportional to $|f| times |g|$ --- t
 The impact was immediate and profound.
 
 In 1987, a team including *Edmund Clarke* (later a Turing Award recipient) demonstrated *symbolic model checking*.
-They verified systems with $10^{20}$ states --- astronomically beyond what explicit enumeration could handle.
+They verified systems with $10^20$ states --- astronomically beyond what explicit enumeration could handle.
 
 Hardware companies took notice.
 Intel began using BDD-based tools to verify processor designs.
