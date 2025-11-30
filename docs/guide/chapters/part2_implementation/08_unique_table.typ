@@ -2,50 +2,141 @@
 
 = The Unique Table <ch-unique-table>
 
-The *unique table* is the mechanism that ensures no two BDD nodes represent the same function.
-It implements *hash consing* --- the technique of sharing identical structures by looking them up in a hash table before creating new ones.
-Without the unique table, BDDs would lose their canonical form property.
+What stops a BDD from creating the same node twice?
+The answer is the *unique table* --- a hash-based lookup structure ensuring that every $(v, "low", "high")$ triple maps to exactly one node.
 
-== Purpose of the Unique Table
+This is the mechanism behind canonicity.
+Without it, two separately constructed BDDs might represent the same function but have different structures.
+The $O(1)$ equivalence check --- the killer feature of BDDs --- would break entirely.
 
-Recall the BDD uniqueness invariant: for any $("var", "low", "high")$ triple, at most one node exists in the entire graph.
-The unique table enforces this by maintaining a mapping:
+This chapter explains how the unique table works and why `bdd-rs` uses per-level subtables for efficiency.
 
-$ ("var", "low", "high") -> "NodeId" $
+== The Problem: Duplicate Nodes
 
-Before creating any node, we query this table.
-If an entry exists, we return the existing node.
-If not, we create a new node and insert it.
+Imagine building the BDD for $f = (x and y) or (x and z)$.
+The variable $x$ appears twice in the formula.
+Without care, we might create two separate $x$-nodes:
 
-This is *hash consing*, a general technique for structural sharing in functional data structures.
-The term comes from Lisp's `cons` cells --- by hashing them, we avoid duplicates.
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
 
-#insight-box[
-  Hash consing is what transforms BDDs from exponential-sized trees into polynomial-sized DAGs.
-  Every time you'd have duplicate subtrees, hash consing makes them share a single representation.
+    // Problem visualization: two separate x nodes
+    content((2, 4.5), text(weight: "bold", fill: colors.error)[Problem: Duplicate nodes])
+
+    // First x node
+    bdd-decision-node((1.5, 3), $x$, name: "x1")
+    content((1.5, 2), text(size: 0.7em, fill: colors.text-muted)[to $y$ branch])
+
+    // Second x node
+    bdd-decision-node((4, 3), $x$, name: "x2")
+    content((4, 2), text(size: 0.7em, fill: colors.text-muted)[to $z$ branch])
+
+    // Not equal sign
+    content((2.75, 3), text(size: 1em, fill: colors.error)[$eq.not$])
+
+    // Arrow to solution
+    line((5.5, 3), (7, 3), stroke: 2pt + colors.success, mark: (end: ">", fill: colors.success))
+
+    // Solution: single node
+    content((9, 4.5), text(weight: "bold", fill: colors.success)[Solution: Hash consing])
+    bdd-decision-node((9, 3), $x$, name: "x-shared")
+    content((9, 2), text(size: 0.7em, fill: colors.text-muted)[shared by both])
+
+    // Both point to it
+    line((7.5, 4), (8.6, 3.4), stroke: 1pt + colors.text-muted, mark: (end: ">"))
+    line((10.5, 4), (9.4, 3.4), stroke: 1pt + colors.text-muted, mark: (end: ">"))
+  }),
+  caption: [Without hash consing (left), duplicate nodes destroy canonicity. With it (right), identical structures are shared.],
+)
+
+Hash consing prevents this.
+Before creating any node, we check: "Does this node already exist?"
+If yes, return the existing one.
+If no, create and register it.
+
+== The Unique Table
+
+The unique table maintains the invariant:
+
+$ forall ("var", "low", "high"): "at most one node exists" $
+
+It's a hash map from triples to node IDs:
+
+$ U : ("Var" times "Ref" times "Ref") -> "NodeId" $
+
+#definition(title: "Hash Consing")[
+  *Hash consing* is a technique where:
+  + Before creating a structure, check if an identical one exists
+  + If it exists, return a reference to the existing one
+  + If not, create it and add it to the table
+
+  This ensures structural sharing: identical structures are represented exactly once.
 ]
 
-== The mk Operation
+== The `mk` Operation
 
-The `mk` (make) function is the constructor that enforces all BDD invariants:
+The `mk` (make) function is the gatekeeper.
+Every node creation goes through it, and it enforces all BDD invariants:
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Flow diagram for mk
+    let start = (5, 7)
+
+    // Input
+    rect((2.5, 6.6), (7.5, 7.4), fill: colors.box-definition, stroke: 1pt + colors.primary, radius: 4pt)
+    content(start, text(size: 0.8em)[`mk(var, low, high)`])
+
+    // Step 1: Canonicity
+    rect((1.5, 5.3), (8.5, 6.1), fill: colors.box-warning.lighten(40%), stroke: 1pt + colors.warning, radius: 4pt)
+    content((5, 5.7), text(size: 0.8em)[High negated? Flip: `return -mk(var, -low, -high)`])
+
+    // Step 2: Reduction
+    rect((1.5, 4), (8.5, 4.8), fill: colors.box-example.lighten(40%), stroke: 1pt + colors.success, radius: 4pt)
+    content((5, 4.4), text(size: 0.8em)[`low == high`? Redundant: `return low`])
+
+    // Step 3: Lookup
+    rect((1.5, 2.7), (8.5, 3.5), fill: colors.box-insight.lighten(30%), stroke: 1pt + colors.info, radius: 4pt)
+    content((5, 3.1), text(size: 0.8em)[Exists in unique table? `return existing`])
+
+    // Step 4: Create
+    rect((1.5, 1.4), (8.5, 2.2), fill: colors.box-theorem.lighten(30%), stroke: 1pt + colors.primary, radius: 4pt)
+    content((5, 1.8), text(size: 0.8em)[Create new node, insert into table, return])
+
+    // Arrows
+    line((5, 6.6), (5, 6.1), stroke: 1pt + colors.text-muted, mark: (end: ">"))
+    line((5, 5.3), (5, 4.8), stroke: 1pt + colors.text-muted, mark: (end: ">"))
+    line((5, 4), (5, 3.5), stroke: 1pt + colors.text-muted, mark: (end: ">"))
+    line((5, 2.7), (5, 2.2), stroke: 1pt + colors.text-muted, mark: (end: ">"))
+
+    // Side labels
+    content((9.5, 5.7), text(size: 0.7em, fill: colors.warning)[Invariant 1], anchor: "west")
+    content((9.5, 4.4), text(size: 0.7em, fill: colors.success)[Invariant 2], anchor: "west")
+    content((9.5, 3.1), text(size: 0.7em, fill: colors.info)[Invariant 3], anchor: "west")
+  }),
+  caption: [The `mk` function enforces three invariants in sequence.],
+)
 
 #algorithm(title: "mk (Make Node)")[
   ```
   mk(var, low, high):
-    // Invariant 1: High edge never complemented
+    // Invariant 1: Canonicity (high edge positive)
     if high.is_negated():
       return -mk(var, -low, -high)
 
-    // Invariant 2: No redundant tests
+    // Invariant 2: Reduction (no redundant tests)
     if low == high:
       return low
 
-    // Invariant 3: Hash consing (uniqueness)
+    // Invariant 3: Uniqueness (hash consing)
     level = get_level(var)
     if (low, high) in subtables[level]:
       return subtables[level].find(low, high)
 
-    // Create new node
+    // Create and register new node
     node = Node::new(var, low, high)
     id = allocate_node(node)
     subtables[level].insert(low, high, id)
@@ -53,87 +144,94 @@ The `mk` (make) function is the constructor that enforces all BDD invariants:
   ```
 ]
 
-The three invariants are checked in order:
+== Per-Level Subtables
 
-#definition(title: "Canonicity Invariant")[
-  High edges are never complemented.
-  If `high.is_negated()`, we flip both children and return a negated reference.
-  This ensures a unique representation for each function.
-]
+`bdd-rs` doesn't use a single global hash table.
+Instead, it uses *per-level subtables* --- one hash table per variable:
 
-#definition(title: "Reduction Invariant")[
-  If `low == high`, the variable test is redundant --- the function doesn't depend on this variable.
-  We return the child directly, avoiding a useless node.
-]
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
 
-#definition(title: "Uniqueness Invariant")[
-  Before allocating a new node, check if an identical one exists.
-  The unique table provides $O(1)$ average-case lookup for this check.
-]
+    // Subtables visualization
+    content((5, 6), text(weight: "bold", size: 1em)[Per-Level Subtables])
 
-=== The mk Implementation in bdd-rs
+    // Level 0
+    rect((0.5, 4.2), (3.5, 5.2), fill: colors.box-definition.lighten(30%), stroke: 1pt + colors.primary, radius: 4pt)
+    content((2, 4.9), text(size: 0.8em, weight: "semibold")[Level 0: $x$])
+    content((2, 4.5), text(size: 0.7em, fill: colors.text-muted)[nodes with var = x])
 
-```rust
-pub fn mk_node(&self, v: Var, low: Ref, high: Ref) -> Ref {
-    assert!(!v.is_terminal(), "Variable must not be Var::ZERO");
+    // Level 1
+    rect(
+      (4, 4.2),
+      (7, 5.2),
+      fill: colors.box-example.lighten(30%),
+      stroke: 1pt + colors.success.lighten(20%),
+      radius: 4pt,
+    )
+    content((5.5, 4.9), text(size: 0.8em, weight: "semibold")[Level 1: $y$])
+    content((5.5, 4.5), text(size: 0.7em, fill: colors.text-muted)[nodes with var = y])
 
-    // Handle canonicity: high edge must be positive
-    if high.is_negated() {
-        return -self.mk_node(v, -low, -high);
+    // Level 2
+    rect(
+      (7.5, 4.2),
+      (10.5, 5.2),
+      fill: colors.box-warning.lighten(30%),
+      stroke: 1pt + colors.warning.lighten(20%),
+      radius: 4pt,
+    )
+    content((9, 4.9), text(size: 0.8em, weight: "semibold")[Level 2: $z$])
+    content((9, 4.5), text(size: 0.7em, fill: colors.text-muted)[nodes with var = z])
+
+    // Hash buckets inside each
+    for i in range(3) {
+      let x = 1 + i * 0.6
+      rect((x, 3.2), (x + 0.4, 3.8), fill: colors.bg-code, stroke: 0.5pt + colors.line)
+    }
+    for i in range(3) {
+      let x = 4.5 + i * 0.6
+      rect((x, 3.2), (x + 0.4, 3.8), fill: colors.bg-code, stroke: 0.5pt + colors.line)
+    }
+    for i in range(3) {
+      let x = 8 + i * 0.6
+      rect((x, 3.2), (x + 0.4, 3.8), fill: colors.bg-code, stroke: 0.5pt + colors.line)
     }
 
-    // Handle reduction: skip redundant tests
-    if low == high {
-        return low;
-    }
+    content((2, 2.8), text(size: 0.7em, fill: colors.text-muted)[buckets])
+    content((5.5, 2.8), text(size: 0.7em, fill: colors.text-muted)[buckets])
+    content((9, 2.8), text(size: 0.7em, fill: colors.text-muted)[buckets])
 
-    // Auto-register the variable if needed
-    self.register_variable(v.id());
-    let level = self.get_level(v).expect("Variable should be registered");
-
-    // Hash consing: check if node exists
-    {
-        let nodes = self.nodes();
-        let subtables = self.subtables();
-        if let Some(id) = subtables[level.index()].find(low, high, &nodes) {
-            return Ref::positive(id);
-        }
-    }
-
-    // Node doesn't exist - allocate and insert
-    let node = Node::new(v, low, high);
-    let id = self.allocate_node(node);
-
-    {
-        let mut nodes = self.nodes_mut();
-        self.subtables_mut()[level.index()].insert(low, high, id, &mut nodes);
-    }
-
-    Ref::positive(id)
-}
-```
-
-== Hash Table Design
-
-`bdd-rs` uses *per-level subtables* rather than a single global hash table.
-Each level (variable) has its own hash table containing only nodes with that variable.
-
-=== Per-Level Subtables
+    // Explanation
+    content((5.5, 2), align(center)[
+      #set text(size: 0.8em)
+      Query: "Does node $(y, ell, h)$ exist?" $->$ Look only in Level 1's table
+    ])
+  }),
+  caption: [Each level maintains its own hash table. Queries only search the relevant level.],
+)
 
 ```rust
 subtables: RefCell<Vec<Subtable>>  // level → subtable
 
-// Each subtable handles one variable
 pub struct Subtable {
     pub variable: Var,
-    buckets: Vec<NodeId>,  // Hash buckets (head pointers)
-    bitmask: u64,          // For computing bucket index
-    count: usize,          // Number of nodes
+    buckets: Vec<NodeId>,  // Hash bucket heads
+    bitmask: u64,          // For fast modulo
+    count: usize,          // Node count at this level
 }
 ```
 
-The key insight: since we know the variable when querying, we can skip it in the hash.
-The subtable only hashes `(low, high)`:
+=== Why Per-Level?
+
+#info-box(title: "Advantages of Per-Level Subtables")[
+  + *Smaller tables*: Each level has fewer nodes than the total, reducing collision rates
+  + *Better locality*: Operations often work within one or two levels
+  + *Simpler reordering*: Swapping variable positions means swapping subtables
+  + *Parallelism-friendly*: Different levels can be processed independently
+]
+
+The key insight: when creating a node for variable $v$, we *know* which subtable to search.
+We don't need to include $v$ in the hash --- it's implicit from which table we're querying.
 
 ```rust
 fn bucket_index(&self, low: Ref, high: Ref) -> usize {
@@ -142,12 +240,34 @@ fn bucket_index(&self, low: Ref, high: Ref) -> usize {
 }
 ```
 
-#info-box(title: "Why Per-Level Subtables?")[
-  + *Smaller hash tables*: Each level has fewer nodes than the total
-  + *Better locality*: Nodes at the same level are often accessed together
-  + *Simpler reordering*: Swapping levels means swapping subtables
-  + *Parallelism potential*: Different levels can be processed independently
-]
+== The Unique Table vs. Computed Table
+
+Two hash-based structures exist in a BDD library.
+Don't confuse them:
+
+#comparison-table(
+  [*Aspect*],
+  [*Unique Table*],
+  [*Computed Table (Cache)*],
+  [Purpose],
+  [Node deduplication],
+  [Operation memoization],
+  [Key],
+  [$("low", "high")$ at level],
+  [$("op", f, g, h)$],
+  [Value],
+  [NodeId],
+  [Ref (result)],
+  [On collision],
+  [Chain (must be complete)],
+  [Evict (optimization only)],
+  [Correctness],
+  [*Required*],
+  [Performance only],
+)
+
+The unique table must be *complete* --- every node must be findable.
+The computed table can *evict* entries on collision; it only affects speed, not correctness.
 
 === Intrusive Hashing
 
@@ -178,10 +298,22 @@ Subtable for level k:
 ```
 
 #comparison-table(
-  [*Approach*], [*Memory*], [*Locality*], [*Complexity*],
-  [Intrusive (CUDD-style)], [No extra allocation], [Better --- nodes are data], [Harder to implement],
-  [External chaining], [Entry wrapper per node], [Worse --- indirection], [Easier],
-  [Open addressing], [No chains], [Excellent], [Resizing tricky],
+  [*Approach*],
+  [*Memory*],
+  [*Locality*],
+  [*Complexity*],
+  [Intrusive (CUDD-style)],
+  [No extra allocation],
+  [Better --- nodes are data],
+  [Harder to implement],
+  [External chaining],
+  [Entry wrapper per node],
+  [Worse --- indirection],
+  [Easier],
+  [Open addressing],
+  [No chains],
+  [Excellent],
+  [Resizing tricky],
 )
 
 === Lookup Operation
@@ -326,11 +458,21 @@ fn validate_unique_table(&self) {
 Other BDD libraries make different choices:
 
 #comparison-table(
-  [*Library*], [*Table Structure*], [*Hash Strategy*],
-  [CUDD], [Per-level subtables], [Intrusive chaining],
-  [BuDDy], [Global table], [External chaining],
-  [Sylvan], [Lock-free global table], [Open addressing],
-  [bdd-rs], [Per-level subtables], [Intrusive chaining],
+  [*Library*],
+  [*Table Structure*],
+  [*Hash Strategy*],
+  [CUDD],
+  [Per-level subtables],
+  [Intrusive chaining],
+  [BuDDy],
+  [Global table],
+  [External chaining],
+  [Sylvan],
+  [Lock-free global table],
+  [Open addressing],
+  [bdd-rs],
+  [Per-level subtables],
+  [Intrusive chaining],
 )
 
 The per-level approach scales better for dynamic reordering, while global tables are simpler to implement.

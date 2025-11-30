@@ -2,283 +2,472 @@
 
 = Manager-Centric Architecture <ch-architecture>
 
-The design of a BDD library revolves around a fundamental architectural choice: how to organize the relationship between BDD nodes and the infrastructure that manages them.
-This chapter explains why `bdd-rs` and most serious BDD libraries adopt a *manager-centric architecture*, where a central `Bdd` struct owns all state and controls all operations.
+Picture a library where every book can reference any page in any other book, but the references only work because all books live on the same shelf.
+Move a book to a different shelf, and the references shatter into meaningless numbers.
+
+This is the essence of BDD architecture.
+Every BDD node can reference any other node, and these references *must* remain consistent across the entire system.
+This chapter explains why BDD libraries universally adopt a *manager-centric architecture* and how `bdd-rs` implements it.
+
+== The Central Challenge: Sharing
+
+What makes BDDs powerful is also what makes them tricky to implement: *maximal sharing*.
+
+Consider building the BDD for $f = (a and b) or c$.
+Now build $g = (a and b) or d$.
+Both formulas contain the subexpression $(a and b)$.
+In a well-designed BDD library, this subexpression is represented *exactly once* --- both $f$ and $g$ point to the same physical nodes in memory.
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Shared subgraph demonstration
+    let shared-pos = (4, 2)
+    let a-pos = (4, 4)
+    let b-pos = (4, 2.5)
+    let zero = (3.5, 0.8)
+    let one = (4.5, 0.8)
+
+    // f = (a AND b) OR c
+    let f-c-pos = (2, 3)
+    let f-label = (0.5, 4.5)
+
+    // g = (a AND b) OR d
+    let g-d-pos = (6, 3)
+    let g-label = (7.5, 4.5)
+
+    // Draw the shared a AND b subgraph
+    bdd-terminal-node(zero, 0, name: "zero")
+    bdd-terminal-node(one, 1, name: "one")
+    bdd-decision-node(a-pos, "a", name: "a")
+    bdd-decision-node(b-pos, "b", name: "b")
+
+    // a -> 0 (low), a -> b (high)
+    bdd-low-edge((a-pos.at(0) - 0.3, a-pos.at(1) - 0.4), (zero.at(0) + 0.35, zero.at(1) + 0.7))
+    bdd-high-edge((a-pos.at(0), a-pos.at(1) - 0.4), (b-pos.at(0), b-pos.at(1) + 0.4))
+
+    // b -> 0 (low), b -> 1 (high)
+    bdd-low-edge((b-pos.at(0) - 0.3, b-pos.at(1) - 0.4), (zero.at(0) + 0.2, zero.at(1) + 0.3))
+    bdd-high-edge((b-pos.at(0) + 0.3, b-pos.at(1) - 0.4), (one.at(0) - 0.2, one.at(1) + 0.3))
+
+    // f's c node
+    bdd-decision-node(f-c-pos, "c", name: "c")
+    // c -> a (low for OR structure), c -> 1 (high)
+    bdd-low-edge((f-c-pos.at(0) + 0.35, f-c-pos.at(1) - 0.2), (a-pos.at(0) - 0.35, a-pos.at(1) + 0.2))
+    bdd-high-edge((f-c-pos.at(0) - 0.2, f-c-pos.at(1) - 0.4), (one.at(0) - 0.5, one.at(1) + 0.5))
+
+    // g's d node
+    bdd-decision-node(g-d-pos, "d", name: "d")
+    // d -> a (low), d -> 1 (high)
+    bdd-low-edge((g-d-pos.at(0) - 0.35, g-d-pos.at(1) - 0.2), (a-pos.at(0) + 0.35, a-pos.at(1) + 0.2))
+    bdd-high-edge((g-d-pos.at(0) + 0.2, g-d-pos.at(1) - 0.4), (one.at(0) + 0.5, one.at(1) + 0.5))
+
+    // Labels
+    content(f-label, text(fill: colors.primary, weight: "bold", $f$))
+    content(g-label, text(fill: colors.primary, weight: "bold", $g$))
+
+    // Highlight shared region
+    rect(
+      (2.8, 1.4),
+      (5.2, 4.6),
+      stroke: (paint: colors.accent, thickness: 2pt, dash: "dashed"),
+      radius: 8pt,
+    )
+    content((4, 5), text(size: 0.8em, fill: colors.accent)[shared $(a and b)$ subgraph])
+  }),
+  caption: [Two BDDs sharing a common subgraph. Both $f$ and $g$ reference the same nodes for $(a and b)$.],
+)
+
+This sharing requires centralized control.
+If $f$ and $g$ lived in separate data structures, they couldn't share nodes.
+Every BDD library solves this the same way: a *manager* that owns all nodes.
 
 == Why a Manager?
 
-Consider the alternative: standalone BDD objects that each own their own data.
-At first glance, this seems natural --- after all, a BDD represents a Boolean function, so why not have independent `Bdd` objects?
+The manager pattern is not a stylistic choice --- it's a necessity.
+BDDs need four guarantees that only centralized control can provide:
 
-The problem is *canonicity*.
-BDDs achieve $O(1)$ equivalence testing because identical functions share identical representations.
-This requires:
+#table(
+  columns: (auto, 1fr),
+  align: (left, left),
+  table.header([*Requirement*], [*Why It Needs a Manager*]),
+  [*Shared storage*], [Nodes must live in one pool so references work across all BDDs],
+  [*Hash consing*], [Before creating a node, check if it exists --- needs global view],
+  [*Consistent ordering*], [All BDDs must agree on variable order],
+  [*Shared caches*], [Operation results must be reusable everywhere],
+)
 
-+ *Shared node storage*: All nodes must live in the same pool for comparison to work
-+ *Consistent variable ordering*: All BDDs must use the same ordering
-+ *Hash consing*: Creating a node must check if an identical one exists
-+ *Shared caches*: Operation results must be reusable across all BDDs
-
-With standalone objects, none of these guarantees hold.
-Two independently created BDDs representing the same function would be different objects, breaking the fundamental $O(1)$ equivalence property.
+Without a manager, two BDDs built independently would represent the same function with different structures.
+The fundamental $O(1)$ equivalence check --- "are these two pointers equal?" --- would break.
 
 #insight-box[
-  The manager-centric design is not just an implementation choice --- it's essential for maintaining the canonical form invariant.
-  Without centralized control, hash consing becomes impossible and canonicity breaks.
+  Every major BDD library uses a manager:
+  - *CUDD*: `DdManager` (the gold standard)
+  - *BuDDy*: Global manager via `bdd_init()`
+  - *Sylvan*: Lock-free parallel manager
+  - *bdd-rs*: `Bdd` struct with interior mutability
 ]
-
-The manager pattern appears throughout the BDD ecosystem:
-- *CUDD*: `DdManager` owns all nodes and operation caches
-- *BuDDy*: `bdd_init()` creates global state for all operations
-- *Sylvan*: Parallel manager with work-stealing queues
-- *bdd-rs*: `Bdd` struct with interior mutability
 
 == The Bdd Manager in bdd-rs
 
-The `Bdd` struct is the heart of `bdd-rs`.
-It encapsulates all state needed for BDD operations:
+Here is the actual `Bdd` struct from the source code:
 
 ```rust
 pub struct Bdd {
-    // Node storage: index 0 = terminal
+    /// Node storage: index 0 is the terminal node
     nodes: RefCell<Vec<Node>>,
+    /// Free node indices available for reuse
     free_set: RefCell<HashSet<NodeId>>,
 
-    // Per-level subtables for hash consing
-    subtables: RefCell<Vec<Subtable>>,
-
-    // Operation cache (memoization)
+    /// Operation cache (memoizes ITE results)
     cache: RefCell<Cache<OpKey, Ref>>,
+    /// Size computation cache
     size_cache: RefCell<Cache<Ref, u64>>,
 
-    // Terminal references
-    pub one: Ref,
-    pub zero: Ref,
+    /// Variable ordering: level → variable
+    var_order: RefCell<Vec<Var>>,
+    /// Reverse mapping: variable → level
+    level_map: RefCell<HashMap<Var, Level>>,
+
+    /// Per-level hash tables for uniqueness
+    subtables: RefCell<Vec<Subtable>>,
+
+    /// Next variable ID to allocate
+    next_var_id: Cell<u32>,
+    /// Configuration settings
+    config: BddConfig,
+}
+```
+
+Let us visualize how these components fit together:
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Main manager box
+    rect(
+      (0, 0),
+      (12, 8),
+      fill: colors.bg-subtle,
+      stroke: 2pt + colors.primary,
+      radius: 8pt,
+      name: "manager",
+    )
+    content((6, 8.4), text(weight: "bold", size: 1em, fill: colors.primary, font: fonts.heading)[Bdd Manager])
+
+    // Node storage
+    arch-box(
+      (0.3, 7.5),
+      3.5,
+      3,
+      "nodes: Vec<Node>",
+      (
+        "[0] terminal",
+        "[1] x → (0, 1)",
+        "[2] y → (0, @1)",
+        "...",
+      ),
+      fill-color: colors.box-definition,
+    )
+
+    // Free set
+    arch-box(
+      (0.3, 4.2),
+      3.5,
+      1.3,
+      "free_set",
+      (
+        "recycled indices",
+      ),
+      fill-color: colors.box-insight.lighten(30%),
+    )
+
+    // Subtables
+    arch-box(
+      (4.2, 7.5),
+      3.5,
+      3,
+      "subtables",
+      (
+        "Level 0: hash table",
+        "Level 1: hash table",
+        "Level 2: hash table",
+        "...",
+      ),
+      fill-color: colors.box-example,
+    )
+
+    // Cache
+    arch-box(
+      (8.1, 7.5),
+      3.5,
+      2.2,
+      "cache: ITE results",
+      (
+        "(f, g, h) → result",
+        "memoized ops",
+      ),
+      fill-color: colors.box-warning.lighten(30%),
+    )
+
+    // Size cache
+    arch-box(
+      (8.1, 5),
+      3.5,
+      1.5,
+      "size_cache",
+      (
+        "f → node count",
+      ),
+      fill-color: colors.box-warning.lighten(40%),
+    )
 
     // Variable ordering
-    var_order: RefCell<Vec<Var>>,      // level → variable
-    level_map: RefCell<HashMap<Var, Level>>,  // variable → level
-    next_var_id: Cell<u32>,
-}
-```
+    arch-box(
+      (4.2, 4.2),
+      3.5,
+      2.5,
+      "Variable Ordering",
+      (
+        "var_order: [x, y, z]",
+        "level_map: x→0, y→1",
+        "next_var_id: 4",
+      ),
+      fill-color: colors.box-theorem.lighten(30%),
+    )
 
-#info-box(title: "Interior Mutability")[
-  The `RefCell` wrappers enable *interior mutability* --- modification through shared references.
-  This allows the ergonomic API pattern where methods take `&self` rather than `&mut self`, so users don't need exclusive access for every operation.
-]
+    // Config
+    arch-box(
+      (8.1, 3.2),
+      3.5,
+      1.5,
+      "config",
+      (
+        "initial capacity, etc.",
+      ),
+      fill-color: colors.bg-code,
+    )
 
-=== Component Responsibilities
+    // Ref output arrow
+    line((6, 0), (6, -0.8), stroke: 2pt + colors.accent, mark: (end: ">", fill: colors.accent))
+    content((6, -1.3), text(fill: colors.accent, weight: "bold")[`Ref`: 32-bit handle])
 
-Each component has a specific role:
-
-#definition(title: "Node Storage")[
-  `nodes: Vec<Node>` stores all BDD nodes contiguously in memory.
-  Index 0 is reserved for the terminal node.
-  The `free_set` tracks recycled indices available for reuse.
-]
-
-#definition(title: "Per-Level Subtables")[
-  `subtables: Vec<Subtable>` provides hash-based lookup for each variable level.
-  This enables $O(1)$ average-case node lookup during construction.
-]
-
-#definition(title: "Operation Cache")[
-  `cache: Cache<OpKey, Ref>` memoizes ITE operation results.
-  Without caching, BDD operations would have exponential complexity.
-]
-
-#definition(title: "Variable Ordering")[
-  `var_order` and `level_map` maintain the bidirectional mapping between variables and their positions in the ordering.
-]
-
-=== Creating a Manager
-
-```rust
-use bdd_rs::bdd::Bdd;
-
-// Default: 2^20 (~1M) nodes capacity
-let bdd = Bdd::default();
-
-// Custom capacity for large problems
-let big_bdd = Bdd::new(24);  // 2^24 (~16M) nodes
-```
-
-The capacity parameter specifies bits, so `Bdd::new(20)` allocates space for $2^20 approx 1$ million nodes.
-The cache is automatically sized based on storage capacity.
-
-== References vs. Nodes
-
-Users never interact directly with `Node` structs.
-Instead, they work with `Ref` --- a lightweight 32-bit handle:
-
-```rust
-#[repr(transparent)]
-pub struct Ref(u32);
-```
-
-The `Ref` type packs two pieces of information:
-- *31 bits*: Index into the node storage
-- *1 bit*: Complement flag (is this reference negated?)
-
-This design has several advantages:
-
-#comparison-table(
-  [*Aspect*], [*Ref*], [*Node*],
-  [Size], [4 bytes], [16 bytes],
-  [Copy], [Trivial], [Trivial but larger],
-  [Negation], [$O(1)$ bit flip], [Would need new node],
-  [Comparison], [Direct integer compare], [Field-by-field],
-  [Ownership], [Handle --- doesn't own data], [Data --- would need manager],
+    // Ref bit layout
+    rect((3.5, -2.8), (8.5, -1.8), stroke: 1pt + colors.line, radius: 4pt)
+    rect((3.5, -2.8), (7.5, -1.8), fill: colors.box-definition)
+    rect((7.5, -2.8), (8.5, -1.8), fill: colors.box-warning)
+    content((5.5, -2.3), text(size: 0.8em)[31-bit node index])
+    content((8, -2.3), text(size: 0.8em)[C])
+    content((6, -3.2), text(size: 0.7em, fill: colors.text-muted)[C = complement bit (negation)])
+  }),
+  caption: [Architecture of the `Bdd` manager showing all major components.],
 )
 
-#info-box(title: "Why Complement Edges Matter")[
-  The complement bit in `Ref` enables $O(1)$ negation.
-  Instead of creating a new BDD for $not f$, we simply flip the bit: `-f` in Rust.
-  This is why `Ref` implements `Neg`, making negation as simple as writing `-x`.
-]
+=== Interior Mutability
 
-=== The Ref API
+Notice all the `RefCell` wrappers?
+They enable *interior mutability* --- the ability to modify data through a shared reference (`&self`).
+
+This is a deliberate ergonomic choice.
+Without it, every BDD operation would require `&mut self`, meaning you could not hold multiple `Ref` values while building a formula:
 
 ```rust
-impl Ref {
-    pub fn new(id: NodeId, negated: bool) -> Self;
-    pub fn positive(id: NodeId) -> Self;
-    pub fn negative(id: NodeId) -> Self;
+// With interior mutability (what we have):
+let x = bdd.mk_var(1);  // &self
+let y = bdd.mk_var(2);  // &self
+let f = bdd.apply_and(x, y);  // &self - x and y still valid!
 
-    pub fn id(self) -> NodeId;        // Extract node index
-    pub fn is_negated(self) -> bool;  // Check complement bit
-}
+// Without (hypothetical):
+let x = bdd.mk_var(1);  // &mut self
+// x is now invalid because we'd need &mut self again!
+```
 
-// Negation is just XOR with 1
+The trade-off: runtime borrow checking instead of compile-time.
+In practice, BDD operations don't nest in ways that cause panics.
+
+== References: The User-Facing Handle
+
+Users never touch `Node` structs directly.
+Instead, they work with `Ref` --- a compact 32-bit handle:
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Bit layout
+    let total-width = 12
+    let index-width = 10.5
+    let comp-width = 1.5
+
+    // Index bits
+    rect((0, 0), (index-width, 1), radius: (west: 3pt), fill: colors.box-definition, stroke: 1pt + colors.primary)
+    content((index-width / 2, 0.5), text(weight: "semibold")[Node Index (31 bits)])
+
+    // Complement bit
+    rect(
+      (index-width, 0),
+      (total-width, 1),
+      radius: (east: 3pt),
+      fill: colors.box-warning,
+      stroke: 1pt + colors.warning,
+    )
+    content((index-width + comp-width / 2, 0.5), text(weight: "semibold")[C])
+
+    // Labels below
+    content((index-width / 2, -0.4), text(size: 0.8em, fill: colors.text-muted)[Points to node in storage])
+    content((index-width + comp-width / 2, -0.4), text(size: 0.8em, fill: colors.text-muted)[Neg?])
+
+    // Examples
+    content(
+      (0, -1.2),
+      align(left)[
+        #set text(size: 0.8em)
+        *Examples:*
+        - `Ref::ONE` = `0b...0` (terminal, positive)
+        - `Ref::ZERO` = `0b...1` (terminal, negated)
+        - Node 5, positive = `0b...1010`
+        - Node 5, negated = `0b...1011`
+      ],
+      anchor: "north-west",
+    )
+  }),
+  caption: [Bit layout of `Ref`: 31 bits for node index, 1 bit for complement flag.],
+)
+
+The complement bit is the key to $O(1)$ negation:
+
+```rust
 impl Neg for Ref {
     fn neg(self) -> Self {
-        Self(self.0 ^ 1)
+        Self(self.0 ^ 1)  // Just flip the lowest bit!
     }
 }
 ```
 
-== Lifetime and Ownership
+Instead of traversing a BDD and creating new nodes for $not f$, we simply flip one bit.
+This single optimization cascades through the entire library, making XOR, equivalence, and implication faster.
 
-A `Ref` is only meaningful in the context of its manager.
-Using a `Ref` from manager A with manager B leads to undefined behavior --- the index might point to a completely different node (or no node at all).
+#comparison-table(
+  [*Aspect*],
+  [*Ref*],
+  [*Node*],
+  [Size],
+  [4 bytes],
+  [24 bytes],
+  [Copy],
+  [Trivial],
+  [Trivial but larger],
+  [Negation],
+  [$O(1)$ bit flip],
+  [Would need new node],
+  [Comparison],
+  [Single integer compare],
+  [Field-by-field],
+)
 
-Rust's type system doesn't prevent this at compile time (both are just `u32` values), so users must maintain this invariant manually.
-This is a deliberate trade-off: strict type-level safety would require lifetime annotations throughout, significantly complicating the API.
+== The API Surface
 
-#warning-box(title: "Cross-Manager Pitfall")[
-  Never mix `Ref` values from different managers.
-  The compiler won't catch this, but the results will be nonsensical.
+The manager exposes operations through method calls.
+Here's a quick tour:
 
-  ```rust
-  let bdd1 = Bdd::default();
-  let bdd2 = Bdd::default();
-  let x = bdd1.mk_var(1);
-  // WRONG: x is from bdd1, not bdd2
-  // let result = bdd2.apply_and(x, bdd2.mk_var(2));
-  ```
-]
-
-=== Garbage Collection Implications
-
-Unlike CUDD, `bdd-rs` does not perform automatic garbage collection.
-Once a node is created, it persists until:
-- The manager is dropped
-- Manual cleanup is performed (if implemented)
-
-This simplifies the implementation but means large computations may accumulate dead nodes.
-For long-running applications, consider periodically recreating the manager or implementing node reclamation.
-
-== The Public API Surface
-
-The manager exposes operations through method calls:
-
-=== Node Construction
+=== Construction
 
 ```rust
-// Create variables
+// Create variables (1-indexed by convention)
 let x = bdd.mk_var(1);
 let y = bdd.mk_var(2);
 
-// Low-level node creation (rarely needed)
-let node = bdd.mk_node(var, low_child, high_child);
+// Build cubes and clauses efficiently
+let cube = bdd.mk_cube([1, -2, 3]);    // x₁ ∧ ¬x₂ ∧ x₃
+let clause = bdd.mk_clause([1, -2, 3]); // x₁ ∨ ¬x₂ ∨ x₃
 ```
 
 === Boolean Operations
 
 ```rust
-// Binary operations via apply
+// Binary operations
 let f_and_g = bdd.apply_and(f, g);
 let f_or_g = bdd.apply_or(f, g);
 let f_xor_g = bdd.apply_xor(f, g);
-let f_implies_g = bdd.apply_implies(f, g);
 
-// The universal ITE operation
+// The universal if-then-else
 let result = bdd.apply_ite(f, g, h);  // f ? g : h
 
-// Negation is just operator overloading
+// Negation is just syntax
 let not_f = -f;
 ```
 
 === Queries
 
 ```rust
-// Terminal checks
-bdd.is_zero(f)  // Is f ≡ ⊥?
-bdd.is_one(f)   // Is f ≡ ⊤?
+// O(1) checks (after construction)
+bdd.is_zero(f)   // Unsatisfiable?
+bdd.is_one(f)    // Tautology?
+f == g           // Equivalent? (pointer compare!)
 
-// Size queries
-bdd.size(f)     // Number of nodes in BDD
-bdd.sat_count(f, num_vars)  // Number of satisfying assignments
+// O(|f|) operations
+bdd.size(f)              // Node count
+bdd.sat_count(f, n_vars) // Solution count
 ```
 
 === Quantification
 
 ```rust
-use bdd_rs::types::Var;
-
-// Existential: ∃x. f
+// Existential: ∃x. f  (is there some x making f true?)
 let ex = bdd.exists(f, [Var::new(1)]);
 
-// Universal: ∀x. f
+// Universal: ∀x. f  (is f true for all x?)
 let fa = bdd.forall(f, [Var::new(1)]);
+
+// Relational product: ∃vars. (f ∧ g)
+let rp = bdd.rel_product(f, g, &quant_vars);
 ```
 
-== Architecture Diagram
+== Creating and Configuring
 
-The following diagram illustrates how the components interact:
+For most uses, the default configuration works well:
 
-#align(center)[
+```rust
+let bdd = Bdd::default();
 ```
-                         Bdd Manager
- ┌──────────────────────────────────────────────────────────┐
- │                                                          │
- │   nodes: Vec<Node>           subtables: Vec<Subtable>    │
- │   ┌────────────────┐         ┌───────────────────────┐   │
- │   │ [0] terminal   │         │ Level 0: buckets[...] │   │
- │   │ [1] node       │ ◄─────► │ Level 1: buckets[...] │   │
- │   │ [2] node       │         │ Level 2: buckets[...] │   │
- │   │ ...            │         │ ...                   │   │
- │   └────────────────┘         └───────────────────────┘   │
- │                                                          │
- │   cache: Cache               var_order: Vec<Var>         │
- │   ┌────────────────┐         ┌───────────────────────┐   │
- │   │ ITE results    │         │ level → variable      │   │
- │   │ memoized       │         │ variable → level      │   │
- │   └────────────────┘         └───────────────────────┘   │
- │                                                          │
- └──────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-              Ref: 32-bit handle (index + complement)
+
+For large problems, customize the initial capacities:
+
+```rust
+use bdd_rs::bdd::{Bdd, BddConfig};
+
+let config = BddConfig::default()
+    .with_initial_nodes(1 << 20)  // ~1M nodes
+    .with_cache_bits(18);         // 256K cache entries
+
+let bdd = Bdd::with_config(config);
 ```
+
+#warning-box(title: "Cross-Manager Pitfall")[
+  A `Ref` is only valid for its originating manager.
+  Mixing them causes silent corruption:
+
+  ```rust
+  let bdd1 = Bdd::default();
+  let bdd2 = Bdd::default();
+  let x = bdd1.mk_var(1);
+  // WRONG: x is from bdd1!
+  // bdd2.apply_and(x, bdd2.mk_var(2));  // Undefined behavior
+  ```
+
+  Rust's type system cannot catch this --- the indices look the same.
+  Be careful when working with multiple managers.
 ]
 
-#info-box(title: "Why This Architecture Works")[
-  The manager-centric design enables all the BDD guarantees:
-  - *Canonicity*: Hash consing through subtables ensures uniqueness
-  - *Efficiency*: Shared caches avoid redundant computation
-  - *Consistency*: Single ordering for all BDDs
-  - *Simplicity*: Users just work with `Ref` values
-]
+== What's Next
 
-The next chapters dive into each component: node representation, the unique table, and the apply algorithm implementation.
+The following chapters dive deep into each component:
+
+- *@ch-node-representation*: How nodes store variable, children, and hash data
+- *@ch-unique-table*: Per-level subtables for $O(1)$ node lookup
+- *@ch-apply-algorithm*: The ITE algorithm that powers all operations
+- *@ch-caching*: How memoization prevents exponential blowup
+- *@ch-complement-edges*: The elegant trick behind $O(1)$ negation
+

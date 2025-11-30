@@ -2,8 +2,10 @@
 
 = Node Representation <ch-node-representation>
 
-How BDD nodes are represented in memory directly impacts performance.
-This chapter explores the node structure in `bdd-rs`, the type-safe wrappers that prevent bugs, and the memory layout considerations that affect cache efficiency.
+At the lowest level, a BDD is just memory: bytes laid out in a particular way.
+How those bytes are organized directly impacts every operation's performance --- from cache locality during traversals to memory consumption with millions of nodes.
+
+This chapter explores `bdd-rs`'s node structure, the type-safe wrappers that prevent common bugs, and the memory layout decisions that keep things fast.
 
 == The Node Structure
 
@@ -11,7 +13,7 @@ Each BDD node represents a Shannon decomposition:
 
 $ f = (not v and f_"low") or (v and f_"high") $
 
-The `Node` struct captures this with four fields:
+The `Node` struct captures this with five fields:
 
 ```rust
 #[derive(Debug, Copy, Clone)]
@@ -24,6 +26,84 @@ pub struct Node {
 }
 ```
 
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Memory layout visualization
+    content((6, 6.5), text(weight: "bold", size: 1em)[Node Memory Layout (24 bytes)])
+
+    let y = 4
+    let field-height = 0.8
+
+    // Field boxes
+    rect(
+      (0, y),
+      (2, y + field-height),
+      fill: colors.box-definition.lighten(30%),
+      stroke: 1pt + colors.primary,
+      radius: 2pt,
+    )
+    content((1, y + field-height / 2), text(size: 0.8em)[`variable`])
+
+    rect(
+      (2.2, y),
+      (4.2, y + field-height),
+      fill: colors.box-example.lighten(30%),
+      stroke: 1pt + colors.success.lighten(20%),
+      radius: 2pt,
+    )
+    content((3.2, y + field-height / 2), text(size: 0.8em)[`low`])
+
+    rect(
+      (4.4, y),
+      (6.4, y + field-height),
+      fill: colors.box-example.lighten(30%),
+      stroke: 1pt + colors.success.lighten(20%),
+      radius: 2pt,
+    )
+    content((5.4, y + field-height / 2), text(size: 0.8em)[`high`])
+
+    rect(
+      (6.6, y),
+      (8.6, y + field-height),
+      fill: colors.box-warning.lighten(30%),
+      stroke: 1pt + colors.warning.lighten(20%),
+      radius: 2pt,
+    )
+    content((7.6, y + field-height / 2), text(size: 0.8em)[`next`])
+
+    rect(
+      (8.8, y),
+      (12.8, y + field-height),
+      fill: colors.box-insight.lighten(30%),
+      stroke: 1pt + colors.info.lighten(20%),
+      radius: 2pt,
+    )
+    content((10.8, y + field-height / 2), text(size: 0.8em)[`hash`])
+
+    // Size labels
+    content((1, y - 0.4), text(size: 0.8em, fill: colors.text-muted)[4B])
+    content((3.2, y - 0.4), text(size: 0.8em, fill: colors.text-muted)[4B])
+    content((5.4, y - 0.4), text(size: 0.8em, fill: colors.text-muted)[4B])
+    content((7.6, y - 0.4), text(size: 0.8em, fill: colors.text-muted)[4B])
+    content((10.8, y - 0.4), text(size: 0.8em, fill: colors.text-muted)[8B])
+
+    // Role annotations
+    content((1, y + 1.4), align(center, text(size: 0.8em, fill: colors.primary)[Decision\ variable]))
+    content((4.3, y + 1.4), align(center, text(size: 0.8em, fill: colors.success)[Children\ (Ref handles)]))
+    content((7.6, y + 1.4), align(center, text(size: 0.8em, fill: colors.warning)[Hash\ chain]))
+    content((10.8, y + 1.4), align(center, text(size: 0.8em, fill: colors.info)[Precomputed\ hash]))
+
+    // Explanation
+    content((6, 3), align(center)[
+      #set text(size: 0.8em)
+      `next` enables *intrusive hashing* --- collision chains live in the nodes themselves.
+    ])
+  }),
+  caption: [Node memory layout: 24 bytes with precomputed hash and intrusive collision chain.],
+)
+
 #info-box(title: "Why Store the Hash?")[
   Computing `hash(variable, low, high)` requires three multiplications and XORs.
   By precomputing and storing it in the node, we avoid recalculating during hash table operations.
@@ -32,18 +112,6 @@ pub struct Node {
 
 The `next` field implements *intrusive hashing* --- nodes themselves form the collision chains for the hash table, rather than using a separate wrapper struct.
 This CUDD-inspired design eliminates allocation overhead and improves cache locality.
-
-=== Memory Layout
-
-```
-+──────────+─────+──────+──────+──────+
-│ variable │ low │ high │ next │ hash │
-+──────────+─────+──────+──────+──────+
-    4B       4B    4B     4B     8B    = 24 bytes total
-```
-
-In comparison, a minimal node without the hash or collision chain would be 12 bytes.
-The extra space is a worthwhile trade for better hash table performance.
 
 == Terminal Nodes
 
@@ -88,6 +156,77 @@ impl Bdd {
 
 `bdd-rs` uses the *newtype pattern* extensively to prevent mixing up different indices:
 
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    content((6, 6), text(weight: "bold", size: 1em)[Type-Safe Index Wrappers])
+
+    // Four type boxes arranged in a grid
+    let y1 = 4.5
+    let y2 = 3.5
+
+    // NodeId
+    rect((0.5, y1), (3, y1 + 1), fill: colors.box-definition.lighten(30%), stroke: 1pt + colors.primary, radius: 4pt)
+    content((1.75, y1 + 0.7), text(size: 0.8em, weight: "semibold")[`NodeId(u32)`])
+    content((1.75, y1 + 0.3), text(size: 0.7em, fill: colors.text-muted)[→ nodes array])
+
+    // Var
+    rect(
+      (3.5, y1),
+      (6, y1 + 1),
+      fill: colors.box-example.lighten(30%),
+      stroke: 1pt + colors.success.lighten(20%),
+      radius: 4pt,
+    )
+    content((4.75, y1 + 0.7), text(size: 0.8em, weight: "semibold")[`Var(u32)`])
+    content((4.75, y1 + 0.3), text(size: 0.7em, fill: colors.text-muted)[variable ID (1+)])
+
+    // Level
+    rect(
+      (6.5, y1),
+      (9, y1 + 1),
+      fill: colors.box-warning.lighten(30%),
+      stroke: 1pt + colors.warning.lighten(20%),
+      radius: 4pt,
+    )
+    content((7.75, y1 + 0.7), text(size: 0.8em, weight: "semibold")[`Level(u32)`])
+    content((7.75, y1 + 0.3), text(size: 0.7em, fill: colors.text-muted)[ordering position])
+
+    // Ref
+    rect(
+      (9.5, y1),
+      (12, y1 + 1),
+      fill: colors.box-insight.lighten(30%),
+      stroke: 1pt + colors.info.lighten(20%),
+      radius: 4pt,
+    )
+    content((10.75, y1 + 0.7), text(size: 0.8em, weight: "semibold")[`Ref(u32)`])
+    content((10.75, y1 + 0.3), text(size: 0.7em, fill: colors.text-muted)[id + complement])
+
+    // Ref bit layout detail
+    content((6, y2 + 0.3), text(size: 0.9em, weight: "semibold")[Ref Bit Layout:])
+
+    let bit-y = y2 - 0.5
+    // 31-bit node index
+    rect((2, bit-y), (9, bit-y + 0.6), fill: colors.box-definition.lighten(40%), stroke: 0.5pt + colors.primary)
+    content((5.5, bit-y + 0.3), text(size: 0.7em)[31-bit NodeId])
+
+    // 1-bit complement
+    rect((9, bit-y), (10, bit-y + 0.6), fill: colors.box-warning.lighten(30%), stroke: 0.5pt + colors.warning)
+    content((9.5, bit-y + 0.3), text(size: 0.7em)[C])
+
+    // Bit numbers
+    content((2, bit-y - 0.3), text(size: 0.7em, fill: colors.text-muted)[31])
+    content((9, bit-y - 0.3), text(size: 0.7em, fill: colors.text-muted)[1])
+    content((10, bit-y - 0.3), text(size: 0.7em, fill: colors.text-muted)[0])
+
+    // Explanation
+    content((6, 2), text(size: 0.8em)[`C = 0`: positive edge #h(1em) `C = 1`: negated (complement) edge])
+  }),
+  caption: [Type-safe wrappers prevent accidentally mixing indices. The `Ref` type packs node ID and complement flag into 32 bits.],
+)
+
 ```rust
 pub struct NodeId(u32);   // Index into nodes array
 pub struct Var(u32);      // Variable identifier (1-indexed)
@@ -103,7 +242,7 @@ fn process(v: Var, l: Level) { ... }
 let var = Var::new(1);
 let level = Level::new(0);
 
-process(var, level);  // ✓ Compiles
+process(var, level);     // ✓ Compiles
 // process(level, var);  // ✗ Type error!
 ```
 
@@ -141,9 +280,15 @@ process(var, level);  // ✓ Compiles
 A common source of confusion is the distinction between *variables* and *levels*:
 
 #comparison-table(
-  [*Concept*], [*Meaning*], [*Example*],
-  [Variable], [Semantic identity ($x_1, x_2, ...$)], [`Var(1)` = "input A"],
-  [Level], [Position in current ordering], [`Level(0)` = root position],
+  [*Concept*],
+  [*Meaning*],
+  [*Example*],
+  [Variable],
+  [Semantic identity ($x_1, x_2, ...$)],
+  [`Var(1)` = "input A"],
+  [Level],
+  [Position in current ordering],
+  [`Level(0)` = root position],
 )
 
 Why does this distinction matter?

@@ -2,46 +2,96 @@
 
 = Caching and Computed Tables <ch-caching>
 
-The Apply algorithm's polynomial complexity depends critically on *memoization* --- remembering the results of subproblems to avoid redundant computation.
-Without caching, BDD operations would have exponential time complexity.
-This chapter explores the cache (also called the *computed table*) that makes BDDs practical.
+The Apply algorithm's polynomial complexity hinges on *memoization* --- remembering results to avoid redundant computation.
+Without caching, BDD operations degrade to exponential time, no better than brute-force enumeration.
+This chapter explores the cache (also called the *computed table*) that transforms BDDs from a theoretical curiosity into a practical powerhouse.
 
 == Why Caching Matters
 
 Consider computing $f and g$ where both BDDs have $n$ nodes.
-The recursive structure of Apply creates a call tree:
+The recursive structure of Apply spawns a call tree that branches at every non-terminal node:
 
-```
-Apply(AND, f, g)
-├── Apply(AND, f_low, g_low)
-│   ├── Apply(AND, ...)
-│   │   └── ...
-│   └── Apply(AND, ...)
-│       └── ...
-└── Apply(AND, f_high, g_high)
-    ├── Apply(AND, ...)
-    │   └── ...
-    └── Apply(AND, ...)
-        └── ...
-```
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Without cache - exponential
+    content((3, 6.5), text(weight: "bold", fill: colors.error)[Without Cache])
+
+    // Tree structure
+    rect((2.2, 5.5), (3.8, 6.1), fill: colors.box-definition.lighten(20%), stroke: 1pt + colors.primary, radius: 3pt)
+    content((3, 5.8), text(size: 0.7em)[`Apply(∧,f,g)`])
+
+    // Level 2
+    rect((0.8, 4.2), (2.2, 4.8), fill: colors.bg-code, stroke: 0.5pt + colors.line, radius: 2pt)
+    content((1.5, 4.5), text(size: 0.7em)[`Apply(∧,u,v)`])
+    rect((3.8, 4.2), (5.2, 4.8), fill: colors.bg-code, stroke: 0.5pt + colors.line, radius: 2pt)
+    content((4.5, 4.5), text(size: 0.7em)[`Apply(∧,u',v')`])
+
+    // Level 3 - showing duplicates
+    rect((0, 3), (1.2, 3.5), fill: colors.box-warning.lighten(30%), stroke: 0.5pt + colors.warning, radius: 2pt)
+    content((0.6, 3.25), text(size: 0.7em)[`Apply(a,b)`])
+    rect((1.5, 3), (2.7, 3.5), fill: colors.box-warning.lighten(30%), stroke: 0.5pt + colors.warning, radius: 2pt)
+    content((2.1, 3.25), text(size: 0.7em)[`Apply(a,b)`])
+    rect((3.3, 3), (4.5, 3.5), fill: colors.box-warning.lighten(30%), stroke: 0.5pt + colors.warning, radius: 2pt)
+    content((3.9, 3.25), text(size: 0.7em)[`Apply(a,b)`])
+    rect((4.8, 3), (6, 3.5), fill: colors.box-warning.lighten(30%), stroke: 0.5pt + colors.warning, radius: 2pt)
+    content((5.4, 3.25), text(size: 0.7em)[`Apply(a,b)`])
+
+    // Lines
+    line((3, 5.5), (1.5, 4.8), stroke: 0.5pt + colors.line)
+    line((3, 5.5), (4.5, 4.8), stroke: 0.5pt + colors.line)
+    line((1.5, 4.2), (0.6, 3.5), stroke: 0.5pt + colors.line)
+    line((1.5, 4.2), (2.1, 3.5), stroke: 0.5pt + colors.line)
+    line((4.5, 4.2), (3.9, 3.5), stroke: 0.5pt + colors.line)
+    line((4.5, 4.2), (5.4, 3.5), stroke: 0.5pt + colors.line)
+
+    content((3, 2.3), text(size: 0.8em, fill: colors.error)[Same subproblem computed 4× !])
+    content((3, 1.8), text(size: 0.8em, fill: colors.error)[Exponential blowup: $O(2^n)$])
+
+    // Arrow
+    line((6.5, 4.2), (8, 4.2), stroke: 2pt + colors.success, mark: (end: ">", fill: colors.success))
+
+    // With cache - polynomial
+    content((11, 6.5), text(weight: "bold", fill: colors.success)[With Cache])
+
+    // Cache table
+    rect(
+      (8.8, 2.5),
+      (13.2, 6),
+      fill: colors.box-example.lighten(50%),
+      stroke: 1pt + colors.success.lighten(20%),
+      radius: 4pt,
+    )
+    content((11, 5.5), text(size: 0.8em, weight: "semibold")[Computed Table])
+
+    // Cache entries
+    rect((9.2, 4.5), (12.8, 5.1), fill: white, stroke: 0.5pt + colors.line, radius: 2pt)
+    content((11, 4.8), text(size: 0.7em)[`(∧, f, g) → result₁`])
+
+    rect((9.2, 3.8), (12.8, 4.4), fill: white, stroke: 0.5pt + colors.line, radius: 2pt)
+    content((11, 4.1), text(size: 0.7em)[`(∧, u, v) → result₂`])
+
+    rect((9.2, 3.1), (12.8, 3.7), fill: colors.box-definition.lighten(30%), stroke: 1pt + colors.primary, radius: 2pt)
+    content((11, 3.4), text(size: 0.7em)[`(∧, a, b) → result₃ ✓`])
+
+    // Arrow showing reuse
+    content((11, 2.0), text(size: 0.8em, fill: colors.success)[Computed once, reused!])
+    content((11, 1.5), text(size: 0.8em, fill: colors.success)[Polynomial: $O(|f| times |g|)$])
+  }),
+  caption: [Without caching (left), identical subproblems are recomputed exponentially. With caching (right), each unique subproblem is solved once.],
+)
 
 Without memoization, this tree can have exponentially many leaves.
-The same subproblem `Apply(AND, u, v)` might be computed repeatedly from different branches.
+The same subproblem `Apply(AND, u, v)` appears repeatedly from different branches --- and each time, we would naively recompute it from scratch.
 
-With caching, each unique $(op, u, v)$ triple is computed *exactly once*.
-Since there are at most $O(|f| times |g|)$ such triples, the algorithm becomes polynomial.
+With caching, each unique $("op", u, v)$ triple is computed *exactly once* and stored.
+Since there are at most $O(|f| times |g|)$ such triples, the algorithm achieves polynomial time.
 
-#insight-box[
-  The computed table is what transforms BDD operations from exponential to polynomial.
-  It ensures that each unique subproblem is solved exactly once.
+#theorem(title: "Caching Complexity")[
+  Without memoization: $O(2^n)$ worst-case (exponential).
+  With memoization: $O(|f| times |g|)$ (polynomial).
 ]
-
-#theorem(title: "Caching Necessity")[
-  Without memoization, Apply has worst-case time complexity $O(2^n)$ where $n$ is the number of variables.
-  With memoization, the complexity is $O(|f| times |g|)$ where $|f|$ and $|g|$ are BDD sizes.
-]
-
-This is the classic *dynamic programming* pattern: identify overlapping subproblems, solve each once, and store results for reuse.
 
 == Cache Structure
 
@@ -61,6 +111,58 @@ struct Entry<K, V> {
     value: V,
 }
 ```
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Cache visualization
+    content((5, 6.5), text(weight: "bold", size: 1em)[Direct-Mapped Cache])
+
+    // Hash table slots
+    for i in range(8) {
+      let y = 5.5 - i * 0.55
+      rect(
+        (2, y - 0.22),
+        (8, y + 0.22),
+        fill: if i == 3 { colors.box-definition.lighten(30%) } else { colors.bg-code },
+        stroke: 0.5pt + colors.line,
+      )
+      content((2.5, y), text(size: 0.7em, fill: colors.text-muted)[#i])
+    }
+
+    // Labels
+    content((1.3, 5.5), text(size: 0.7em)[Index], anchor: "east")
+
+    // Sample entry in slot 3
+    content((5, 5.5 - 3 * 0.55), text(size: 0.7em)[`(∧, ref_5, ref_9) → ref_12`])
+
+    // Hash arrow
+    let query_y = 6
+    rect(
+      (8.5, query_y - 0.3),
+      (12.5, query_y + 0.3),
+      fill: colors.box-example.lighten(30%),
+      stroke: 1pt + colors.success.lighten(20%),
+      radius: 3pt,
+    )
+    content((10.5, query_y), text(size: 0.7em)[Query: `(∧, 5, 9)`])
+
+    // Hash function
+    content((10.5, 5.2), text(size: 0.7em)[`hash(5,9) & mask`])
+    line((10.5, 5), (10.5, 4.5), stroke: 1pt + colors.text-muted, mark: (end: ">"))
+    content((10.5, 4.2), text(size: 0.7em)[`= 3`])
+
+    // Arrow to slot 3
+    line((9, 4.2), (8, 5.5 - 3 * 0.55), stroke: 1.5pt + colors.primary, mark: (end: ">", fill: colors.primary))
+
+    // Three outcomes
+    content((5, 0.8), text(size: 0.8em, fill: colors.success)[*Hit*: Key matches → return cached result])
+    content((5, 0.3), text(size: 0.8em, fill: colors.warning)[*Fault*: Different key → collision])
+    content((5, -0.2), text(size: 0.8em, fill: colors.error)[*Miss*: Empty slot → compute fresh])
+  }),
+  caption: [The cache uses direct-mapped hashing. A query hashes to one slot; if the key matches, we have a hit.],
+)
 
 === Key Structure
 
@@ -88,12 +190,24 @@ The `bitmask` is `size - 1` where size is a power of two, making the modulo oper
 It's important to distinguish these two hash-based structures:
 
 #comparison-table(
-  [*Property*], [*Unique Table*], [*Computed Table (Cache)*],
-  [Purpose], [Hash consing (node dedup)], [Memoization (result reuse)],
-  [Key], [$("var", "low", "high")$], [$("op", f, g, h)$],
-  [Value], [NodeId], [Ref (result)],
-  [Lifetime], [Permanent], [May evict on collision],
-  [Correctness], [Required for canonicity], [Only affects performance],
+  [*Property*],
+  [*Unique Table*],
+  [*Computed Table (Cache)*],
+  [Purpose],
+  [Hash consing (node dedup)],
+  [Memoization (result reuse)],
+  [Key],
+  [$("var", "low", "high")$],
+  [$("op", f, g, h)$],
+  [Value],
+  [NodeId],
+  [Ref (result)],
+  [Lifetime],
+  [Permanent],
+  [May evict on collision],
+  [Correctness],
+  [Required for canonicity],
+  [Only affects performance],
 )
 
 The unique table is *essential* --- without it, BDDs lose canonicity.
@@ -130,11 +244,6 @@ where
     }
 }
 ```
-
-The lookup has three outcomes:
-+ *Hit*: The key matches --- return cached result
-+ *Fault*: Different key at this index --- collision
-+ *Miss*: Empty slot --- no entry to check
 
 === Insert
 
@@ -177,11 +286,26 @@ impl Bdd {
 === Sizing Trade-offs
 
 #comparison-table(
-  [*Cache Size*], [*Memory*], [*Hit Rate*], [*Use Case*],
-  [$2^14$ (16K)], [~0.5 MB], [Lower], [Small problems],
-  [$2^16$ (64K)], [~2 MB], [Good], [Default],
-  [$2^18$ (256K)], [~8 MB], [Better], [Large problems],
-  [$2^20$ (1M)], [~32 MB], [Excellent], [Very large problems],
+  [*Cache Size*],
+  [*Memory*],
+  [*Hit Rate*],
+  [*Use Case*],
+  [$2^(14)$ (16K)],
+  [~0.5 MB],
+  [Lower],
+  [Small problems],
+  [$2^(16)$ (64K)],
+  [~2 MB],
+  [Good],
+  [Default],
+  [$2^(18)$ (256K)],
+  [~8 MB],
+  [Better],
+  [Large problems],
+  [$2^(20)$ (1M)],
+  [~32 MB],
+  [Excellent],
+  [Very large problems],
 )
 
 Memory estimates assume 32-byte entries (key + value + padding).
@@ -204,10 +328,22 @@ If two keys hash to the same index, the newer one overwrites the older.
 === Why Direct-Mapped?
 
 #comparison-table(
-  [*Strategy*], [*Complexity*], [*Hit Rate*], [*Memory*],
-  [Direct-mapped], [Simple --- $O(1)$], [Lower], [Minimal],
-  [Set-associative], [Medium --- $O(k)$ for $k$-way], [Better], [Slight overhead],
-  [Fully associative], [Complex --- $O(n)$ or LRU], [Best], [Significant overhead],
+  [*Strategy*],
+  [*Complexity*],
+  [*Hit Rate*],
+  [*Memory*],
+  [Direct-mapped],
+  [Simple --- $O(1)$],
+  [Lower],
+  [Minimal],
+  [Set-associative],
+  [Medium --- $O(k)$ for $k$-way],
+  [Better],
+  [Slight overhead],
+  [Fully associative],
+  [Complex --- $O(n)$ or LRU],
+  [Best],
+  [Significant overhead],
 )
 
 Direct-mapped is the simplest and fastest, at the cost of more collisions.

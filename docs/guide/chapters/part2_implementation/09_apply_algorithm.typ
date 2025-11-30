@@ -2,111 +2,163 @@
 
 = The Apply Algorithm in Detail <ch-apply-algorithm>
 
-Chapter 5 introduced the Apply algorithm conceptually.
-This chapter examines the implementation details: how `bdd-rs` handles terminal cases, manages variable ordering, and optimizes the recursive structure.
-We'll trace through the actual code to understand the engineering choices.
+Apply is the workhorse of BDD manipulation.
+It takes two (or three) BDDs and a Boolean operation, and produces a new BDD representing the combined function.
+Nearly *every* BDD operation --- from simple AND/OR to complex quantification --- flows through Apply.
 
-== Anatomy of Apply
+Understanding Apply deeply means understanding BDD performance.
+This chapter dissects the algorithm: terminal cases, normalization tricks, and the crucial role of caching that makes everything polynomial.
 
-The Apply algorithm computes $f op g$ for any binary Boolean operation $op$.
-The structure is:
+== The Big Picture
 
-+ *Check terminal cases*: Handle constants and equal arguments
-+ *Cache lookup*: Return memoized result if available
-+ *Determine top variable*: Find the smallest variable in the ordering
-+ *Compute cofactors*: Get restrictions to variable $= 0$ and $= 1$
-+ *Recurse*: Apply operation to cofactors
-+ *Construct result*: Use `mk` to build the node
-+ *Cache result*: Store for future lookups
+Apply computes $f op g$ for any binary Boolean operation $op$ (AND, OR, XOR, etc.).
+The structure follows the recursive decomposition of Boolean functions:
 
-In `bdd-rs`, Apply is implemented via the *ITE* (if-then-else) operation:
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
 
-$ ite(f, g, h) = (f and g) or (not f and h) $
+    // Main flow diagram
+    let start = (5, 7)
+    let terminal-check = (5, 5.5)
+    let cache-check = (5, 4)
+    let decompose = (5, 2.5)
+    let recurse = (5, 1)
 
-All binary operations can be expressed as ITE:
-- $f and g = ite(f, g, 0)$
-- $f or g = ite(f, 1, g)$
-- $f xor g = ite(f, not g, g)$
-- $f -> g = ite(f, g, 1)$
+    // Boxes
+    rect((2.5, 6.6), (7.5, 7.4), fill: colors.box-definition, stroke: 1pt + colors.primary, radius: 4pt)
+    content(start, text(size: 0.8em)[`apply_ite(f, g, h)`])
 
-This unification simplifies the implementation and cache.
+    rect((2, 5.1), (8, 5.9), fill: colors.box-warning.lighten(40%), stroke: 1pt + colors.warning, radius: 4pt)
+    content(terminal-check, text(size: 0.8em)[Terminal cases? Return immediately])
+
+    rect((2, 3.6), (8, 4.4), fill: colors.box-example.lighten(40%), stroke: 1pt + colors.success, radius: 4pt)
+    content(cache-check, text(size: 0.8em)[Cache hit? Return cached result])
+
+    rect((1.5, 2.1), (8.5, 2.9), fill: colors.box-insight.lighten(30%), stroke: 1pt + colors.info, radius: 4pt)
+    content(decompose, text(size: 0.8em)[Find top variable $v$, compute cofactors])
+
+    rect((1.5, 0.6), (8.5, 1.4), fill: colors.box-theorem.lighten(30%), stroke: 1pt + colors.primary, radius: 4pt)
+    content(recurse, text(
+      size: 0.8em,
+    )[Recurse: $t = "ite"(f_v, g_v, h_v)$, $e = "ite"(f_(not v), g_(not v), h_(not v))$])
+
+    // Arrows
+    line((5, 6.6), (5, 5.9), stroke: 1pt + colors.text-muted, mark: (end: ">"))
+    line((5, 5.1), (5, 4.4), stroke: 1pt + colors.text-muted, mark: (end: ">"))
+    line((5, 3.6), (5, 2.9), stroke: 1pt + colors.text-muted, mark: (end: ">"))
+    line((5, 2.1), (5, 1.4), stroke: 1pt + colors.text-muted, mark: (end: ">"))
+
+    // Result arrow
+    line((5, 0.6), (5, -0.2), stroke: 1pt + colors.text-muted, mark: (end: ">"))
+    content((5, -0.6), text(size: 0.8em)[`mk(v, e, t)` $->$ cache $->$ return])
+
+    // Side notes
+    content(
+      (9.5, 5.5),
+      align(left)[
+        #set text(size: 0.7em, fill: colors.text-muted)
+        $O(1)$ checks:\
+        constants,\
+        equal args
+      ],
+      anchor: "west",
+    )
+
+    content(
+      (9.5, 4),
+      align(left)[
+        #set text(size: 0.7em, fill: colors.text-muted)
+        Key to\
+        polynomial\
+        complexity
+      ],
+      anchor: "west",
+    )
+  }),
+  caption: [High-level flow of the Apply (ITE) algorithm.],
+)
+
+The algorithm has polynomial complexity because of *memoization*: each unique triple $(f, g, h)$ is computed at most once.
+
+== Everything is ITE
+
+In `bdd-rs`, all operations go through the *ITE* (if-then-else) primitive:
+
+$ "ite"(f, g, h) = (f and g) or (not f and h) $
+
+Every binary operation can be expressed as ITE:
+
+#table(
+  columns: (auto, auto, auto),
+  align: (left, center, left),
+  table.header([*Operation*], [*Formula*], [*ITE Encoding*]),
+  [$f and g$], [$f dot g$], [$ite(f, g, 0)$],
+  [$f or g$], [$f + g$], [$ite(f, 1, g)$],
+  [$f xor g$], [$f xor g$], [$ite(f, not g, g)$],
+  [$f -> g$], [$overline(f) + g$], [$ite(f, g, 1)$],
+  [$f equiv g$], [$overline(f xor g)$], [$ite(f, g, not g)$],
+)
+
+This unification simplifies implementation --- one algorithm handles everything.
 
 == Terminal Cases
 
-Terminal cases are where the recursion stops.
-Identifying more terminal cases speeds up computation.
+Terminal cases are where recursion stops.
+More terminal cases mean faster computation.
 
 === Constant Arguments
 
-When $f$ is a constant:
-
 ```rust
 // ite(1, g, h) = g
-if self.is_one(f) {
-    return g;
-}
+if self.is_one(f) { return g; }
+
 // ite(0, g, h) = h
-if self.is_zero(f) {
-    return h;
-}
+if self.is_zero(f) { return h; }
 ```
 
-=== Equal Arguments
-
-When arguments are equal or complementary:
+=== Equal and Complementary Arguments
 
 ```rust
-// ite(f, g, g) = g
-if g == h {
-    return g;
-}
+// ite(f, g, g) = g  (doesn't matter what f is)
+if g == h { return g; }
+
 // ite(f, 1, 0) = f
-if self.is_one(g) && self.is_zero(h) {
-    return f;
-}
+if self.is_one(g) && self.is_zero(h) { return f; }
+
 // ite(f, 0, 1) = ¬f
-if self.is_zero(g) && self.is_one(h) {
-    return -f;
-}
+if self.is_zero(g) && self.is_one(h) { return -f; }
 ```
 
 === Advanced Terminal Cases
 
-More sophisticated cases catch patterns like:
+These catch more patterns:
 
 ```rust
 // ite(f, 1, ¬f) = 1
-if self.is_one(g) && h == -f {
-    return self.one;
-}
-// ite(f, f, 1) = 1
-if g == f && self.is_one(h) {
-    return self.one;
-}
-// ite(f, ¬f, 0) = 0
-if g == -f && self.is_zero(h) {
-    return self.zero;
-}
-// ite(f, 0, f) = f
-if self.is_zero(g) && h == f {
-    return f;
-}
+if self.is_one(g) && h == -f { return self.one(); }
+
+// ite(f, f, 0) = f  (f AND f = f)
+if g == f && self.is_zero(h) { return f; }
+
+// ite(f, ¬f, 0) = 0  (f AND ¬f = 0)
+if g == -f && self.is_zero(h) { return self.zero(); }
 ```
 
 #example-box(title: "Terminal Cases for AND")[
-  Since $f and g = ite(f, g, 0)$, the terminal cases become:
-  - `Apply(AND, 0, g) = 0` (absorbing element)
-  - `Apply(AND, 1, g) = g` (identity element)
-  - `Apply(AND, f, 0) = 0`
-  - `Apply(AND, f, 1) = f`
-  - `Apply(AND, f, f) = f` (idempotent)
-  - `Apply(AND, f, ¬f) = 0` (complement)
+  Since $f and g = "ite"(f, g, 0)$, terminal cases include:
+  - `ite(0, g, 0) = 0` (absorbing element)
+  - `ite(1, g, 0) = g` (identity)
+  - `ite(f, f, 0) = f` (idempotent)
+  - `ite(f, ¬f, 0) = 0` (complement)
 ]
 
-== Standard Triples Optimization
+== Standard Triples: Cache Optimization
 
-*Standard triples* are normalizations that improve cache hit rates.
-The idea: transform equivalent ITE calls into a canonical form.
+*Standard triples* normalize equivalent ITE calls to improve cache hit rates.
+
+The insight: `ite(f, 1, g)` and `ite(g, 1, f)` compute the same function ($f or g$).
+If we always put the "smaller" BDD first, they'll hit the same cache entry.
 
 ```rust
 // ite(f, f, h) → ite(f, 1, h)  (f in "then" position is redundant)

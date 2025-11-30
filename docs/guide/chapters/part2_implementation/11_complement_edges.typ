@@ -2,151 +2,307 @@
 
 = Complement Edges <ch-complement-edges>
 
-*Complement edges* are an optimization that reduces BDD size and enables $O(1)$ negation.
-Instead of creating separate nodes for $f$ and $not f$, we annotate edges with a negation flag.
-This chapter explains the concept, its implementation in `bdd-rs`, and the subtleties of maintaining canonicity.
+What if negating a BDD took zero time?
+Not "fast" --- literally *zero*.
+Just flip one bit, and $f$ becomes $not f$.
 
-== The Idea
+This is what *complement edges* achieve.
+They are one of the most elegant optimizations in BDD technology: negation becomes $O(1)$, memory usage drops (since $f$ and $not f$ share all structure), and the `Apply` algorithm gets powerful new terminal cases.
 
-In standard BDDs, $f$ and $not f$ require different nodes.
-For example, the BDD for $x$ has a node pointing to 1 (high) and 0 (low).
-The BDD for $not x$ needs a different node pointing to 0 (high) and 1 (low).
+The tradeoff? Careful bookkeeping to maintain canonicity.
+This chapter explains the concept, the implementation, and the subtle invariants.
 
-#example-box(title: "Standard BDDs: f vs. ¬f")[
-  BDD for $x$:
-  ```
-      x
-     / \
-    0   1
-  ```
+== The Problem: Redundant Negations
 
-  BDD for $not x$:
-  ```
-      x
-     / \
-    1   0
-  ```
+In standard BDDs, $f$ and $not f$ are completely separate structures.
 
-  Two separate nodes, even though $not x$ is trivially related to $x$.
-]
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
 
-With complement edges, we mark the *edge* as negated rather than creating a new node:
+    // Left: BDD for x
+    let x1-pos = (2, 3)
+    let zero1 = (1.2, 1)
+    let one1 = (2.8, 1)
 
-#example-box(title: "Complement Edges: f and ¬f Share Structure")[
-  ```
-  f  →  [x]        ¬f  →̃  [x]
-        / \              / \
-       0   1            0   1
-  ```
+    bdd-terminal-node(zero1, 0)
+    bdd-terminal-node(one1, 1)
+    bdd-decision-node(x1-pos, "x")
+    bdd-low-edge((x1-pos.at(0) - 0.3, x1-pos.at(1) - 0.4), (zero1.at(0) + 0.15, zero1.at(1) + 0.35))
+    bdd-high-edge((x1-pos.at(0) + 0.3, x1-pos.at(1) - 0.4), (one1.at(0) - 0.15, one1.at(1) + 0.35))
 
-  The tilde on the edge ($arrow.tilde$) indicates negation.
-  Following a complemented edge inverts the semantics.
-]
+    content((2, 4), text(weight: "bold", fill: colors.primary)[$x$])
+
+    // Right: BDD for ¬x
+    let x2-pos = (7, 3)
+    let zero2 = (6.2, 1)
+    let one2 = (7.8, 1)
+
+    bdd-terminal-node(zero2, 0)
+    bdd-terminal-node(one2, 1)
+    bdd-decision-node(x2-pos, "x")
+    bdd-low-edge((x2-pos.at(0) - 0.3, x2-pos.at(1) - 0.4), (one2.at(0) - 0.15, one2.at(1) + 0.35))
+    bdd-high-edge((x2-pos.at(0) + 0.3, x2-pos.at(1) - 0.4), (zero2.at(0) + 0.15, zero2.at(1) + 0.35))
+
+    content((7, 4), text(weight: "bold", fill: colors.primary)[$not x$])
+
+    // Arrow between them
+    content((4.5, 2.5), text(size: 1em)[Different nodes!])
+  }),
+  caption: [Without complement edges: $x$ and $not x$ require separate nodes with swapped children.],
+)
+
+This is wasteful.
+If your formula uses both $g$ and $not g$ for some complex subformula $g$, you store the entire $g$ structure twice.
+Negation takes $O(|g|)$ time to rebuild everything.
+
+== The Solution: Annotated Edges
+
+The insight: instead of negating the *nodes*, negate the *edge*.
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Single node structure
+    let x-pos = (4.5, 3)
+    let zero = (3.7, 1)
+    let one = (5.3, 1)
+
+    bdd-terminal-node(zero, 0)
+    bdd-terminal-node(one, 1)
+    bdd-decision-node(x-pos, "x")
+    bdd-low-edge((x-pos.at(0) - 0.3, x-pos.at(1) - 0.4), (zero.at(0) + 0.15, zero.at(1) + 0.35))
+    bdd-high-edge((x-pos.at(0) + 0.3, x-pos.at(1) - 0.4), (one.at(0) - 0.15, one.at(1) + 0.35))
+
+    // Two incoming edges
+    // f (positive)
+    line((2, 4.5), (x-pos.at(0) - 0.3, x-pos.at(1) + 0.4), stroke: 2pt + colors.success, mark: (
+      end: ">",
+      fill: colors.success,
+    ))
+    content((1.5, 4.7), text(weight: "bold", fill: colors.success)[$f$])
+
+    // ¬f (complemented)
+    line((7, 4.5), (x-pos.at(0) + 0.3, x-pos.at(1) + 0.4), stroke: 2pt + colors.error, mark: (
+      end: ">",
+      fill: colors.error,
+    ))
+    circle((6.2, 4.1), radius: 0.12, fill: white, stroke: 2pt + colors.error)
+    content((7.5, 4.7), text(weight: "bold", fill: colors.error)[$not f$])
+
+    // Legend
+    content((4.5, -0.3), align(center)[
+      #set text(size: 0.8em)
+      Same node, different edge annotations.\
+      The circle marks a *complement edge*.
+    ])
+  }),
+  caption: [With complement edges: $f$ and $not f$ share the same node. The small circle indicates negation.],
+)
 
 #definition(title: "Complement Edge")[
   A *complement edge* is an edge annotated with a negation flag.
-  Following a complemented edge negates the value of the subgraph reached.
-  This allows representing $f$ and $not f$ with the same subgraph.
+  Following a complemented edge *inverts* the semantics of the subgraph.
+  This allows $f$ and $not f$ to share the same underlying structure.
 ]
 
-== Benefits
+== The Benefits
 
 === Space Reduction
 
-Complement edges can reduce node count by up to 50%.
-Every function $f$ that appears in a BDD implicitly provides $not f$ for free.
+Every function $f$ in the BDD implicitly provides $not f$ for free.
+In practice, this can reduce node count by 30--50%.
 
-Consider a complex function $g$ appearing multiple times:
-- Without complement edges: Need separate nodes for $g$ and $not g$
-- With complement edges: Share the $g$ subgraph, mark some edges as complemented
+Consider a formula like $(a and b) xor (c and d)$.
+XOR involves negation: $p xor q = (p and not q) or (not p and q)$.
+Without complement edges, we'd duplicate the $(a and b)$ and $(c and d)$ subgraphs.
+With them, we just mark edges as complemented.
 
 === $O(1)$ Negation
 
-The most dramatic benefit: negation becomes a *bit flip*:
+This is the killer feature.
+Negating a BDD becomes a single bit operation:
 
 ```rust
 impl Neg for Ref {
     fn neg(self) -> Self {
-        Ref(self.0 ^ 1)  // XOR with 1 flips the low bit
+        Self(self.0 ^ 1)  // XOR flips the lowest bit
     }
 }
 ```
 
-Without complement edges, negation requires $O(|f|)$ time to traverse and rebuild the entire BDD.
-With complement edges, it's instantaneous.
+In Rust, you just write `-f` and get the negated BDD instantly.
+No traversal.
+No new nodes.
+No allocation.
 
 #insight-box[
-  The $O(1)$ negation from complement edges propagates through algorithms.
-  XOR, equivalence, and implication all benefit because they involve negation internally.
+  The $O(1)$ negation ripples through the entire library.
+  XOR, equivalence, and implication all involve negation internally.
+  They all become faster because negation is free.
 ]
 
-== Representation in bdd-rs
+== Implementation in bdd-rs
 
-The `Ref` type packs the complement bit into the reference itself:
+The complement bit is packed into the `Ref` type itself:
 
-```rust
-#[repr(transparent)]
-pub struct Ref(u32);
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
 
-// Bit layout: [31-bit node index][1-bit complement]
-//
-// Example:
-// - Ref(4) = node 2, not negated (4 = 2<<1 | 0)
-// - Ref(5) = node 2, negated     (5 = 2<<1 | 1)
-```
+    // Bit layout visualization
+    let total = 10
+    let index-width = 9
+    let comp-width = 1
 
-=== Creating References
+    // Index portion
+    rect((0, 0), (index-width, 0.8), fill: colors.box-definition, stroke: 1pt + colors.primary, name: "index")
+    content((index-width / 2, 0.4), text(size: 0.8em, weight: "semibold")[Node Index (bits 1--31)])
+
+    // Complement bit
+    rect((index-width, 0), (total, 0.8), fill: colors.box-warning, stroke: 1pt + colors.warning, name: "comp")
+    content((index-width + comp-width / 2, 0.4), text(size: 0.8em, weight: "bold")[C])
+
+    // Labels
+    content((index-width / 2, -0.4), text(size: 0.7em, fill: colors.text-muted)[Which node in storage])
+    content((index-width + comp-width / 2, -0.4), text(size: 0.7em, fill: colors.text-muted)[Neg?])
+
+    // Bit numbers
+    content((0.3, 1.2), text(size: 0.7em, fill: colors.text-muted)[31], anchor: "south")
+    content((index-width - 0.3, 1.2), text(size: 0.7em, fill: colors.text-muted)[1], anchor: "south")
+    content((index-width + comp-width / 2, 1.2), text(size: 0.7em, fill: colors.text-muted)[0], anchor: "south")
+  }),
+  caption: [Bit layout of `Ref`: the complement flag occupies the lowest bit.],
+)
+
+This encoding means:
+
+- `Ref(0)` = node 0, positive = *TRUE* (terminal)
+- `Ref(1)` = node 0, negated = *FALSE*
+- `Ref(4)` = node 2, positive
+- `Ref(5)` = node 2, negated
+
+The API is straightforward:
 
 ```rust
 impl Ref {
-    /// Create with explicit negation flag
-    pub fn new(id: NodeId, negated: bool) -> Self {
-        Self((id.raw() << 1) | (negated as u32))
-    }
-
-    /// Positive (non-negated) reference
-    pub fn positive(id: NodeId) -> Self {
-        Self::new(id, false)
-    }
-
-    /// Negative (negated) reference
-    pub fn negative(id: NodeId) -> Self {
-        Self::new(id, true)
-    }
-}
-```
-
-=== Querying References
-
-```rust
-impl Ref {
-    /// Extract the node index
     pub fn id(self) -> NodeId {
-        NodeId::from_raw(self.0 >> 1)
+        NodeId::from_raw(self.0 >> 1)  // Shift right to get index
     }
 
-    /// Check if this reference is negated
     pub fn is_negated(self) -> bool {
-        (self.0 & 1) != 0
+        (self.0 & 1) != 0  // Check lowest bit
     }
 }
 ```
 
-=== Negation
+== The Canonicity Challenge
+
+Complement edges create an ambiguity.
+Consider a node for variable $x$:
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Left representation
+    let x1 = (2.5, 3)
+    bdd-decision-node(x1, "x")
+    content((1.5, 2), text(size: 0.8em)[$ell$], anchor: "east")
+    content((3.5, 2), text(size: 0.8em)[$h$], anchor: "west")
+    line((x1.at(0) - 0.3, x1.at(1) - 0.4), (1.8, 2.2), stroke: (paint: colors.edge-low, dash: "dashed"))
+    line((x1.at(0) + 0.3, x1.at(1) - 0.4), (3.2, 2.2), stroke: colors.edge-high)
+
+    content((2.5, 4), text(weight: "bold")[(A)])
+
+    // Middle arrow
+    content((5, 2.5), text(size: 1em)[$equiv$])
+
+    // Right representation (negated)
+    let x2 = (7.5, 3)
+    bdd-decision-node(x2, "x")
+    content((6.5, 2), text(size: 0.8em)[$not ell$], anchor: "east")
+    content((8.5, 2), text(size: 0.8em)[$not h$], anchor: "west")
+    line((x2.at(0) - 0.3, x2.at(1) - 0.4), (6.8, 2.2), stroke: (paint: colors.edge-low, dash: "dashed"))
+    circle((7.1, 2.5), radius: 0.08, fill: white, stroke: 1pt + colors.edge-low)
+    line((x2.at(0) + 0.3, x2.at(1) - 0.4), (8.2, 2.2), stroke: colors.edge-high)
+    circle((7.9, 2.5), radius: 0.08, fill: white, stroke: 1pt + colors.edge-high)
+
+    content((7.5, 4), text(weight: "bold")[(B) with $not$ at root])
+
+    // Explanation
+    content((5, 0.5), align(center)[
+      #set text(size: 0.8em)
+      These represent the *same* function!\
+      We need a rule to pick one.
+    ])
+  }),
+  caption: [Ambiguity: `mk(x, l, h)` and `¬mk(x, ¬l, ¬h)` represent the same function.],
+)
+
+Without a normalization rule, canonicity breaks --- two different structures for the same function.
+
+=== The Solution: High Edge Convention
+
+`bdd-rs` enforces: *high edges are never complemented*.
+
+When `mk_node` would create a node with a complemented high edge, it flips everything:
 
 ```rust
-impl Neg for Ref {
-    type Output = Self;
+pub fn mk_node(&self, v: Var, low: Ref, high: Ref) -> Ref {
+    // Canonicity rule: high edge must be positive
+    if high.is_negated() {
+        // Flip: ¬mk(v, ¬low, ¬high) = mk(v, low, high)
+        return -self.mk_node(v, -low, -high);
+    }
+    // ... proceed with normal node creation
+}
+```
 
-    fn neg(self) -> Self {
-        Self(self.0 ^ 1)  // Flip the complement bit
+#warning-box(title: "The Rule Must Be Consistent")[
+  The choice of "high never complemented" vs "low never complemented" is arbitrary.
+  What matters is *consistency*.
+  CUDD uses low-never-complemented.
+  `bdd-rs` uses high-never-complemented.
+  Pick one and stick to it.
+]
+
+== Traversal with Complements
+
+When traversing a BDD, complement flags must propagate correctly:
+
+```rust
+pub fn low_node(&self, node_ref: Ref) -> Ref {
+    let low = self.low(node_ref.id());
+    if node_ref.is_negated() {
+        -low  // Propagate the complement
+    } else {
+        low
+    }
+}
+
+pub fn high_node(&self, node_ref: Ref) -> Ref {
+    let high = self.high(node_ref.id());
+    if node_ref.is_negated() {
+        -high  // Propagate the complement
+    } else {
+        high
     }
 }
 ```
 
-This is the magic: `-x` in Rust negates a BDD in $O(1)$ time.
+If you're at a complemented reference, both children become complemented.
+This propagation continues to the terminals, flipping the final result.
 
-== Canonical Form with Complements
+#info-box(title: "Evaluation Rule")[
+  A path evaluates to TRUE if it reaches the TRUE terminal through an *even* number of complement edges.
+  An odd number of complements flips the result to FALSE.
+]
+
+== Terminal Handling
+
+With complements, there's one physical terminal but two logical constants:
 
 Complement edges introduce an ambiguity: $f$ and $not f$ have the same underlying graph.
 To maintain canonicity, we need a *normalization rule*.
@@ -348,12 +504,24 @@ No traversal needed --- just compare the 32-bit values.
 + *Debugging*: Output is harder to interpret
 
 #comparison-table(
-  [*Aspect*], [*Without Complement Edges*], [*With Complement Edges*],
-  [Negation], [$O(|f|)$], [$O(1)$],
-  [Node count], [Higher], [Up to 50% less],
-  [Equality check], [$O(1)$], [$O(1)$],
-  [Algorithm complexity], [Simpler], [More complex],
-  [Debugging], [Easier], [Harder],
+  [*Aspect*],
+  [*Without Complement Edges*],
+  [*With Complement Edges*],
+  [Negation],
+  [$O(|f|)$],
+  [$O(1)$],
+  [Node count],
+  [Higher],
+  [Up to 50% less],
+  [Equality check],
+  [$O(1)$],
+  [$O(1)$],
+  [Algorithm complexity],
+  [Simpler],
+  [More complex],
+  [Debugging],
+  [Easier],
+  [Harder],
 )
 
 === When Complement Edges Hurt

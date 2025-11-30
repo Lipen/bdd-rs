@@ -2,25 +2,57 @@
 
 = BDD Operations <ch-operations>
 
-The power of BDDs comes from efficient algorithms for Boolean operations.
-This chapter covers the core operations: combining BDDs (Apply), testing conditions (restriction), and abstracting variables (quantification).
-The recurring theme is that BDD operations have polynomial complexity in the BDD size, not the exponential function size.
+The power of BDDs lies not just in compact representation, but in efficient manipulation.
+This chapter covers the core algorithms: combining BDDs (`Apply`), testing conditions (restriction), and abstracting variables (quantification).
+
+The recurring theme: BDD operations are polynomial in the *BDD size*, not the exponential *function size*.
+When the BDD is compact, everything is fast.
 
 == Overview of Operations
 
 BDD operations fall into several complexity classes:
 
 #comparison-table(
-  [*Operation*], [*Complexity*], [*Example*],
-  [Equivalence], [$O(1)$], [$f equiv g$?],
-  [SAT check], [$O(1)$], [$f equiv 0$?],
-  [Negation], [$O(1)^*$], [$not f$],
-  [Size query], [$O(1)$], [$|f|$?],
-  [Counting], [$O(|f|)$], [$|{bold(x) : f(bold(x)) = 1}|$],
-  [Cofactor], [$O(|f|)$], [$f|_(x=1)$],
-  [Apply (AND, OR, ...)], [$O(|f| dot |g|)$], [$f and g$],
-  [Quantification], [$O(|f|^2)$], [$exists x. f$],
-  [Composition], [$O(|f|^2 dot |g|^2)$], [$f[x := g]$],
+  cols: 3,
+  [*Operation*],
+  [*Complexity*],
+  [*Example*],
+
+  [Equivalence],
+  [$O(1)$],
+  [$f equiv g$?],
+
+  [SAT check],
+  [$O(1)$],
+  [$f equiv 0$?],
+
+  [Negation],
+  [$O(1)^*$],
+  [$not f$],
+
+  [Size query],
+  [$O(1)$],
+  [$|f|$?],
+
+  [Counting],
+  [$O(|f|)$],
+  [$|{bold(x) : f(bold(x)) = 1}|$],
+
+  [Cofactor],
+  [$O(|f|)$],
+  [$f|_(x=1)$],
+
+  [Apply (AND, OR, ...)],
+  [$O(|f| dot |g|)$],
+  [$f and g$],
+
+  [Quantification],
+  [$O(|f|^2)$],
+  [$exists x. f$],
+
+  [Composition],
+  [$O(|f|^2 dot |g|^2)$],
+  [$f[x := g]$],
 )
 
 $*$ With complement edges; $O(|f|)$ without.
@@ -40,6 +72,55 @@ To compute $f op g$ where $op$ is a binary operation:
 + Combine results using `mk`
 
 The trick is *memoization*: remember results to avoid redundant computation.
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Visual Apply example
+    content((6, 8), text(weight: "bold", size: 1em)[Apply(AND, $f$, $g$) --- Computing $x and (x or y)$])
+
+    // Input BDDs
+    content((2, 6.8), text(size: 0.8em, weight: "semibold", fill: colors.primary)[$f = x$])
+    bdd-decision-node((2, 5.5), "x", name: "f-x")
+    bdd-terminal-node((1, 4), "0", name: "f-0")
+    bdd-terminal-node((3, 4), "1", name: "f-1")
+    bdd-low-edge("f-x", "f-0")
+    bdd-high-edge("f-x", "f-1")
+
+    content((6, 6.8), text(size: 0.8em, weight: "semibold", fill: colors.success)[$g = x or y$])
+    bdd-decision-node((6, 5.5), "x", name: "g-x")
+    bdd-decision-node((5, 4), "y", name: "g-y")
+    bdd-terminal-node((7, 4), "1", name: "g-1-high")
+    bdd-terminal-node((4.2, 2.8), "0", name: "g-0")
+    bdd-terminal-node((5.8, 2.8), "1", name: "g-1-low")
+    bdd-low-edge("g-x", "g-y")
+    bdd-high-edge("g-x", "g-1-high")
+    bdd-low-edge("g-y", "g-0")
+    bdd-high-edge("g-y", "g-1-low")
+
+    // Arrow
+    line((8, 5), (9.5, 5), stroke: 2pt + colors.primary, mark: (end: ">", fill: colors.primary))
+    content((8.75, 5.5), text(size: 0.8em)[AND])
+
+    // Result
+    content((11.5, 6.8), text(size: 0.8em, weight: "semibold", fill: colors.warning)[$f and g = x$])
+    bdd-decision-node((11.5, 5.5), "x", name: "r-x")
+    bdd-terminal-node((10.5, 4), "0", name: "r-0")
+    bdd-terminal-node((12.5, 4), "1", name: "r-1")
+    bdd-low-edge("r-x", "r-0")
+    bdd-high-edge("r-x", "r-1")
+
+    // Explanation
+    content((6, 1.5), align(center)[
+      #set text(size: 0.8em)
+      Recursion: $"AND"(f_"low", g_"low") = "AND"(0, y) = 0$\
+      #h(2em) $"AND"(f_"high", g_"high") = "AND"(1, 1) = 1$\
+      Result: $"mk"(x, 0, 1) = x$ #text(fill: colors.success)[✓]
+    ])
+  }),
+  caption: [Apply combines two BDDs by recursing on cofactors and rebuilding with `mk`.],
+)
 
 === The Algorithm
 
@@ -97,12 +178,31 @@ If a BDD does not depend on that variable, its cofactors are both equal to itsel
 Different operations have different terminal rules:
 
 #comparison-table(
-  [*Operation*], [*Terminal Rule*], [*Short-circuits*],
-  [AND ($and$)], [$0 and x = 0$, $1 and x = x$], [Either arg is $0$],
-  [OR ($or$)], [$1 or x = 1$, $0 or x = x$], [Either arg is $1$],
-  [XOR ($xor$)], [$0 xor x = x$, $1 xor x = not x$], [Both terminals],
-  [IMPLIES ($->$)], [$0 -> x = 1$, $1 -> x = x$], [$f = 0$],
-  [IFF ($<->$)], [$x <-> x = 1$, $0 <-> x = not x$], [$f = g$],
+  cols: 3,
+
+  [*Operation*],
+  [*Terminal Rule*],
+  [*Short-circuits*],
+
+  [AND ($and$)],
+  [$0 and x = 0$, $1 and x = x$],
+  [Either arg is $0$],
+
+  [OR ($or$)],
+  [$1 or x = 1$, $0 or x = x$],
+  [Either arg is $1$],
+
+  [XOR ($xor$)],
+  [$0 xor x = x$, $1 xor x = not x$],
+  [Both terminals],
+
+  [IMPLIES ($->$)],
+  [$0 -> x = 1$, $1 -> x = x$],
+  [$f = 0$],
+
+  [IFF ($<->$)],
+  [$x <-> x = 1$, $0 <-> x = not x$],
+  [$f = g$],
 )
 
 === Example: Computing $f and g$
@@ -143,6 +243,12 @@ Result: $x_1 and (x_1 or x_2) = x_1$ ✓
 This bound is tight in the worst case but rarely achieved in practice.
 Many operations produce results much smaller than the theoretical maximum.
 
+#insight-box[
+  The key insight: memoization transforms exponential recursion into polynomial time.
+  Without the cache, we'd explore up to $2^n$ paths.
+  With it, we explore at most $|f| times |g|$ unique subproblems.
+]
+
 === Cache Management
 
 The *apply cache* (or *computed table*) is crucial for performance.
@@ -169,13 +275,27 @@ The If-Then-Else operation is a ternary operation that subsumes all binary opera
 Every binary Boolean operation can be expressed as ITE:
 
 #comparison-table(
-  [*Operation*], [*ITE Expression*],
-  [$f and g$], [$"ite"(f, g, 0)$],
-  [$f or g$], [$"ite"(f, 1, g)$],
-  [$not f$], [$"ite"(f, 0, 1)$],
-  [$f xor g$], [$"ite"(f, not g, g)$],
-  [$f -> g$], [$"ite"(f, g, 1)$],
-  [$f <-> g$], [$"ite"(f, g, not g)$],
+  cols: 2,
+  [*Operation*],
+  [*ITE Expression*],
+
+  [$f and g$],
+  [$"ite"(f, g, 0)$],
+
+  [$f or g$],
+  [$"ite"(f, 1, g)$],
+
+  [$not f$],
+  [$"ite"(f, 0, 1)$],
+
+  [$f xor g$],
+  [$"ite"(f, not g, g)$],
+
+  [$f -> g$],
+  [$"ite"(f, g, 1)$],
+
+  [$f <-> g$],
+  [$"ite"(f, g, not g)$],
 )
 
 Some BDD libraries implement only ITE and derive other operations from it.

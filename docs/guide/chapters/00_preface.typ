@@ -4,66 +4,94 @@
 
 #heading(numbering: none)[Preface] <preface>
 
-== Purpose of This Guide
+== Why This Guide Exists
 
-This guide provides a comprehensive treatment of *Binary Decision Diagrams (BDDs)* --- from theoretical foundations to practical implementation.
+In 1994, a single floating-point division bug cost Intel \$475 million.
+The Pentium FDIV error slipped past traditional testing because exhaustive checking was impossible --- billions of input combinations existed.
+After that expensive lesson, Intel turned to *formal verification*, and Binary Decision Diagrams became essential infrastructure.
 
-Whether you are a student learning about formal methods, a practitioner building verification tools, or a researcher exploring symbolic computation, this guide offers the depth and breadth you need.
+BDDs are one of computer science's quiet success stories.
+They power hardware verification at Intel, AMD, and every major chip manufacturer.
+They enable SAT solvers to prune search spaces.
+They verify protocols, validate configurations, and solve combinatorial puzzles.
+Yet despite their importance, good learning resources are scarce.
+
+This guide fills that gap.
+Whether you are a student encountering formal methods for the first time, an engineer building verification tools, or a researcher pushing the boundaries of symbolic computation, you will find what you need here.
 
 == What You Will Learn
 
-By the end of this guide, you will understand:
+By working through this guide, you will understand:
 
-- *Theory*: The mathematical foundations of BDDs, including Boolean algebra, canonical forms, and complexity properties.
+- *Theory*: The mathematical foundations --- Boolean algebra, Shannon expansion, the canonicity theorem that makes BDDs magical.
 
-- *Implementation*: How to build an efficient BDD library, covering data structures, algorithms, and engineering trade-offs.
+- *Implementation*: How to build an efficient BDD library from scratch, including data structures, algorithms, and the non-obvious engineering decisions.
 
-- *Applications*: Where BDDs excel in practice --- model checking, configuration management, combinatorial optimization, and beyond.
+- *Applications*: Where BDDs shine --- model checking, configuration management, combinatorial optimization --- and where they struggle.
 
-- *Trade-offs*: When to use BDDs versus alternatives like SAT solvers, and how different design choices affect performance.
+- *Trade-offs*: When to reach for BDDs versus SAT solvers, and how design choices (variable ordering, complement edges, caching strategies) affect performance by orders of magnitude.
 
 == How to Read This Guide
 
-*Path 1: Foundations First*
+There is no single "right" path.
+Choose based on your goals:
 
-Read sequentially through @part-foundations and @part-implementation.
-This builds complete understanding from first principles.
-Best for students and those new to BDDs.
+*Path 1: Theory First*
+
+Read @part-foundations thoroughly, then @part-implementation.
+Build understanding from first principles.
+Best for students and those who want the complete picture.
 
 *Path 2: Implementation Focus*
 
-Skim @part-foundations for notation, then dive into @part-implementation.
-Reference @part-advanced for advanced techniques as needed.
+Skim @part-foundations for notation, dive into @part-implementation.
+Reference @part-advanced when you hit advanced techniques.
 Best for engineers building BDD-based systems.
 
 *Path 3: Application-Driven*
 
-Start with @part-applications to see BDDs in action.
-Return to earlier parts when you encounter unfamiliar concepts.
-Best for practitioners with specific use cases.
+Start with @part-applications to see BDDs solving real problems.
+Backtrack to earlier parts when curiosity strikes.
+Best for practitioners with specific use cases in mind.
 
 *Path 4: Comparative Analysis*
 
-Jump to @part-ecosystem for ecosystem overview and comparisons.
-Use earlier parts as reference.
-Best for those evaluating BDD libraries or approaches.
+Jump to @part-ecosystem for the lay of the land.
+Use earlier chapters as reference material.
+Best for those evaluating BDD libraries or architectural approaches.
 
-== Accompanying Code
+== The bdd-rs Library
 
-This guide is developed alongside the `bdd-rs` library.
-Code examples throughout use Rust, but concepts transfer to any language.
+This guide accompanies `bdd-rs`, a BDD library written in Rust.
+The code examples use Rust syntax, but the concepts are universal --- they apply to CUDD, BuDDy, or any BDD implementation.
 
 ```rust
-// A taste of what's to come
 use bdd_rs::bdd::Bdd;
 
 let bdd = Bdd::default();
 let x = bdd.mk_var(1);
 let y = bdd.mk_var(2);
-let f = bdd.apply_and(x, bdd.apply_not(y));  // f = x ∧ ¬y
+let f = bdd.apply_and(x, -y);  // f = x ∧ ¬y
+
+// O(1) checks after construction
+assert!(!bdd.is_zero(f));  // Satisfiable
+assert!(!bdd.is_one(f));   // Not a tautology
 ```
+
+== A Note on Style
+
+This guide prioritizes *understanding* over encyclopedic coverage.
+When a choice exists between being comprehensive and being clear, clarity wins.
+
+You will find:
+- *Diagrams* that visualize concepts
+- *Code* that shows how ideas become implementations
+- *Examples* that ground abstractions in concrete problems
+- *Insights* that explain *why*, not just *how*
 
 == Acknowledgments
 
-This guide builds upon decades of BDD research, starting with Randal Bryant's seminal 1986 paper.
-We acknowledge the contributions of the formal methods community and the developers of BDD libraries that informed this work.
+BDDs emerged from decades of research, starting with Lee's 1959 work on decision programs and crystallizing in Bryant's landmark 1986 paper.
+This guide builds on that foundation and on the practical wisdom embodied in libraries like CUDD, BuDDy, and Sylvan.
+
+We thank the formal methods community for creating such a rich field to explore.

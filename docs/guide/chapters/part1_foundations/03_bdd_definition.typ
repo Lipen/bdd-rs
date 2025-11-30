@@ -2,14 +2,16 @@
 
 = BDD Definition and Structure <ch-bdd-definition>
 
-In the previous chapter, we saw that Boolean functions can be represented in many ways, each with different trade-offs.
+In the previous chapter, we saw that Boolean functions can be represented in many ways.
 Shannon expansion gives us a recursive decomposition, but naively applying it yields exponential-size decision trees.
-The breakthrough insight of BDDs is that we can share structure across the tree, transforming it into a compact directed acyclic graph (DAG).
+
+The breakthrough insight of BDDs is simple yet profound: *share identical substructures*.
+By merging duplicate subtrees, we transform an exponential tree into a compact directed acyclic graph (DAG).
 
 == From Decision Trees to Decision Diagrams
 
-Let us begin by tracing the evolution from decision trees to BDDs.
-Understanding this progression clarifies why each property of BDDs exists.
+Let's trace the evolution from trees to diagrams.
+This progression reveals why BDDs have the properties they do.
 
 === Decision Trees
 
@@ -78,11 +80,11 @@ We now give the formal definition of BDDs and establish notation used throughout
 #definition(title: "Semantics of BDDs")[
   A BDD with root $r$ represents a Boolean function $f_r : BB^n -> BB$ defined recursively:
   $
-  f_v (bold(x)) = cases(
-    0 & "if" v = 0,
-    1 & "if" v = 1,
-    (overline(x_i) and f_("low"(v))(bold(x))) or (x_i and f_("high"(v))(bold(x))) & "if" "var"(v) = x_i
-  )
+    f_v (bold(x)) = cases(
+      0 & "if" v = 0,
+      1 & "if" v = 1,
+      (overline(x_i) and f_("low"(v))(bold(x))) or (x_i and f_("high"(v))(bold(x))) & "if" "var"(v) = x_i
+    )
   $
   This is precisely Shannon expansion: $f = overline(x_i) dot f|_(x_i=0) + x_i dot f|_(x_i=1)$.
 ]
@@ -198,32 +200,169 @@ The function $f(x, y) = x and y$ with ordering $x < y$:
 - If $x = 0$: output is $0$ regardless of $y$
 - If $x = 1$: output is $y$
 
-The ROBDD has three nodes: one decision node for $x$ (with low child $0$, high child being a $y$-node), one decision node for $y$ (with low child $0$, high child $1$), and the two terminals.
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
 
-Notice that the $y$-node is only reached when $x = 1$, reflecting the short-circuit evaluation.
+    // Positions
+    let x-pos = (3, 4)
+    let y-pos = (4, 2.5)
+    let zero-pos = (2, 0.8)
+    let one-pos = (5, 0.8)
+
+    // Draw nodes
+    bdd-terminal-node(zero-pos, 0, name: "zero")
+    bdd-terminal-node(one-pos, 1, name: "one")
+    bdd-decision-node(x-pos, "x", name: "x")
+    bdd-decision-node(y-pos, "y", name: "y")
+
+    // Edges
+    bdd-low-edge((x-pos.at(0) - 0.35, x-pos.at(1) - 0.35), (zero-pos.at(0) + 0.2, zero-pos.at(1) + 0.5))
+    bdd-high-edge((x-pos.at(0) + 0.35, x-pos.at(1) - 0.35), (y-pos.at(0) - 0.2, y-pos.at(1) + 0.4))
+    bdd-low-edge((y-pos.at(0) - 0.35, y-pos.at(1) - 0.35), (zero-pos.at(0) + 0.4, zero-pos.at(1) + 0.3))
+    bdd-high-edge((y-pos.at(0) + 0.35, y-pos.at(1) - 0.35), (one-pos.at(0) - 0.2, one-pos.at(1) + 0.4))
+
+    // Annotations
+    content(
+      (7, 3.5),
+      align(left)[
+        #set text(size: 0.8em)
+        *Evaluation paths:*\
+        $x=0$: $-> 0$ (short-circuit)\
+        $x=1, y=0$: $-> 0$\
+        $x=1, y=1$: $-> 1$ ✓
+      ],
+      anchor: "west",
+    )
+  }),
+  caption: [ROBDD for $x and y$. The $y$-node is only reached when $x = 1$.],
+)
+
+Notice that the $y$-node is only reached when $x = 1$, reflecting short-circuit evaluation.
+The BDD has just 2 decision nodes --- much smaller than the $2^2 = 4$ leaves of a decision tree.
 
 === Example: Exclusive Or ($x xor y$)
 
 The function $f(x, y) = x xor y$ with ordering $x < y$:
 - If $x = 0$: output is $y$
-- If $x = 1$: output is $overline(y)$
+- If $x = 1$: output is $not y$
 
-The ROBDD requires distinct subtrees for the two cases because $y$ and $overline(y)$ are different functions.
-This results in four nodes (plus terminals): one for $x$, and two for $y$ (one in each context).
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
 
-#info-box(title: "XOR and Equivalence")[
-  XOR ($xor$) and equivalence ($equiv$) are complements.
-  With complement edges (discussed in @ch-complement-edges), we can represent both with the same structure by flipping the root's complement bit.
+    // Positions
+    let x-pos = (3.5, 4)
+    let y1-pos = (2, 2.5)
+    let y2-pos = (5, 2.5)
+    let zero-pos = (2, 0.8)
+    let one-pos = (5, 0.8)
+
+    // Draw nodes
+    bdd-terminal-node(zero-pos, 0, name: "zero")
+    bdd-terminal-node(one-pos, 1, name: "one")
+    bdd-decision-node(x-pos, "x", name: "x")
+    bdd-decision-node(y1-pos, "y", name: "y1")
+    bdd-decision-node(y2-pos, "y", name: "y2")
+
+    // From x
+    bdd-low-edge((x-pos.at(0) - 0.35, x-pos.at(1) - 0.35), (y1-pos.at(0) + 0.2, y1-pos.at(1) + 0.4))
+    bdd-high-edge((x-pos.at(0) + 0.35, x-pos.at(1) - 0.35), (y2-pos.at(0) - 0.2, y2-pos.at(1) + 0.4))
+
+    // From y1 (represents y when x=0)
+    bdd-low-edge((y1-pos.at(0) - 0.3, y1-pos.at(1) - 0.4), (zero-pos.at(0) + 0.1, zero-pos.at(1) + 0.35))
+    bdd-high-edge((y1-pos.at(0) + 0.35, y1-pos.at(1) - 0.35), (one-pos.at(0) - 0.4, one-pos.at(1) + 0.5))
+
+    // From y2 (represents ¬y when x=1)
+    bdd-low-edge((y2-pos.at(0) - 0.35, y2-pos.at(1) - 0.35), (one-pos.at(0) + 0.1, one-pos.at(1) + 0.35))
+    bdd-high-edge((y2-pos.at(0) + 0.3, y2-pos.at(1) - 0.4), (zero-pos.at(0) + 0.5, zero-pos.at(1) + 0.5))
+
+    // Labels
+    content((0.5, 2.5), text(size: 0.8em, fill: colors.text-muted)[$y$ when $x=0$], anchor: "east")
+    content((6.5, 2.5), text(size: 0.8em, fill: colors.text-muted)[$not y$ when $x=1$], anchor: "west")
+  }),
+  caption: [ROBDD for $x xor y$. Two $y$-nodes are needed because the subfunctions differ.],
+)
+
+The ROBDD requires two $y$-nodes because $y$ and $not y$ are different functions.
+No reduction is possible here --- this is the minimal representation.
+
+#info-box(title: "XOR and Complement Edges")[
+  With *complement edges* (covered in @ch-complement-edges), XOR can share structure with equivalence.
+  The left $y$-node becomes the right one with a complement marker, halving the size.
 ]
 
 === Example: Majority Function
 
-The majority function $"Maj"(x, y, z)$ with ordering $x < y < z$:
-- If $x = 0$: need both $y$ and $z$ to be $1$, so subfunction is $y and z$
-- If $x = 1$: need at least one of $y, z$ to be $1$, so subfunction is $y or z$
+The majority function $"Maj"(x, y, z)$ outputs 1 when at least two inputs are 1:
 
-Interestingly, both subfunctions share the node for $z$ when $y = 0$ (both need $z = 1$ in that case).
-This sharing reduces the total size.
+$ "Maj"(x, y, z) = (x and y) or (y and z) or (x and z) $
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Positions for ordering x < y < z
+    let x-pos = (4, 5.5)
+    let y1-pos = (2.5, 4)
+    let y2-pos = (5.5, 4)
+    let z1-pos = (2, 2.5)
+    let z2-pos = (5, 2.5)
+    let zero-pos = (2.5, 0.8)
+    let one-pos = (5.5, 0.8)
+
+    // Draw terminals
+    bdd-terminal-node(zero-pos, 0, name: "zero")
+    bdd-terminal-node(one-pos, 1, name: "one")
+
+    // Draw decision nodes
+    bdd-decision-node(x-pos, "x", name: "x")
+    bdd-decision-node(y1-pos, "y", name: "y1")
+    bdd-decision-node(y2-pos, "y", name: "y2")
+    bdd-decision-node(z1-pos, "z", name: "z1")
+    bdd-decision-node(z2-pos, "z", name: "z2")
+
+    // From x
+    bdd-low-edge((x-pos.at(0) - 0.35, x-pos.at(1) - 0.35), (y1-pos.at(0) + 0.2, y1-pos.at(1) + 0.4))
+    bdd-high-edge((x-pos.at(0) + 0.35, x-pos.at(1) - 0.35), (y2-pos.at(0) - 0.2, y2-pos.at(1) + 0.4))
+
+    // From y1 (x=0 branch): need both y and z
+    bdd-low-edge((y1-pos.at(0) - 0.3, y1-pos.at(1) - 0.4), (zero-pos.at(0) - 0.1, zero-pos.at(1) + 0.5))
+    bdd-high-edge((y1-pos.at(0) + 0.2, y1-pos.at(1) - 0.4), (z1-pos.at(0) - 0.1, z1-pos.at(1) + 0.4))
+
+    // From y2 (x=1 branch): need y or z
+    bdd-low-edge((y2-pos.at(0) - 0.2, y2-pos.at(1) - 0.4), (z2-pos.at(0) + 0.1, z2-pos.at(1) + 0.4))
+    bdd-high-edge((y2-pos.at(0) + 0.3, y2-pos.at(1) - 0.4), (one-pos.at(0) + 0.1, one-pos.at(1) + 0.5))
+
+    // From z1 (x=0, y=1): output z
+    bdd-low-edge((z1-pos.at(0) - 0.3, z1-pos.at(1) - 0.4), (zero-pos.at(0) - 0.2, zero-pos.at(1) + 0.3))
+    bdd-high-edge((z1-pos.at(0) + 0.3, z1-pos.at(1) - 0.4), (one-pos.at(0) - 0.5, one-pos.at(1) + 0.5))
+
+    // From z2 (x=1, y=0): output z
+    bdd-low-edge((z2-pos.at(0) - 0.3, z2-pos.at(1) - 0.4), (zero-pos.at(0) + 0.3, zero-pos.at(1) + 0.3))
+    bdd-high-edge((z2-pos.at(0) + 0.3, z2-pos.at(1) - 0.4), (one-pos.at(0) - 0.2, one-pos.at(1) + 0.3))
+
+    // Annotation
+    content(
+      (8, 4),
+      align(left)[
+        #set text(size: 0.8em)
+        *Subfunctions:*\
+        $x=0$: need $y and z$\
+        $x=1$: need $y or z$\
+        \
+        Both $z$-nodes share\
+        the same terminals!
+      ],
+      anchor: "west",
+    )
+  }),
+  caption: [ROBDD for majority function $"Maj"(x,y,z)$ with ordering $x < y < z$.],
+)
+
+Interestingly, both $z$-nodes output the same value: $z$ itself.
+The only difference is which paths reach them.
+With complement edges, further sharing would be possible.
 
 == Graph Properties and Metrics
 

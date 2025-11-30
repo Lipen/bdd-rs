@@ -2,106 +2,251 @@
 
 = Introduction <ch-introduction>
 
-Binary Decision Diagrams have become one of the most successful data structures in computer science.
-Since their introduction in the 1980s, they have enabled breakthroughs in hardware verification, transformed how we reason about Boolean functions, and found applications from configuration management to artificial intelligence.
+Imagine you could represent any Boolean formula --- no matter how complex --- as a compact diagram where checking if two formulas are equivalent takes a single pointer comparison.
+Where determining satisfiability requires examining just one node.
+Where counting all solutions is a single traversal.
 
-This chapter introduces BDDs, explains why they matter, and provides historical context for understanding their development and impact.
+This is the promise of Binary Decision Diagrams.
+
+Since their refinement in the 1980s, BDDs have become one of computer science's most elegant success stories.
+They enabled Intel to verify microprocessors before fabrication, catching bugs that would have cost billions.
+They power configuration tools that validate millions of product combinations in milliseconds.
+They form the foundation of symbolic model checking --- a technique so impactful that it earned its inventors the Turing Award.
+
+This chapter takes you on a journey from the fundamental challenge of Boolean reasoning to the elegant solution that BDDs provide.
 
 == The Challenge of Boolean Reasoning
 
-Boolean functions are everywhere.
-A digital circuit computes a Boolean function.
-A software condition evaluates to true or false.
-A configuration is valid or invalid.
-A formal specification is satisfied or violated.
+Boolean functions hide in plain sight.
+Every `if` statement in your code.
+Every logic gate in a processor.
+Every constraint in a configuration system.
+Every rule in a firewall policy.
 
-Yet reasoning about Boolean functions is surprisingly hard.
-Consider a simple question: given two Boolean formulas, do they compute the same function?
+The ubiquity of Boolean logic makes reasoning about it essential --- and surprisingly difficult.
 
-#example-box(title: "The Equivalence Problem")[
-  Are these two formulas equivalent?
+=== A Deceptively Simple Question
+
+Consider this innocent-looking question:
+
+#example-box(title: "The Equivalence Puzzle")[
+  Are these two formulas the same function?
   $ f = (a and b) or (a and c) or (b and c) $
   $ g = (a or b) and (a or c) and (b or c) $
 
-  To check by enumeration, we need $2^3 = 8$ evaluations.
-  For $n$ variables, we need $2^n$ evaluations --- exponential growth.
+  _Take a moment to think about it._
+
+  With just three variables, you could check all $2^3 = 8$ input combinations.
+  But what if there were 100 variables?
+  A million?
 ]
 
-This exponential blowup is not an artifact of naive algorithms.
-Boolean satisfiability (SAT) is NP-complete, and equivalence checking is co-NP-complete.
-No polynomial-time algorithm exists unless P = NP.
+The brute-force approach hits a wall.
+With $n$ variables, you face $2^n$ possible inputs --- more than atoms in the universe for $n > 260$.
 
-Yet practical systems routinely reason about Boolean functions with hundreds or thousands of variables.
-How is this possible?
+This exponential blowup is not a failure of imagination.
+Boolean satisfiability (SAT) is NP-complete.
+Equivalence checking is co-NP-complete.
+Unless P = NP, no shortcut exists for the general case.
 
-The answer lies in *representation*.
-While the worst case is exponential, many practical Boolean functions have structure that admits compact representation.
-BDDs exploit this structure, providing polynomial-time operations for functions that would be intractable otherwise.
+And yet, engineers verify circuits with thousands of variables every day.
+How?
 
-=== What is a BDD?
+=== The Power of Representation
 
-A *Binary Decision Diagram* (BDD) represents a Boolean function as a directed acyclic graph.
-Each internal node corresponds to a Boolean variable and has two outgoing edges: one for the case where the variable is false (the *low* edge), and one for the case where it is true (the *high* edge).
-Terminal nodes represent the constant functions $0$ and $1$.
+The secret lies in choosing the right *representation*.
 
-To evaluate a BDD on an input assignment, start at the root and follow edges according to the variable values until reaching a terminal.
-The terminal's label gives the function's value.
+Think of Roman numerals versus decimal notation.
+Both can represent any number, but try multiplying MCMXCIV by CDXLVII.
+The representation matters enormously.
 
-The key insight is that BDDs can share common subgraphs.
-If two paths lead to the same subfunction, they point to the same node.
-This *sharing* is what makes BDDs compact.
+For Boolean functions, most representations have crippling weaknesses:
+
+- *Truth tables* are canonical (unique) but exponentially large
+- *CNF formulas* are compact but checking equivalence is co-NP-complete
+- *Circuits* are efficient to build but hard to analyze
+
+BDDs hit a sweet spot: they are often compact *and* canonical *and* support efficient operations.
+When they work, they work spectacularly well.
+
+== What is a BDD?
+
+A *Binary Decision Diagram* is a way of drawing a Boolean function as a flowchart.
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // BDD for x AND y with ordering x < y
+    let x-pos = (2, 4)
+    let y-pos = (2, 2.5)
+    let zero-pos = (1, 0.8)
+    let one-pos = (3, 0.8)
+
+    // Draw terminals first (so edges appear on top)
+    bdd-terminal-node(zero-pos, 0, name: "zero")
+    bdd-terminal-node(one-pos, 1, name: "one")
+
+    // Draw decision nodes
+    bdd-decision-node(x-pos, "x", name: "x")
+    bdd-decision-node(y-pos, "y", name: "y")
+
+    // Draw edges
+    // x: low -> 0, high -> y
+    bdd-low-edge((x-pos.at(0) - 0.3, x-pos.at(1) - 0.4), (zero-pos.at(0) + 0.1, zero-pos.at(1) + 0.35))
+    bdd-high-edge((x-pos.at(0) + 0.3, x-pos.at(1) - 0.4), (y-pos.at(0) + 0.35, y-pos.at(1) + 0.35))
+
+    // y: low -> 0, high -> 1
+    bdd-low-edge((y-pos.at(0) - 0.3, y-pos.at(1) - 0.4), (zero-pos.at(0) + 0.25, zero-pos.at(1) + 0.35))
+    bdd-high-edge((y-pos.at(0) + 0.3, y-pos.at(1) - 0.4), (one-pos.at(0) - 0.25, one-pos.at(1) + 0.35))
+
+    // Legend
+    content(
+      (5.5, 3.5),
+      align(left)[
+        #set text(size: 0.8em)
+        *Reading the BDD:*\
+        Start at $x$ (root)\
+        If $x = 0$: follow dashed line $->$ *0*\
+        If $x = 1$: go to $y$\
+        #h(1em) If $y = 0$: follow dashed $->$ *0*\
+        #h(1em) If $y = 1$: follow solid $->$ *1*
+      ],
+      anchor: "west",
+    )
+  }),
+  caption: [BDD for $x and y$: the function outputs 1 only when both inputs are 1.],
+)
+
+Here is how to read a BDD:
+
++ *Start at the root* --- the topmost circle
++ *Check the variable* --- is it true (1) or false (0)?
++ *Follow the edge* --- solid for true, dashed for false
++ *Repeat* until you reach a square terminal
++ *The terminal's value* is your answer
+
+The magic happens when you have *structure sharing*.
+Consider the function $(x and y) or z$:
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // BDD for (x AND y) OR z with ordering x < y < z
+    let x-pos = (3, 5)
+    let y-pos = (2, 3.5)
+    let z1-pos = (1, 2)
+    let z2-pos = (3, 2)
+    let zero-pos = (1, 0.5)
+    let one-pos = (3, 0.5)
+
+    // Draw terminals
+    bdd-terminal-node(zero-pos, 0, name: "zero")
+    bdd-terminal-node(one-pos, 1, name: "one")
+
+    // Draw decision nodes
+    bdd-decision-node(x-pos, "x", name: "x")
+    bdd-decision-node(y-pos, "y", name: "y")
+    bdd-decision-node(z1-pos, "z", name: "z1")
+    bdd-decision-node(z2-pos, "z", name: "z2")
+
+    // Edges from x
+    bdd-low-edge((x-pos.at(0) - 0.35, x-pos.at(1) - 0.35), (z1-pos.at(0) + 0.25, z1-pos.at(1) + 0.4))
+    bdd-high-edge((x-pos.at(0) + 0.35, x-pos.at(1) - 0.35), (y-pos.at(0) + 0.35, y-pos.at(1) + 0.4))
+
+    // Edges from y
+    bdd-low-edge((y-pos.at(0) - 0.35, y-pos.at(1) - 0.35), (z1-pos.at(0) + 0.35, z1-pos.at(1) + 0.25))
+    bdd-high-edge((y-pos.at(0) + 0.15, y-pos.at(1) - 0.4), (z2-pos.at(0) - 0.15, z2-pos.at(1) + 0.4))
+
+    // Edges from z1
+    bdd-low-edge((z1-pos.at(0) - 0.25, z1-pos.at(1) - 0.4), (zero-pos.at(0) + 0.1, zero-pos.at(1) + 0.35))
+    bdd-high-edge((z1-pos.at(0) + 0.35, z1-pos.at(1) - 0.35), (one-pos.at(0) - 0.35, one-pos.at(1) + 0.35))
+
+    // Edges from z2
+    bdd-low-edge((z2-pos.at(0) - 0.35, z2-pos.at(1) - 0.35), (one-pos.at(0) + 0.1, one-pos.at(1) + 0.35))
+    bdd-high-edge((z2-pos.at(0) + 0.25, z2-pos.at(1) - 0.4), (one-pos.at(0) + 0.25, one-pos.at(1) + 0.35))
+
+    // Note
+    content(
+      (6, 3),
+      align(left)[
+        #set text(size: 0.8em)
+        Notice: both $z$ nodes\
+        _share_ the same terminals.\
+        \
+        This sharing is the key to\
+        BDD efficiency.
+      ],
+      anchor: "west",
+    )
+  }),
+  caption: [BDD for $(x and y) or z$ showing structure sharing.],
+)
+
+Without sharing, a decision tree for $n$ variables needs up to $2^n$ leaves.
+With sharing, a BDD often needs far fewer nodes --- sometimes polynomially many, sometimes even constant.
 
 == A Brief History
 
-The history of BDDs begins before the term was coined.
+The story of BDDs is one of incremental insight building to breakthrough.
 
-=== Early Work (1959--1978)
+=== The Early Days (1959--1978)
 
-In 1959, *C. Y. Lee* introduced *binary decision programs* for representing switching circuits.
-His work laid the groundwork for decision-diagram-based representations but did not address the representation's uniqueness.
+In 1959, *C. Y. Lee* described "binary decision programs" for representing switching circuits --- essentially, BDDs before the name existed.
+His insight was that any Boolean function could be represented as a binary tree of if-then-else decisions.
 
-In 1978, *S. B. Akers* formalized *Binary Decision Diagrams* and studied their properties.
-However, these early BDDs could represent the same function in many different ways, making equivalence checking expensive.
+In 1978, *S. B. Akers* formalized the structure and coined the term "Binary Decision Diagram."
+But these early BDDs had a problem: the same function could be drawn in many different ways.
+Checking if two BDDs represented the same function required expensive graph isomorphism tests.
 
-=== Bryant's Breakthrough (1986)
+=== The Bryant Revolution (1986)
 
-The transformative contribution came from *Randal Bryant* in 1986.
-His paper "Graph-Based Algorithms for Boolean Function Manipulation" introduced two crucial refinements:
+The transformation came from *Randal Bryant*, then at Carnegie Mellon.
+His 1986 paper introduced two deceptively simple restrictions:
 
-+ *Ordering*: Variables appear in the same order on all paths from root to terminal.
-+ *Reduction*: Eliminate redundant nodes and merge isomorphic subgraphs.
++ *Order the variables* --- every path from root to terminal encounters variables in the same sequence
++ *Reduce the diagram* --- merge identical subgraphs and eliminate redundant nodes
 
-These constraints yield *Reduced Ordered Binary Decision Diagrams* (ROBDDs), which have a remarkable property: for a fixed variable ordering, every Boolean function has exactly one ROBDD.
-This *canonicity* means equivalence checking becomes trivial --- two functions are equivalent if and only if their ROBDDs are identical (pointer comparison!).
-
-Bryant also provided efficient algorithms for Boolean operations, running in time proportional to the product of the input BDD sizes.
+These constraints create *Reduced Ordered Binary Decision Diagrams* (ROBDDs), with a stunning property:
 
 #insight-box[
-  Bryant's 1986 paper is one of the most cited in computer science.
-  The combination of canonicity and efficient algorithms made BDDs practical for industrial-scale verification.
+  For a fixed variable ordering, every Boolean function has *exactly one* ROBDD.
+
+  This means: two functions are identical if and only if their BDDs are pointer-equal.
+  Equivalence checking becomes a single comparison.
 ]
+
+Bryant also provided efficient algorithms for combining BDDs.
+Computing $f and g$ or $f or g$ takes time proportional to $|f| times |g|$ --- the product of their sizes, not exponential in variables.
 
 === The Verification Revolution (1987--1995)
 
-BDDs immediately found application in hardware verification.
-In 1987, *Burch, Clarke, McMillan, Dill, and Hwang* demonstrated *symbolic model checking*, verifying systems with $10^20$ states --- far beyond what explicit enumeration could handle.
+The impact was immediate and profound.
 
-This work launched a revolution in formal verification.
-Suddenly, it was possible to automatically verify properties of complex digital circuits.
-Companies like Intel adopted BDD-based tools to catch bugs before silicon fabrication.
+In 1987, a team including *Edmund Clarke* (later a Turing Award recipient) demonstrated *symbolic model checking*.
+They verified systems with $10^{20}$ states --- astronomically beyond what explicit enumeration could handle.
 
-=== Maturation and Alternatives (1995--present)
+Hardware companies took notice.
+Intel began using BDD-based tools to verify processor designs.
+The infamous Pentium FDIV bug of 1994 --- which cost Intel \$475 million --- accelerated adoption of formal verification.
+BDDs became essential infrastructure.
 
-By the mid-1990s, BDDs had become a standard tool, but their limitations were also understood.
-Some functions have exponentially large BDDs regardless of variable ordering.
-Memory consumption can be unpredictable.
+=== Maturity and Beyond (1995--Present)
 
-Alternative approaches emerged:
-- *SAT solvers* using conflict-driven clause learning (CDCL) proved effective for many problems where BDDs struggle.
-- *BDD variants* like ZDDs (for combinatorial sets) and ADDs (for multi-valued functions) extended the paradigm.
-- *Hybrid methods* combining BDDs with SAT solvers leverage the strengths of each.
+By the mid-1990s, BDDs were a standard tool, but their limitations were better understood:
 
-Today, BDDs remain essential where their strengths matter: canonical representation, efficient counting, all-solutions enumeration, and symbolic manipulation of state spaces.
+- Some functions (like integer multiplication) have exponentially large BDDs *regardless* of variable ordering
+- Finding the best variable ordering is itself NP-hard
+- Memory usage can be unpredictable
+
+These limitations spurred alternatives:
+
+- *SAT solvers* excel at finding single solutions quickly
+- *BDD variants* like ZDDs handle sparse sets efficiently
+- *Hybrid methods* combine the strengths of multiple approaches
+
+Today, BDDs remain essential for problems requiring canonicity, counting, or symbolic state-space exploration.
 
 == What Makes BDDs Special?
 

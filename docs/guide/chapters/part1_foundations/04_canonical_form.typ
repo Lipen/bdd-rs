@@ -2,11 +2,13 @@
 
 = Canonical Form and Uniqueness <ch-canonicity>
 
-Canonicity is the property that sets BDDs apart from other Boolean function representations.
-A representation is *canonical* if each function has exactly one representation.
-For ROBDDs with a fixed variable ordering, this property holds, enabling constant-time equivalence checking and many other efficient operations.
+Canonicity is the property that makes BDDs genuinely useful, not just compact.
+A representation is *canonical* if each function has exactly one representation --- no exceptions, no ambiguity.
 
-This chapter proves the canonicity theorem and explores its far-reaching implications.
+For reduced ordered BDDs with a fixed variable ordering, this property holds.
+The implications are profound: checking if two functions are equivalent reduces to checking if two pointers are equal.
+
+This chapter proves the canonicity theorem and explores its far-reaching consequences.
 
 == The Canonicity Theorem
 
@@ -44,7 +46,7 @@ Non-essential variables can be ignored in the ROBDD (this is what the "no redund
 #lemma(title: "Shannon Expansion Uniqueness")[
   Every Boolean function $f$ can be uniquely decomposed as:
   $
-  f = overline(x_i) dot f|_(x_i=0) + x_i dot f|_(x_i=1)
+    f = overline(x_i) dot f|_(x_i=0) + x_i dot f|_(x_i=1)
   $
   where $f|_(x_i=0)$ and $f|_(x_i=1)$ are unique subfunctions not depending on $x_i$.
 ]
@@ -69,7 +71,7 @@ Consider a function $f$ with $k$ essential variables.
 Let $x_i$ be the smallest essential variable according to ordering $pi$.
 By Shannon expansion:
 $
-f = overline(x_i) dot f|_(x_i=0) + x_i dot f|_(x_i=1)
+  f = overline(x_i) dot f|_(x_i=0) + x_i dot f|_(x_i=1)
 $
 
 Since $x_i$ is essential, $f|_(x_i=0) != f|_(x_i=1)$.
@@ -94,6 +96,80 @@ Therefore, the ROBDD for $f$ is unique. $square$
 
   Each reduction rule eliminates exactly one degree of freedom, leaving a unique representation.
 ]
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+
+    // Canonicity visualization
+    content((6, 7), text(weight: "bold", size: 1em)[Why BDDs Are Canonical])
+
+    // Three formulas on the left
+    rect(
+      (0.5, 5),
+      (4, 6.2),
+      fill: colors.box-warning.lighten(40%),
+      stroke: 1pt + colors.warning.lighten(20%),
+      radius: 4pt,
+    )
+    content((2.25, 5.9), text(size: 0.8em)[$x and y$])
+    content((2.25, 5.4), text(size: 0.7em, fill: colors.text-muted)[formula 1])
+
+    rect(
+      (0.5, 3.5),
+      (4, 4.7),
+      fill: colors.box-warning.lighten(40%),
+      stroke: 1pt + colors.warning.lighten(20%),
+      radius: 4pt,
+    )
+    content((2.25, 4.4), text(size: 0.8em)[$y and x$])
+    content((2.25, 3.9), text(size: 0.7em, fill: colors.text-muted)[formula 2])
+
+    rect(
+      (0.5, 2),
+      (4, 3.2),
+      fill: colors.box-warning.lighten(40%),
+      stroke: 1pt + colors.warning.lighten(20%),
+      radius: 4pt,
+    )
+    content((2.25, 2.9), text(size: 0.8em)[$not(not x or not y)$])
+    content((2.25, 2.4), text(size: 0.7em, fill: colors.text-muted)[formula 3])
+
+    // Arrow to single BDD
+    line((4.2, 5.6), (7.5, 4.5), stroke: 1.5pt + colors.success, mark: (end: ">", fill: colors.success))
+    line((4.2, 4.1), (7.5, 4.3), stroke: 1.5pt + colors.success, mark: (end: ">", fill: colors.success))
+    line((4.2, 2.6), (7.5, 4.1), stroke: 1.5pt + colors.success, mark: (end: ">", fill: colors.success))
+
+    // Single BDD
+    rect(
+      (7.5, 2.5),
+      (11.5, 5.5),
+      fill: colors.box-example.lighten(50%),
+      stroke: 1.5pt + colors.success.lighten(20%),
+      radius: 6pt,
+    )
+    content((9.5, 5), text(size: 0.9em, weight: "semibold")[Unique ROBDD])
+
+    // Small BDD inside
+    bdd-decision-node((9.5, 4), "x", name: "x-can")
+    bdd-terminal-node((8.5, 3), "0", name: "zero-can")
+    bdd-decision-node((10.5, 3), "y", name: "y-can")
+
+    line((9.1, 3.6), (8.7, 3.3), stroke: (dash: "dashed", paint: colors.line, thickness: 1pt))
+    line((9.9, 3.6), (10.3, 3.3), stroke: 1pt + colors.line)
+
+    // Conclusion
+    content((6, 1), align(center)[
+      #set text(size: 0.8em)
+      *Same function* $->$ *Same BDD* (with fixed ordering)
+    ])
+    content((6, 0.4), align(center)[
+      #set text(size: 0.8em)
+      Equivalence check: just compare pointers!
+    ])
+  }),
+  caption: [Different formulas for the same function all produce the identical BDD structure.],
+)
 
 == Consequences of Canonicity
 
@@ -170,7 +246,7 @@ For BDDs, this means maintaining a *unique table* --- a hash table mapping $("va
 #definition(title: "Unique Table")[
   The *unique table* is a hash map:
   $
-  U : ("Var" times "Node" times "Node") -> "Node"
+    U : ("Var" times "Node" times "Node") -> "Node"
   $
 
   For any triple $(x, l, h)$, either:
