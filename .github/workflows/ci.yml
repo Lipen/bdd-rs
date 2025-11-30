@@ -131,6 +131,10 @@ jobs:
         working-directory: examples/abstract-interpretation/guide
         run: typst compile --font-path ~/.fontist/fonts main.typ guide-ai.pdf
 
+      - name: Compile guide on Model Checking
+        working-directory: examples/model-checking/guide
+        run: typst compile --font-path ~/.fontist/fonts main.typ guide-mc.pdf
+
       - name: Prepare files for gh-pages
         run: |
           # Create public directory
@@ -139,6 +143,7 @@ jobs:
           # Copy all Typst PDFs
           cp docs/guide/guide-bdd.pdf public/
           cp examples/abstract-interpretation/guide/guide-ai.pdf public/
+          cp examples/model-checking/guide/guide-mc.pdf public/
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v4
