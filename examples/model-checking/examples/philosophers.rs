@@ -107,8 +107,9 @@ fn main() {
 
     let mut initial = bdd.one();
     for i in 0..n {
-        initial = bdd.apply_and(initial, bdd.apply_not(hungry_bdd[i]));
-        initial = bdd.apply_and(initial, bdd.apply_not(eating_bdd[i]));
+        // THINKING: ¬hungry ∧ ¬eating
+        let thinking = bdd.apply_and(bdd.apply_not(hungry_bdd[i]), bdd.apply_not(eating_bdd[i]));
+        initial = bdd.apply_and(initial, thinking);
     }
     ts.set_initial(initial);
 
@@ -166,10 +167,7 @@ fn main() {
         let stay_eating = bdd.apply_and(stay_eating, bdd.apply_not(hungry_next[i]));
 
         // Combine all transitions for this philosopher
-        let philosopher_trans = bdd.apply_or(
-            bdd.apply_or(bdd.apply_or(become_hungry, start_eating), bdd.apply_or(stop_eating, stay_hungry)),
-            bdd.apply_or(stay_thinking, stay_eating),
-        );
+        let philosopher_trans = bdd.apply_or_many([become_hungry, start_eating, stop_eating, stay_hungry, stay_thinking, stay_eating]);
 
         transitions.push(philosopher_trans);
     }
