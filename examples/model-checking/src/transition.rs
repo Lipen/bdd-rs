@@ -342,11 +342,11 @@ impl TransitionSystem {
     /// // This creates: x' ↔ !x, which is x ⊕ x' (XOR)
     /// ```
     pub fn assign_var(&self, var: &Var, next_state_expr: Ref) -> Ref {
-        let next_idx = self.var_manager.get_next(var).expect("Variable not declared in transition system");
-        let next_var = self.bdd().mk_var(next_idx);
+        let next_var = self.var_manager.get_next(var).expect("Variable not declared in transition system");
+        let next = self.bdd().mk_var(next_var);
 
         // var' ↔ expr  is  (var' ∧ expr) ∨ (¬var' ∧ ¬expr)
-        self.bdd().apply_eq(next_var, next_state_expr)
+        self.bdd().apply_eq(next, next_state_expr)
     }
 
     /// Create a transition relation constraint for an unchanged variable.
@@ -361,12 +361,12 @@ impl TransitionSystem {
     ///
     /// A BDD representing the constraint `var' ↔ var`
     pub fn unchanged_var(&self, var: &Var) -> Ref {
-        let pres_idx = self
+        let pres_var = self
             .var_manager
             .get_present(var)
             .expect("Variable not declared in transition system");
-        let pres_var = self.bdd().mk_var(pres_idx);
-        self.assign_var(var, pres_var)
+        let pres = self.bdd().mk_var(pres_var);
+        self.assign_var(var, pres)
     }
 
     /// Build a complete transition relation from individual variable assignments.
