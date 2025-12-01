@@ -224,7 +224,7 @@ fn main() {
     println!("    Possible values: any in [0, 9]");
 
     // Congruence only
-    let congruence_only = Congruence::new(2, 0);
+    let _congruence_only = Congruence::new(2, 0);
     println!("  Congruence alone: x ≡ 0 (mod 2)");
     println!("    Possible values: ..., -2, 0, 2, 4, ...");
 
