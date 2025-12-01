@@ -50,22 +50,38 @@
 //! - [`generator`]: Test input generation from BDD paths
 //! - [`coverage`]: Coverage tracking using BDD operations
 //! - [`property`]: Property-based testing API with counterexample search
+//! - [`cfg`]: Control-flow graph construction and BDD encoding
+//! - [`loops`]: Loop detection, bounded unrolling, and invariant analysis
+//! - [`domain`]: Abstract domains for program analysis
 
+pub mod cfg;
 pub mod coverage;
+pub mod domain;
 pub mod generator;
+pub mod loops;
 pub mod predicate;
 pub mod property;
 pub mod theory;
 
 // Re-exports
+pub use cfg::{BasicBlock, BlockId, CfgBuilder, CfgPath, ControlFlowGraph, Terminator};
 pub use coverage::{CoverageSummary, CoverageTracker};
+#[allow(deprecated)]
+pub use domain::{
+    AbstractDomain, Bound, Congruence, CongruenceDomain, Concretizable, DomainState, Interval, IntervalDomain, PredicateTransfer,
+    ReducedProduct, Sign, SignDomain,
+};
 pub use generator::{
     ExecutionResult, GeneratorConfig, PathPriority, PrioritizedGenerator, PrioritizedPath, SymbolicExecutor, SymbolicState, TestCase,
     TestGenerator,
 };
+pub use loops::{find_containing_loop, is_back_edge, LoopDetector, LoopInfo};
 pub use predicate::{CompareOp, Operand, Predicate, PredicateUniverse, ProgramVar};
 pub use property::{CheckResult, CheckerConfig, Property, PropertyChecker};
 pub use theory::{
     ArrayBoundsSolver, ArrayConstraint, ArrayLength, BitwiseConstraint, BitwiseSolver, BoundaryValueGenerator, CombinedSolver,
-    ConstraintSolver, Interval, IntervalRelationalSolver, IntervalSolver, ModularSolver, RelationalSolver, SolveResult, Witness,
+    ConstraintSolver, IntervalRelationalSolver, IntervalSolver, ModularSolver, RelationalSolver, SolveResult, Witness,
 };
+
+// Note: theory::Interval is not re-exported to avoid conflict with domain::Interval.
+// Use domain::Interval for abstract interpretation, or theory::IntervalSolver for constraint solving.
