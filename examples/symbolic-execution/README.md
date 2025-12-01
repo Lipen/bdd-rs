@@ -28,7 +28,7 @@ The language supports:
 
 ```bash
 # Run built-in examples
-cargo run --bin symexec -- example <name>
+# cargo run --bin symexec -- example <name>
 
 # Available examples
 cargo run --bin symexec -- example simple      # sequential program
