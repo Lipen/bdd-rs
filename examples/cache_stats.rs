@@ -5,7 +5,7 @@
 //!
 //! Run with:
 //! ```bash
-//! cargo run --release --example cache_stats -- [n-queens size]
+//! cargo run --release --example cache_stats -- 10 -c 14 16 18 20 22
 //! ```
 
 use std::time::Instant;
@@ -18,30 +18,81 @@ use clap::Parser;
 #[command(author, version, about = "Cache statistics analyzer for BDD")]
 struct Cli {
     /// N-Queens problem size
-    #[arg(default_value = "6")]
+    #[arg(default_value = "8")]
     n: usize,
 
-    /// Cache size in bits (size = 2^bits) for detailed analysis
-    #[arg(long, default_value = "14")]
+    /// Cache sizes in bits (size = 2^bits). Can specify multiple.
+    /// Example: `--cache-bits 12 14 16`
+    #[arg(short = 'c', long = "cache-bits", num_args = 1.., value_delimiter = ' ')]
+    cache_bits: Option<Vec<usize>>,
+}
+
+/// Statistics collected for each cache configuration.
+#[derive(Debug, Clone)]
+struct CacheStats {
     cache_bits: usize,
+    time_ms: f64,
+    hits: usize,
+    misses: usize,
+    faults: usize,
+    nodes: usize,
+    result_size: u64,
+}
+
+impl CacheStats {
+    fn hit_rate(&self) -> f64 {
+        let total = self.hits + self.misses;
+        if total > 0 {
+            100.0 * self.hits as f64 / total as f64
+        } else {
+            0.0
+        }
+    }
+
+    fn collision_rate(&self) -> f64 {
+        let total = self.hits + self.misses;
+        if total > 0 {
+            100.0 * self.faults as f64 / total as f64
+        } else {
+            0.0
+        }
+    }
+
+    fn empty_miss_rate(&self) -> f64 {
+        let total = self.hits + self.misses;
+        let empty_misses = self.misses.saturating_sub(self.faults);
+        if total > 0 {
+            100.0 * empty_misses as f64 / total as f64
+        } else {
+            0.0
+        }
+    }
+
+    fn total_lookups(&self) -> usize {
+        self.hits + self.misses
+    }
 }
 
 fn main() {
     let cli = Cli::parse();
 
+    // Require at least one cache size
+    let cache_sizes: Vec<usize> = cli.cache_bits.unwrap_or_else(|| vec![14, 16, 18, 20]);
+
     println!("=== BDD Cache Statistics Analyzer ===\n");
-
-    // Test different cache sizes
-    let cache_sizes = [12, 14, 16, 18, 20];
-
-    println!("Workload: {}-Queens Problem\n", cli.n);
+    println!("Workload: {}-Queens Problem", cli.n);
     println!(
-        "{:>12} {:>12} {:>12} {:>12} {:>10} {:>10}",
-        "Cache Size", "Time (ms)", "Hits", "Misses", "Hit Rate", "Nodes"
+        "Cache sizes to test: {:?}\n",
+        cache_sizes.iter().map(|b| format!("2^{}", b)).collect::<Vec<_>>()
     );
-    println!("{}", "-".repeat(80));
+    println!("{}", "=".repeat(80));
+
+    // Collect stats for each cache size
+    let mut all_stats: Vec<CacheStats> = Vec::new();
 
     for &cache_bits in &cache_sizes {
+        println!("\n[Cache Size: 2^{} = {} entries]\n", cache_bits, 1usize << cache_bits);
+
         let config = BddConfig::default().with_cache_bits(cache_bits);
         let bdd = Bdd::with_config(config);
 
@@ -50,22 +101,29 @@ fn main() {
         let elapsed = start.elapsed();
 
         let cache = bdd.cache();
-        let hits = cache.hits();
-        let misses = cache.misses();
-        let total = hits + misses;
-        let hit_rate = if total > 0 { 100.0 * hits as f64 / total as f64 } else { 0.0 };
+        let stats = CacheStats {
+            cache_bits,
+            time_ms: elapsed.as_secs_f64() * 1000.0,
+            hits: cache.hits(),
+            misses: cache.misses(),
+            faults: cache.faults(),
+            nodes: bdd.num_nodes(),
+            result_size: bdd.size(result),
+        };
 
-        println!(
-            "{:>12} {:>12.2} {:>12} {:>12} {:>9.1}% {:>10}",
-            format!("2^{}", cache_bits),
-            elapsed.as_secs_f64() * 1000.0,
-            hits,
-            misses,
-            hit_rate,
-            bdd.num_nodes()
-        );
+        // Print detailed stats
+        println!("  Time:           {:>10.2} ms", stats.time_ms);
+        println!("  Cache hits:     {:>10}", stats.hits);
+        println!("  Cache misses:   {:>10}", stats.misses);
+        println!("  Cache faults:   {:>10}", stats.faults);
+        println!("  Hit rate:       {:>10.2} %", stats.hit_rate());
+        println!("  Collision rate: {:>10.1} %", stats.collision_rate());
+        println!("  Empty misses:   {:>10.1} %", stats.empty_miss_rate());
+        println!("  Total lookups:  {:>10}", stats.total_lookups());
+        println!("  Allocated nodes:{:>10}", stats.nodes);
+        println!("  Result size:    {:>10}", stats.result_size);
 
-        // Verify result is valid
+        // Verify result
         let sat_count = bdd.sat_count(result, cli.n * cli.n);
         let expected: u64 = match cli.n {
             1 => 1,
@@ -86,46 +144,60 @@ fn main() {
         };
         if expected != u64::MAX {
             assert_eq!(sat_count, expected.into(), "Wrong solution count for {}-queens", cli.n);
+            println!("  Solutions:      {:>10} ✓", expected);
         }
+
+        all_stats.push(stats);
     }
 
+    // Print comparison table
     println!("\n{}", "=".repeat(80));
+    println!("\n=== Comparison Table ===\n");
 
-    // Detailed analysis for the specified cache size
-    println!("\nDetailed Analysis (cache_bits={})\n", cli.cache_bits);
-
-    let config = BddConfig::default().with_cache_bits(cli.cache_bits);
-    let bdd = Bdd::with_config(config);
-
-    let start = Instant::now();
-    let result = solve_queens(&bdd, cli.n);
-    let elapsed = start.elapsed();
-
-    let cache = bdd.cache();
-    println!("  Cache hits:   {}", cache.hits());
-    println!("  Cache misses: {}", cache.misses());
-    println!("  Cache faults: {}", cache.faults());
     println!(
-        "  Hit rate:     {:.2}%",
-        100.0 * cache.hits() as f64 / (cache.hits() + cache.misses()) as f64
+        "{:>12} {:>12} {:>10} {:>10} {:>10} {:>10}",
+        "Cache Size", "Time (ms)", "Hit Rate", "Collision", "Lookups", "Nodes"
     );
-    println!("  Final nodes:  {}", bdd.num_nodes());
-    println!("  Result size:  {}", bdd.size(result));
-    println!("  Time:         {:.2} ms", elapsed.as_secs_f64() * 1000.0);
+    println!("{}", "-".repeat(78));
 
-    // Analysis of faults vs misses
-    let empty_misses = cache.misses() - cache.faults();
-    println!("\n  Collision analysis:");
-    println!(
-        "    Key collisions (faults): {} ({:.1}% of lookups)",
-        cache.faults(),
-        100.0 * cache.faults() as f64 / (cache.hits() + cache.misses()) as f64
-    );
-    println!(
-        "    Empty slot misses:       {} ({:.1}% of lookups)",
-        empty_misses,
-        100.0 * empty_misses as f64 / (cache.hits() + cache.misses()) as f64
-    );
+    for stats in &all_stats {
+        println!(
+            "{:>12} {:>12.1} {:>9.1}% {:>9.1}% {:>10} {:>10}",
+            format!("2^{}", stats.cache_bits),
+            stats.time_ms,
+            stats.hit_rate(),
+            stats.collision_rate(),
+            format_num(stats.total_lookups()),
+            format_num(stats.nodes),
+        );
+    }
+
+    // Find best configuration
+    if let Some(best) = all_stats.iter().min_by(|a, b| a.time_ms.partial_cmp(&b.time_ms).unwrap()) {
+        println!("\n  ⭐ Fastest: 2^{} ({:.2} ms)", best.cache_bits, best.time_ms);
+    }
+    if let Some(best) = all_stats.iter().max_by(|a, b| a.hit_rate().partial_cmp(&b.hit_rate()).unwrap()) {
+        println!("  📊 Best hit rate: 2^{} ({:.1}%)", best.cache_bits, best.hit_rate());
+    }
+    if let Some(best) = all_stats
+        .iter()
+        .min_by(|a, b| a.collision_rate().partial_cmp(&b.collision_rate()).unwrap())
+    {
+        println!("  🎯 Lowest collisions: 2^{} ({:.1}%)", best.cache_bits, best.collision_rate());
+    }
+
+    println!();
+}
+
+/// Format large numbers with K/M suffixes.
+fn format_num(n: usize) -> String {
+    if n < 1_000 {
+        n.to_string()
+    } else if n < 1_000_000 {
+        format!("{:.1}K", n as f64 / 1_000.0)
+    } else {
+        format!("{:.2}M", n as f64 / 1_000_000.0)
+    }
 }
 
 // ============================================================================
