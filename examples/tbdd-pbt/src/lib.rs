@@ -67,10 +67,7 @@ pub mod theory;
 pub use cfg::{BasicBlock, BlockId, CfgBuilder, CfgPath, ControlFlowGraph, Terminator};
 pub use coverage::{CoverageSummary, CoverageTracker};
 #[allow(deprecated)]
-pub use domain::{
-    AbstractDomain, Bound, Concretizable, Congruence, CongruenceDomain, DomainState, Interval, IntervalDomain, PredicateTransfer,
-    ReducedProduct, Sign, SignDomain,
-};
+pub use domain::{AbstractDomain, Bound, Concretizable, Congruence, DomainState, Interval, PredicateTransfer, ReducedProduct, Sign};
 pub use generator::{
     ExecutionResult, GeneratorConfig, PathPriority, PrioritizedGenerator, PrioritizedPath, SymbolicExecutor, SymbolicState, TestCase,
     TestGenerator,

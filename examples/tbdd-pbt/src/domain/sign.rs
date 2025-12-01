@@ -7,6 +7,7 @@ use std::cmp::Ordering;
 
 use super::bound::Bound;
 use super::interval::Interval;
+use super::parity::Parity;
 use super::product::Reducible;
 use super::traits::{AbstractDomain, Concretizable, PredicateTransfer};
 use crate::predicate::CompareOp;
@@ -312,6 +313,29 @@ impl Reducible<Interval> for Sign {
 
         // Meet with our current sign
         self.meet(&interval_sign)
+    }
+}
+
+// =============================================================================
+// Reduction: Sign × Parity
+// =============================================================================
+
+impl Reducible<Parity> for Sign {
+    /// Reduce sign using parity information.
+    ///
+    /// Key insight: Zero is even, so `Parity::Odd` implies non-zero.
+    fn reduce(&self, parity: &Parity) -> Self {
+        match (self, parity) {
+            // Bottom propagates
+            (Sign::Bottom, _) | (_, Parity::Bottom) => Sign::Bottom,
+            // Odd values can't be zero
+            (Sign::Zero, Parity::Odd) => Sign::Bottom,
+            (Sign::NonNegative, Parity::Odd) => Sign::Positive,
+            (Sign::NonPositive, Parity::Odd) => Sign::Negative,
+            (Sign::Top, Parity::Odd) => Sign::NonZero,
+            // Even doesn't constrain sign (could be 0, 2, -2, etc.)
+            _ => *self,
+        }
     }
 }
 

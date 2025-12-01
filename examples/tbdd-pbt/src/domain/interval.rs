@@ -7,6 +7,7 @@ use std::cmp;
 use std::fmt;
 
 use super::bound::Bound;
+use super::parity::Parity;
 use super::product::Reducible;
 use super::sign::Sign;
 use super::traits::{AbstractDomain, Concretizable, PredicateTransfer};
@@ -390,6 +391,35 @@ impl Reducible<Sign> for Interval {
             }
             Sign::Top => self.clone(),
         }
+    }
+}
+
+// =============================================================================
+// Reduction: Interval × Parity
+// =============================================================================
+
+impl Reducible<Parity> for Interval {
+    /// Reduce interval using parity information.
+    ///
+    /// This is a weak reduction since intervals are convex.
+    fn reduce(&self, parity: &Parity) -> Self {
+        if self.is_bottom() || parity.is_bottom() {
+            return Interval::bottom();
+        }
+
+        // Intervals are convex, so we can't exclude odd/even values from the middle.
+        // The best we can do is check if the interval is entirely even/odd incompatible.
+
+        // Check if interval width is 1 (singleton)
+        if let (Some(1), Some(c)) = (self.width(), self.concretize()) {
+            let value_parity = Parity::abstract_value(c);
+            if value_parity.meet(parity).is_bottom() {
+                return Interval::bottom();
+            }
+        }
+
+        // Otherwise, keep interval as-is
+        self.clone()
     }
 }
 

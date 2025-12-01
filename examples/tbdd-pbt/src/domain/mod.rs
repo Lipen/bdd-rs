@@ -9,7 +9,8 @@
 //! |--------------|-----------|--------|-----------------------------|
 //! | [`Interval`] | Medium    | O(1)   | Bounds checking, overflow   |
 //! | [`Sign`]     | Low       | O(1)   | Division by zero, signs     |
-//! | [`Congruence`] | Medium  | O(1)   | Alignment, parity           |
+//! | [`Parity`]   | Low       | O(1)   | Even/odd, off-by-one errors |
+//! | [`Congruence`] | Medium  | O(1)   | Alignment, modular arith    |
 //! | [`ReducedProduct`] | High | O(1)  | Combining domains           |
 //!
 //! # Core Traits
@@ -17,6 +18,7 @@
 //! - [`AbstractDomain`]: Lattice operations (join, meet, widen, narrow)
 //! - [`PredicateTransfer`]: Refine domains from predicate constraints
 //! - [`Concretizable`]: Generate concrete values from abstract states
+//! - [`Reducible`]: Cross-domain constraint propagation
 //!
 //! # Example
 //!
@@ -43,32 +45,19 @@
 mod bound;
 mod congruence;
 mod interval;
+mod parity;
 mod product;
 mod sign;
 mod state;
 mod traits;
 
-// Re-export core traits
-// Re-export types
+// Re-exports
 pub use bound::Bound;
 pub use congruence::Congruence;
 pub use interval::Interval;
+pub use parity::Parity;
 pub use product::ReducedProduct;
-// Re-export reduction trait
 pub use product::Reducible;
 pub use sign::Sign;
 pub use state::DomainState;
 pub use traits::{AbstractDomain, Concretizable, PredicateTransfer};
-
-// Backwards compatibility aliases
-/// Type alias for backwards compatibility.
-#[deprecated(since = "0.2.0", note = "use `Interval` instead")]
-pub type IntervalDomain = Interval;
-
-/// Type alias for backwards compatibility.
-#[deprecated(since = "0.2.0", note = "use `Sign` instead")]
-pub type SignDomain = Sign;
-
-/// Type alias for backwards compatibility.
-#[deprecated(since = "0.2.0", note = "use `Congruence` instead")]
-pub type CongruenceDomain = Congruence;
