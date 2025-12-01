@@ -406,20 +406,25 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_reduce_by_parity_odd() {
-        // Odd values can't be zero
-        assert_eq!(Sign::Zero.reduce(&Parity::Odd), Sign::Bottom);
-        assert_eq!(Sign::NonNegative.reduce(&Parity::Odd), Sign::Positive);
-        assert_eq!(Sign::NonPositive.reduce(&Parity::Odd), Sign::Negative);
-        assert_eq!(Sign::Top.reduce(&Parity::Odd), Sign::NonZero);
+    fn test_parity_reduce_by_sign_other() {
+        // Other signs don't constrain parity
+        assert_eq!(Parity::Even.reduce(&Sign::Positive), Parity::Even);
+        assert_eq!(Parity::Odd.reduce(&Sign::Negative), Parity::Odd);
+        assert_eq!(Parity::Top.reduce(&Sign::NonZero), Parity::Top);
     }
 
     #[test]
-    fn test_sign_reduce_by_parity_even() {
-        // Even doesn't constrain sign (could be 0, 2, -2, etc.)
-        assert_eq!(Sign::Zero.reduce(&Parity::Even), Sign::Zero);
-        assert_eq!(Sign::Positive.reduce(&Parity::Even), Sign::Positive);
-        assert_eq!(Sign::NonNegative.reduce(&Parity::Even), Sign::NonNegative);
+    fn test_parity_reduce_by_sign_bottom() {
+        // Bottom sign propagates
+        assert_eq!(Parity::Even.reduce(&Sign::Bottom), Parity::Bottom);
+        assert_eq!(Parity::Top.reduce(&Sign::Bottom), Parity::Bottom);
+    }
+
+    #[test]
+    fn test_parity_bottom_reduce_by_any_sign() {
+        // Bottom parity stays bottom
+        assert_eq!(Parity::Bottom.reduce(&Sign::Positive), Parity::Bottom);
+        assert_eq!(Parity::Bottom.reduce(&Sign::Zero), Parity::Bottom);
     }
 
     // =========================================================================
@@ -440,18 +445,24 @@ mod tests {
     }
 
     #[test]
-    fn test_interval_reduce_by_parity_singleton() {
-        // Singleton [5, 5] reduced by Even = ⊥ (5 is odd)
-        let interval = Interval::from_bounds(5, 5);
-        assert!(interval.reduce(&Parity::Even).is_bottom());
+    fn test_parity_reduce_by_non_singleton_interval() {
+        // Non-singleton intervals don't constrain parity
+        let interval = Interval::from_bounds(0, 10);
+        assert_eq!(Parity::Even.reduce(&interval), Parity::Even);
+        assert_eq!(Parity::Odd.reduce(&interval), Parity::Odd);
+        assert_eq!(Parity::Top.reduce(&interval), Parity::Top);
+    }
 
-        // Singleton [4, 4] reduced by Odd = ⊥ (4 is even)
-        let interval = Interval::from_bounds(4, 4);
-        assert!(interval.reduce(&Parity::Odd).is_bottom());
+    #[test]
+    fn test_parity_reduce_by_bottom_interval() {
+        // Bottom interval propagates
+        assert_eq!(Parity::Even.reduce(&Interval::bottom()), Parity::Bottom);
+        assert_eq!(Parity::Top.reduce(&Interval::bottom()), Parity::Bottom);
+    }
 
-        // Singleton [5, 5] reduced by Odd = [5, 5]
-        let interval = Interval::from_bounds(5, 5);
-        let reduced = interval.reduce(&Parity::Odd);
-        assert!(!reduced.is_bottom());
+    #[test]
+    fn test_parity_bottom_reduce_by_any_interval() {
+        // Bottom parity stays bottom
+        assert_eq!(Parity::Bottom.reduce(&Interval::from_bounds(0, 10)), Parity::Bottom);
     }
 }

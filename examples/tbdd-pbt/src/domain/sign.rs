@@ -499,4 +499,46 @@ mod tests {
 
         assert!(reduced.is_bottom());
     }
+
+    // =========================================================================
+    // Reduction Tests: Sign reduced by Parity
+    // =========================================================================
+
+    #[test]
+    fn test_sign_reduce_by_parity_odd() {
+        // Odd values can't be zero
+        assert_eq!(Sign::Zero.reduce(&Parity::Odd), Sign::Bottom);
+        assert_eq!(Sign::NonNegative.reduce(&Parity::Odd), Sign::Positive);
+        assert_eq!(Sign::NonPositive.reduce(&Parity::Odd), Sign::Negative);
+        assert_eq!(Sign::Top.reduce(&Parity::Odd), Sign::NonZero);
+    }
+
+    #[test]
+    fn test_sign_reduce_by_parity_even() {
+        // Even doesn't constrain sign (could be 0, 2, -2, etc.)
+        assert_eq!(Sign::Zero.reduce(&Parity::Even), Sign::Zero);
+        assert_eq!(Sign::Positive.reduce(&Parity::Even), Sign::Positive);
+        assert_eq!(Sign::NonNegative.reduce(&Parity::Even), Sign::NonNegative);
+    }
+
+    #[test]
+    fn test_sign_reduce_by_parity_top() {
+        // Top parity doesn't constrain sign
+        assert_eq!(Sign::Positive.reduce(&Parity::Top), Sign::Positive);
+        assert_eq!(Sign::Zero.reduce(&Parity::Top), Sign::Zero);
+    }
+
+    #[test]
+    fn test_sign_reduce_by_parity_bottom() {
+        // Bottom parity propagates
+        assert_eq!(Sign::Positive.reduce(&Parity::Bottom), Sign::Bottom);
+        assert_eq!(Sign::Top.reduce(&Parity::Bottom), Sign::Bottom);
+    }
+
+    #[test]
+    fn test_sign_bottom_reduce_by_any_parity() {
+        // Bottom sign stays bottom
+        assert_eq!(Sign::Bottom.reduce(&Parity::Even), Sign::Bottom);
+        assert_eq!(Sign::Bottom.reduce(&Parity::Odd), Sign::Bottom);
+    }
 }

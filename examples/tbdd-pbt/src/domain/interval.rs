@@ -600,4 +600,66 @@ mod tests {
 
         assert!(reduced.is_bottom());
     }
+
+    // =========================================================================
+    // Reduction Tests: Interval reduced by Parity
+    // =========================================================================
+
+    #[test]
+    fn test_interval_reduce_by_parity_singleton_compatible() {
+        // Singleton [5, 5] reduced by Odd = [5, 5] (5 is odd)
+        let interval = Interval::from_bounds(5, 5);
+        let reduced = interval.reduce(&Parity::Odd);
+        assert!(!reduced.is_bottom());
+        assert_eq!(reduced.low(), Bound::Finite(5));
+        assert_eq!(reduced.high(), Bound::Finite(5));
+
+        // Singleton [4, 4] reduced by Even = [4, 4] (4 is even)
+        let interval = Interval::from_bounds(4, 4);
+        let reduced = interval.reduce(&Parity::Even);
+        assert!(!reduced.is_bottom());
+    }
+
+    #[test]
+    fn test_interval_reduce_by_parity_singleton_incompatible() {
+        // Singleton [5, 5] reduced by Even = ⊥ (5 is odd)
+        let interval = Interval::from_bounds(5, 5);
+        assert!(interval.reduce(&Parity::Even).is_bottom());
+
+        // Singleton [4, 4] reduced by Odd = ⊥ (4 is even)
+        let interval = Interval::from_bounds(4, 4);
+        assert!(interval.reduce(&Parity::Odd).is_bottom());
+    }
+
+    #[test]
+    fn test_interval_reduce_by_parity_non_singleton() {
+        // Non-singleton intervals are kept as-is (convex)
+        let interval = Interval::from_bounds(0, 10);
+        let reduced = interval.reduce(&Parity::Even);
+        assert_eq!(reduced.low(), Bound::Finite(0));
+        assert_eq!(reduced.high(), Bound::Finite(10));
+    }
+
+    #[test]
+    fn test_interval_reduce_by_parity_top() {
+        // Top parity doesn't constrain interval
+        let interval = Interval::from_bounds(0, 10);
+        let reduced = interval.reduce(&Parity::Top);
+        assert_eq!(reduced.low(), Bound::Finite(0));
+        assert_eq!(reduced.high(), Bound::Finite(10));
+    }
+
+    #[test]
+    fn test_interval_reduce_by_parity_bottom() {
+        // Bottom parity propagates
+        let interval = Interval::from_bounds(0, 10);
+        assert!(interval.reduce(&Parity::Bottom).is_bottom());
+    }
+
+    #[test]
+    fn test_interval_bottom_reduce_by_any_parity() {
+        // Bottom interval stays bottom
+        assert!(Interval::bottom().reduce(&Parity::Even).is_bottom());
+        assert!(Interval::bottom().reduce(&Parity::Odd).is_bottom());
+    }
 }
