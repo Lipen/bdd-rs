@@ -68,7 +68,7 @@ pub use cfg::{BasicBlock, BlockId, CfgBuilder, CfgPath, ControlFlowGraph, Termin
 pub use coverage::{CoverageSummary, CoverageTracker};
 #[allow(deprecated)]
 pub use domain::{
-    AbstractDomain, Bound, Congruence, CongruenceDomain, Concretizable, DomainState, Interval, IntervalDomain, PredicateTransfer,
+    AbstractDomain, Bound, Concretizable, Congruence, CongruenceDomain, DomainState, Interval, IntervalDomain, PredicateTransfer,
     ReducedProduct, Sign, SignDomain,
 };
 pub use generator::{

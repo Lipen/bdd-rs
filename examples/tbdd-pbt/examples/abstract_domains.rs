@@ -4,9 +4,7 @@
 //!
 //! Run with: `cargo run -p tbdd-pbt --example abstract_domains`
 
-use tbdd_pbt::domain::{
-    AbstractDomain, Concretizable, Congruence, DomainState, Interval, PredicateTransfer, ReducedProduct, Sign,
-};
+use tbdd_pbt::domain::{AbstractDomain, Concretizable, Congruence, DomainState, Interval, PredicateTransfer, ReducedProduct, Sign};
 use tbdd_pbt::predicate::CompareOp;
 
 fn main() {

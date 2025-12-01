@@ -13,8 +13,8 @@ use std::collections::HashMap;
 use bdd_rs::bdd::Bdd;
 use tbdd_pbt::theory::Interval as TheoryInterval;
 use tbdd_pbt::{
-    ArrayBoundsSolver, ArrayLength, BitwiseSolver, BoundaryValueGenerator, ConstraintSolver, IntervalSolver, Predicate,
-    PredicateUniverse, SolveResult,
+    ArrayBoundsSolver, ArrayLength, BitwiseSolver, BoundaryValueGenerator, ConstraintSolver, IntervalSolver, Predicate, PredicateUniverse,
+    SolveResult,
 };
 
 fn main() {
