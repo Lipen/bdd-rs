@@ -5,6 +5,9 @@
 
 use std::cmp::Ordering;
 
+use super::bound::Bound;
+use super::interval::Interval;
+use super::product::Reducible;
 use super::traits::{AbstractDomain, Concretizable, PredicateTransfer};
 use crate::predicate::CompareOp;
 
@@ -273,10 +276,6 @@ impl Concretizable for Sign {
 // =============================================================================
 // Reduction: Sign × Interval
 // =============================================================================
-
-use super::bound::Bound;
-use super::interval::Interval;
-use super::product::Reducible;
 
 impl Reducible<Interval> for Sign {
     /// Reduce sign using interval bounds.

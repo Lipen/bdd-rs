@@ -7,6 +7,8 @@ use std::cmp;
 use std::fmt;
 
 use super::bound::Bound;
+use super::product::Reducible;
+use super::sign::Sign;
 use super::traits::{AbstractDomain, Concretizable, PredicateTransfer};
 use crate::predicate::CompareOp;
 
@@ -335,9 +337,6 @@ impl fmt::Display for Interval {
 // =============================================================================
 // Reduction: Interval × Sign
 // =============================================================================
-
-use super::product::Reducible;
-use super::sign::Sign;
 
 impl Reducible<Sign> for Interval {
     /// Reduce interval using sign information.
