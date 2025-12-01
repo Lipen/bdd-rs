@@ -173,6 +173,10 @@ struct Cli {
     #[clap(long, value_name = "INT")]
     size: Option<usize>,
 
+    /// Cache size in bits (size = 2^bits entries).
+    #[clap(long, value_name = "INT")]
+    cache_bits: Option<usize>,
+
     /// Enable garbage collection.
     #[clap(long)]
     gc: bool,
@@ -197,11 +201,15 @@ fn main() -> color_eyre::Result<()> {
     let args = Cli::parse();
     println!("args = {:?}", args);
 
-    let bdd = if let Some(size) = args.size {
-        Bdd::with_config(BddConfig::default().with_initial_nodes(1 << size))
-    } else {
-        Bdd::default()
-    };
+    let mut config = BddConfig::default();
+    if let Some(size) = args.size {
+        config = config.with_initial_nodes(1 << size);
+    }
+    if let Some(cache_bits) = args.cache_bits {
+        config = config.with_cache_bits(cache_bits);
+    }
+    let bdd = Bdd::with_config(config);
+
     let n = args.n;
     let num_vars = n * n;
     println!("Solving {}-Queens problem ({} variables)...", n, num_vars);
