@@ -3,7 +3,11 @@ use std::ops::Neg;
 
 use crate::types::NodeId;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+/// A reference to a BDD node, potentially negated.
+///
+/// Uses a 32-bit representation where the least significant bit indicates negation
+/// and the remaining bits store the node ID.
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 pub struct Ref(u32);
 

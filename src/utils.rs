@@ -157,6 +157,14 @@ pub enum OpKey {
     Restrict(Ref, Ref),
 }
 
+impl Default for OpKey {
+    fn default() -> Self {
+        // Use ITE with invalid refs as the sentinel value.
+        // This will never match real operations since real Refs are valid.
+        OpKey::Ite(Ref::INVALID, Ref::INVALID, Ref::INVALID)
+    }
+}
+
 impl MyHash for OpKey {
     fn hash(&self) -> u64 {
         match *self {
