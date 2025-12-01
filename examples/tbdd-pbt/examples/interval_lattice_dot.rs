@@ -6,6 +6,8 @@
 //! Run with: `cargo run -p tbdd-pbt --example interval_lattice_dot > interval_lattice.dot`
 //! Then: `dot interval_lattice.dot -Tpdf -O`
 
+use std::collections::BTreeMap;
+
 use tbdd_pbt::domain::{AbstractDomain, Bound, Interval};
 
 /// Generate all valid intervals [a, b] where 0 <= a <= b <= max_bound
@@ -114,7 +116,7 @@ fn main() {
     eprintln!("Found {} Hasse diagram edges", edges.len());
 
     // Group intervals by level for ranking
-    let mut levels: std::collections::BTreeMap<i64, Vec<usize>> = std::collections::BTreeMap::new();
+    let mut levels: BTreeMap<i64, Vec<usize>> = BTreeMap::new();
     for (i, interval) in intervals.iter().enumerate() {
         let level = interval_level(interval);
         levels.entry(level).or_default().push(i);
