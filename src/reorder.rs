@@ -240,10 +240,7 @@ impl Bdd {
         debug!("Starting sifting with initial size: {}", initial_size);
 
         // Get all variables that appear in the BDDs
-        let mut all_vars = HashSet::new();
-        for &root in roots.iter() {
-            all_vars.extend(self.support_variables(root));
-        }
+        let all_vars = self.support_variables(roots);
 
         if all_vars.is_empty() {
             return ReorderStats {
@@ -479,22 +476,40 @@ impl Bdd {
         visited.len()
     }
 
-    /// Get the variables that appear in a BDD.
+    /// Get the variables that appear in a set of BDDs (the *support*).
     ///
     /// # Arguments
     ///
-    /// * `root` - BDD root to analyze
+    /// * `roots` - BDD roots to analyze
     ///
     /// # Returns
     ///
-    /// A vector of variables that appear in the BDD, sorted by their level in the ordering
-    pub fn support_variables(&self, root: Ref) -> Vec<Var> {
+    /// A vector of variables that appear in the BDDs, sorted by their level in the ordering
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use bdd_rs::bdd::Bdd;
+    /// # use bdd_rs::types::Var;
+    /// #
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let f = bdd.apply_and(x, y);
+    ///
+    /// // Single BDD
+    /// assert_eq!(bdd.support_variables(&[f]), vec![Var::new(1), Var::new(2)]);
+    ///
+    /// // Multiple BDDs
+    /// let z = bdd.mk_var(3);
+    /// assert_eq!(bdd.support_variables(&[x, z]), vec![Var::new(1), Var::new(3)]);
+    /// ```
+    pub fn support_variables(&self, roots: &[Ref]) -> Vec<Var> {
         let mut vars = HashSet::new();
-
         let mut visited = HashSet::new();
         visited.insert(NodeId::TERMINAL);
 
-        let mut stack = vec![root.id()];
+        let mut stack: Vec<_> = roots.iter().map(|r| r.id()).collect();
 
         while let Some(id) = stack.pop() {
             if !visited.insert(id) {
@@ -526,7 +541,7 @@ impl Bdd {
     ///
     /// Note: "maximum" refers to the variable closest to the terminals (highest level).
     pub fn max_variable(&self, root: Ref) -> Option<Var> {
-        self.support_variables(root).into_iter().max_by_key(|v| self.get_level(*v).unwrap())
+        self.support_variables(&[root]).last().copied()
     }
 
     /// Count how many nodes use each variable.
@@ -694,16 +709,20 @@ mod tests {
         let y = bdd.mk_var(2);
         let z = bdd.mk_var(3);
 
-        assert_eq!(bdd.support_variables(x), vec![Var::new(1)]);
-        assert_eq!(bdd.support_variables(y), vec![Var::new(2)]);
+        // Single variables
+        assert_eq!(bdd.support_variables(&[x]), vec![Var::new(1)]);
+        assert_eq!(bdd.support_variables(&[y]), vec![Var::new(2)]);
 
         // f = x ∧ y has support {1,2}
         let f = bdd.apply_and(x, y);
-        assert_eq!(bdd.support_variables(f), vec![Var::new(1), Var::new(2)]);
+        assert_eq!(bdd.support_variables(&[f]), vec![Var::new(1), Var::new(2)]);
 
         // g = x ∧ (y ∨ z) has support {1,2,3}
         let g = bdd.apply_and(x, bdd.apply_or(y, z));
-        assert_eq!(bdd.support_variables(g), vec![Var::new(1), Var::new(2), Var::new(3)]);
+        assert_eq!(bdd.support_variables(&[g]), vec![Var::new(1), Var::new(2), Var::new(3)]);
+
+        // Multiple roots: union of supports
+        assert_eq!(bdd.support_variables(&[x, z]), vec![Var::new(1), Var::new(3)]);
     }
 
     #[test]
