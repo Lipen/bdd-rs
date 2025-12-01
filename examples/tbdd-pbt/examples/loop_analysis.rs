@@ -187,7 +187,7 @@ fn build_simple_loop() -> tbdd_pbt::cfg::ControlFlowGraph {
     let body = builder.new_block("loop_body");
     let exit = builder.new_block("exit");
 
-    let p_lt_n = Predicate::lt_var("i", "n");
+    let p_lt_n = Predicate::lt("i", "n");
 
     builder.set_terminator(entry, Terminator::Goto(header));
     builder.set_terminator(
@@ -215,8 +215,8 @@ fn build_nested_loop() -> tbdd_pbt::cfg::ControlFlowGraph {
     let outer_body = builder.new_block("outer_body");
     let exit = builder.new_block("exit");
 
-    let p_i_lt_n = Predicate::lt_var("i", "n");
-    let p_j_lt_m = Predicate::lt_var("j", "m");
+    let p_i_lt_n = Predicate::lt("i", "n");
+    let p_j_lt_m = Predicate::lt("j", "m");
 
     builder.set_terminator(entry, Terminator::Goto(outer_header));
     builder.set_terminator(

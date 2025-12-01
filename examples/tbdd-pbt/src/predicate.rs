@@ -27,6 +27,18 @@ impl fmt::Display for ProgramVar {
     }
 }
 
+impl From<&str> for ProgramVar {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl From<String> for ProgramVar {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
 /// Right-hand side of a comparison: either a variable or a constant.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Operand {
@@ -40,6 +52,30 @@ impl fmt::Display for Operand {
             Operand::Var(v) => write!(f, "{}", v),
             Operand::Const(c) => write!(f, "{}", c),
         }
+    }
+}
+
+impl From<i64> for Operand {
+    fn from(val: i64) -> Self {
+        Operand::Const(val)
+    }
+}
+
+impl From<&str> for Operand {
+    fn from(s: &str) -> Self {
+        Operand::Var(ProgramVar::from(s))
+    }
+}
+
+impl From<String> for Operand {
+    fn from(s: String) -> Self {
+        Operand::Var(ProgramVar::from(s))
+    }
+}
+
+impl From<ProgramVar> for Operand {
+    fn from(var: ProgramVar) -> Self {
+        Operand::Var(var)
     }
 }
 
@@ -95,53 +131,51 @@ pub struct Predicate {
 }
 
 impl Predicate {
-    pub fn new(lhs: ProgramVar, op: CompareOp, rhs: Operand) -> Self {
-        Self { lhs, op, rhs }
+    /// Create a new predicate.
+    ///
+    /// # Examples
+    /// ```
+    /// # use tbdd_pbt::predicate::{CompareOp, Predicate};
+    /// let p1 = Predicate::new("x", CompareOp::Lt, 0);   // x < 0
+    /// let p2 = Predicate::new("y", CompareOp::Gt, "x"); // y > x
+    /// let p3 = Predicate::new("z", CompareOp::Eq, 42);  // z == 42
+    /// ```
+    pub fn new(lhs: impl Into<ProgramVar>, op: CompareOp, rhs: impl Into<Operand>) -> Self {
+        Self {
+            lhs: lhs.into(),
+            op,
+            rhs: rhs.into(),
+        }
     }
 
-    /// Convenience: `var < const`
-    pub fn lt(var: impl Into<String>, val: i64) -> Self {
-        Self::new(ProgramVar::new(var), CompareOp::Lt, Operand::Const(val))
+    /// Convenience: `lhs < rhs`
+    pub fn lt(lhs: impl Into<ProgramVar>, rhs: impl Into<Operand>) -> Self {
+        Self::new(lhs, CompareOp::Lt, rhs)
     }
 
-    /// Convenience: `var <= const`
-    pub fn le(var: impl Into<String>, val: i64) -> Self {
-        Self::new(ProgramVar::new(var), CompareOp::Le, Operand::Const(val))
+    /// Convenience: `lhs <= rhs`
+    pub fn le(lhs: impl Into<ProgramVar>, rhs: impl Into<Operand>) -> Self {
+        Self::new(lhs, CompareOp::Le, rhs)
     }
 
-    /// Convenience: `var > const`
-    pub fn gt(var: impl Into<String>, val: i64) -> Self {
-        Self::new(ProgramVar::new(var), CompareOp::Gt, Operand::Const(val))
+    /// Convenience: `lhs > rhs`
+    pub fn gt(lhs: impl Into<ProgramVar>, rhs: impl Into<Operand>) -> Self {
+        Self::new(lhs, CompareOp::Gt, rhs)
     }
 
-    /// Convenience: `var >= const`
-    pub fn ge(var: impl Into<String>, val: i64) -> Self {
-        Self::new(ProgramVar::new(var), CompareOp::Ge, Operand::Const(val))
+    /// Convenience: `lhs >= rhs`
+    pub fn ge(lhs: impl Into<ProgramVar>, rhs: impl Into<Operand>) -> Self {
+        Self::new(lhs, CompareOp::Ge, rhs)
     }
 
-    /// Convenience: `var == const`
-    pub fn eq(var: impl Into<String>, val: i64) -> Self {
-        Self::new(ProgramVar::new(var), CompareOp::Eq, Operand::Const(val))
+    /// Convenience: `lhs == rhs`
+    pub fn eq(lhs: impl Into<ProgramVar>, rhs: impl Into<Operand>) -> Self {
+        Self::new(lhs, CompareOp::Eq, rhs)
     }
 
-    /// Convenience: `var != const`
-    pub fn ne(var: impl Into<String>, val: i64) -> Self {
-        Self::new(ProgramVar::new(var), CompareOp::Ne, Operand::Const(val))
-    }
-
-    /// Convenience: `var1 < var2`
-    pub fn lt_var(var1: impl Into<String>, var2: impl Into<String>) -> Self {
-        Self::new(ProgramVar::new(var1), CompareOp::Lt, Operand::Var(ProgramVar::new(var2)))
-    }
-
-    /// Convenience: `var1 > var2`
-    pub fn gt_var(var1: impl Into<String>, var2: impl Into<String>) -> Self {
-        Self::new(ProgramVar::new(var1), CompareOp::Gt, Operand::Var(ProgramVar::new(var2)))
-    }
-
-    /// Convenience: `var1 == var2`
-    pub fn eq_var(var1: impl Into<String>, var2: impl Into<String>) -> Self {
-        Self::new(ProgramVar::new(var1), CompareOp::Eq, Operand::Var(ProgramVar::new(var2)))
+    /// Convenience: `lhs != rhs`
+    pub fn ne(lhs: impl Into<ProgramVar>, rhs: impl Into<Operand>) -> Self {
+        Self::new(lhs, CompareOp::Ne, rhs)
     }
 
     /// Returns a predicate representing the negation.
@@ -295,7 +329,7 @@ mod tests {
         let p1 = Predicate::lt("x", 0);
         assert_eq!(p1.to_string(), "x < 0");
 
-        let p2 = Predicate::gt_var("y", "x");
+        let p2 = Predicate::gt("y", "x");
         assert_eq!(p2.to_string(), "y > x");
 
         let p3 = Predicate::eq("z", 42);
@@ -316,7 +350,7 @@ mod tests {
         let mut universe = PredicateUniverse::new();
 
         let p1 = Predicate::lt("x", 0);
-        let p2 = Predicate::gt_var("y", "x");
+        let p2 = Predicate::gt("y", "x");
 
         let v1 = universe.register(p1.clone(), &bdd);
         let v2 = universe.register(p2.clone(), &bdd);

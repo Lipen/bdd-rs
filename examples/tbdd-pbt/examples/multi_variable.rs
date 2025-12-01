@@ -86,8 +86,8 @@ fn demo_compare() {
     let mut universe = PredicateUniverse::new();
 
     // Register relational predicates
-    let v1 = universe.register(Predicate::lt_var("x", "y"), &bdd); // x < y
-    let v2 = universe.register(Predicate::eq_var("x", "y"), &bdd); // x == y
+    let v1 = universe.register(Predicate::lt("x", "y"), &bdd); // x < y
+    let v2 = universe.register(Predicate::eq("x", "y"), &bdd); // x == y
 
     println!("  Predicates:");
     println!("    P1: x < y   (BDD var {})", v1.id());
@@ -145,7 +145,7 @@ fn demo_min_max() {
     let bdd = Bdd::default();
     let mut universe = PredicateUniverse::new();
 
-    let v1 = universe.register(Predicate::lt_var("x", "y"), &bdd);
+    let v1 = universe.register(Predicate::lt("x", "y"), &bdd);
     let bv1 = bdd.mk_var(v1);
 
     let solver = RelationalSolver::with_bounds(-50, 50);
@@ -211,7 +211,7 @@ fn demo_abs_diff() {
 
     let v1 = universe.register(Predicate::ge("x", 0), &bdd);
     let v2 = universe.register(Predicate::ge("y", 0), &bdd);
-    let v3 = universe.register(Predicate::gt_var("x", "y"), &bdd);
+    let v3 = universe.register(Predicate::gt("x", "y"), &bdd);
 
     let bv1 = bdd.mk_var(v1);
     let bv2 = bdd.mk_var(v2);

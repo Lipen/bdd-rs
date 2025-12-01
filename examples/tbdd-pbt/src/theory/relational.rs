@@ -47,7 +47,7 @@ const WITNESS_OFFSET: i64 = 50;
 /// let mut universe = PredicateUniverse::new();
 ///
 /// // Register x < y
-/// let var1 = universe.register(Predicate::lt_var("x", "y"), &bdd);
+/// let var1 = universe.register(Predicate::lt("x", "y"), &bdd);
 ///
 /// let solver = RelationalSolver::new();
 /// let mut assignments = HashMap::new();
@@ -346,7 +346,7 @@ mod tests {
         let bdd = Bdd::default();
         let mut universe = PredicateUniverse::new();
 
-        let p1 = Predicate::lt_var("x", "y");
+        let p1 = Predicate::lt("x", "y");
         let var1 = universe.register(p1, &bdd);
 
         let solver = RelationalSolver::with_bounds(0, 100);
@@ -369,7 +369,7 @@ mod tests {
         let bdd = Bdd::default();
         let mut universe = PredicateUniverse::new();
 
-        let p1 = Predicate::eq_var("x", "y");
+        let p1 = Predicate::eq("x", "y");
         let var1 = universe.register(p1, &bdd);
 
         let solver = RelationalSolver::with_bounds(0, 100);
@@ -393,8 +393,8 @@ mod tests {
         let mut universe = PredicateUniverse::new();
 
         // x < y = false, x == y = false => x > y
-        let p1 = Predicate::lt_var("x", "y");
-        let p2 = Predicate::eq_var("x", "y");
+        let p1 = Predicate::lt("x", "y");
+        let p2 = Predicate::eq("x", "y");
         let var1 = universe.register(p1, &bdd);
         let var2 = universe.register(p2, &bdd);
 
@@ -421,8 +421,8 @@ mod tests {
         let mut universe = PredicateUniverse::new();
 
         // x < y and y < z => x < z
-        let p1 = Predicate::lt_var("x", "y");
-        let p2 = Predicate::lt_var("y", "z");
+        let p1 = Predicate::lt("x", "y");
+        let p2 = Predicate::lt("y", "z");
         let var1 = universe.register(p1, &bdd);
         let var2 = universe.register(p2, &bdd);
 
@@ -451,9 +451,9 @@ mod tests {
         let mut universe = PredicateUniverse::new();
 
         // x < y, y < z, z < x => cycle => UNSAT
-        let p1 = Predicate::lt_var("x", "y");
-        let p2 = Predicate::lt_var("y", "z");
-        let p3 = Predicate::lt_var("z", "x");
+        let p1 = Predicate::lt("x", "y");
+        let p2 = Predicate::lt("y", "z");
+        let p3 = Predicate::lt("z", "x");
         let var1 = universe.register(p1, &bdd);
         let var2 = universe.register(p2, &bdd);
         let var3 = universe.register(p3, &bdd);
