@@ -12,6 +12,19 @@ use bdd_rs::bdd::Bdd;
 use tbdd_pbt::cfg::CfgBuilder;
 use tbdd_pbt::{GeneratorConfig, IntervalSolver, Predicate, TestGenerator};
 
+/// The function being tested
+fn classify(x: i64) -> &'static str {
+    if x < 0 {
+        "negative"
+    } else if x == 0 {
+        "zero"
+    } else if x < 100 {
+        "small"
+    } else {
+        "large"
+    }
+}
+
 fn main() {
     println!("══════════════════════════════════════════════════════════════");
     println!("  T-BDD: Control Flow Graph Exploration");
@@ -187,17 +200,4 @@ fn main() {
     println!("══════════════════════════════════════════════════════════════");
     println!("  CFG exploration complete!");
     println!("══════════════════════════════════════════════════════════════");
-}
-
-/// The function being tested
-fn classify(x: i64) -> &'static str {
-    if x < 0 {
-        "negative"
-    } else if x == 0 {
-        "zero"
-    } else if x < 100 {
-        "small"
-    } else {
-        "large"
-    }
 }
