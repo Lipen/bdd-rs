@@ -9,7 +9,7 @@
 //! Run with: `cargo run -p tbdd-pbt --example cfg_exploration`
 
 use bdd_rs::bdd::Bdd;
-use tbdd_pbt::cfg::{CfgBuilder, Terminator};
+use tbdd_pbt::cfg::CfgBuilder;
 use tbdd_pbt::{GeneratorConfig, IntervalSolver, Predicate, TestGenerator};
 
 fn main() {
