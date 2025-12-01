@@ -11,8 +11,9 @@
 use std::collections::HashMap;
 
 use bdd_rs::bdd::Bdd;
+use tbdd_pbt::theory::Interval as TheoryInterval;
 use tbdd_pbt::{
-    ArrayBoundsSolver, ArrayLength, BitwiseSolver, BoundaryValueGenerator, ConstraintSolver, Interval, IntervalSolver, Predicate,
+    ArrayBoundsSolver, ArrayLength, BitwiseSolver, BoundaryValueGenerator, ConstraintSolver, IntervalSolver, Predicate,
     PredicateUniverse, SolveResult,
 };
 
@@ -151,7 +152,7 @@ fn demo_boundary_values() {
 
     // Example: year validation
     println!("  Interval: year ∈ [1900, 2100] (valid year range)");
-    let year_interval = Interval {
+    let year_interval = TheoryInterval {
         min: 1900,
         max: 2100,
         excluded: None,
@@ -173,7 +174,7 @@ fn demo_boundary_values() {
 
     // Example: percentage validation
     println!("  Interval: percentage ∈ [0, 100]");
-    let pct_interval = Interval {
+    let pct_interval = TheoryInterval {
         min: 0,
         max: 100,
         excluded: None,
@@ -189,7 +190,7 @@ fn demo_boundary_values() {
     let mut intervals = HashMap::new();
     intervals.insert(
         "width".to_string(),
-        Interval {
+        TheoryInterval {
             min: 1,
             max: 1000,
             excluded: None,
@@ -197,7 +198,7 @@ fn demo_boundary_values() {
     );
     intervals.insert(
         "height".to_string(),
-        Interval {
+        TheoryInterval {
             min: 1,
             max: 500,
             excluded: None,
