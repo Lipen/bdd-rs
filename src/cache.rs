@@ -8,11 +8,20 @@ const DEFAULT_CACHE_BITS: usize = 14;
 struct Entry<K, V> {
     key: K,
     value: V,
+    generation: u64,
 }
 
+/// A hash-based cache with O(1) clearing via generation counters.
+///
+/// Instead of physically clearing entries, we increment a generation counter.
+/// Entries are only valid if their generation matches the current one.
+/// This makes `clear()` O(1) instead of O(n), which is critical for
+/// performance during dynamic variable reordering where the cache is
+/// invalidated frequently.
 pub struct Cache<K, V> {
     data: Vec<Option<Entry<K, V>>>,
     bitmask: u64,
+    generation: Cell<u64>,
     hits: Cell<usize>,   // successful lookups
     faults: Cell<usize>, // unsuccessful lookups
     misses: Cell<usize>, // total misses, including unsuccessful lookups
@@ -41,6 +50,7 @@ impl<K, V> Cache<K, V> {
             // data: vec![None; size],
             data: std::iter::repeat_with(|| None).take(size).collect(),
             bitmask,
+            generation: Cell::new(0),
             hits: Cell::new(0),
             faults: Cell::new(0),
             misses: Cell::new(0),
@@ -61,8 +71,11 @@ impl<K, V> Cache<K, V> {
     }
 
     /// Reset the cache.
+    ///
+    /// This is O(1) - we just increment the generation counter.
+    /// Old entries become stale and will be treated as cache misses.
     pub fn clear(&mut self) {
-        self.data.fill_with(|| None);
+        self.generation.set(self.generation.get().wrapping_add(1));
     }
 }
 
@@ -80,8 +93,9 @@ where
         K: Eq,
     {
         let index = self.index(key);
+        let current_gen = self.generation.get();
         match &self.data[index] {
-            Some(entry) => {
+            Some(entry) if entry.generation == current_gen => {
                 if &entry.key == key {
                     self.hits.set(self.hits.get() + 1);
                     Some(&entry.value)
@@ -101,7 +115,12 @@ where
     /// Insert a result into the cache.
     pub fn insert(&mut self, key: K, value: V) {
         let index = self.index(&key);
-        self.data[index] = Some(Entry { key, value });
+        let current_gen = self.generation.get();
+        self.data[index] = Some(Entry {
+            key,
+            value,
+            generation: current_gen,
+        });
     }
 }
 
