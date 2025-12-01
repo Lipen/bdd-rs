@@ -217,7 +217,7 @@ fn categorize(x: i64) -> &'static str {
 T-BDD automatically:
 
 1. Identifies 4 distinct paths
-2. Prunes infeasible combinations (e.g., `x < 0 ∧ x == 0`)
+2. Prunes infeasible combinations (e.g., `(x < 0) ∧ (x == 0)`)
 3. Generates witnesses: `x = -1`, `x = 0`, `x = 50`, `x = 100`
 4. Achieves 100% path coverage
 
