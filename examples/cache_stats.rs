@@ -67,18 +67,24 @@ fn main() {
 
         // Verify result is valid
         let sat_count = bdd.sat_count(result, cli.n * cli.n);
-        if cli.n <= 8 {
-            let expected: u64 = match cli.n {
-                1 => 1,
-                2 => 0,
-                3 => 0,
-                4 => 2,
-                5 => 10,
-                6 => 4,
-                7 => 40,
-                8 => 92,
-                _ => 0,
-            };
+        let expected: u64 = match cli.n {
+            1 => 1,
+            2 => 0,
+            3 => 0,
+            4 => 2,
+            5 => 10,
+            6 => 4,
+            7 => 40,
+            8 => 92,
+            9 => 352,
+            10 => 724,
+            11 => 2680,
+            12 => 14200,
+            13 => 73712,
+            14 => 365596,
+            _ => u64::MAX,
+        };
+        if expected != u64::MAX {
             assert_eq!(sat_count, expected.into(), "Wrong solution count for {}-queens", cli.n);
         }
     }
@@ -122,51 +128,141 @@ fn main() {
     );
 }
 
+// ============================================================================
+// N-Queens Solver (efficient encoding from queens.rs)
+// ============================================================================
+
+/// Returns the variable ID for the cell at `(row, col)`.
+/// Variables are 1-indexed: `x_{0,0} = 1`, `x_{0,1} = 2`, etc.
+fn var(n: usize, row: usize, col: usize) -> u32 {
+    (row * n + col + 1) as u32
+}
+
 /// Solve N-Queens and return the result BDD.
+///
+/// Uses efficient encoding that builds intermediate constraint BDDs
+/// and combines them, rather than applying pairwise constraints directly.
 fn solve_queens(bdd: &Bdd, n: usize) -> Ref {
-    let var = |i: usize, j: usize| -> Ref { bdd.mk_var((i * n + j + 1) as u32) };
+    // Pre-allocate variables in natural order
+    let num_vars = n * n;
+    for var_id in 1..=num_vars as u32 {
+        bdd.mk_var(var_id);
+    }
+    assert!(bdd.var_order().len() == num_vars);
 
     let mut result = bdd.one();
 
-    // Row constraints
+    // Constraint 1: At least one queen per row
+    let at_least_one = at_least_one_queen_per_row(bdd, n);
+    result = bdd.apply_and(result, at_least_one);
+
+    // Constraint 2: At most one queen per row
+    let row_amo = at_most_one_queen_per_line(bdd, n, true);
+    result = bdd.apply_and(result, row_amo);
+
+    // Constraint 3: At most one queen per column
+    let col_amo = at_most_one_queen_per_line(bdd, n, false);
+    result = bdd.apply_and(result, col_amo);
+
+    // Constraint 4: At most one queen per anti-diagonal (/)
+    let slash = at_most_one_queen_per_diagonal(bdd, n, true);
+    result = bdd.apply_and(result, slash);
+
+    // Constraint 5: At most one queen per diagonal (\)
+    let backslash = at_most_one_queen_per_diagonal(bdd, n, false);
+    result = bdd.apply_and(result, backslash);
+
+    result
+}
+
+/// At least one queen per row: `⋀_i (⋁_j x_{i,j})`
+fn at_least_one_queen_per_row(bdd: &Bdd, n: usize) -> Ref {
+    let mut result = bdd.one();
+
+    for row in 0..n {
+        // Build disjunction: `x_{row,0} ∨ x_{row,1} ∨ ... ∨ x_{row,n-1}`
+        let mut row_clause = bdd.zero();
+        for col in 0..n {
+            let x = bdd.mk_var(var(n, row, col));
+            row_clause = bdd.apply_or(row_clause, x);
+        }
+        result = bdd.apply_and(result, row_clause);
+    }
+
+    result
+}
+
+/// At most one queen per row/column.
+fn at_most_one_queen_per_line(bdd: &Bdd, n: usize, is_row: bool) -> Ref {
+    let mut result = bdd.one();
+
     for i in 0..n {
-        let mut at_least_one = bdd.zero();
-        for j in 0..n {
-            at_least_one = bdd.apply_or(at_least_one, var(i, j));
-        }
-        result = bdd.apply_and(result, at_least_one);
+        // Get all variables in this line
+        let vars: Vec<u32> = (0..n).map(|j| if is_row { var(n, i, j) } else { var(n, j, i) }).collect();
 
-        for j1 in 0..n {
-            for j2 in (j1 + 1)..n {
-                let not_both = bdd.apply_or(-var(i, j1), -var(i, j2));
-                result = bdd.apply_and(result, not_both);
-            }
-        }
+        let amo = encode_at_most_one(bdd, &vars);
+        result = bdd.apply_and(result, amo);
     }
 
-    // Column constraints
-    for j in 0..n {
-        for i1 in 0..n {
-            for i2 in (i1 + 1)..n {
-                let not_both = bdd.apply_or(-var(i1, j), -var(i2, j));
-                result = bdd.apply_and(result, not_both);
-            }
-        }
-    }
+    result
+}
 
-    // Diagonal constraints
-    for i1 in 0..n {
-        for j1 in 0..n {
-            for i2 in (i1 + 1)..n {
-                for j2 in 0..n {
-                    let di = i2 - i1;
-                    if j2 == j1 + di || (j1 >= di && j2 == j1 - di) {
-                        let not_both = bdd.apply_or(-var(i1, j1), -var(i2, j2));
-                        result = bdd.apply_and(result, not_both);
-                    }
+/// At most one queen per diagonal.
+/// `slash=true` for anti-diagonals (`/`), `slash=false` for diagonals (`\`).
+fn at_most_one_queen_per_diagonal(bdd: &Bdd, n: usize, slash: bool) -> Ref {
+    let mut result = bdd.one();
+
+    let (a, b) = if slash { (-(n as i32), n as i32) } else { (0, 2 * n as i32) };
+
+    for k in a..b {
+        // Collect cells on this diagonal
+        let cells: Vec<(usize, usize)> = (0..n)
+            .filter_map(|i| {
+                let j = if slash { (i as i32 + k) as usize } else { (k - i as i32) as usize };
+                if j < n {
+                    Some((i, j))
+                } else {
+                    None
                 }
+            })
+            .collect();
+
+        if cells.len() <= 1 {
+            continue; // No constraint needed for single cell or empty diagonal
+        }
+
+        let vars: Vec<u32> = cells.iter().map(|&(i, j)| var(n, i, j)).collect();
+        let amo = encode_at_most_one(bdd, &vars);
+        result = bdd.apply_and(result, amo);
+    }
+
+    result
+}
+
+/// Encodes an at-most-one constraint: at most one variable can be true.
+/// For each `x`: `x → ¬(⋁_{y≠x} y)`, which is equivalent to `¬x ∨ ¬(⋁_{y≠x} y)`.
+fn encode_at_most_one(bdd: &Bdd, vars: &[u32]) -> Ref {
+    if vars.len() <= 1 {
+        return bdd.one();
+    }
+
+    let mut result = bdd.one();
+
+    for (idx, &x_var) in vars.iter().enumerate() {
+        let x = bdd.mk_var(x_var);
+
+        // Build disjunction of all other variables
+        let mut others = bdd.zero();
+        for (other_idx, &y_var) in vars.iter().enumerate() {
+            if other_idx != idx {
+                let y = bdd.mk_var(y_var);
+                others = bdd.apply_or(others, y);
             }
         }
+
+        // x → ¬others, which is ¬x ∨ ¬others
+        let implication = bdd.apply_or(-x, -others);
+        result = bdd.apply_and(result, implication);
     }
 
     result

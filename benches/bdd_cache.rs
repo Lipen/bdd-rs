@@ -18,60 +18,122 @@ use rand_chacha::ChaCha8Rng;
 // Helper: N-Queens Problem (canonical BDD benchmark)
 // ============================================================================
 
+/// Returns the variable ID for the cell at `(row, col)`.
+fn var(n: usize, row: usize, col: usize) -> u32 {
+    (row * n + col + 1) as u32
+}
+
 /// Solve N-Queens and return the result BDD along with cache stats.
+///
+/// Uses efficient encoding that builds intermediate constraint BDDs
+/// and combines them, rather than applying pairwise constraints directly.
 fn solve_queens(bdd: &Bdd, n: usize) -> (Ref, usize, usize) {
-    // Variables: q[i][j] = queen at row i, column j
-    // Using 1-indexed variables: var(i, j) = i * n + j + 1
-    let var = |i: usize, j: usize| -> Ref { bdd.mk_var((i * n + j + 1) as u32) };
+    // Pre-allocate variables in natural order
+    let num_vars = n * n;
+    for v in 1..=num_vars as u32 {
+        bdd.mk_var(v);
+    }
+    assert!(bdd.var_order().len() == num_vars);
 
     let mut result = bdd.one();
 
-    // Row constraints: exactly one queen per row
-    for i in 0..n {
-        // At least one: OR of all columns
-        let mut at_least_one = bdd.zero();
-        for j in 0..n {
-            at_least_one = bdd.apply_or(at_least_one, var(i, j));
-        }
-        result = bdd.apply_and(result, at_least_one);
+    // Constraint 1: At least one queen per row
+    let at_least_one = at_least_one_queen_per_row(bdd, n);
+    result = bdd.apply_and(result, at_least_one);
 
-        // At most one: no two queens in same row
-        for j1 in 0..n {
-            for j2 in (j1 + 1)..n {
-                let not_both = bdd.apply_or(-var(i, j1), -var(i, j2));
-                result = bdd.apply_and(result, not_both);
-            }
-        }
-    }
+    // Constraint 2: At most one queen per row
+    let row_amo = at_most_one_queen_per_line(bdd, n, true);
+    result = bdd.apply_and(result, row_amo);
 
-    // Column constraints: at most one queen per column
-    for j in 0..n {
-        for i1 in 0..n {
-            for i2 in (i1 + 1)..n {
-                let not_both = bdd.apply_or(-var(i1, j), -var(i2, j));
-                result = bdd.apply_and(result, not_both);
-            }
-        }
-    }
+    // Constraint 3: At most one queen per column
+    let col_amo = at_most_one_queen_per_line(bdd, n, false);
+    result = bdd.apply_and(result, col_amo);
 
-    // Diagonal constraints
-    for i1 in 0..n {
-        for j1 in 0..n {
-            for i2 in (i1 + 1)..n {
-                for j2 in 0..n {
-                    // Check if on same diagonal
-                    let di = i2 - i1;
-                    if j2 == j1 + di || (j1 >= di && j2 == j1 - di) {
-                        let not_both = bdd.apply_or(-var(i1, j1), -var(i2, j2));
-                        result = bdd.apply_and(result, not_both);
-                    }
-                }
-            }
-        }
-    }
+    // Constraint 4: At most one queen per anti-diagonal (/)
+    let slash = at_most_one_queen_per_diagonal(bdd, n, true);
+    result = bdd.apply_and(result, slash);
+
+    // Constraint 5: At most one queen per diagonal (\)
+    let backslash = at_most_one_queen_per_diagonal(bdd, n, false);
+    result = bdd.apply_and(result, backslash);
 
     let cache = bdd.cache();
     (result, cache.hits(), cache.misses())
+}
+
+/// At least one queen per row: `⋀_i (⋁_j x_{i,j})`
+fn at_least_one_queen_per_row(bdd: &Bdd, n: usize) -> Ref {
+    let mut result = bdd.one();
+    for row in 0..n {
+        let mut row_clause = bdd.zero();
+        for col in 0..n {
+            let x = bdd.mk_var(var(n, row, col));
+            row_clause = bdd.apply_or(row_clause, x);
+        }
+        result = bdd.apply_and(result, row_clause);
+    }
+    result
+}
+
+/// At most one queen per row/column.
+fn at_most_one_queen_per_line(bdd: &Bdd, n: usize, is_row: bool) -> Ref {
+    let mut result = bdd.one();
+    for i in 0..n {
+        let vars: Vec<u32> = (0..n).map(|j| if is_row { var(n, i, j) } else { var(n, j, i) }).collect();
+        let amo = encode_at_most_one(bdd, &vars);
+        result = bdd.apply_and(result, amo);
+    }
+    result
+}
+
+/// At most one queen per diagonal.
+fn at_most_one_queen_per_diagonal(bdd: &Bdd, n: usize, slash: bool) -> Ref {
+    let mut result = bdd.one();
+    let (a, b) = if slash { (-(n as i32), n as i32) } else { (0, 2 * n as i32) };
+
+    for k in a..b {
+        let cells: Vec<(usize, usize)> = (0..n)
+            .filter_map(|i| {
+                let j = if slash { (i as i32 + k) as usize } else { (k - i as i32) as usize };
+                if j < n {
+                    Some((i, j))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if cells.len() <= 1 {
+            continue;
+        }
+
+        let vars: Vec<u32> = cells.iter().map(|&(i, j)| var(n, i, j)).collect();
+        let amo = encode_at_most_one(bdd, &vars);
+        result = bdd.apply_and(result, amo);
+    }
+    result
+}
+
+/// Encodes an at-most-one constraint.
+fn encode_at_most_one(bdd: &Bdd, vars: &[u32]) -> Ref {
+    if vars.len() <= 1 {
+        return bdd.one();
+    }
+
+    let mut result = bdd.one();
+    for (idx, &x_var) in vars.iter().enumerate() {
+        let x = bdd.mk_var(x_var);
+        let mut others = bdd.zero();
+        for (other_idx, &y_var) in vars.iter().enumerate() {
+            if other_idx != idx {
+                let y = bdd.mk_var(y_var);
+                others = bdd.apply_or(others, y);
+            }
+        }
+        let implication = bdd.apply_or(-x, -others);
+        result = bdd.apply_and(result, implication);
+    }
+    result
 }
 
 // ============================================================================
