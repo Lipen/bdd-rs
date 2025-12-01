@@ -184,6 +184,10 @@ struct Cli {
     /// Enable verbose step-by-step output.
     #[clap(short, long)]
     verbose: bool,
+
+    /// Use incremental row-wise solver instead of constraint-based solver.
+    #[clap(long)]
+    incremental: bool,
 }
 
 fn main() -> color_eyre::Result<()> {
@@ -227,7 +231,11 @@ fn main() -> color_eyre::Result<()> {
         );
     }
 
-    let (res, stats) = solve_queens(&bdd, n, args.gc, args.verbose);
+    let (res, stats) = if args.incremental {
+        solve_queens_incremental(&bdd, n, args.gc, args.verbose)
+    } else {
+        solve_queens(&bdd, n, args.gc, args.verbose)
+    };
 
     // Print results
     println!();
@@ -456,5 +464,130 @@ fn encode_at_most_one(bdd: &Bdd, vars: &[u32]) -> Ref {
         result = bdd.apply_and(result, implication);
     }
 
+    result
+}
+
+// ============================================================================
+// Alternative: Incremental row-wise construction
+// ============================================================================
+
+/// Incremental row-wise construction of N-Queens BDD.
+/// Builds constraints row by row, only considering conflicts with upper rows.
+fn solve_queens_incremental(bdd: &Bdd, n: usize, _gc: bool, verbose: bool) -> (Ref, Stats) {
+    let mut stats = Stats::default();
+    let mut tracker = StepTracker::new(bdd, verbose);
+    tracker.print_header();
+
+    let mut solution_bdd = bdd.one();
+
+    // Process each row incrementally
+    for row in 0..n {
+        println!("[Row {}/{}]", row + 1, n);
+        let t = Instant::now();
+        tracker.reset_step();
+
+        // Step 1: Exactly one queen in this row
+        let row_exact = exactly_one_in_row(bdd, n, row);
+        solution_bdd = bdd.apply_and(solution_bdd, row_exact);
+        tracker.micro_step("exact-one", bdd.size(row_exact), bdd.size(solution_bdd));
+
+        // Step 2: Conflicts with previous rows (column + diagonal)
+        if row > 0 {
+            for prev_row in 0..row {
+                // Column conflicts
+                let col_conflicts = column_conflicts_with_previous(bdd, n, row, prev_row);
+                solution_bdd = bdd.apply_and(solution_bdd, col_conflicts);
+
+                // Diagonal conflicts
+                let diag_conflicts = diagonal_conflicts_with_previous(bdd, n, row, prev_row);
+                solution_bdd = bdd.apply_and(solution_bdd, diag_conflicts);
+            }
+            tracker.micro_step("conflicts", 0, bdd.size(solution_bdd));
+        }
+
+        let elapsed = t.elapsed().as_secs_f64();
+        stats.times.push(("Row processing", elapsed));
+        stats.sizes.push(("After row", bdd.size(solution_bdd)));
+        tracker.phase_done(&format!("[Row {}/{}]", row + 1, n), bdd.size(solution_bdd), elapsed);
+
+        // Early exit if no solutions exist
+        if solution_bdd == bdd.zero() {
+            println!("No solutions possible, stopping early.");
+            break;
+        }
+    }
+
+    (solution_bdd, stats)
+}
+
+/// Exactly one queen in a specific row (at least one AND at most one)
+fn exactly_one_in_row(bdd: &Bdd, n: usize, row: usize) -> Ref {
+    let at_least = at_least_one_in_row(bdd, n, row);
+    let at_most = at_most_one_in_row(bdd, n, row);
+    bdd.apply_and(at_least, at_most)
+}
+
+/// At least one queen in a specific row
+fn at_least_one_in_row(bdd: &Bdd, n: usize, row: usize) -> Ref {
+    let mut result = bdd.zero();
+    for col in 0..n {
+        let v = bdd.mk_var(var(n, row, col));
+        result = bdd.apply_or(result, v);
+    }
+    result
+}
+
+/// At most one queen in a specific row (pairwise encoding)
+fn at_most_one_in_row(bdd: &Bdd, n: usize, row: usize) -> Ref {
+    let mut result = bdd.one();
+    for col1 in 0..n {
+        for col2 in (col1 + 1)..n {
+            let var1 = bdd.mk_var(var(n, row, col1));
+            let var2 = bdd.mk_var(var(n, row, col2));
+            // ¬(var1 ∧ var2) = ¬var1 ∨ ¬var2
+            let constraint = bdd.apply_or(-var1, -var2);
+            result = bdd.apply_and(result, constraint);
+        }
+    }
+    result
+}
+
+/// Constraints between current row and previous row to avoid column conflicts
+fn column_conflicts_with_previous(bdd: &Bdd, n: usize, current_row: usize, prev_row: usize) -> Ref {
+    let mut result = bdd.one();
+    for col in 0..n {
+        let current_var = bdd.mk_var(var(n, current_row, col));
+        let prev_var = bdd.mk_var(var(n, prev_row, col));
+        // ¬(current ∧ prev) = ¬current ∨ ¬prev
+        let constraint = bdd.apply_or(-current_var, -prev_var);
+        result = bdd.apply_and(result, constraint);
+    }
+    result
+}
+
+/// Constraints between current row and previous row to avoid diagonal conflicts
+fn diagonal_conflicts_with_previous(bdd: &Bdd, n: usize, current_row: usize, prev_row: usize) -> Ref {
+    let mut result = bdd.one();
+    let row_diff = current_row as i32 - prev_row as i32;
+
+    for prev_col in 0..n {
+        // Main diagonal: col difference equals row difference
+        let diag1_col = prev_col as i32 + row_diff;
+        if diag1_col >= 0 && diag1_col < n as i32 {
+            let current_var = bdd.mk_var(var(n, current_row, diag1_col as usize));
+            let prev_var = bdd.mk_var(var(n, prev_row, prev_col));
+            let constraint = bdd.apply_or(-current_var, -prev_var);
+            result = bdd.apply_and(result, constraint);
+        }
+
+        // Anti-diagonal: col difference equals negative row difference
+        let diag2_col = prev_col as i32 - row_diff;
+        if diag2_col >= 0 && diag2_col < n as i32 {
+            let current_var = bdd.mk_var(var(n, current_row, diag2_col as usize));
+            let prev_var = bdd.mk_var(var(n, prev_row, prev_col));
+            let constraint = bdd.apply_or(-current_var, -prev_var);
+            result = bdd.apply_and(result, constraint);
+        }
+    }
     result
 }
