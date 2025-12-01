@@ -210,6 +210,14 @@ fn main() -> color_eyre::Result<()> {
     for var_id in 1..=num_vars as u32 {
         bdd.mk_var(var_id);
     }
+    assert!(bdd.var_order().len() == num_vars);
+
+    if args.verbose {
+        println!(
+            "Var order: {}",
+            bdd.var_order().iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", ")
+        );
+    }
 
     let (res, stats) = solve_queens(&bdd, n, args.gc, args.verbose);
 
