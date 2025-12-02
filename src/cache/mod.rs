@@ -49,11 +49,4 @@ pub use hashmap::HashMapCache;
 pub use set_associative::SetAssociativeCache;
 
 /// Default cache implementation.
-///
-/// Currently uses [`SetAssociativeCache`] which provides:
-/// - 4-way set-associativity (~90% fewer collisions than direct-mapped)
-/// - LRU replacement within each set
-/// - O(1) clearing via generation counters
-///
-/// For simpler implementations, use [`DirectMappedCache`] or [`BasicCache`].
-pub type Cache<K, V> = SetAssociativeCache<K, V>;
+pub type Cache<K, V> = HashMapCache<K, V>;
