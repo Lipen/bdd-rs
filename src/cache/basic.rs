@@ -16,6 +16,8 @@
 //! - Short-lived caches that are rarely cleared
 //! - Educational purposes / reference implementation
 
+use std::cell::Cell;
+
 use crate::utils::MyHash;
 
 /// A basic direct-mapped cache.
@@ -25,9 +27,9 @@ use crate::utils::MyHash;
 pub struct BasicCache<K, V> {
     entries: Vec<Option<(K, V)>>,
     bitmask: u64,
-    hits: usize,
-    misses: usize,
-    faults: usize,
+    hits: Cell<usize>,
+    misses: Cell<usize>,
+    faults: Cell<usize>,
 }
 
 impl<K, V> Default for BasicCache<K, V> {
@@ -47,9 +49,9 @@ impl<K, V> BasicCache<K, V> {
         Self {
             entries: (0..size).map(|_| None).collect(),
             bitmask,
-            hits: 0,
-            misses: 0,
-            faults: 0,
+            hits: Cell::new(0),
+            misses: Cell::new(0),
+            faults: Cell::new(0),
         }
     }
 
@@ -60,17 +62,17 @@ impl<K, V> BasicCache<K, V> {
 
     /// Returns the number of cache hits.
     pub fn hits(&self) -> usize {
-        self.hits
+        self.hits.get()
     }
 
     /// Returns the number of cache misses.
     pub fn misses(&self) -> usize {
-        self.misses
+        self.misses.get()
     }
 
     /// Returns the number of cache faults (collision misses).
     pub fn faults(&self) -> usize {
-        self.faults
+        self.faults.get()
     }
 
     /// Clears all entries. This is O(n).
@@ -95,22 +97,22 @@ where
 {
     /// Looks up a key in the cache.
     #[inline]
-    pub fn get(&mut self, key: &K) -> Option<&V> {
+    pub fn get(&self, key: &K) -> Option<&V> {
         let idx = self.index(key);
 
         match &self.entries[idx] {
             Some((k, v)) if k == key => {
-                self.hits += 1;
+                self.hits.set(self.hits.get() + 1);
                 Some(v)
             }
             Some(_) => {
                 // Slot occupied by different key
-                self.faults += 1;
-                self.misses += 1;
+                self.faults.set(self.faults.get() + 1);
+                self.misses.set(self.misses.get() + 1);
                 None
             }
             None => {
-                self.misses += 1;
+                self.misses.set(self.misses.get() + 1);
                 None
             }
         }
