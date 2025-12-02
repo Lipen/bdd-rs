@@ -113,41 +113,67 @@ impl LtlFormula {
             LtlFormula::True => LtlFormula::True,
             LtlFormula::False => LtlFormula::False,
 
+            // ¬φ
             LtlFormula::Not(phi) => phi.negate_to_nnf(),
 
-            LtlFormula::And(phi, psi) => LtlFormula::And(Box::new(phi.to_nnf()), Box::new(psi.to_nnf())),
-
-            LtlFormula::Or(phi, psi) => LtlFormula::Or(Box::new(phi.to_nnf()), Box::new(psi.to_nnf())),
-
-            LtlFormula::Implies(phi, psi) => {
-                // φ → ψ ≡ ¬φ ∨ ψ
-                LtlFormula::Or(Box::new(phi.negate_to_nnf()), Box::new(psi.to_nnf()))
-            }
-
-            LtlFormula::Next(phi) => LtlFormula::Next(Box::new(phi.to_nnf())),
-
-            LtlFormula::Finally(phi) => {
-                // F φ ≡ true U φ
-                LtlFormula::Until(Box::new(LtlFormula::True), Box::new(phi.to_nnf()))
-            }
-
-            LtlFormula::Globally(phi) => {
-                // G φ ≡ false R φ
-                LtlFormula::Release(Box::new(LtlFormula::False), Box::new(phi.to_nnf()))
-            }
-
-            LtlFormula::Until(phi, psi) => LtlFormula::Until(Box::new(phi.to_nnf()), Box::new(psi.to_nnf())),
-
-            LtlFormula::Release(phi, psi) => LtlFormula::Release(Box::new(phi.to_nnf()), Box::new(psi.to_nnf())),
-
-            LtlFormula::WeakUntil(phi, psi) => {
-                // φ W ψ ≡ (φ U ψ) ∨ G φ ≡ ψ R (ψ ∨ φ)
+            // φ ∧ ψ
+            LtlFormula::And(phi, psi) => {
                 let phi_nnf = phi.to_nnf();
                 let psi_nnf = psi.to_nnf();
-                LtlFormula::Release(
-                    Box::new(psi_nnf.clone()),
-                    Box::new(LtlFormula::Or(Box::new(psi_nnf), Box::new(phi_nnf))),
-                )
+                phi_nnf.and(psi_nnf)
+            }
+
+            // φ ∨ ψ
+            LtlFormula::Or(phi, psi) => {
+                let phi_nnf = phi.to_nnf();
+                let psi_nnf = psi.to_nnf();
+                phi_nnf.or(psi_nnf)
+            }
+
+            // φ → ψ ≡ ¬φ ∨ ψ
+            LtlFormula::Implies(phi, psi) => {
+                let not_phi = phi.negate_to_nnf();
+                let psi_nnf = psi.to_nnf();
+                not_phi.or(psi_nnf)
+            }
+
+            // X φ
+            LtlFormula::Next(phi) => {
+                let phi_nnf = phi.to_nnf();
+                phi_nnf.next()
+            }
+
+            // F φ ≡ true U φ
+            LtlFormula::Finally(phi) => {
+                let phi_nnf = phi.to_nnf();
+                LtlFormula::True.until(phi_nnf)
+            }
+
+            // G φ ≡ false R φ
+            LtlFormula::Globally(phi) => {
+                let phi_nnf = phi.to_nnf();
+                LtlFormula::False.release(phi_nnf)
+            }
+
+            // φ U ψ
+            LtlFormula::Until(phi, psi) => {
+                let phi_nnf = phi.to_nnf();
+                let psi_nnf = psi.to_nnf();
+                phi_nnf.until(psi_nnf)
+            }
+
+            // φ R ψ
+            LtlFormula::Release(phi, psi) => {
+                let phi_nnf = phi.to_nnf();
+                let psi_nnf = psi.to_nnf();
+                phi_nnf.release(psi_nnf)
+            }
+
+            // φ W ψ ≡ (φ U ψ) ∨ G φ ≡ ψ R (ψ ∨ φ)
+            LtlFormula::WeakUntil(phi, psi) => {
+                let phi_nnf = phi.to_nnf();
+                let psi_nnf = psi.to_nnf();
+                psi_nnf.clone().release(psi_nnf.or(phi_nnf))
             }
         }
     }
@@ -155,60 +181,74 @@ impl LtlFormula {
     /// Negate the formula and convert to NNF
     fn negate_to_nnf(&self) -> LtlFormula {
         match self {
-            LtlFormula::Atom(s) => LtlFormula::Not(Box::new(LtlFormula::Atom(s.clone()))),
+            // ¬p
+            LtlFormula::Atom(s) => LtlFormula::Atom(s.clone()).not(),
+            // ¬true = false
             LtlFormula::True => LtlFormula::False,
+            // ¬false = true
             LtlFormula::False => LtlFormula::True,
 
+            // ¬(¬φ) ≡ φ
             LtlFormula::Not(phi) => phi.to_nnf(),
 
+            // ¬(φ ∧ ψ) ≡ ¬φ ∨ ¬ψ
             LtlFormula::And(phi, psi) => {
-                // ¬(φ ∧ ψ) ≡ ¬φ ∨ ¬ψ
-                LtlFormula::Or(Box::new(phi.negate_to_nnf()), Box::new(psi.negate_to_nnf()))
-            }
-
-            LtlFormula::Or(phi, psi) => {
-                // ¬(φ ∨ ψ) ≡ ¬φ ∧ ¬ψ
-                LtlFormula::And(Box::new(phi.negate_to_nnf()), Box::new(psi.negate_to_nnf()))
-            }
-
-            LtlFormula::Implies(phi, psi) => {
-                // ¬(φ → ψ) ≡ φ ∧ ¬ψ
-                LtlFormula::And(Box::new(phi.to_nnf()), Box::new(psi.negate_to_nnf()))
-            }
-
-            LtlFormula::Next(phi) => {
-                // ¬X φ ≡ X ¬φ
-                LtlFormula::Next(Box::new(phi.negate_to_nnf()))
-            }
-
-            LtlFormula::Finally(phi) => {
-                // ¬F φ ≡ G ¬φ ≡ false R ¬φ
-                LtlFormula::Release(Box::new(LtlFormula::False), Box::new(phi.negate_to_nnf()))
-            }
-
-            LtlFormula::Globally(phi) => {
-                // ¬G φ ≡ F ¬φ ≡ true U ¬φ
-                LtlFormula::Until(Box::new(LtlFormula::True), Box::new(phi.negate_to_nnf()))
-            }
-
-            LtlFormula::Until(phi, psi) => {
-                // ¬(φ U ψ) ≡ ¬ψ R ¬φ
-                LtlFormula::Release(Box::new(psi.negate_to_nnf()), Box::new(phi.negate_to_nnf()))
-            }
-
-            LtlFormula::Release(phi, psi) => {
-                // ¬(φ R ψ) ≡ ¬ψ U ¬φ
-                LtlFormula::Until(Box::new(psi.negate_to_nnf()), Box::new(phi.negate_to_nnf()))
-            }
-
-            LtlFormula::WeakUntil(phi, psi) => {
-                // ¬(φ W ψ) ≡ ¬ψ U (¬φ ∧ ¬ψ)
                 let not_phi = phi.negate_to_nnf();
                 let not_psi = psi.negate_to_nnf();
-                LtlFormula::Until(
-                    Box::new(not_psi.clone()),
-                    Box::new(LtlFormula::And(Box::new(not_phi), Box::new(not_psi))),
-                )
+                not_phi.or(not_psi)
+            }
+
+            // ¬(φ ∨ ψ) ≡ ¬φ ∧ ¬ψ
+            LtlFormula::Or(phi, psi) => {
+                let not_phi = phi.negate_to_nnf();
+                let not_psi = psi.negate_to_nnf();
+                not_phi.and(not_psi)
+            }
+
+            // ¬(φ → ψ) ≡ φ ∧ ¬ψ
+            LtlFormula::Implies(phi, psi) => {
+                let phi_nnf = phi.to_nnf();
+                let not_psi = psi.negate_to_nnf();
+                phi_nnf.and(not_psi)
+            }
+
+            // ¬X φ ≡ X ¬φ
+            LtlFormula::Next(phi) => {
+                let not_phi = phi.negate_to_nnf();
+                not_phi.next()
+            }
+
+            // ¬F φ ≡ G ¬φ ≡ false R ¬φ
+            LtlFormula::Finally(phi) => {
+                let not_phi = phi.negate_to_nnf();
+                LtlFormula::False.release(not_phi)
+            }
+
+            // ¬G φ ≡ F ¬φ ≡ true U ¬φ
+            LtlFormula::Globally(phi) => {
+                let not_phi = phi.negate_to_nnf();
+                LtlFormula::True.until(not_phi)
+            }
+
+            // ¬(φ U ψ) ≡ ¬ψ R ¬φ
+            LtlFormula::Until(phi, psi) => {
+                let not_phi = phi.negate_to_nnf();
+                let not_psi = psi.negate_to_nnf();
+                not_psi.release(not_phi)
+            }
+
+            // ¬(φ R ψ) ≡ ¬ψ U ¬φ
+            LtlFormula::Release(phi, psi) => {
+                let not_phi = phi.negate_to_nnf();
+                let not_psi = psi.negate_to_nnf();
+                not_psi.until(not_phi)
+            }
+
+            // ¬(φ W ψ) ≡ ¬ψ U (¬φ ∧ ¬ψ)
+            LtlFormula::WeakUntil(phi, psi) => {
+                let not_phi = phi.negate_to_nnf();
+                let not_psi = psi.negate_to_nnf();
+                not_psi.clone().until(not_phi.and(not_psi))
             }
         }
     }
