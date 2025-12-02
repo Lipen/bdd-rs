@@ -61,12 +61,7 @@ impl Node {
     ///
     /// The `next` pointer is initialized to `NO_NEXT` (end of chain).
     pub fn new(variable: Var, low: Ref, high: Ref) -> Self {
-        let hash = {
-            let x = variable.id() as u64;
-            let y = MyHash::hash(&low);
-            let z = MyHash::hash(&high);
-            MyHash::hash(&(y, z, x))
-        };
+        let hash = MyHash::hash(&(variable, low, high));
         Self {
             variable,
             low,

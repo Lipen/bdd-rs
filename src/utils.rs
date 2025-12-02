@@ -1,4 +1,5 @@
 use crate::reference::Ref;
+use crate::types::Var;
 
 /// [Cantor pairing function][cantor-pairing].
 ///
@@ -112,41 +113,50 @@ impl MyHash for (u64, u64, u64) {
 
 impl MyHash for Ref {
     fn hash(&self) -> u64 {
-        mix64(self.raw() as u64)
+        self.raw() as u64
     }
 }
 
 impl MyHash for (Ref, Ref) {
     fn hash(&self) -> u64 {
-        let x = MyHash::hash(&self.0);
-        let y = MyHash::hash(&self.1);
-        MyHash::hash(&(x, y))
+        let a = self.0.raw() as u64;
+        let b = self.1.raw() as u64;
+        MyHash::hash(&(a, b))
     }
 }
 
 impl MyHash for (Ref, Ref, Ref) {
     fn hash(&self) -> u64 {
-        let x = MyHash::hash(&self.0);
-        let y = MyHash::hash(&self.1);
-        let z = MyHash::hash(&self.2);
-        MyHash::hash(&(x, y, z))
+        let a = self.0.raw() as u64;
+        let b = self.1.raw() as u64;
+        let c = self.2.raw() as u64;
+        MyHash::hash(&(a, b, c))
     }
 }
 
 impl MyHash for (Ref, usize) {
     fn hash(&self) -> u64 {
-        let x = MyHash::hash(&self.0);
-        let y = self.1 as u64;
-        MyHash::hash(&(x, y))
+        let a = self.0.raw() as u64;
+        let b = self.1 as u64;
+        MyHash::hash(&(a, b))
     }
 }
 
 impl MyHash for (Ref, Ref, usize) {
     fn hash(&self) -> u64 {
-        let x = MyHash::hash(&self.0);
-        let y = MyHash::hash(&self.1);
-        let z = self.2 as u64;
-        MyHash::hash(&(x, y, z))
+        let a = self.0.raw() as u64;
+        let b = self.1.raw() as u64;
+        let c = self.2 as u64;
+        MyHash::hash(&(a, b, c))
+    }
+}
+
+impl MyHash for (Var, Ref, Ref) {
+    fn hash(&self) -> u64 {
+        let a = self.0.id() as u64;
+        let b = self.1.raw() as u64;
+        let c = self.2.raw() as u64;
+        MyHash::hash(&(a, b, c))
     }
 }
 
