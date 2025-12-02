@@ -145,7 +145,6 @@ impl<K: MyHash, V> DirectMappedCache<K, V> {
 impl<K, V> DirectMappedCache<K, V>
 where
     K: MyHash + Eq,
-    V: Copy,
 {
     /// Looks up a key in the cache.
     #[inline]

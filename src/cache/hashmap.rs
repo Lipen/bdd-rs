@@ -149,7 +149,6 @@ impl<K, V> HashMapCache<K, V> {
 impl<K, V> HashMapCache<K, V>
 where
     K: MyHash + Eq,
-    V: Copy,
 {
     /// Looks up a key in the cache.
     ///
