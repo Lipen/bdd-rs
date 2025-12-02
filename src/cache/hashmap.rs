@@ -1,6 +1,6 @@
 //! HashMap-based cache using the standard library.
 //!
-//! This is the simplest cache implementation, wrapping `std::collections::HashMap`.
+//! This is the simplest cache implementation, wrapping `hashbrown::HashMap`.
 //! It has the highest hit rate (no collisions) but also the highest memory usage
 //! and allocation overhead.
 //!
@@ -15,17 +15,74 @@
 //! - **Pros**: No collisions, simple semantics, automatic resizing
 //! - **Cons**: Allocation overhead, higher memory usage, slower clear()
 
-use std::collections::HashMap;
-use std::hash::Hash;
+use std::cell::Cell;
+use std::hash::{BuildHasherDefault, Hash, Hasher};
+
+use hashbrown::HashMap;
+
+use crate::utils::MyHash;
+
+// =============================================================================
+// MyHash to std::hash::Hash adapter
+// =============================================================================
+
+/// A hasher that uses `MyHash::hash()` to produce hash values.
+///
+/// This bridges `MyHash` (used by other cache implementations) with
+/// `std::hash::Hash` (required by `HashMap`), allowing `HashMapCache`
+/// to use the same key types as other caches.
+#[derive(Default)]
+pub struct MyHasher {
+    hash: u64,
+}
+
+impl Hasher for MyHasher {
+    #[inline]
+    fn finish(&self) -> u64 {
+        self.hash
+    }
+
+    #[inline]
+    fn write(&mut self, _bytes: &[u8]) {
+        // Not used - we only use write_u64
+        unreachable!("MyHasher only supports write_u64")
+    }
+
+    #[inline]
+    fn write_u64(&mut self, i: u64) {
+        self.hash = i;
+    }
+}
+
+/// Wrapper that implements `std::hash::Hash` for any `MyHash` type.
+///
+/// This allows using `MyHash` types as keys in `HashMap`.
+#[derive(Clone, PartialEq, Eq)]
+#[repr(transparent)]
+struct HashableKey<K>(K);
+
+impl<K: MyHash> Hash for HashableKey<K> {
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.0.hash());
+    }
+}
+
+// =============================================================================
+// HashMapCache
+// =============================================================================
 
 /// A cache backed by [HashMap].
 ///
 /// This provides the simplest semantics with no collisions, at the cost
 /// of higher memory usage and allocation overhead.
+///
+/// Uses `MyHash` for hashing (same as other cache implementations),
+/// making it a drop-in replacement for debugging or comparison.
 pub struct HashMapCache<K, V> {
-    map: HashMap<K, V>,
-    hits: usize,
-    misses: usize,
+    map: HashMap<HashableKey<K>, V, BuildHasherDefault<MyHasher>>,
+    hits: Cell<usize>,
+    misses: Cell<usize>,
 }
 
 impl<K, V> Default for HashMapCache<K, V> {
@@ -37,22 +94,22 @@ impl<K, V> Default for HashMapCache<K, V> {
 impl<K, V> HashMapCache<K, V> {
     /// Creates a new HashMap-based cache.
     ///
-    /// The `bits` parameter is ignored (HashMap sizes automatically),
-    /// but accepted for API compatibility with other cache types.
+    /// The `bits` parameter is used to pre-allocate capacity (2^bits entries),
+    /// matching the behavior of other cache types.
     pub fn new(bits: usize) -> Self {
         Self {
-            map: HashMap::with_capacity(1 << bits),
-            hits: 0,
-            misses: 0,
+            map: HashMap::with_capacity_and_hasher(1 << bits, BuildHasherDefault::default()),
+            hits: Cell::new(0),
+            misses: Cell::new(0),
         }
     }
 
     /// Creates a new cache with pre-allocated capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            map: HashMap::with_capacity(capacity),
-            hits: 0,
-            misses: 0,
+            map: HashMap::with_capacity_and_hasher(capacity, BuildHasherDefault::default()),
+            hits: Cell::new(0),
+            misses: Cell::new(0),
         }
     }
 
@@ -68,12 +125,12 @@ impl<K, V> HashMapCache<K, V> {
 
     /// Returns the number of cache hits.
     pub fn hits(&self) -> usize {
-        self.hits
+        self.hits.get()
     }
 
     /// Returns the number of cache misses.
     pub fn misses(&self) -> usize {
-        self.misses
+        self.misses.get()
     }
 
     /// Returns the number of cache faults (always 0 for HashMap).
@@ -91,19 +148,22 @@ impl<K, V> HashMapCache<K, V> {
 
 impl<K, V> HashMapCache<K, V>
 where
-    K: Hash + Eq,
+    K: MyHash + Eq,
     V: Copy,
 {
     /// Looks up a key in the cache.
+    ///
+    /// Uses `raw_entry` API to avoid cloning the key.
     #[inline]
-    pub fn get(&mut self, key: &K) -> Option<&V> {
-        match self.map.get(key) {
+    pub fn get(&self, key: &K) -> Option<&V> {
+        let hash = key.hash();
+        match self.map.raw_entry().from_hash(hash, |k| k.0 == *key).map(|(_, v)| v) {
             Some(v) => {
-                self.hits += 1;
+                self.hits.set(self.hits.get() + 1);
                 Some(v)
             }
             None => {
-                self.misses += 1;
+                self.misses.set(self.misses.get() + 1);
                 None
             }
         }
@@ -112,7 +172,11 @@ where
     /// Inserts a key-value pair into the cache.
     #[inline]
     pub fn insert(&mut self, key: K, value: V) {
-        self.map.insert(key, value);
+        let hash = key.hash();
+        self.map
+            .raw_entry_mut()
+            .from_hash(hash, |k| k.0 == key)
+            .insert(HashableKey(key), value);
     }
 }
 

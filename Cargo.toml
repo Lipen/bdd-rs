@@ -19,6 +19,7 @@ members = [
 ]
 
 [dependencies]
+hashbrown = "0.16"
 log = "0.4"
 num-bigint = "0.4"
 
