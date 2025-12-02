@@ -167,7 +167,22 @@ impl Lru {
     /// Promotes a way to MRU (most recently used) position.
     ///
     /// This is called on cache hits to update the access order.
-    /// Algorithm: Find current position of `way`, shift elements down, put `way` at front.
+    ///
+    /// # Algorithm
+    ///
+    /// Given order [a, b, c, d] and promoting `c` (at position 2):
+    /// - Result: [c, a, b, d]
+    /// - Positions 0..pos shift right by one (a→1, b→2)
+    /// - The promoted way goes to position 0
+    /// - Positions after `pos` stay unchanged (d stays at 3)
+    ///
+    /// # Implementation
+    ///
+    /// Uses bit masking and shifting instead of loops:
+    /// 1. Create mask for positions 0..pos (the part to shift)
+    /// 2. Extract that part, shift left by 2 bits
+    /// 3. Insert promoted way at position 0
+    /// 4. OR with unchanged tail (positions pos+1..3)
     #[inline]
     fn promote(&mut self, way: usize) {
         debug_assert!(way < WAYS);
@@ -183,24 +198,31 @@ impl Lru {
             return;
         }
 
-        // Shift elements: [a, b, c, d] with c accessed -> [c, a, b, d]
-        // We need to shift positions 0..pos down by one, then place `way` at position 0
-        let mut new_order = 0u8;
-        new_order |= way as u8; // Position 0 = way
+        // Masks for extracting bit ranges:
+        // pos=1: head_mask=0b_00_00_00_11 (bits 0-1)
+        // pos=2: head_mask=0b_00_00_11_11 (bits 0-3)
+        // pos=3: head_mask=0b_00_11_11_11 (bits 0-5)
+        let head_mask = (1u8 << (pos * 2)) - 1;
 
-        // Copy positions 0..pos to positions 1..pos+1
-        for i in 0..pos {
-            let w = self.way_at(i);
-            new_order |= (w as u8) << ((i + 1) * 2);
-        }
+        // Mask for the tail (positions after `pos`):
+        // pos=1: tail_mask=0b_11_11_00_00 (bits 4-7)
+        // pos=2: tail_mask=0b_11_00_00_00 (bits 6-7)
+        // pos=3: tail_mask=0b_00_00_00_00 (nothing)
+        let tail_shift = (pos + 1) * 2;
+        let tail_mask = if tail_shift >= 8 {
+            0u8
+        } else {
+            !((1u8 << tail_shift) - 1)
+        };
 
-        // Copy positions pos+1..WAYS to same positions (unchanged)
-        for i in (pos + 1)..WAYS {
-            let w = self.way_at(i);
-            new_order |= (w as u8) << (i * 2);
-        }
+        // Extract head (positions 0..pos), shift left by 2 to make room
+        let head_shifted = (self.0 & head_mask) << 2;
 
-        self.0 = new_order;
+        // Extract tail (positions pos+1..WAYS), unchanged
+        let tail = self.0 & tail_mask;
+
+        // Combine: way at position 0, shifted head, unchanged tail
+        self.0 = (way as u8) | head_shifted | tail;
     }
 }
 
