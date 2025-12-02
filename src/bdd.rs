@@ -31,7 +31,7 @@
 //! let h = bdd.apply_xor(x, y);    // x ⊕ y
 //!
 //! // Check properties
-//! assert!(!bdd.is_zero(f));                      // satisfiable
+//! assert!(!bdd.is_zero(f));                     // satisfiable
 //! assert!(bdd.is_zero(bdd.apply_and(x, -x)));   // contradiction
 //! assert!(bdd.is_one(bdd.apply_or(x, -x)));     // tautology
 //! ```

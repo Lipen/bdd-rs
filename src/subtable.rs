@@ -26,7 +26,7 @@
 //! ┌─────────────────────────────────────────────────┐
 //! │ buckets: [u32; 2^bits]                          │
 //! │   [0] ─────► Node@5 ──► Node@12 ──► ∅           │
-//! │   [1] ─────► ∅                                   │
+//! │   [1] ─────► ∅                                  │
 //! │   [2] ─────► Node@3 ──► ∅                       │
 //! │   ...                                           │
 //! └─────────────────────────────────────────────────┘
@@ -41,7 +41,7 @@
 //!
 //! # Benefits
 //!
-//! - **Memory efficient**: No separate Entry<T> wrapper, just Node.next
+//! - **Memory efficient**: No separate `Entry<T>` wrapper, just `Node.next`
 //! - **Cache friendly**: Nodes are stored contiguously in global Vec
 //! - **Efficient lookup**: O(1) average to find if a node exists
 //! - **Efficient reordering**: Swapping variables just rebuilds chains

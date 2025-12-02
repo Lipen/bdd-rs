@@ -36,11 +36,11 @@
 //!
 //! ## Modules
 //!
-//! - [`bdd`] — The BDD manager and core algorithms
-//! - [`reference`] — The [`Ref`] type: a 32-bit handle to BDD nodes
-//! - [`dot`] — Graphviz visualization
-//! - [`sat`] — SAT solving and model counting
-//! - [`reorder`] — Dynamic variable reordering
+//! - [`mod@bdd`] — The BDD manager and core algorithms
+//! - [`mod@reference`] — The [`Ref`] type: a 32-bit handle to BDD nodes
+//! - [`mod@dot`] — Graphviz visualization
+//! - [`mod@sat`] — SAT solving and model counting
+//! - [`mod@reorder`] — Dynamic variable reordering
 //!
 //! [`Bdd`]: crate::bdd::Bdd
 //! [`Ref`]: crate::reference::Ref

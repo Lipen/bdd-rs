@@ -20,7 +20,7 @@ use std::ops::Neg;
 ///
 /// # Usage
 ///
-/// `NodeId` is primarily obtained from [`Ref::index()`][crate::reference::Ref::index]
+/// `NodeId` is primarily obtained from [`Ref::id()`][crate::reference::Ref::id]
 /// and used to index into the node storage via [`Bdd::node()`][crate::bdd::Bdd::node].
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct NodeId(u32);

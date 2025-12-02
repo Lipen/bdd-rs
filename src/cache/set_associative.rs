@@ -120,10 +120,10 @@ impl Lru {
     /// # How it works
     ///
     /// Each position uses 2 bits, packed from low to high:
-    /// - `pos=0`: bits [1:0] — shift by 0
-    /// - `pos=1`: bits [3:2] — shift by 2
-    /// - `pos=2`: bits [5:4] — shift by 4
-    /// - `pos=3`: bits [7:6] — shift by 6
+    /// - `pos=0`: bits `[1:0]` — shift by 0
+    /// - `pos=1`: bits `[3:2]` — shift by 2
+    /// - `pos=2`: bits `[5:4]` — shift by 4
+    /// - `pos=3`: bits `[7:6]` — shift by 6
     ///
     /// Formula: `(self.0 >> (pos * 2)) & 0b11`
     #[inline]
