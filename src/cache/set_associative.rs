@@ -428,8 +428,8 @@ where
 
 impl<K, V> SetAssociativeCache<K, V>
 where
-    K: MyHash + Eq + Default,
-    V: Copy + Default,
+    K: MyHash + Eq,
+    V: Copy,
 {
     /// Looks up a key in the cache.
     ///
