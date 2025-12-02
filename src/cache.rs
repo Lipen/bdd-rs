@@ -164,18 +164,38 @@ impl Lru {
         self.way_at(3)
     }
 
-    const HEAD_MASKS: [u8; WAYS] = [
-        0b_00_00_00_00, // pos=0: no head
-        0b_00_00_00_11, // pos=1: bits 0-1
-        0b_00_00_11_11, // pos=2: bits 0-3
-        0b_00_11_11_11, // pos=3: bits 0-5
-    ];
-    const TAIL_MASKS: [u8; WAYS] = [
-        0b_11_11_11_11, // pos=0: all bits
-        0b_11_11_00_00, // pos=1: bits 4-7
-        0b_11_00_00_00, // pos=2: bits 6-7
-        0b_00_00_00_00, // pos=3: no tail
-    ];
+    // const HEAD_MASKS: [u8; WAYS] = [
+    //     0b_00_00_00_00, // pos=0: no head
+    //     0b_00_00_00_11, // pos=1: bits 0-1
+    //     0b_00_00_11_11, // pos=2: bits 0-3
+    //     0b_00_11_11_11, // pos=3: bits 0-5
+    // ];
+    const HEAD_MASKS: [u8; WAYS] = {
+        let mut masks = [0; WAYS];
+        let mut pos = 1;
+        while pos < WAYS {
+            masks[pos] = (1u8 << (pos * 2)) - 1;
+            pos += 1;
+        }
+        masks
+    };
+
+    // const TAIL_MASKS: [u8; WAYS] = [
+    //     0b_11_11_11_11, // pos=0: all bits
+    //     0b_11_11_00_00, // pos=1: bits 4-7
+    //     0b_11_00_00_00, // pos=2: bits 6-7
+    //     0b_00_00_00_00, // pos=3: no tail
+    // ];
+    const TAIL_MASKS: [u8; WAYS] = {
+        let mut masks = [0; WAYS];
+        let mut pos = 0;
+        while pos < WAYS - 1 {
+            let tail_shift = (pos + 1) * 2;
+            masks[pos] = 0xFFu8.unbounded_shl(tail_shift as u32);
+            pos += 1;
+        }
+        masks
+    };
 
     /// Promotes a way to MRU (most recently used) position.
     ///
@@ -211,19 +231,10 @@ impl Lru {
             return;
         }
 
-        // Masks for extracting bit ranges:
-        // pos=1: head_mask=0b_00_00_00_11 (bits 0-1)
-        // pos=2: head_mask=0b_00_00_11_11 (bits 0-3)
-        // pos=3: head_mask=0b_00_11_11_11 (bits 0-5)
-        // let head_mask = (1u8 << (pos * 2)) - 1;
+        // Mask for the head (positions before `pos`):
         let head_mask = Self::HEAD_MASKS[pos];
 
         // Mask for the tail (positions after `pos`):
-        // pos=1: tail_mask=0b_11_11_00_00 (bits 4-7)
-        // pos=2: tail_mask=0b_11_00_00_00 (bits 6-7)
-        // pos=3: tail_mask=0b_00_00_00_00 (nothing)
-        // let tail_shift = (pos + 1) * 2;
-        // let tail_mask = 0xFFu8.unbounded_shl(tail_shift as u32);
         let tail_mask = Self::TAIL_MASKS[pos];
 
         // Extract head (positions 0..pos), shift left by 2 to make room
