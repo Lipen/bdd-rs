@@ -1,0 +1,17 @@
+[package]
+name = "boolean-functions"
+version = "0.1.0"
+edition = "2021"
+description = "Exploring Boolean functions landscape with BDDs"
+
+[dependencies]
+bdd-rs = { path = "../.." }
+color-eyre = "0.6"
+rand = "0.8"
+rand_chacha = "0.3"
+num-bigint = "0.4"
+num-traits = "0.2"
+statrs = "0.17"
+
+[dev-dependencies]
+clap = { version = "4.5", features = ["derive"] }
