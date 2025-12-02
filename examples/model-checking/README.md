@@ -8,138 +8,188 @@ This library verifies finite-state systems using Binary Decision Diagrams, handl
 
 ## Features
 
-**Transition Systems**: Symbolic representation of Kripke structures
+### Core Capabilities
 
-- State variables with present/next-state pairs
-- BDD-based state sets and transition relations
-- Image and preimage computation
-- Reachability analysis via fixpoint iteration
+- **Transition Systems**: Symbolic Kripke structures with present/next-state variables
+- **CTL Model Checking**: Full Computation Tree Logic (EX, AX, EF, AF, EG, AG, EU, AU)
+- **LTL Model Checking**: Linear Temporal Logic via Büchi automata
+- **Fairness Constraints**: Strong and weak fairness for realistic liveness properties
+- **Counterexample Generation**: Linear traces (safety) and lasso traces (liveness)
 
-**CTL Model Checking**: Full Computation Tree Logic support
+### Symbolic Operations
 
-- Temporal operators: EX, AX, EF, AF, EG, AG, EU, AU
-- Fixpoint-based algorithms (least/greatest fixpoints)
-- Efficient symbolic state space exploration
-
-**Symbolic Operations**:
-
-- `image(S, T)`: Forward reachability - ∃s. S(s) ∧ T(s, s')
-- `preimage(S, T)`: Backward reachability - ∃s'. T(s, s') ∧ S(s')
+- `image(S, T)`: Forward reachability — ∃s. S(s) ∧ T(s, s')
+- `preimage(S, T)`: Backward reachability — ∃s'. T(s, s') ∧ S(s')
 - Existential quantification and variable renaming
 
 ## Project Structure
 
 ```text
-examples/model_checking/
+examples/model-checking/
 ├── Cargo.toml
 ├── README.md
-└── src/
-    ├── lib.rs          # Public API and documentation
-    ├── ctl.rs          # CTL model checking algorithms
-    └── bin/
-        └── modelcheck.rs  # CLI tool
+├── guide/
+│   └── main.typ            # Typst documentation
+├── src/
+│   ├── lib.rs              # Public API
+│   ├── transition.rs       # Transition systems
+│   ├── ctl.rs              # CTL model checking
+│   ├── ltl.rs              # LTL model checking
+│   ├── fairness.rs         # Fairness constraints
+│   └── counterexample.rs   # Counterexample generation
+└── examples/
+    ├── abp.rs              # Alternating Bit Protocol
+    ├── hanoi.rs            # Towers of Hanoi (planning)
+    ├── tictactoe.rs        # Game solving (attractors)
+    ├── mutex.rs            # Peterson's mutual exclusion
+    ├── philosophers.rs     # Dining philosophers
+    ├── counter.rs          # N-bit counter (scalability)
+    └── traffic_light.rs    # Traffic light controller
 ```
 
 ## Examples
 
-### Simple Two-State System
+### Alternating Bit Protocol (`abp.rs`)
 
-```rust
-use model_checking::*;
-use bdd_rs::bdd::Bdd;
+Demonstrates reliable communication over a lossy channel:
 
-// Create a toggle system: state alternates between 0 and 1
-let bdd = Bdd::default();
-let mut ts = TransitionSystem::new(bdd);
+- **Fairness**: Shows why liveness requires fairness constraints
+- **Safety vs Liveness**: AF fails without fairness, holds with fairness
+- **Key insight**: Adversarial schedulers can always prevent progress
 
-let x = Var::new("x");
-ts.declare_var(x.clone());
-
-// Initial state: x = false
-let x_pres = ts.var_manager().get_present(&x).unwrap();
-let initial = ts.bdd().apply_not(ts.bdd().mk_var(x_pres));
-ts.set_initial(initial);
-
-// Transition: x' = !x
-let x_next = ts.var_manager().get_next(&x).unwrap();
-let transition = ts.bdd().apply_xor(
-    ts.bdd().mk_var(x_pres),
-    ts.bdd().mk_var(x_next)
-);
-ts.set_transition(transition);
-
-// Check CTL property: AF(x=true) - eventually x becomes true
-let checker = CtlChecker::new(&ts);
-let property = CtlFormula::atom("one").af();
-assert!(checker.holds_initially(&property));
+```bash
+cargo run --example abp --release
 ```
 
-### Reachability Analysis
+### Towers of Hanoi (`hanoi.rs`)
 
-```rust
-// Compute all reachable states
-let reachable = ts.reachable();
-let count = ts.count_states(reachable);
-println!("Reachable states: {}", count.unwrap());
+BDD-based symbolic planning for the classic puzzle:
+
+- **State space**: 3^N configurations for N disks
+- **Optimal solution**: Symbolic BFS finds 2^N-1 minimum moves
+- **Solution extraction**: Displays step-by-step solution with visual diagrams
+
+```bash
+cargo run --example hanoi --release
 ```
 
-## CTL (Computation Tree Logic)
+### Tic-Tac-Toe (`tictactoe.rs`)
 
-CTL combines path quantifiers with temporal operators:
+Two-player game solving with attractor computation:
 
-**Path Quantifiers**:
+- **Winning regions**: Computes states where each player can force a win
+- **Drawing analysis**: Confirms empty board is a draw with perfect play
+- **Attractor algorithm**: Backward fixpoint for game-theoretic analysis
 
-- **A** (All paths): Property holds on all execution paths
-- **E** (Exists path): Property holds on at least one execution path
+```bash
+cargo run --example tictactoe --release
+```
 
-**Temporal Operators**:
+### Other Examples
 
-- **X** (Next): Property holds in the next state
-- **F** (Future): Property eventually becomes true
-- **G** (Globally): Property always remains true
-- **U** (Until): First property holds until second becomes true
+- **`mutex.rs`**: Peterson's algorithm for mutual exclusion
+- **`philosophers.rs`**: Dining philosophers deadlock analysis
+- **`counter.rs`**: N-bit counter demonstrating BDD scalability
+- **`traffic_light.rs`**: Simple traffic light controller
 
-**Supported Formulas**: EX, AX, EF, AF, EG, AG, E[φ U ψ], A[φ U ψ]
+## Temporal Logics
 
-### Example Properties
+### CTL (Computation Tree Logic)
+
+Branching-time logic with path quantifiers (A/E) and temporal operators:
+
+| Formula | Meaning |
+|---------|---------|
+| `EX φ`  | There exists a next state satisfying φ |
+| `AX φ`  | All next states satisfy φ |
+| `EF φ`  | There exists a path where φ eventually holds |
+| `AF φ`  | On all paths, φ eventually holds |
+| `EG φ`  | There exists a path where φ always holds |
+| `AG φ`  | On all paths, φ always holds |
+| `E[φ U ψ]` | There exists a path where φ holds until ψ |
+| `A[φ U ψ]` | On all paths, φ holds until ψ |
+
+### LTL (Linear Temporal Logic)
+
+Linear-time logic for reasoning about individual execution paths:
+
+| Formula | Meaning |
+|---------|---------|
+| `X φ`   | φ holds in the next state |
+| `F φ`   | φ eventually holds (Future) |
+| `G φ`   | φ always holds (Globally) |
+| `φ U ψ` | φ holds until ψ becomes true |
+| `φ R ψ` | ψ holds until (and including when) φ becomes true |
+
+### Fairness Constraints
+
+Fairness assumptions exclude unrealistic infinite behaviors:
+
+- **Strong fairness**: If enabled infinitely often, happens infinitely often
+- **Weak fairness**: If continuously enabled, eventually happens
 
 ```rust
-// Safety: "bad" state is never reached
-let safety = CtlFormula::atom("bad").not().ag();
-
-// Liveness: request eventually leads to grant
-let liveness = CtlFormula::atom("req")
-    .implies(CtlFormula::atom("grant").af());
+// Without fairness: AF delivered FAILS (adversarial channel)
+// With fairness:    AF delivered HOLDS (realistic behavior)
 ```
 
 ## Algorithms
 
-**Image Computation** (forward reachability):
+### Fixpoint Computation
+
+CTL operators are computed via least (μ) and greatest (ν) fixpoints:
 
 ```text
-image(S, T) = ∃s. S(s) ∧ T(s, s')
+EF φ  = μZ. φ ∨ EX Z        [least fixpoint - start from ∅]
+EG φ  = νZ. φ ∧ EX Z        [greatest fixpoint - start from all states]
 ```
 
-**CTL Model Checking** (fixpoint-based):
+### Counterexample Generation
 
-```text
-EX φ  = preimage(SAT(φ))           [exists next]
-AX φ  = ¬EX ¬φ                     [all next]
-EF φ  = μZ. φ ∨ EX Z               [exists eventually - least fixpoint]
-AF φ  = μZ. φ ∨ AX Z               [all eventually - least fixpoint]
-EG φ  = νZ. φ ∧ EX Z               [exists globally - greatest fixpoint]
-AG φ  = νZ. φ ∧ AX Z               [all globally - greatest fixpoint]
-E[φ U ψ] = μZ. ψ ∨ (φ ∧ EX Z)     [exists until - least fixpoint]
-A[φ U ψ] = μZ. ψ ∨ (φ ∧ AX Z)     [all until - least fixpoint]
+When properties fail, counterexamples explain *why*:
+
+- **Linear traces**: Path from initial state to violation (safety)
+- **Lasso traces**: Stem + loop structure (liveness)
+
+  ```text
+  Linear:  s₀ → s₁ → s₂ → ... → sₙ (bad)
+  Lasso:   [ s₀ → s₁ → ... → sₖ ]  → [ sₖ₊₁ → ... → sₘ → sₖ ]
+                                       ↑________________|
+  ```
+
+  Here, the loop from sₖ to sₘ demonstrates infinite violation.
+
+## Quick Start
+
+```rust
+use model_checking::*;
+use bdd_rs::bdd::Bdd;
+use std::rc::Rc;
+
+// Create transition system
+let bdd = Rc::new(Bdd::default());
+let mut ts = TransitionSystem::new(bdd.clone());
+
+// Declare state variable
+let x = Var::new("x");
+ts.declare_var(x.clone());
+
+// Set initial state and transitions
+let x_pres = ts.var_manager().get_present(&x).unwrap();
+let initial = ts.bdd().apply_not(ts.bdd().mk_var(x_pres));
+ts.set_initial(initial);
+
+let x_trans = ts.assign_var(&x, ts.bdd().apply_not(ts.bdd().mk_var(x_pres)));
+ts.set_transition(x_trans);
+
+// Add labels and check properties
+ts.add_label("on".to_string(), ts.bdd().mk_var(x_pres));
+let ts = Rc::new(ts);
+
+let checker = CtlChecker::new(ts.clone());
+let property = CtlFormula::atom("on").ef(); // EF on
+assert!(checker.holds_initially(&property));
 ```
-
-Where μZ denotes least fixpoint (start from ∅) and νZ denotes greatest fixpoint (start from all states).
-
-## Performance
-
-- **State Space**: 10^6 to 10^20+ states depending on structure and variable ordering
-- **BDD Size**: Critical dependence on variable ordering
-- **Fixpoints**: Typically converge in O(diameter) iterations
 
 ## Testing
 
@@ -147,28 +197,11 @@ Where μZ denotes least fixpoint (start from ∅) and νZ denotes greatest fixpo
 cargo test --lib
 ```
 
-**13 comprehensive tests** covering:
-
-- Variable management and state variable allocation
-- Transition system operations (image, preimage, reachability)
-- All CTL operators (EX, AX, EF, AF, EG, AG, EU, AU)
-- Property verification on toggle and counter systems
-
 All tests passing ✓
-
-## Future Work
-
-- **Counterexample generation**: Witness traces and looping counterexamples (NuSMV-style)
-- **LTL model checking**: Linear Temporal Logic via Büchi automata
-- **Fairness constraints**: Weak and strong fairness
-- **Taint analysis**: Information flow tracking
-- **Compositional verification**: Assume-guarantee reasoning
-- **SMV modeling language**: Parser and compiler
-- **Classic benchmarks**: Mutual exclusion, dining philosophers, cache coherence protocols
 
 ## References
 
-1. **Symbolic Model Checking: 10^20 States and Beyond** - Burch et al. (1990) - The foundational paper
-2. **Model Checking** - Clarke, Grumberg, Peled (1999) - Comprehensive textbook
-3. **Principles of Model Checking** - Baier & Katoen (2008) - Modern treatment
-4. **NuSMV** - Cimatti et al. (2000) - Open-source model checker with optimizations
+1. **Symbolic Model Checking: 10^20 States and Beyond** — Burch et al. (1990)
+2. **Model Checking** — Clarke, Grumberg, Peled (1999)
+3. **Principles of Model Checking** — Baier & Katoen (2008)
+4. **NuSMV 2.0 User Manual** — Cimatti et al. (2002)
