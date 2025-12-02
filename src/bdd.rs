@@ -734,7 +734,7 @@ impl Bdd {
     /// Returns true if var1 comes before var2 in the variable ordering.
     ///
     /// Uses the explicit variable ordering to compare levels.
-    fn var_precedes(&self, var1: Var, var2: Var) -> bool {
+    pub fn var_precedes(&self, var1: Var, var2: Var) -> bool {
         if var1.is_terminal() || var2.is_terminal() {
             return false;
         }
@@ -763,7 +763,7 @@ impl Bdd {
     /// # Returns
     ///
     /// The variable that comes first in the ordering, or Var::ZERO if both are terminals.
-    fn top_variable(&self, var1: Var, var2: Var) -> Var {
+    pub fn top_variable(&self, var1: Var, var2: Var) -> Var {
         if var1.is_terminal() {
             return var2;
         }
@@ -771,28 +771,11 @@ impl Bdd {
             return var1;
         }
 
-        // Compare by level in the explicit ordering
-        let level1 = self.get_level(var1);
-        let level2 = self.get_level(var2);
-
-        match (level1, level2) {
-            (Some(l1), Some(l2)) => {
-                if l1 <= l2 {
-                    var1
-                } else {
-                    var2
-                }
-            }
-            (Some(_), None) => var1,
-            (None, Some(_)) => var2,
-            (None, None) => {
-                // Neither variable is in the ordering, fall back to ID comparison
-                if var1.id() <= var2.id() {
-                    var1
-                } else {
-                    var2
-                }
-            }
+        // var1 wins if it precedes var2, or on tie (same level)
+        if self.var_precedes(var2, var1) {
+            var2
+        } else {
+            var1
         }
     }
 }
