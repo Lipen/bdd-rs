@@ -376,6 +376,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(debug_assertions)] // Panics only in debug mode
     #[should_panic(expected = "Variable IDs must be >= 1")]
     fn test_var_zero_panics() {
         Var::new(0);
@@ -461,6 +462,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(debug_assertions)] // Panics only in debug mode
     #[should_panic(expected = "Literal value cannot be zero")]
     fn test_lit_zero_panics() {
         Lit::from_dimacs(0);
