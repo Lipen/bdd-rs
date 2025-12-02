@@ -243,7 +243,8 @@ fn demo_xai_explanations() {
     let ts = Rc::new(ts);
     let gen = CounterexampleGenerator::new(ts.clone());
 
-    println!("Checking: AG(¬overflow) - Counter should never overflow\n");
+    println!("Checking: AG(¬overflow) - Counter should never overflow");
+    println!("         where: overflow ≡ (b0 ∧ b1), i.e., counter value = 3\n");
 
     if let Some(cex) = gen.generate_linear(overflow) {
         println!("Found overflow! Building explanation...\n");
@@ -254,7 +255,8 @@ fn demo_xai_explanations() {
                 let b0 = s.get("b0").unwrap_or(false);
                 let b1 = s.get("b1").unwrap_or(false);
                 let value = (b1 as u8) * 2 + (b0 as u8);
-                format!("Counter = {} (binary: {}{})", value, b1 as u8, b0 as u8)
+                let overflow = b0 && b1;
+                format!("Counter = {} (binary: {}{}), overflow = {}", value, b1 as u8, b0 as u8, overflow)
             })
             .with_transition_interpreter(|from, to| {
                 let from_b0 = from.get("b0").unwrap_or(false);
@@ -269,9 +271,13 @@ fn demo_xai_explanations() {
 
         println!("{}", explanation);
 
-        // Also show compact trace
-        println!("\n── Compact Trace ──────────────────────────────────────────────────");
-        let vis = cex.clone().with_annotations().visualize().compact();
+        // Also show trace with overflow label
+        println!("\n── Trace with Labels ──────────────────────────────────────────────");
+        let vis = cex.clone().with_annotations().visualize().with_label("overflow", |s| {
+            let b0 = s.get("b0").unwrap_or(false);
+            let b1 = s.get("b1").unwrap_or(false);
+            b0 && b1
+        });
         println!("{}", vis.render());
     }
 }

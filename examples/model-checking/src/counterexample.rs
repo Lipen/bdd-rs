@@ -841,11 +841,13 @@ impl<'a> ExplanationBuilder<'a> {
     }
 
     fn explain_linear(&self, states: &[State]) -> PropertyExplanation {
+        let num_transitions = states.len().saturating_sub(1);
         let mut explanation = PropertyExplanation::new(
             &self.property,
             format!(
-                "The property can be violated in {} step(s) from an initial state.",
-                states.len().saturating_sub(1)
+                "The property is violated after {} transition(s). The trace has {} state(s).",
+                num_transitions,
+                states.len()
             ),
         );
 
