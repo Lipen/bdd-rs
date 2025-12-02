@@ -161,7 +161,7 @@ impl Var {
     }
 
     /// Creates a negative literal from this variable.
-    pub fn neg(self) -> Lit {
+    pub const fn neg(self) -> Lit {
         Lit::neg(self)
     }
 }
