@@ -310,11 +310,11 @@ mod tests {
         // Create nodes: index 0 is terminal
         let mut nodes = vec![Node::default(); 10];
         // Node at index 1: var=1, low=~@0, high=@0
-        nodes[1] = Node::new(Var::new(1), -Ref::positive_from(0), Ref::positive_from(0));
+        nodes[1] = Node::new(Var::new(1), Ref::negative_from(0), Ref::positive_from(0));
         // Node at index 2: var=1, low=@1, high=@0
         nodes[2] = Node::new(Var::new(1), Ref::positive_from(1), Ref::positive_from(0));
         // Node at index 3: var=1, low=~@0, high=@2
-        nodes[3] = Node::new(Var::new(1), -Ref::positive_from(0), Ref::positive_from(2));
+        nodes[3] = Node::new(Var::new(1), Ref::negative_from(0), Ref::positive_from(2));
         nodes
     }
 
@@ -323,7 +323,7 @@ mod tests {
         let mut nodes = make_test_nodes();
         let mut st = Subtable::new(Var::new(1));
 
-        let low = -Ref::positive_from(0);
+        let low = Ref::negative_from(0);
         let high = Ref::positive_from(0);
 
         // Should not find before insert
@@ -346,14 +346,14 @@ mod tests {
         let mut st = Subtable::new(Var::new(1));
 
         // Insert multiple nodes
-        st.insert(-Ref::positive_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
+        st.insert(Ref::negative_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
         st.insert(Ref::positive_from(1), Ref::positive_from(0), NodeId::new(2), &mut nodes);
-        st.insert(-Ref::positive_from(0), Ref::positive_from(2), NodeId::new(3), &mut nodes);
+        st.insert(Ref::negative_from(0), Ref::positive_from(2), NodeId::new(3), &mut nodes);
 
         assert_eq!(st.len(), 3);
-        assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(0), &nodes), Some(NodeId::new(1)));
+        assert_eq!(st.find(Ref::negative_from(0), Ref::positive_from(0), &nodes), Some(NodeId::new(1)));
         assert_eq!(st.find(Ref::positive_from(1), Ref::positive_from(0), &nodes), Some(NodeId::new(2)));
-        assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(2), &nodes), Some(NodeId::new(3)));
+        assert_eq!(st.find(Ref::negative_from(0), Ref::positive_from(2), &nodes), Some(NodeId::new(3)));
     }
 
     #[test]
@@ -362,16 +362,16 @@ mod tests {
         let mut nodes = make_test_nodes();
         let mut st = Subtable::with_bucket_bits(Var::new(1), 1); // Only 2 buckets!
 
-        st.insert(-Ref::positive_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
+        st.insert(Ref::negative_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
         st.insert(Ref::positive_from(1), Ref::positive_from(0), NodeId::new(2), &mut nodes);
-        st.insert(-Ref::positive_from(0), Ref::positive_from(2), NodeId::new(3), &mut nodes);
+        st.insert(Ref::negative_from(0), Ref::positive_from(2), NodeId::new(3), &mut nodes);
 
         assert_eq!(st.len(), 3);
 
         // All should be findable despite collisions
-        assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(0), &nodes), Some(NodeId::new(1)));
+        assert_eq!(st.find(Ref::negative_from(0), Ref::positive_from(0), &nodes), Some(NodeId::new(1)));
         assert_eq!(st.find(Ref::positive_from(1), Ref::positive_from(0), &nodes), Some(NodeId::new(2)));
-        assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(2), &nodes), Some(NodeId::new(3)));
+        assert_eq!(st.find(Ref::negative_from(0), Ref::positive_from(2), &nodes), Some(NodeId::new(3)));
 
         // Remove middle element from a chain
         assert!(st.remove(Ref::positive_from(1), Ref::positive_from(0), &mut nodes));
@@ -379,8 +379,8 @@ mod tests {
         assert!(st.find(Ref::positive_from(1), Ref::positive_from(0), &nodes).is_none());
 
         // Others should still be there
-        assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(0), &nodes), Some(NodeId::new(1)));
-        assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(2), &nodes), Some(NodeId::new(3)));
+        assert_eq!(st.find(Ref::negative_from(0), Ref::positive_from(0), &nodes), Some(NodeId::new(1)));
+        assert_eq!(st.find(Ref::negative_from(0), Ref::positive_from(2), &nodes), Some(NodeId::new(3)));
     }
 
     #[test]
@@ -388,7 +388,7 @@ mod tests {
         let mut nodes = make_test_nodes();
         let mut st = Subtable::new(Var::new(1));
 
-        st.insert(-Ref::positive_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
+        st.insert(Ref::negative_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
         st.insert(Ref::positive_from(1), Ref::positive_from(0), NodeId::new(2), &mut nodes);
 
         let mut indices: Vec<_> = st.indices(&nodes).map(|n| n.index()).collect();
@@ -402,16 +402,16 @@ mod tests {
         let mut st = Subtable::new(Var::new(1));
 
         // Initial inserts
-        st.insert(-Ref::positive_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
+        st.insert(Ref::negative_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
         st.insert(Ref::positive_from(1), Ref::positive_from(0), NodeId::new(2), &mut nodes);
 
         // Rebuild from indices
         st.rebuild([1u32, 2, 3].into_iter().map(|i| NodeId::new(i)), &mut nodes);
 
         assert_eq!(st.len(), 3);
-        assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(0), &nodes), Some(NodeId::new(1)));
+        assert_eq!(st.find(Ref::negative_from(0), Ref::positive_from(0), &nodes), Some(NodeId::new(1)));
         assert_eq!(st.find(Ref::positive_from(1), Ref::positive_from(0), &nodes), Some(NodeId::new(2)));
-        assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(2), &nodes), Some(NodeId::new(3)));
+        assert_eq!(st.find(Ref::negative_from(0), Ref::positive_from(2), &nodes), Some(NodeId::new(3)));
     }
 
     #[test]
@@ -421,9 +421,9 @@ mod tests {
         let mut st = Subtable::with_bucket_bits(Var::new(1), 1);
         assert_eq!(st.num_buckets(), 2);
 
-        st.insert(-Ref::positive_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
+        st.insert(Ref::negative_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
         st.insert(Ref::positive_from(1), Ref::positive_from(0), NodeId::new(2), &mut nodes);
-        st.insert(-Ref::positive_from(0), Ref::positive_from(2), NodeId::new(3), &mut nodes);
+        st.insert(Ref::negative_from(0), Ref::positive_from(2), NodeId::new(3), &mut nodes);
 
         // With 3 nodes and 2 buckets, load factor is 1.5, should_resize should be false
         // (threshold is count > buckets * 2, i.e., > 4)
@@ -435,9 +435,9 @@ mod tests {
         assert_eq!(st.len(), 3);
 
         // All nodes should still be findable
-        assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(0), &nodes), Some(NodeId::new(1)));
+        assert_eq!(st.find(Ref::negative_from(0), Ref::positive_from(0), &nodes), Some(NodeId::new(1)));
         assert_eq!(st.find(Ref::positive_from(1), Ref::positive_from(0), &nodes), Some(NodeId::new(2)));
-        assert_eq!(st.find(-Ref::positive_from(0), Ref::positive_from(2), &nodes), Some(NodeId::new(3)));
+        assert_eq!(st.find(Ref::negative_from(0), Ref::positive_from(2), &nodes), Some(NodeId::new(3)));
     }
 
     #[test]
@@ -447,7 +447,7 @@ mod tests {
 
         assert_eq!(st.load_factor(), 0.0);
 
-        st.insert(-Ref::positive_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
+        st.insert(Ref::negative_from(0), Ref::positive_from(0), NodeId::new(1), &mut nodes);
         assert_eq!(st.load_factor(), 0.25);
 
         st.insert(Ref::positive_from(1), Ref::positive_from(0), NodeId::new(2), &mut nodes);
