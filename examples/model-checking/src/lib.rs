@@ -62,7 +62,9 @@ pub mod ltl;
 pub mod transition;
 
 // Re-export key types
-pub use counterexample::{Counterexample, CounterexampleGenerator, State};
+pub use counterexample::{
+    Counterexample, CounterexampleGenerator, ExplanationBuilder, ExplanationStep, PropertyExplanation, State, TraceVisualization,
+};
 pub use ctl::{CtlChecker, CtlFormula};
 pub use fairness::{FairnessConstraint, FairnessManager};
 pub use ltl::{LtlChecker, LtlFormula};
