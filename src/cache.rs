@@ -305,11 +305,11 @@ impl<K, V> CacheSet<K, V> {
 struct Stats {
     /// Number of successful lookups (key found and valid).
     hits: Cell<usize>,
+    /// Total number of unsuccessful lookups.
+    misses: Cell<usize>,
     /// Number of lookups where slot was occupied by different key (collision).
     /// This is a subset of misses that indicates hash conflicts.
     faults: Cell<usize>,
-    /// Total number of unsuccessful lookups.
-    misses: Cell<usize>,
 }
 
 impl Stats {
@@ -323,14 +323,14 @@ impl Stats {
     }
 
     #[inline]
-    fn record_fault(&self) {
-        self.faults.set(self.faults.get() + 1);
+    fn record_miss(&self) {
         self.misses.set(self.misses.get() + 1);
     }
 
     #[inline]
-    fn record_miss(&self) {
+    fn record_fault(&self) {
         self.misses.set(self.misses.get() + 1);
+        self.faults.set(self.faults.get() + 1);
     }
 }
 
@@ -447,17 +447,17 @@ where
         self.stats.hits.get()
     }
 
+    /// Returns the total number of cache misses since creation.
+    pub fn misses(&self) -> usize {
+        self.stats.misses.get()
+    }
+
     /// Returns the number of cache faults (collision misses) since creation.
     ///
     /// A fault occurs when a set has entries but none match the requested key.
     /// High fault rate indicates hash collisions or working set exceeds cache.
     pub fn faults(&self) -> usize {
         self.stats.faults.get()
-    }
-
-    /// Returns the total number of cache misses since creation.
-    pub fn misses(&self) -> usize {
-        self.stats.misses.get()
     }
 
     /// Clears the cache in O(1) time.

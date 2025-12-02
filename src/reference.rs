@@ -7,7 +7,7 @@ use crate::types::NodeId;
 ///
 /// Uses a 32-bit representation where the least significant bit indicates negation
 /// and the remaining bits store the node ID.
-#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 pub struct Ref(u32);
 
@@ -58,6 +58,12 @@ impl Ref {
     #[inline]
     pub const fn raw(self) -> u32 {
         self.0
+    }
+}
+
+impl Default for Ref {
+    fn default() -> Self {
+        Self::INVALID
     }
 }
 
