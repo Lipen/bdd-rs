@@ -1,0 +1,20 @@
+[package]
+name = "sdd"
+version = "0.1.0"
+edition = "2021"
+authors = ["Konstantin Chukharev <lipen00@gmail.com>"]
+description = "Sentential Decision Diagrams (SDDs) - a tractable knowledge representation"
+license = "MIT"
+repository = "https://github.com/Lipen/bdd-rs"
+keywords = ["sdd", "decision-diagram", "knowledge-compilation", "boolean-functions"]
+categories = ["data-structures", "algorithms", "science"]
+
+[dependencies]
+log = "0.4"
+num-bigint = "0.4"
+num-traits = "0.2"
+
+[dev-dependencies]
+simplelog = "0.12"
+clap = { version = "4", features = ["derive"] }
+env_logger = "0.11"

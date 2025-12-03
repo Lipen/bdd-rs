@@ -17,6 +17,7 @@ members = [
     "examples/abstract-interpretation",
     "examples/tbdd-pbt",
     "examples/boolean-functions",
+    "examples/sdd",
 ]
 
 [dependencies]
