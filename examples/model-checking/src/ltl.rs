@@ -109,7 +109,7 @@ impl LtlFormula {
     /// Push negations to atoms only
     pub fn to_nnf(&self) -> LtlFormula {
         match self {
-            LtlFormula::Atom(s) => LtlFormula::Atom(s.clone()),
+            LtlFormula::Atom(s) => LtlFormula::atom(s),
             LtlFormula::True => LtlFormula::True,
             LtlFormula::False => LtlFormula::False,
 
@@ -331,7 +331,7 @@ impl LtlChecker {
     pub fn check(&self, formula: &LtlFormula) -> bool {
         // We check ¬φ is not satisfiable
         // i.e., there's no path violating φ
-        let negated = LtlFormula::Not(Box::new(formula.clone()));
+        let negated = LtlFormula::not(formula.clone());
         let nnf = negated.to_nnf();
 
         // For simple formulas, we can reduce to CTL
