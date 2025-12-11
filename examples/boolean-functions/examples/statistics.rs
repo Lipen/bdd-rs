@@ -6,6 +6,8 @@
 //!
 //! Run with: `cargo run -p boolean-functions --example statistics`
 
+use std::collections::BTreeMap;
+
 use bdd_rs::bdd::Bdd;
 use boolean_functions::function::random_function_with_bdd;
 use boolean_functions::stats::{
@@ -15,7 +17,6 @@ use boolean_functions::stats::{
 use clap::Parser;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
-use std::collections::BTreeMap;
 
 #[derive(Parser, Debug)]
 #[command(name = "statistics")]
