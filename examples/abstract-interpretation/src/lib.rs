@@ -132,6 +132,7 @@ pub mod interval;
 pub mod numeric;
 pub mod pointsto;
 pub mod product;
+pub mod sdd_control;
 pub mod sign;
 pub mod string_domain;
 pub mod transfer;
@@ -149,6 +150,7 @@ pub use interval::{Bound, Interval, IntervalDomain, IntervalElement};
 pub use numeric::NumericDomain;
 pub use pointsto::{Location, LocationMap, PointsToDomain, PointsToElement};
 pub use product::{ProductDomain, ProductElement};
+pub use sdd_control::{SddControlDomain, SddControlState};
 pub use sign::{Sign, SignDomain, SignElement};
 pub use string_domain::{
     CharacterSet, CharacterSetDomain, StringConst, StringConstantDomain, StringInclusionDomain, StringLengthDomain, StringPrefixDomain,
