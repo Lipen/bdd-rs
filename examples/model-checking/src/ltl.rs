@@ -524,7 +524,8 @@ mod tests {
         // ¬G p should become F ¬p (which is true U ¬p)
         let f = LtlFormula::atom("p").globally().not();
         let nnf = f.to_nnf();
-        assert!(matches!(nnf, LtlFormula::Until(_, _)));
+        let expected = LtlFormula::True.until(LtlFormula::atom("p").not());
+        assert_eq!(nnf, expected);
     }
 
     #[test]
