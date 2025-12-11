@@ -155,6 +155,7 @@ examples/sdd/
 | `queens` | N-Queens puzzle constraint solving |
 | `circuit_analysis` | Digital circuit verification and fault detection |
 | `file_io` | Save/load in libsdd-compatible format |
+| `bounded_model_checking` | Explainable counterexamples via SDD |
 
 ### Run Examples
 
@@ -186,6 +187,9 @@ cargo run --example circuit_analysis
 
 # File I/O demonstration
 cargo run --example file_io
+
+# Bounded model checking with explainable counterexamples
+cargo run --example bounded_model_checking
 ```
 
 ### Run Tests
@@ -201,6 +205,106 @@ cargo test
 3. **Configuration Management**: Valid product configurations
 4. **Machine Learning**: Tractable probabilistic models
 5. **Verification**: Symbolic model checking
+6. **Explainable Counterexamples**: Structured analysis of failure spaces (see below)
+
+## Explainable Counterexamples in Model Checking
+
+A novel application of SDDs: **structured, decomposed counterexamples** for bounded model checking.
+
+### The Problem with Traditional Counterexamples
+
+Classical model checkers (SPIN, NuSMV, etc.) produce counterexamples that are:
+
+- **Linear**: A single execution trace
+- **Large**: Often thousands of steps
+- **Opaque**: No insight into *which factors* independently cause the violation
+- **Incomplete**: Shows one path, but there may be exponentially many
+
+### SDD-Based Structured Counterexamples
+
+SDDs can represent the **entire space** of counterexamples compactly:
+
+```rust
+// Encode bounded reachability as Boolean formula
+let reachable = encode_bounded_reachability(&mgr, &model, k);
+
+// Encode safety violation
+let bad_states = encode_property_violation(&mgr, &model);
+
+// All counterexamples as a single SDD!
+let counterexamples = mgr.and(reachable, bad_states);
+
+// Analyze the structure
+let count = mgr.model_count(counterexamples);  // How many?
+println!("Found {} counterexamples", count);
+
+// Extract invariants across ALL counterexamples
+for var in 1..=num_vars {
+    let with_pos = mgr.condition(counterexamples, var as i32);
+    let with_neg = mgr.condition(counterexamples, -(var as i32));
+
+    if !mgr.is_false(with_pos) && mgr.is_false(with_neg) {
+        println!("Variable {} is TRUE in ALL counterexamples", var);
+    }
+}
+```
+
+### What SDD Structure Reveals
+
+The prime-sub decomposition exposes **independent failure factors**:
+
+```text
+Counterexamples SDD:
+    (prime₁, sub₁) ∨ (prime₂, sub₂) ∨ ... ∨ (primeₖ, subₖ)
+```
+
+Each element represents an **independent way** the system can fail:
+
+- **Primes** capture conditions on one variable partition
+- **Subs** capture conditions on the complementary partition
+- Elements are **mutually exclusive** and **jointly exhaustive**
+
+### Example Output
+
+```text
+📊 Basic Statistics:
+   • SDD size: 42 nodes
+   • Number of counterexamples: 128
+
+🔍 Variable Analysis (invariants in counterexamples):
+   • Variables always TRUE in counterexamples: 3 vars
+   • Variables always FALSE in counterexamples: 5 vars
+   • Variables that vary across counterexamples: 12 vars
+
+🧩 SDD Prime Decomposition (Independent Factors):
+   3 independent contributing factors to counterexamples:
+   Factor 1: 48 counterexamples (process 0 and 1 both enter CS)
+   Factor 2: 48 counterexamples (process 0 and 2 both enter CS)
+   Factor 3: 32 counterexamples (process 1 and 2 both enter CS)
+```
+
+### Why This is Novel
+
+BDDs have been used in symbolic model checking for decades, but:
+
+- BDDs primarily compute *reachability*, not structured explanation
+- Linear variable ordering doesn't reflect problem hierarchy
+- Counterexample extraction yields one path, not a characterized space
+
+SDDs offer a **new perspective**:
+
+- Prime-sub decomposition reveals **independent failure modes**
+- Vtree can be structured to match system hierarchy
+- Compact representation of **all** counterexamples enables generalization
+- Enables "explainable" counterexamples for debugging and repair
+
+This application of SDDs as **structured explanation of counterexample spaces** is largely unexplored in formal verification literature — a promising research direction.
+
+### Run the Example
+
+```bash
+cargo run --example bounded_model_checking
+```
 
 ## File I/O
 
@@ -248,11 +352,19 @@ Key insight: **Every BDD is also an SDD** (with a right-linear vtree), but SDDs 
 
 ### Original Papers
 
-1. **Darwiche, A. (2011)**. SDD: A New Canonical Representation of Propositional Knowledge Bases. *IJCAI-11*, 819-826.
+- **Darwiche, A. (2011)**. SDD: A New Canonical Representation of Propositional Knowledge Bases. *IJCAI-11*, 819-826.
 
-2. **Darwiche, A. & Marquis, P. (2002)**. A Knowledge Compilation Map. *JAIR*, 17, 229-264.
+- **Darwiche, A. & Marquis, P. (2002)**. A Knowledge Compilation Map. *JAIR*, 17, 229-264.
 
-3. **Choi, A. & Darwiche, A. (2013)**. Dynamic Minimization of Sentential Decision Diagrams. *AAAI-13*, 187-194.
+- **Choi, A. & Darwiche, A. (2013)**. Dynamic Minimization of Sentential Decision Diagrams. *AAAI-13*, 187-194.
+
+### Model Checking and Counterexamples
+
+- **Clarke, E., Grumberg, O., & Peled, D. (1999)**. Model Checking. *MIT Press*.
+
+- **Biere, A., Cimatti, A., Clarke, E., & Zhu, Y. (1999)**. Symbolic Model Checking without BDDs. *TACAS*, 193-207. *(Bounded Model Checking)*
+
+- **Groce, A. & Kroening, D. (2005)**. Making the Most of BMC Counterexamples. *ENTCS*, 119(2), 67-81.
 
 ### Related Resources
 
