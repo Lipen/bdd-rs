@@ -77,8 +77,8 @@ fn example_implication_checking() {
 
     let x = domain.mk_var_true("x");
     let y = domain.mk_var_true("y");
-    let x_and_y = domain.meet(&x, &y);
-    let x_or_y = domain.join(&x, &y);
+    let x_and_y = domain.and(&x, &y);
+    let x_or_y = domain.or(&x, &y);
 
     // x ∧ y ⇒ x ∨ y should always hold
     let implies = domain.implies(&x_and_y, &x_or_y);
