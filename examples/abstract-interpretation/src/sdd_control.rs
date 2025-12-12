@@ -157,13 +157,11 @@ impl AbstractDomain for SddControlDomain {
     }
 
     fn join(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
-        let phi = self.manager.or(elem1.phi, elem2.phi);
-        SddControlState::new(phi, Rc::clone(&self.manager))
+        self.or(elem1, elem2)
     }
 
     fn meet(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
-        let phi = self.manager.and(elem1.phi, elem2.phi);
-        SddControlState::new(phi, Rc::clone(&self.manager))
+        self.and(elem1, elem2)
     }
 
     fn widen(&self, elem1: &Self::Element, elem2: &Self::Element) -> Self::Element {
