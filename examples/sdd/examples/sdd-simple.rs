@@ -1,4 +1,4 @@
-//! Simple SDD Example — Comprehensive Tour.
+//! Simple SDD Example.
 //!
 //! Demonstrates the full range of SDD operations:
 //! - Creating variables and formulas
@@ -15,7 +15,7 @@
 use sdd::SddManager;
 
 fn main() {
-    println!("─── Sentential Decision Diagrams — Comprehensive Example ───\n");
+    println!("═══ Sentential Decision Diagrams ═══\n");
 
     // Create an SDD manager with 4 variables.
     // The manager owns all SDD nodes and provides operations.
