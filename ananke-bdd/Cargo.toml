@@ -1,12 +1,12 @@
 [package]
 name = "ananke-bdd"
 version = "0.1.0"
-authors = ["Konstantin Chukharev <lipen00@gmail.com>"]
 description = "Binary Decision Diagrams for Rust"
-edition = "2021"
-license = "MIT"
-readme = "README.adoc"
-repository = "https://github.com/Lipen/bdd-rs"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
 
 [dependencies]
 hashbrown = "0.16"
