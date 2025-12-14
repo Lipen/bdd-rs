@@ -15,9 +15,7 @@
 //! 3. **Solution**: The BDD represents the set of all valid solutions.
 //!
 //! **Reference**:
-//! Henrik R. Andersen, "An introduction to binary decision diagrams",
-//! Lecture notes for "Efficient Algorithms and Programs", 1999,
-//! The IT University of Copenhagen, Section 6.1
+//! Henrik R. Andersen, "An introduction to binary decision diagrams", 1999, Section 6.1
 //!
 //! **Usage**:
 //! ```bash
