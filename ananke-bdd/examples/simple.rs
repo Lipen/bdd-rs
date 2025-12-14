@@ -1,4 +1,4 @@
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;

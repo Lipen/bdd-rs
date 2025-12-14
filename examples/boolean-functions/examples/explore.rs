@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use boolean_functions::function::{build_bdd_from_truth_table, TruthTable};
 use clap::Parser;
 use rand::SeedableRng;

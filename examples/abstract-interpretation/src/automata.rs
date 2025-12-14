@@ -9,8 +9,8 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
 
-use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
+use ananke_bdd::bdd::Bdd;
+use ananke_bdd::reference::Ref;
 
 use super::domain::AbstractDomain;
 

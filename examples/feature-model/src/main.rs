@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::path::PathBuf;
 
-use bdd_rs::bdd::{Bdd, BddConfig};
+use ananke_bdd::bdd::{Bdd, BddConfig};
 use clap::{Parser, Subcommand};
 use color_eyre::Result;
 use feature_model::{encode_to_bdd, parse_dimacs, parse_simple, FeatureAnalyzer, FeatureModel};

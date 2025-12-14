@@ -3,7 +3,7 @@
 //! This example demonstrates existential and universal quantification from Chapter 4.
 //! Shows how quantifiers eliminate variables while preserving logical relationships.
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 
 fn main() {
     println!("=== BDD Quantification Example ===\n");

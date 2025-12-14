@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use boolean_functions::function::random_function_with_bdd;
 use boolean_functions::stats::{
     bootstrap, chebyshev_bound, chebyshev_mean_bound, clt_confidence_interval, empirical_tail_bound, hoeffding_bound,

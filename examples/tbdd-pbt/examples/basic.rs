@@ -8,7 +8,7 @@
 //!
 //! Run with: `cargo run -p tbdd-pbt --example basic`
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use tbdd_pbt::{CoverageTracker, GeneratorConfig, IntervalSolver, Predicate, PredicateUniverse, TestGenerator};
 
 /// Example function under test: categorize a number.

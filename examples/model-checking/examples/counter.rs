@@ -33,7 +33,7 @@
 use std::rc::Rc;
 use std::time::Instant;
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use model_checking::*;
 
 /// Creates an n-bit counter transition system.

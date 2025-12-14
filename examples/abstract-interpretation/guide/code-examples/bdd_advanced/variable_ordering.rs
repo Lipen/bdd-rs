@@ -50,7 +50,7 @@
 //! Demonstrates ordering effects on chains, multipliers, and formulas
 //! with variable dependencies.
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 
 fn main() {
     println!("=== Variable Ordering Impact ===\n");

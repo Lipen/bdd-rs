@@ -21,8 +21,8 @@ use std::collections::HashSet;
 use std::fmt;
 use std::rc::Rc;
 
-use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
+use ananke_bdd::bdd::Bdd;
+use ananke_bdd::reference::Ref;
 
 use crate::transition::TransitionSystem;
 

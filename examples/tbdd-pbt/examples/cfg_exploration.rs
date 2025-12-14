@@ -8,7 +8,7 @@
 //!
 //! Run with: `cargo run -p tbdd-pbt --example cfg_exploration`
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use tbdd_pbt::cfg::CfgBuilder;
 use tbdd_pbt::{GeneratorConfig, IntervalSolver, Predicate, TestGenerator};
 

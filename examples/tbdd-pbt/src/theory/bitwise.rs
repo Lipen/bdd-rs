@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use bdd_rs::types::Var;
+use ananke_bdd::types::Var;
 
 use super::core::{ConstraintSolver, SolveResult, Witness};
 use super::interval::IntervalSolver;
@@ -36,7 +36,7 @@ pub enum BitwiseConstraint {
 ///
 /// ```rust
 /// use std::collections::HashMap;
-/// use bdd_rs::bdd::Bdd;
+/// use ananke_bdd::bdd::Bdd;
 /// use tbdd_pbt::predicate::{Predicate, PredicateUniverse};
 /// use tbdd_pbt::theory::{BitwiseSolver, ConstraintSolver, SolveResult};
 ///
@@ -212,7 +212,7 @@ impl ConstraintSolver for BitwiseSolver {
 
 #[cfg(test)]
 mod tests {
-    use bdd_rs::bdd::Bdd;
+    use ananke_bdd::bdd::Bdd;
 
     use super::*;
     use crate::predicate::Predicate;

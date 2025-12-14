@@ -7,7 +7,7 @@
 //!
 //! Run with: `cargo run -p tbdd-pbt --example multi_variable`
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use tbdd_pbt::{GeneratorConfig, Predicate, PredicateUniverse, RelationalSolver, TestGenerator};
 
 /// Compare two values and return ordering description.

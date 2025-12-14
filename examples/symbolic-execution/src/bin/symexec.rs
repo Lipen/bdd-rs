@@ -1,7 +1,7 @@
 use std::fs;
 use std::process::Command;
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use clap::{Parser, Subcommand, ValueEnum};
 use color_eyre::Result;
 use symbolic_execution::*;

@@ -66,8 +66,8 @@
 
 use std::rc::Rc;
 
-use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
+use ananke_bdd::bdd::Bdd;
+use ananke_bdd::reference::Ref;
 use model_checking::{TransitionSystem, Var};
 
 /// Cell values (encoded as 2-bit)

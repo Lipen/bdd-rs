@@ -507,8 +507,8 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::rc::Rc;
 
-use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
+use ananke_bdd::bdd::Bdd;
+use ananke_bdd::reference::Ref;
 
 use crate::AbstractDomain;
 
@@ -674,7 +674,7 @@ impl Default for LocationMap {
 
 /// Abstract element representing points-to information for all pointers.
 ///
-/// Maps each pointer variable to a BDD ([`bdd_rs::reference::Ref`]) representing
+/// Maps each pointer variable to a BDD ([`ananke_bdd::reference::Ref`]) representing
 /// the set of memory locations it may point to. This is the main data structure
 /// for flow-sensitive analysis.
 ///

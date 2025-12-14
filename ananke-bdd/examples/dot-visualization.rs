@@ -11,7 +11,7 @@ use std::env;
 use std::fs;
 use std::process::Command;
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_dir = env::current_dir()?.join("examples").join("dot_output");

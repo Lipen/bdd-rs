@@ -9,7 +9,7 @@
 //!
 //! Run with: `cargo run -p tbdd-pbt --example bug_hunting`
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use tbdd_pbt::{CheckResult, IntervalSolver, Predicate, PredicateUniverse, Property, PropertyChecker, Witness};
 
 fn main() {

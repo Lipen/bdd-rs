@@ -6,7 +6,7 @@
 use std::collections::HashSet;
 use std::collections::VecDeque;
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 
 use crate::ast::{Expr, Var};
 use crate::cfg::{BlockId, ControlFlowGraph, Instruction, Terminator};

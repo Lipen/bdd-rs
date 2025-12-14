@@ -28,7 +28,7 @@
 //!
 //! ```rust
 //! use std::collections::HashMap;
-//! use bdd_rs::bdd::Bdd;
+//! use ananke_bdd::bdd::Bdd;
 //! use tbdd_pbt::predicate::{Predicate, PredicateUniverse};
 //! use tbdd_pbt::theory::{ConstraintSolver, IntervalSolver, SolveResult};
 //!

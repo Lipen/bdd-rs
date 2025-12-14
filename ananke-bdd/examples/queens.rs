@@ -26,8 +26,8 @@
 
 use std::time::Instant;
 
-use bdd_rs::bdd::{Bdd, BddConfig};
-use bdd_rs::reference::Ref;
+use ananke_bdd::bdd::{Bdd, BddConfig};
+use ananke_bdd::reference::Ref;
 use clap::Parser;
 
 /// Tracker for step-by-step statistics with concise output.

@@ -8,7 +8,7 @@
 //!
 //! Run with: `cargo run -p tbdd-pbt --example property_testing`
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use tbdd_pbt::{CheckResult, IntervalSolver, Predicate, PredicateUniverse, Property, PropertyChecker, Witness};
 
 /// A buggy absolute value function.

@@ -59,8 +59,8 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
+use ananke_bdd::bdd::Bdd;
+use ananke_bdd::reference::Ref;
 
 /// Simple expression language
 #[derive(Debug, Clone)]

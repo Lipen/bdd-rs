@@ -39,7 +39,7 @@
 //! Demonstrates variable creation, operations, canonicity property,
 //! tautology/satisfiability checking, and formula construction.
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 
 fn main() {
     println!("=== BDD Basics Example ===\n");

@@ -6,9 +6,9 @@
 
 use std::collections::HashMap;
 
-use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
-use bdd_rs::types::Var;
+use ananke_bdd::bdd::Bdd;
+use ananke_bdd::reference::Ref;
+use ananke_bdd::types::Var;
 
 /// Tracks coverage using BDD operations.
 pub struct CoverageTracker<'a> {

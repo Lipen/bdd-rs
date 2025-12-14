@@ -3,7 +3,7 @@
 //! This module provides efficient sampling strategies for exploring
 //! the space of Boolean functions.
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use rand::Rng;
 
 use crate::function::{random_function_with_bdd, BooleanFunction, TruthTable};

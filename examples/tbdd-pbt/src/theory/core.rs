@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use bdd_rs::types::Var;
+use ananke_bdd::types::Var;
 
 use crate::predicate::PredicateUniverse;
 
@@ -107,7 +107,7 @@ impl Witness {
 ///
 /// ```rust
 /// use std::collections::HashMap;
-/// use bdd_rs::bdd::Bdd;
+/// use ananke_bdd::bdd::Bdd;
 /// use tbdd_pbt::predicate::{Predicate, PredicateUniverse};
 /// use tbdd_pbt::theory::{ConstraintSolver, IntervalSolver, SolveResult};
 ///

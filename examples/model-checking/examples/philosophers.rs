@@ -40,7 +40,7 @@
 
 use std::rc::Rc;
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use model_checking::*;
 
 fn main() {

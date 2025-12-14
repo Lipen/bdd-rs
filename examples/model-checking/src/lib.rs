@@ -22,7 +22,7 @@
 //!
 //! ```
 //! use model_checking::*;
-//! use bdd_rs::bdd::Bdd;
+//! use ananke_bdd::bdd::Bdd;
 //! use std::rc::Rc;
 //!
 //! // Create a simple toggle system

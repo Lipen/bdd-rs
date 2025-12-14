@@ -38,8 +38,8 @@
 use std::rc::Rc;
 use std::time::Instant;
 
-use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
+use ananke_bdd::bdd::Bdd;
+use ananke_bdd::reference::Ref;
 use model_checking::*;
 
 /// Build a Towers of Hanoi model with the specified number of disks.

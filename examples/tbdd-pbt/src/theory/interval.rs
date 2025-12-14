@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use bdd_rs::types::Var;
+use ananke_bdd::types::Var;
 
 use super::core::{ConstraintSolver, SolveResult, Witness};
 use crate::predicate::{CompareOp, Operand, PredicateUniverse};
@@ -93,7 +93,7 @@ impl Interval {
 ///
 /// ```rust
 /// use std::collections::HashMap;
-/// use bdd_rs::bdd::Bdd;
+/// use ananke_bdd::bdd::Bdd;
 /// use tbdd_pbt::predicate::{Predicate, PredicateUniverse};
 /// use tbdd_pbt::theory::{ConstraintSolver, IntervalSolver, SolveResult};
 ///
@@ -226,7 +226,7 @@ impl ConstraintSolver for IntervalSolver {
 
 #[cfg(test)]
 mod tests {
-    use bdd_rs::bdd::Bdd;
+    use ananke_bdd::bdd::Bdd;
 
     use super::*;
     use crate::predicate::Predicate;

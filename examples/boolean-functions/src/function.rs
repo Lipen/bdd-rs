@@ -3,9 +3,9 @@
 //! A Boolean function `f: {0,1}^n → {0,1}` is represented by its truth table,
 //! a vector of `2^n` bits indexed by the input assignments.
 
-use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
-use bdd_rs::types::Var;
+use ananke_bdd::bdd::Bdd;
+use ananke_bdd::reference::Ref;
+use ananke_bdd::types::Var;
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
 use rand::Rng;

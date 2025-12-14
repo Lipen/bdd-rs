@@ -42,7 +42,7 @@
 //! Demonstrates hash consing, computed cache, variable ordering effects,
 //! and the performance benefits of the manager architecture.
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 
 fn main() {
     println!("=== BDD Manager Architecture ===\n");

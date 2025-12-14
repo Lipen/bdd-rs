@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use num_bigint::BigUint;
 
 use crate::function::{build_bdd_from_truth_table, TruthTable};

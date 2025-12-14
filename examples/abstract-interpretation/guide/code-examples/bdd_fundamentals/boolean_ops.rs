@@ -2,7 +2,7 @@
 //!
 //! This example demonstrates various boolean operations and their properties.
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 
 fn main() {
     println!("=== Boolean Operations Example ===\n");

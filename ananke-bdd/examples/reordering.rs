@@ -13,7 +13,7 @@
 //! cargo run --example reordering
 //! ```
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 
 fn main() {
     println!("=== BDD Variable Ordering Example ===\n");

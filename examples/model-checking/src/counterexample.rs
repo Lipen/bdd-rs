@@ -36,9 +36,9 @@ use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 
-use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
-use bdd_rs::types::{Lit, Var as BddVar};
+use ananke_bdd::bdd::Bdd;
+use ananke_bdd::reference::Ref;
+use ananke_bdd::types::{Lit, Var as BddVar};
 
 use crate::transition::{TransitionSystem, Var};
 

@@ -22,9 +22,9 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
-use bdd_rs::types::Var;
+use ananke_bdd::bdd::Bdd;
+use ananke_bdd::reference::Ref;
+use ananke_bdd::types::Var;
 
 use crate::coverage::CoverageTracker;
 use crate::generator::{GeneratorConfig, TestCase, TestGenerator};
@@ -442,7 +442,7 @@ struct PathEnumerationResult {
 
 #[cfg(test)]
 mod tests {
-    use bdd_rs::bdd::Bdd;
+    use ananke_bdd::bdd::Bdd;
 
     use super::*;
     use crate::predicate::Predicate;

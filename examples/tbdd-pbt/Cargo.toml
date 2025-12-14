@@ -5,6 +5,6 @@ edition = "2021"
 description = "Theory-Aware BDD-Guided Property-Based Testing"
 
 [dependencies]
-bdd-rs = { path = "../.." }
+ananke-bdd = { path = "../../ananke-bdd" }
 color-eyre = "0.6"
 rand = "0.8"

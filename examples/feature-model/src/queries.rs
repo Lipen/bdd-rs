@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use bdd_rs::bdd::Bdd;
-use bdd_rs::reference::Ref;
+use ananke_bdd::bdd::Bdd;
+use ananke_bdd::reference::Ref;
 use num_bigint::BigUint;
 
 use crate::model::FeatureModel;

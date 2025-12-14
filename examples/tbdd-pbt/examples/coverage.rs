@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 use tbdd_pbt::{
     CheckResult, CoverageTracker, GeneratorConfig, IntervalSolver, Predicate, PredicateUniverse, Property, PropertyChecker, TestGenerator,
 };

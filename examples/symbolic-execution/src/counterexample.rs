@@ -6,7 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 
 use crate::ast::Var;
 use crate::state::SymbolicState;
