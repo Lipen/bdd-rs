@@ -17,7 +17,7 @@
 //! # Examples
 //!
 //! ```
-//! use bdd_rs::bdd::Bdd;
+//! use ananke_bdd::bdd::Bdd;
 //!
 //! let bdd = Bdd::default();
 //! let x1 = bdd.mk_var(1);
@@ -42,8 +42,8 @@ use crate::types::NodeId;
 /// # Examples
 ///
 /// ```
-/// use bdd_rs::bdd::Bdd;
-/// use bdd_rs::dot::DotConfig;
+/// use ananke_bdd::bdd::Bdd;
+/// use ananke_bdd::dot::DotConfig;
 ///
 /// let bdd = Bdd::default();
 /// let x = bdd.mk_var(1);
@@ -126,7 +126,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     ///
@@ -146,7 +146,7 @@ impl Bdd {
     /// # Visualizing Multiple Functions
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -176,8 +176,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::dot::DotConfig;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::dot::DotConfig;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);

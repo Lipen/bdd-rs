@@ -8,8 +8,8 @@
 //! cargo bench --bench bdd_cache
 //! ```
 
-use bdd_rs::bdd::{Bdd, BddConfig};
-use bdd_rs::reference::Ref;
+use ananke_bdd::bdd::{Bdd, BddConfig};
+use ananke_bdd::reference::Ref;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;

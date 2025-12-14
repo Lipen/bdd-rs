@@ -1,8 +1,3 @@
-///! Type-safe wrappers for BDD variables, levels, literals, and node IDs.
-///!
-///! This module provides newtype wrappers that enforce compile-time distinction
-///! between variable IDs, level indices, and node IDs, preventing common mistakes
-///! in BDD manipulation code.
 use std::fmt;
 use std::ops::Neg;
 
@@ -14,14 +9,14 @@ use std::ops::Neg;
 ///
 /// # Invariants
 ///
-/// - `NodeId(0)` is the terminal node
+/// - `NodeId::TERMINAL` (0) is the terminal node
 /// - `NodeId::INVALID` (0x7FFF_FFFF) is a sentinel for uninitialized references
 /// - Valid node IDs are in the range `0..0x7FFF_FFFF`
 ///
 /// # Usage
 ///
-/// `NodeId` is primarily obtained from [`Ref::id()`][crate::reference::Ref::id]
-/// and used to index into the node storage via [`Bdd::node()`][crate::bdd::Bdd::node].
+/// `NodeId` is primarily obtained from [`Ref::id`][crate::reference::Ref::id]
+/// and used to index into the node storage via [`Bdd::node`][crate::bdd::Bdd::node].
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct NodeId(u32);
 
@@ -190,7 +185,7 @@ impl From<u32> for Var {
 /// # Examples
 ///
 /// ```
-/// use bdd_rs::types::{Var, Lit};
+/// use ananke_bdd::types::{Var, Lit};
 ///
 /// let x1 = Var::new(1);
 ///
@@ -255,8 +250,9 @@ impl Lit {
 
     /// Creates a literal from a signed integer (DIMACS-style).
     ///
-    /// Positive integers create positive literals, negative integers
-    /// create negative literals. Zero is not allowed.
+    /// Positive integers create positive literals,
+    /// negative integers create negative literals.
+    /// Zero is not allowed.
     ///
     /// # Panics
     ///
@@ -270,8 +266,8 @@ impl Lit {
 
     /// Returns the DIMACS-style signed integer representation.
     ///
-    /// Positive literals return positive integers, negative literals
-    /// return negative integers.
+    /// Positive literals return positive integers,
+    /// negative literals return negative integers.
     pub const fn to_dimacs(self) -> i32 {
         let var_id = self.var().id() as i32;
         if self.is_positive() {
@@ -302,7 +298,14 @@ impl fmt::Display for Lit {
 
 impl From<i32> for Lit {
     fn from(value: i32) -> Self {
-        Lit::from_dimacs(value)
+        Self::from_dimacs(value)
+    }
+}
+
+// Into<i32> for Lit
+impl From<Lit> for i32 {
+    fn from(lit: Lit) -> Self {
+        lit.to_dimacs()
     }
 }
 
@@ -358,7 +361,7 @@ impl fmt::Display for Level {
 
 impl From<usize> for Level {
     fn from(index: usize) -> Self {
-        Level(index)
+        Self::new(index)
     }
 }
 

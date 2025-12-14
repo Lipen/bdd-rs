@@ -8,9 +8,9 @@
 //! cargo bench --bench cache_micro
 //! ```
 
-use bdd_rs::cache::Cache;
-use bdd_rs::reference::Ref;
-use bdd_rs::utils::{MyHash, OpKey};
+use ananke_bdd::cache::Cache;
+use ananke_bdd::reference::Ref;
+use ananke_bdd::utils::{MyHash, OpKey};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;

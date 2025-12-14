@@ -28,7 +28,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use bdd_rs::cache::{Cache, DirectMappedCache, SetAssociativeCache};
+//! use ananke_bdd::cache::{Cache, DirectMappedCache, SetAssociativeCache};
 //!
 //! // Use the default (HashMap) cache
 //! let mut cache = Cache::<(u64, u64), i32>::new(14);

@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```
-//! use bdd_rs::bdd::Bdd;
+//! use ananke_bdd::bdd::Bdd;
 //!
 //! let bdd = Bdd::default();
 //! let x = bdd.mk_var(1);
@@ -53,8 +53,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Lit;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::Lit;
     ///
     /// let bdd = Bdd::default();
     ///
@@ -67,7 +67,7 @@ impl Bdd {
     /// ```
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     ///
@@ -91,7 +91,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -233,8 +233,8 @@ mod tests {
         path.iter().map(|lit| lit.to_string()).collect::<Vec<_>>().join(", ")
     }
 
-    fn mk_path(lits: impl IntoIterator<Item = i32>) -> Vec<Lit> {
-        lits.into_iter().map(|x| Lit::from(x)).collect()
+    fn mk_path(lits: impl IntoIterator<Item = impl Into<Lit>>) -> Vec<Lit> {
+        lits.into_iter().map(|x| x.into()).collect()
     }
 
     #[test]

@@ -18,7 +18,7 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use bdd_rs::bdd::Bdd;
+//! use ananke_bdd::bdd::Bdd;
 //!
 //! let bdd = Bdd::default();
 //!

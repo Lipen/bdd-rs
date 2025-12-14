@@ -147,8 +147,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Var;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::Var;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -222,7 +222,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x1 = bdd.mk_var(1);
@@ -418,8 +418,8 @@ impl Bdd {
     /// # Example
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Level;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::Level;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -489,8 +489,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// # use bdd_rs::bdd::Bdd;
-    /// # use bdd_rs::types::Var;
+    /// # use ananke_bdd::bdd::Bdd;
+    /// # use ananke_bdd::types::Var;
     /// #
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -603,8 +603,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::{Var, Level};
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::{Var, Level};
     ///
     /// let bdd = Bdd::default();
     /// let x1 = bdd.mk_var(1);

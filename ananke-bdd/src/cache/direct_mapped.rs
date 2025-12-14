@@ -52,7 +52,7 @@ impl<K: Default, V: Default> Default for Entry<K, V> {
 /// # Example
 ///
 /// ```ignore
-/// use bdd_rs::cache::DirectMappedCache;
+/// use ananke_bdd::cache::DirectMappedCache;
 ///
 /// let mut cache = DirectMappedCache::<(u64, u64), i32>::new(14);
 ///

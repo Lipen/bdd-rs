@@ -316,7 +316,7 @@ impl Stats {
 /// # Example
 ///
 /// ```ignore
-/// use bdd_rs::cache::SetAssociativeCache;
+/// use ananke_bdd::cache::SetAssociativeCache;
 ///
 /// // Create a cache with 2^14 = 16K sets (64K total entries)
 /// let mut cache = SetAssociativeCache::<(u64, u64), i32>::new(14);

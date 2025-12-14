@@ -17,7 +17,7 @@
 //! # Quick Start
 //!
 //! ```
-//! use bdd_rs::bdd::Bdd;
+//! use ananke_bdd::bdd::Bdd;
 //!
 //! let bdd = Bdd::default();
 //!
@@ -191,7 +191,7 @@ use crate::utils::OpKey;
 /// ## Basic Usage
 ///
 /// ```
-/// use bdd_rs::bdd::Bdd;
+/// use ananke_bdd::bdd::Bdd;
 ///
 /// let bdd = Bdd::default();
 ///
@@ -213,7 +213,7 @@ use crate::utils::OpKey;
 /// ## Cubes and Clauses
 ///
 /// ```
-/// use bdd_rs::bdd::Bdd;
+/// use ananke_bdd::bdd::Bdd;
 ///
 /// let bdd = Bdd::default();
 ///
@@ -231,8 +231,8 @@ use crate::utils::OpKey;
 /// ## Quantification
 ///
 /// ```
-/// use bdd_rs::bdd::Bdd;
-/// use bdd_rs::types::Var;
+/// use ananke_bdd::bdd::Bdd;
+/// use ananke_bdd::types::Var;
 ///
 /// let bdd = Bdd::default();
 /// let x = bdd.mk_var(1);
@@ -251,8 +251,8 @@ use crate::utils::OpKey;
 /// ## Composition
 ///
 /// ```
-/// use bdd_rs::bdd::Bdd;
-/// use bdd_rs::types::Var;
+/// use ananke_bdd::bdd::Bdd;
+/// use ananke_bdd::types::Var;
 ///
 /// let bdd = Bdd::default();
 /// let x = bdd.mk_var(1);
@@ -289,7 +289,7 @@ pub struct Bdd {
 /// # Example
 ///
 /// ```
-/// use bdd_rs::bdd::{Bdd, BddConfig};
+/// use ananke_bdd::bdd::{Bdd, BddConfig};
 ///
 /// // Custom configuration for large problems
 /// let config = BddConfig::default()
@@ -359,7 +359,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// // Small BDD for simple problems
     /// let small_bdd = Bdd::new(16);
@@ -384,7 +384,7 @@ impl Bdd {
     /// # Example
     ///
     /// ```
-    /// use bdd_rs::bdd::{Bdd, BddConfig};
+    /// use ananke_bdd::bdd::{Bdd, BddConfig};
     ///
     /// let config = BddConfig::default()
     ///     .with_initial_nodes(1 << 18)
@@ -589,7 +589,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let one = bdd.one();
@@ -607,7 +607,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let zero = bdd.zero();
@@ -623,7 +623,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// assert!(bdd.is_zero(bdd.zero()));
@@ -642,7 +642,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// assert!(bdd.is_one(bdd.one()));
@@ -663,7 +663,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// assert!(bdd.is_terminal(bdd.zero()));
@@ -691,7 +691,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let var = bdd.allocate_variable();
@@ -838,7 +838,7 @@ impl Bdd {
     /// # Example
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     ///
@@ -909,7 +909,7 @@ impl Bdd {
     /// # Example
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -919,9 +919,9 @@ impl Bdd {
     ///
     /// // Initial order: 1, 2, 3 (in allocation order)
     /// assert_eq!(bdd.get_variable_order(), vec![
-    ///     bdd_rs::types::Var::new(1),
-    ///     bdd_rs::types::Var::new(2),
-    ///     bdd_rs::types::Var::new(3)
+    ///     ananke_bdd::types::Var::new(1),
+    ///     ananke_bdd::types::Var::new(2),
+    ///     ananke_bdd::types::Var::new(3)
     /// ]);
     ///
     /// // Apply new order: 3, 1, 2
@@ -929,9 +929,9 @@ impl Bdd {
     /// bdd.apply_variable_order(&mut roots, [3u32, 1, 2]);
     ///
     /// assert_eq!(bdd.get_variable_order(), vec![
-    ///     bdd_rs::types::Var::new(3),
-    ///     bdd_rs::types::Var::new(1),
-    ///     bdd_rs::types::Var::new(2)
+    ///     ananke_bdd::types::Var::new(3),
+    ///     ananke_bdd::types::Var::new(1),
+    ///     ananke_bdd::types::Var::new(2)
     /// ]);
     /// ```
     pub fn apply_variable_order(&self, roots: &mut [Ref], new_order: impl IntoIterator<Item = impl Into<Var>>) -> ReorderStats {
@@ -992,7 +992,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let f = bdd.mk_false();
@@ -1010,7 +1010,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let t = bdd.mk_true();
@@ -1123,8 +1123,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Var;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::Var;
     ///
     /// let bdd = Bdd::default();
     ///
@@ -1173,8 +1173,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::{Var, Lit};
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::{Var, Lit};
     ///
     /// let bdd = Bdd::default();
     ///
@@ -1235,8 +1235,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::{Var, Lit};
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::{Var, Lit};
     ///
     /// let bdd = Bdd::default();
     ///
@@ -1303,8 +1303,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Var;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::Var;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -1350,7 +1350,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -1686,7 +1686,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -1710,7 +1710,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -1737,7 +1737,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -1766,7 +1766,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -1798,7 +1798,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -1826,7 +1826,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -1853,7 +1853,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -1886,7 +1886,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -1932,8 +1932,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Var;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::Var;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -2003,8 +2003,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Var;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::Var;
     /// use std::collections::HashMap;
     ///
     /// let bdd = Bdd::default();
@@ -2071,8 +2071,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::{Var, Lit};
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::{Var, Lit};
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -2164,8 +2164,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Var;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::Var;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -2276,7 +2276,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     ///
@@ -2404,7 +2404,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -2494,8 +2494,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Var;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::Var;
     /// use std::collections::HashMap;
     ///
     /// let bdd = Bdd::default();
@@ -2649,8 +2649,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Var;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::Var;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -2761,7 +2761,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -2815,7 +2815,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -2923,8 +2923,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::NodeId;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::NodeId;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -2947,7 +2947,7 @@ impl Bdd {
     /// # Multiple Roots
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -2992,7 +2992,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -3039,7 +3039,7 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
+    /// use ananke_bdd::bdd::Bdd;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
@@ -3171,8 +3171,8 @@ impl Bdd {
     /// # Examples
     ///
     /// ```
-    /// use bdd_rs::bdd::Bdd;
-    /// use bdd_rs::types::Level;
+    /// use ananke_bdd::bdd::Bdd;
+    /// use ananke_bdd::types::Level;
     ///
     /// let bdd = Bdd::default();
     /// let x = bdd.mk_var(1);
