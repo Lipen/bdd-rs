@@ -4,7 +4,7 @@ use std::fmt;
 use std::rc::Rc;
 
 use num_bigint::BigUint;
-use sdd::{SddId, SddManager};
+use ananke_sdd::{SddId, SddManager};
 
 use crate::AbstractDomain;
 

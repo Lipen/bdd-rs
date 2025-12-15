@@ -13,8 +13,8 @@
 //! Or with options: `cargo run --example vtree -- -n 6 -v`
 
 use clap::Parser;
-use sdd::vtree::{VtreeId, VtreeNode};
-use sdd::SddManager;
+use ananke_sdd::vtree::{VtreeId, VtreeNode};
+use ananke_sdd::SddManager;
 
 #[derive(Parser, Debug)]
 #[command(name = "vtree")]

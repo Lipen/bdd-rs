@@ -9,7 +9,7 @@
 //!
 //! Run with: `cargo run --example knowledge_compilation`
 
-use sdd::SddManager;
+use ananke_sdd::SddManager;
 
 fn main() {
     println!("─── Knowledge Compilation with SDDs ───\n");
@@ -287,7 +287,7 @@ fn main() {
 }
 
 /// Enumerate configurations by conditioning.
-fn enumerate_configs(mgr: &SddManager, formula: sdd::SddId, names: &[&str], max: usize) {
+fn enumerate_configs(mgr: &SddManager, formula: ananke_sdd::SddId, names: &[&str], max: usize) {
     let mut count = 0;
     let mut current = formula;
 

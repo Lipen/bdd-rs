@@ -1,4 +1,4 @@
-use sdd::SddManager;
+use ananke_sdd::SddManager;
 
 fn main() {
     let mgr = SddManager::new(5);

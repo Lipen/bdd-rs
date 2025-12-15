@@ -14,7 +14,7 @@ SDDs are a powerful generalization of Binary Decision Diagrams (BDDs) introduced
 ## Quick Start
 
 ```rust
-use sdd::SddManager;
+use ananke_sdd::SddManager;
 
 // Create manager with 4 variables
 let mgr = SddManager::new(4);
@@ -311,7 +311,7 @@ cargo run --example bounded_model_checking
 SDDs and Vtrees can be saved/loaded in libsdd-compatible format:
 
 ```rust
-use sdd::{SddManager, vtree::Vtree};
+use ananke_sdd::{SddManager, vtree::Vtree};
 
 // Create and compile
 let mgr = SddManager::new(4);

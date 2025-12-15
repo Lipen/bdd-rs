@@ -10,8 +10,8 @@
 
 use std::fs;
 
-use sdd::vtree::Vtree;
-use sdd::SddManager;
+use ananke_sdd::vtree::Vtree;
+use ananke_sdd::SddManager;
 
 fn main() {
     println!("─── SDD and Vtree File I/O ───\n");

@@ -1,0 +1,20 @@
+[package]
+name = "ananke-sdd"
+version = "0.1.0"
+description = "Sentential Decision Diagrams for Rust"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[dependencies]
+log = "0.4"
+num-bigint = "0.4"
+num-traits = "0.2"
+
+[dev-dependencies]
+color-eyre = "0.6"
+test-log = "0.2"
+env_logger = "0.11"
+clap = { version = "4", features = ["derive"] }

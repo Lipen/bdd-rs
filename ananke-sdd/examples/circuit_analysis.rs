@@ -10,7 +10,7 @@
 //! This example demonstrates building circuit representations and
 //! performing various analyses using SDD operations.
 
-use sdd::{SddId, SddManager};
+use ananke_sdd::{SddId, SddManager};
 
 fn main() {
     println!("─── Digital Circuit Analysis with SDDs ───\n");

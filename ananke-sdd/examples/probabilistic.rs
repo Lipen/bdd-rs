@@ -8,7 +8,7 @@
 //!
 //! Run with: `cargo run --example probabilistic`
 
-use sdd::SddManager;
+use ananke_sdd::SddManager;
 
 fn main() {
     println!("─── Probabilistic Inference with SDDs ───\n");

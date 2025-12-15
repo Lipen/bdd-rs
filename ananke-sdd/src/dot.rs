@@ -8,7 +8,7 @@
 //! The primary way to generate DOT output is through the [`SddManager`] methods:
 //!
 //! ```rust
-//! use sdd::SddManager;
+//! use ananke_sdd::SddManager;
 //!
 //! let mgr = SddManager::new(3);
 //! let f = mgr.and(mgr.var(1), mgr.var(2));
@@ -102,7 +102,7 @@ impl SddManager {
     /// # Example
     ///
     /// ```rust
-    /// use sdd::SddManager;
+    /// use ananke_sdd::SddManager;
     ///
     /// let mgr = SddManager::new(3);
     /// let f = mgr.and(mgr.var(1), mgr.var(2));
@@ -118,8 +118,8 @@ impl SddManager {
     /// # Example
     ///
     /// ```rust
-    /// use sdd::SddManager;
-    /// use sdd::dot::DotConfig;
+    /// use ananke_sdd::SddManager;
+    /// use ananke_sdd::dot::DotConfig;
     ///
     /// let mgr = SddManager::new(3);
     /// let f = mgr.and(mgr.var(1), mgr.var(2));
@@ -384,7 +384,7 @@ impl SddManager {
     /// # Example
     ///
     /// ```rust
-    /// use sdd::SddManager;
+    /// use ananke_sdd::SddManager;
     ///
     /// let mgr = SddManager::new(4);
     /// let dot = mgr.vtree_to_dot();

@@ -57,7 +57,7 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use sdd::manager::SddManager;
+//! use ananke_sdd::manager::SddManager;
 //!
 //! // Create an SDD manager with 4 variables
 //! let mgr = SddManager::new(4);

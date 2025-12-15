@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "ananke-bdd",
+    "ananke-sdd",
     "examples/eda",
     "examples/feature-model",
     "examples/symbolic-execution",
@@ -9,7 +10,6 @@ members = [
     "examples/abstract-interpretation",
     "examples/tbdd-pbt",
     "examples/boolean-functions",
-    "examples/sdd",
 ]
 
 [workspace.package]

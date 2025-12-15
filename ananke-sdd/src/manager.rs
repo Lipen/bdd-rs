@@ -116,7 +116,7 @@ impl SddManager {
     /// # Example
     ///
     /// ```
-    /// use sdd::SddManager;
+    /// use ananke_sdd::SddManager;
     ///
     /// let mgr = SddManager::new(4);
     /// assert_eq!(mgr.num_vars(), 4);
@@ -984,7 +984,7 @@ impl SddManager {
     /// # Example
     ///
     /// ```
-    /// use sdd::SddManager;
+    /// use ananke_sdd::SddManager;
     ///
     /// let mgr = SddManager::new(2);
     /// let x = mgr.var(1);

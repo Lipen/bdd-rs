@@ -2,7 +2,7 @@
 //!
 //! Run with: RUST_LOG=debug cargo test test_debug_trace -- --nocapture
 
-use sdd::SddManager;
+use ananke_sdd::SddManager;
 
 fn init_logging() {
     let _ = env_logger::builder().is_test(true).filter_level(log::LevelFilter::Debug).try_init();

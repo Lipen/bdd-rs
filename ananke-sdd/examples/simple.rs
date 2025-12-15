@@ -12,7 +12,7 @@
 //!
 //! Run with: `cargo run --example simple`
 
-use sdd::SddManager;
+use ananke_sdd::SddManager;
 
 fn main() {
     println!("═══ Sentential Decision Diagrams ═══\n");

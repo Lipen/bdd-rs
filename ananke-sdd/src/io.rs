@@ -69,7 +69,7 @@ impl Vtree {
     /// # Example
     ///
     /// ```no_run
-    /// use sdd::vtree::Vtree;
+    /// use ananke_sdd::vtree::Vtree;
     ///
     /// let vtree = Vtree::balanced(4);
     /// vtree.save("output.vtree").unwrap();
@@ -122,7 +122,7 @@ impl Vtree {
     /// # Example
     ///
     /// ```no_run
-    /// use sdd::vtree::Vtree;
+    /// use ananke_sdd::vtree::Vtree;
     ///
     /// let vtree = Vtree::load("input.vtree").unwrap();
     /// ```
@@ -222,7 +222,7 @@ impl SddManager {
     /// # Example
     ///
     /// ```no_run
-    /// use sdd::SddManager;
+    /// use ananke_sdd::SddManager;
     ///
     /// let mgr = SddManager::new(4);
     /// let f = mgr.and(mgr.var(1), mgr.var(2));

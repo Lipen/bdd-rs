@@ -12,7 +12,7 @@ use std::time::Instant;
 
 use clap::Parser;
 use num_bigint::BigUint;
-use sdd::SddManager;
+use ananke_sdd::SddManager;
 
 #[derive(Parser, Debug)]
 #[command(name = "queens")]
@@ -65,7 +65,7 @@ fn main() {
     let mgr = SddManager::new((n * n) as u32);
 
     // Helper to get variable for cell (r, c)
-    let var_at = |r: usize, c: usize| -> sdd::SddId {
+    let var_at = |r: usize, c: usize| -> ananke_sdd::SddId {
         let idx = (r * n + c + 1) as i32;
         mgr.var(idx as u32)
     };

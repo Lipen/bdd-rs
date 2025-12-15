@@ -7,7 +7,7 @@ description = "BDD-guided abstract interpretation framework"
 
 [dependencies]
 ananke-bdd = { path = "../../ananke-bdd" }
-sdd = { path = "../sdd" }
+ananke-sdd = { path = "../../ananke-sdd" }
 log = "0.4"
 num-bigint = "0.4"
 num-integer = "0.1"

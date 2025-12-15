@@ -12,7 +12,7 @@
 //! With options: `cargo run --example sdd_vs_bdd -- -n 8`
 
 use clap::Parser;
-use sdd::SddManager;
+use ananke_sdd::SddManager;
 
 #[derive(Parser, Debug)]
 #[command(name = "sdd_vs_bdd")]

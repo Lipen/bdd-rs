@@ -30,7 +30,7 @@
 //! - We look for bounded paths that violate this property.
 
 use num_bigint::BigUint;
-use sdd::{Sdd, SddId, SddManager};
+use ananke_sdd::{Sdd, SddId, SddManager};
 
 /// Token Ring Protocol model.
 ///
@@ -293,7 +293,7 @@ fn print_trace(assignment: &[i32], model: &TokenRingModel) {
 
 /// Analyze decomposition structure of the SDD.
 fn analyze_decomposition(mgr: &SddManager, f: SddId, _depth: usize) {
-    use sdd::Sdd;
+    use ananke_sdd::Sdd;
 
     let node = mgr.node(f);
 

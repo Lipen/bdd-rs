@@ -16,7 +16,7 @@ use std::ops::Neg;
 /// # Examples
 ///
 /// ```
-/// use sdd::Literal;
+/// use ananke_sdd::Literal;
 ///
 /// let x = Literal::positive(1);  // x₁
 /// let neg_x = Literal::negative(1);  // ¬x₁
