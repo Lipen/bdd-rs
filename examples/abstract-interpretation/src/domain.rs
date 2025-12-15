@@ -92,44 +92,50 @@ pub mod tests {
     pub fn test_lattice_axioms<D: AbstractDomain>(domain: &D, samples: &[D::Element]) {
         for a in samples {
             // Reflexivity: a ⊑ a
-            assert!(domain.le(a, a), "Reflexivity failed");
+            assert!(domain.le(a, a), "Reflexivity failed for {:?}", a);
 
             // Identity: a ⊔ ⊥ = a
-            let joined = domain.join(a, &domain.bottom());
-            assert!(domain.eq(a, &joined), "Join with bottom failed");
+            let a_join_bot = domain.join(a, &domain.bottom());
+            assert!(domain.eq(a, &a_join_bot), "Join with bottom failed for {:?}", a);
+
+            // Identity: a ⊓ ⊥ = ⊥
+            let a_join_top = domain.join(a, &domain.top());
+            assert!(domain.eq(&a_join_top, &domain.top()), "Join with top failed for {:?}", a);
 
             // Identity: a ⊓ ⊤ = a
-            let met = domain.meet(a, &domain.top());
-            assert!(domain.eq(a, &met), "Meet with top failed");
+            let a_meet_top = domain.meet(a, &domain.top());
+            assert!(domain.eq(a, &a_meet_top), "Meet with top failed for {:?}", a);
+
+            // Identity: a ⊓ ⊥ = ⊥
+            let a_meet_bot = domain.meet(a, &domain.bottom());
+            assert!(domain.eq(&a_meet_bot, &domain.bottom()), "Meet with bottom failed for {:?}", a);
 
             // Widening preserves order: a ⊑ (a ∇ b)
             for b in samples {
                 let widened = domain.widen(a, b);
-                assert!(domain.le(a, &widened), "Widening does not preserve order");
+                assert!(domain.le(a, &widened), "Widening does not preserve order for {:?} and {:?}", a, b);
             }
         }
 
         for a in samples {
             for b in samples {
                 // Commutativity: a ⊔ b = b ⊔ a
-                let ab = domain.join(a, b);
-                let ba = domain.join(b, a);
-                assert!(domain.eq(&ab, &ba), "Join commutativity failed");
+                let a_join_b = domain.join(a, b);
+                let b_join_a = domain.join(b, a);
+                assert!(domain.eq(&a_join_b, &b_join_a), "Join commutativity failed for {:?} and {:?}", a, b);
 
                 // Commutativity: a ⊓ b = b ⊓ a
-                let ab = domain.meet(a, b);
-                let ba = domain.meet(b, a);
-                assert!(domain.eq(&ab, &ba), "Meet commutativity failed");
+                let a_meet_b = domain.meet(a, b);
+                let b_meet_a = domain.meet(b, a);
+                assert!(domain.eq(&a_meet_b, &b_meet_a), "Meet commutativity failed for {:?} and {:?}", a, b);
 
                 // Join upper bound: a ⊑ (a ⊔ b)
-                let joined = domain.join(a, b);
-                assert!(domain.le(a, &joined), "Join is not upper bound for a");
-                assert!(domain.le(b, &joined), "Join is not upper bound for b");
+                assert!(domain.le(a, &a_join_b), "Join is not upper bound for a: {:?} and {:?}", a, b);
+                assert!(domain.le(b, &a_join_b), "Join is not upper bound for b: {:?} and {:?}", a, b);
 
                 // Meet lower bound: (a ⊓ b) ⊑ a
-                let met = domain.meet(a, b);
-                assert!(domain.le(&met, a), "Meet is not lower bound of a");
-                assert!(domain.le(&met, b), "Meet is not lower bound of b");
+                assert!(domain.le(&a_meet_b, a), "Meet is not lower bound of a: {:?} and {:?}", a, b);
+                assert!(domain.le(&a_meet_b, b), "Meet is not lower bound of b: {:?} and {:?}", a, b);
             }
         }
     }
