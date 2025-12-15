@@ -14,7 +14,7 @@ use std::process::Command;
 use ananke_bdd::bdd::Bdd;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let output_dir = env::current_dir()?.join("examples").join("dot_output");
+    let output_dir = env::current_dir()?.join("dot_output");
     fs::create_dir_all(&output_dir)?;
 
     println!("=== BDD to DOT Visualization Examples ===");
