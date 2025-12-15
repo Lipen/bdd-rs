@@ -39,13 +39,11 @@ fn example_sequential_assignments(domain: &IntervalDomain, transfer: &NumericTra
 
     let init = IntervalElement::new();
 
-    let prog = Stmt::Seq(
-        Box::new(Stmt::Assign("x".to_string(), NumExpr::constant(5))),
-        Box::new(Stmt::Seq(
-            Box::new(Stmt::Assign("y".to_string(), NumExpr::var("x").add(NumExpr::constant(10)))),
-            Box::new(Stmt::Assign("z".to_string(), NumExpr::var("y").mul(NumExpr::constant(2)))),
-        )),
-    );
+    let prog = Stmt::chain(vec![
+        Stmt::assign("x", NumExpr::constant(5)),
+        Stmt::assign("y", NumExpr::var("x").add(NumExpr::constant(10))),
+        Stmt::assign("z", NumExpr::var("y").mul(NumExpr::constant(2))),
+    ]);
 
     let result = transfer.apply(domain, &init, &prog);
 
@@ -85,10 +83,10 @@ fn example_conditional_branch(domain: &IntervalDomain, transfer: &NumericTransfe
         elem
     };
 
-    let prog = Stmt::If(
+    let prog = Stmt::if_stmt(
         NumExpr::var("x").ge(NumExpr::constant(0)),
-        Box::new(Stmt::Assign("y".to_string(), NumExpr::var("x").add(NumExpr::constant(10)))),
-        Box::new(Stmt::Assign("y".to_string(), NumExpr::var("x").neg())),
+        Stmt::assign("y", NumExpr::var("x").add(NumExpr::constant(10))),
+        Stmt::assign("y", NumExpr::var("x").neg()),
     );
 
     let result = transfer.apply(domain, &init, &prog);
@@ -131,14 +129,14 @@ fn example_nested_conditionals(domain: &IntervalDomain, transfer: &NumericTransf
         elem
     };
 
-    let prog = Stmt::If(
-        NumExpr::var("x").lt(NumExpr::constant(50)),
-        Box::new(Stmt::If(
-            NumExpr::var("x").lt(NumExpr::constant(25)),
-            Box::new(Stmt::Assign("y".to_string(), NumExpr::constant(0))),
-            Box::new(Stmt::Assign("y".to_string(), NumExpr::constant(1))),
-        )),
-        Box::new(Stmt::Assign("y".to_string(), NumExpr::constant(2))),
+    let prog = Stmt::if_stmt(
+        NumExpr::var("x").ge(NumExpr::constant(0)),
+        Stmt::if_stmt(
+            NumExpr::var("y").le(NumExpr::constant(5)),
+            Stmt::assign("y", NumExpr::constant(0)),
+            Stmt::assign("y", NumExpr::constant(1)),
+        ),
+        Stmt::assign("y", NumExpr::constant(2)),
     );
 
     let result = transfer.apply(domain, &init, &prog);
@@ -175,10 +173,10 @@ fn example_assertions_and_assumptions(domain: &IntervalDomain, transfer: &Numeri
         elem
     };
 
-    let prog = Stmt::Seq(
-        Box::new(Stmt::Assume(NumExpr::var("x").ge(NumExpr::constant(10)))),
-        Box::new(Stmt::Assert(NumExpr::var("x").le(NumExpr::constant(50)))),
-    );
+    let prog = Stmt::chain([
+        Stmt::assume(NumExpr::var("x").ge(NumExpr::constant(10))),
+        Stmt::assert(NumExpr::var("x").le(NumExpr::constant(50))),
+    ]);
 
     let result = transfer.apply(domain, &init, &prog);
 
