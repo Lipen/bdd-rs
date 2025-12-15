@@ -395,17 +395,11 @@ impl NumericDomain for IntervalDomain {
                     NumPred::Not(inner) => self.assume(elem, inner),
                     NumPred::And(p1, p2) => {
                         // ¬(p1 ∧ p2) = ¬p1 ∨ ¬p2 (De Morgan)
-                        self.assume(
-                            elem,
-                            &p1.clone().not().or(p2.clone().not()),
-                        )
+                        self.assume(elem, &p1.clone().not().or(p2.clone().not()))
                     }
                     NumPred::Or(p1, p2) => {
                         // ¬(p1 ∨ p2) = ¬p1 ∧ ¬p2 (De Morgan)
-                        self.assume(
-                            elem,
-                            &p1.clone().not().and(p2.clone().not()),
-                        )
+                        self.assume(elem, &p1.clone().not().and(p2.clone().not()))
                     }
                 }
             }
@@ -422,9 +416,7 @@ impl NumericDomain for IntervalDomain {
                 // Otherwise, we can't refine precisely (would need disjunctive domain)
                 elem.clone()
             }
-            NumPred::Neq(NumExpr::Const(c), NumExpr::Var(v)) => {
-                self.assume(elem, &NumExpr::var(v.clone()).neq(NumExpr::constant(*c)))
-            }
+            NumPred::Neq(NumExpr::Const(c), NumExpr::Var(v)) => self.assume(elem, &NumExpr::var(v.clone()).neq(NumExpr::constant(*c))),
             // General Neq case: can't refine intervals for general inequality
             // (would require disjunctive domain to represent x ∈ [a,b] \ {c})
             NumPred::Neq(_, _) => elem.clone(),
@@ -916,16 +908,16 @@ mod tests {
         let mut elem = IntervalElement::new();
         elem.set("x".to_string(), Interval::new(Bound::Finite(-10), Bound::Finite(10)));
 
-        let pred = NumExpr::var("x").ge(NumExpr::constant(0)).and(
-            NumExpr::var("x").le(NumExpr::constant(5))
-        );
+        let pred = NumExpr::var("x")
+            .ge(NumExpr::constant(0))
+            .and(NumExpr::var("x").le(NumExpr::constant(5)));
         let result = domain.assume(&elem, &pred);
         assert_eq!(result.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(5)));
 
         // Test (x < 0) ∨ (x > 10)
-        let pred = NumExpr::var("x").lt(NumExpr::constant(0)).or(
-            NumExpr::var("x").gt(NumExpr::constant(10))
-        );
+        let pred = NumExpr::var("x")
+            .lt(NumExpr::constant(0))
+            .or(NumExpr::var("x").gt(NumExpr::constant(10)));
         let result = domain.assume(&elem, &pred);
         // Join of [-10, -1] and [11, 10] (empty) = [-10, -1]
         assert_eq!(result.get("x"), Interval::new(Bound::Finite(-10), Bound::Finite(-1)));
@@ -954,9 +946,9 @@ mod tests {
 
         // Test x + 5 <= y + 2, which simplifies to x <= y - 3
         // y ∈ [5, 15], so y - 3 ∈ [2, 12], thus x ∈ [0, 10] ∩ [-∞, 12] = [0, 10]
-        let pred = NumExpr::var("x").add(NumExpr::constant(5)).le(
-            NumExpr::var("y").add(NumExpr::constant(2))
-        );
+        let pred = NumExpr::var("x")
+            .add(NumExpr::constant(5))
+            .le(NumExpr::var("y").add(NumExpr::constant(2)));
         let result = domain.assume(&elem, &pred);
         assert_eq!(result.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(10)));
 

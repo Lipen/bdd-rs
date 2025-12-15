@@ -12,9 +12,9 @@
 //! Run with: `cargo run --example vtree`
 //! Or with options: `cargo run --example vtree -- -n 6 -v`
 
-use clap::Parser;
 use ananke_sdd::vtree::{VtreeId, VtreeNode};
 use ananke_sdd::SddManager;
+use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(name = "vtree")]

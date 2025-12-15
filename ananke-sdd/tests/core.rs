@@ -2,8 +2,8 @@
 //!
 //! Tests cover literals, SDDs, vtrees, and manager operations.
 
-use num_bigint::BigUint;
 use ananke_sdd::{Literal, SddManager};
+use num_bigint::BigUint;
 
 // ─── Literal Tests ─────────────────────────────────────────────────────────────
 

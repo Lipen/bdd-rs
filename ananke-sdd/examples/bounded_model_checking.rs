@@ -29,8 +29,8 @@
 //! - Safety property: at most one process in critical section
 //! - We look for bounded paths that violate this property.
 
-use num_bigint::BigUint;
 use ananke_sdd::{Sdd, SddId, SddManager};
+use num_bigint::BigUint;
 
 /// Token Ring Protocol model.
 ///

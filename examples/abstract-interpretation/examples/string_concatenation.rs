@@ -77,9 +77,9 @@ fn main() {
     println!("  full_url = url + query");
 
     // query = input() (assume length 0 to 100)
-    let query_len_pred = NumExpr::var("query").ge(NumExpr::constant(0)).and(
-        NumExpr::var("query").le(NumExpr::constant(100))
-    );
+    let query_len_pred = NumExpr::var("query")
+        .ge(NumExpr::constant(0))
+        .and(NumExpr::var("query").le(NumExpr::constant(100)));
     state = domain.assume_length(&state, &query_len_pred);
     println!("\nAnalysis Results:");
     println!("  len(query): {}", domain.get_length(&state, "query"));

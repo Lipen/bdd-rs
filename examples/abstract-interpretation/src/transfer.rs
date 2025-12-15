@@ -93,10 +93,7 @@ mod tests {
         };
 
         // x := x + 1
-        let stmt = Stmt::Assign(
-            "x".to_string(),
-            NumExpr::var("x").add(NumExpr::constant(1)),
-        );
+        let stmt = Stmt::Assign("x".to_string(), NumExpr::var("x").add(NumExpr::constant(1)));
 
         let result = transfer.apply(&domain, &elem, &stmt);
         let x_result = result.get("x");
@@ -119,10 +116,7 @@ mod tests {
         // if (x >= 0) { x := x + 10 } else { x := -x }
         let stmt = Stmt::If(
             NumExpr::var("x").ge(NumExpr::constant(0)),
-            Box::new(Stmt::Assign(
-                "x".to_string(),
-                NumExpr::var("x").add(NumExpr::constant(10)),
-            )),
+            Box::new(Stmt::Assign("x".to_string(), NumExpr::var("x").add(NumExpr::constant(10)))),
             Box::new(Stmt::Assign("x".to_string(), NumExpr::var("x").neg())),
         );
 

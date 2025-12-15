@@ -42,14 +42,8 @@ fn example_sequential_assignments(domain: &IntervalDomain, transfer: &NumericTra
     let prog = Stmt::Seq(
         Box::new(Stmt::Assign("x".to_string(), NumExpr::constant(5))),
         Box::new(Stmt::Seq(
-            Box::new(Stmt::Assign(
-                "y".to_string(),
-                NumExpr::var("x").add(NumExpr::constant(10)),
-            )),
-            Box::new(Stmt::Assign(
-                "z".to_string(),
-                NumExpr::var("y").mul(NumExpr::constant(2)),
-            )),
+            Box::new(Stmt::Assign("y".to_string(), NumExpr::var("x").add(NumExpr::constant(10)))),
+            Box::new(Stmt::Assign("z".to_string(), NumExpr::var("y").mul(NumExpr::constant(2)))),
         )),
     );
 
@@ -93,10 +87,7 @@ fn example_conditional_branch(domain: &IntervalDomain, transfer: &NumericTransfe
 
     let prog = Stmt::If(
         NumExpr::var("x").ge(NumExpr::constant(0)),
-        Box::new(Stmt::Assign(
-            "y".to_string(),
-            NumExpr::var("x").add(NumExpr::constant(10)),
-        )),
+        Box::new(Stmt::Assign("y".to_string(), NumExpr::var("x").add(NumExpr::constant(10)))),
         Box::new(Stmt::Assign("y".to_string(), NumExpr::var("x").neg())),
     );
 

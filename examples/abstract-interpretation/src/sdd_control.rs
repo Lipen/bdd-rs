@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 
-use num_bigint::BigUint;
 use ananke_sdd::{SddId, SddManager};
+use num_bigint::BigUint;
 
 use crate::AbstractDomain;
 

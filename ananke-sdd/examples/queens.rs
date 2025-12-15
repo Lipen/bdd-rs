@@ -10,9 +10,9 @@
 
 use std::time::Instant;
 
+use ananke_sdd::SddManager;
 use clap::Parser;
 use num_bigint::BigUint;
-use ananke_sdd::SddManager;
 
 #[derive(Parser, Debug)]
 #[command(name = "queens")]
