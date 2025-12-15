@@ -647,15 +647,19 @@ impl Sign {
         match (self, other) {
             // Same sign → positive
             (Pos, Pos) | (Neg, Neg) => Pos,
-            (Pos, NonNeg) | (NonNeg, Pos) | (NonNeg, NonNeg) => NonNeg,
-            (Neg, NonPos) | (NonPos, Neg) | (NonPos, NonPos) => NonNeg,
 
             // Opposite sign → negative
             (Pos, Neg) | (Neg, Pos) => Neg,
+
+            // Non-negative combinations
+            (Pos, NonNeg) | (NonNeg, Pos) | (NonNeg, NonNeg) => NonNeg,
+            (Neg, NonPos) | (NonPos, Neg) | (NonPos, NonPos) => NonNeg,
+
+            // Non-positive combinations
             (Pos, NonPos) | (NonPos, Pos) => NonPos,
             (Neg, NonNeg) | (NonNeg, Neg) => NonPos,
 
-            // NonZero
+            // NonZero combinations
             (NonZero, Pos) | (Pos, NonZero) => NonZero,
             (NonZero, Neg) | (Neg, NonZero) => NonZero,
             (NonZero, NonZero) => NonZero,
