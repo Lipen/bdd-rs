@@ -142,12 +142,12 @@ impl StringLengthDomain {
     /// Assign a string constant: s = "abc" => len(s) = 3
     pub fn assign_const(&self, elem: &IntervalElement, var: &str, value: &str) -> IntervalElement {
         let len = value.len() as i64;
-        self.interval_domain.assign(elem, &var.to_string(), &NumExpr::Const(len))
+        self.interval_domain.assign(elem, &var.to_string(), &NumExpr::constant(len))
     }
 
     /// Assign concatenation: s = s1 + s2 => len(s) = len(s1) + len(s2)
     pub fn assign_concat(&self, elem: &IntervalElement, var: &str, s1: &str, s2: &str) -> IntervalElement {
-        let expr = NumExpr::Add(Box::new(NumExpr::Var(s1.to_string())), Box::new(NumExpr::Var(s2.to_string())));
+        let expr = NumExpr::var(s1.to_string()).add(NumExpr::var(s2.to_string()));
         self.interval_domain.assign(elem, &var.to_string(), &expr)
     }
 

@@ -47,7 +47,7 @@ where
                 let then_result = self.apply(domain, &then_elem, then_stmt);
 
                 // Else branch: assume ¬pred (simplified)
-                let else_pred = NumPred::Not(Box::new(pred.clone()));
+                let else_pred = pred.clone().not();
                 let else_elem = domain.assume(elem, &else_pred);
                 let else_result = self.apply(domain, &else_elem, else_stmt);
 
@@ -95,7 +95,7 @@ mod tests {
         // x := x + 1
         let stmt = Stmt::Assign(
             "x".to_string(),
-            NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(1))),
+            NumExpr::var("x").add(NumExpr::constant(1)),
         );
 
         let result = transfer.apply(&domain, &elem, &stmt);
@@ -118,12 +118,12 @@ mod tests {
 
         // if (x >= 0) { x := x + 10 } else { x := -x }
         let stmt = Stmt::If(
-            NumPred::Ge(NumExpr::Var("x".to_string()), NumExpr::Const(0)),
+            NumExpr::var("x").ge(NumExpr::constant(0)),
             Box::new(Stmt::Assign(
                 "x".to_string(),
-                NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(10))),
+                NumExpr::var("x").add(NumExpr::constant(10)),
             )),
-            Box::new(Stmt::Assign("x".to_string(), NumExpr::Neg(Box::new(NumExpr::Var("x".to_string()))))),
+            Box::new(Stmt::Assign("x".to_string(), NumExpr::var("x").neg())),
         );
 
         let result = transfer.apply(&domain, &elem, &stmt);

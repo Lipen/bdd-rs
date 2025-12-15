@@ -562,7 +562,7 @@ mod tests {
         elem.set("x".to_string(), ConstValue::Const(5));
 
         // Check if x > 10 is possible
-        let pred = NumPred::Gt(NumExpr::Var("x".to_string()), NumExpr::Const(10));
+        let pred = NumExpr::var("x").gt(NumExpr::constant(10));
         let refined = domain.assume(&elem, &pred);
 
         // Should be bottom (contradiction)
@@ -578,7 +578,7 @@ mod tests {
         elem.set("DEBUG".to_string(), ConstValue::Const(0));
 
         // if (DEBUG) is always false
-        let pred = NumPred::Eq(NumExpr::Var("DEBUG".to_string()), NumExpr::Const(0));
+        let pred = NumExpr::var("DEBUG").eq(NumExpr::constant(0));
         let refined = domain.assume(&elem, &pred);
 
         // Should still be constant 0
@@ -586,7 +586,7 @@ mod tests {
         assert!(!refined.is_bottom);
 
         // if (DEBUG != 0) is always false
-        let pred = NumPred::Eq(NumExpr::Var("DEBUG".to_string()), NumExpr::Const(1));
+        let pred = NumExpr::var("DEBUG").eq(NumExpr::constant(1));
         let refined = domain.assume(&elem, &pred);
 
         // Should be bottom (contradiction)

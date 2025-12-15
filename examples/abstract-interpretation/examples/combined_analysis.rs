@@ -11,7 +11,7 @@
 //! complete picture of the program's behavior than any single domain could provide.
 
 use abstract_interpretation::constant::{ConstValue, ConstantDomain};
-use abstract_interpretation::expr::{NumExpr, NumPred};
+use abstract_interpretation::expr::NumExpr;
 use abstract_interpretation::interval::{Bound, Interval, IntervalDomain};
 use abstract_interpretation::numeric::NumericDomain;
 use abstract_interpretation::sign::{Sign, SignDomain, SignElement};
@@ -87,7 +87,7 @@ fn example_sign_interval_cooperation() {
     println!("Sign domain: x = {}", sign_elem.get("x"));
 
     // Assume x > 0
-    let pred = NumPred::Gt(NumExpr::Var("x".to_string()), NumExpr::Const(0));
+    let pred = NumExpr::var("x").gt(NumExpr::constant(0));
 
     interval_elem = interval_domain.assume(&interval_elem, &pred);
     sign_elem = sign_domain.assume(&sign_elem, &pred);
@@ -202,7 +202,7 @@ fn example_triple_domain_analysis() {
     println!("  Interval: {}", interval_elem.get("y"));
 
     // Assume y > 0 (redundant but demonstrates refinement)
-    let pred = NumPred::Gt(NumExpr::Var("y".to_string()), NumExpr::Const(0));
+    let pred = NumExpr::var("y").gt(NumExpr::constant(0));
 
     sign_elem = sign_domain.assume(&sign_elem, &pred);
     const_elem = const_domain.assume(&const_elem, &pred);

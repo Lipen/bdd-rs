@@ -2047,7 +2047,7 @@ impl<N: NumericDomain> ControlSensitiveProduct<N> {
 #[cfg(test)]
 mod product_tests {
     use super::*;
-    use crate::expr::{NumExpr, NumPred};
+    use crate::expr::NumExpr;
     use crate::interval::{Bound, Interval, IntervalDomain, IntervalElement};
 
     // Helper to create a simple product domain for testing
@@ -2151,7 +2151,7 @@ mod product_tests {
         assert_eq!(state_after_assign.partition_count(), 1);
 
         // Apply numeric assignment x := 5
-        let expr = NumExpr::Const(5);
+        let expr = NumExpr::constant(5);
         let state_with_x5 = product.assign_all(&state_after_assign, &"x".to_string(), &expr);
 
         // Should have one partition: flag=true → x=5
@@ -2248,7 +2248,7 @@ mod product_tests {
         };
 
         // Assign: x := x + 1
-        let expr = NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(1)));
+        let expr = NumExpr::var("x").add(NumExpr::constant(1));
         let result = product.assign_all(&elem, &"x".to_string(), &expr);
 
         // Should still have 2 partitions (control states unchanged)
@@ -2275,7 +2275,7 @@ mod product_tests {
         };
 
         // Assume: x > 5  (should refine to [6,10])
-        let pred = NumPred::Gt(NumExpr::Var("x".to_string()), NumExpr::Const(5));
+        let pred = NumExpr::var("x").gt(NumExpr::constant(5));
         let refined = product.assume_all(&elem, &pred);
 
         // Should still have 1 partition, but refined numeric state
@@ -2429,7 +2429,7 @@ mod product_tests {
 
         // Second if (flag): only affects flag=true partition
         // For flag=true: x := x + 10 (5 + 10 = 15)
-        let expr_add10 = NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(10)));
+        let expr_add10 = NumExpr::var("x").add(NumExpr::constant(10));
 
         // Apply only to flag=true partition
         let flag_true_path = product.assume_control(&flag_true, &state_after_if1);

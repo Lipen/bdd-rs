@@ -14,7 +14,7 @@
 //! when the exact string content is unknown.
 
 use abstract_interpretation::domain::AbstractDomain;
-use abstract_interpretation::{Bound, Interval, NumExpr, NumPred, StringLengthDomain};
+use abstract_interpretation::{Bound, Interval, NumExpr, StringLengthDomain};
 
 fn main() {
     println!("=== String Concatenation Analysis ===\n");
@@ -77,9 +77,8 @@ fn main() {
     println!("  full_url = url + query");
 
     // query = input() (assume length 0 to 100)
-    let query_len_pred = NumPred::And(
-        Box::new(NumPred::Ge(NumExpr::Var("query".to_string()), NumExpr::Const(0))),
-        Box::new(NumPred::Le(NumExpr::Var("query".to_string()), NumExpr::Const(100))),
+    let query_len_pred = NumExpr::var("query").ge(NumExpr::constant(0)).and(
+        NumExpr::var("query").le(NumExpr::constant(100))
     );
     state = domain.assume_length(&state, &query_len_pred);
     println!("\nAnalysis Results:");

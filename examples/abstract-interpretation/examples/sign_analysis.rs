@@ -10,7 +10,7 @@
 //! - **Overflow Safety**: Reasoning about the sign of results even when exact values are unknown.
 
 use abstract_interpretation::domain::AbstractDomain;
-use abstract_interpretation::expr::{NumExpr, NumPred};
+use abstract_interpretation::expr::NumExpr;
 use abstract_interpretation::numeric::NumericDomain;
 use abstract_interpretation::sign::{Sign, SignDomain, SignElement};
 
@@ -43,7 +43,7 @@ fn example_division_by_zero() {
     println!("Initial state: x = {}", elem.get("x"));
 
     // Assume x > 0
-    let pred = NumPred::Gt(NumExpr::Var("x".to_string()), NumExpr::Const(0));
+    let pred = NumExpr::var("x").gt(NumExpr::constant(0));
     let elem = domain.assume(&elem, &pred);
 
     println!("After 'x > 0': x = {}", elem.get("x"));
@@ -68,7 +68,7 @@ fn example_division_by_zero() {
     let mut elem = SignElement::new();
     elem.set("x".to_string(), Sign::Top);
 
-    let pred = NumPred::Le(NumExpr::Var("x".to_string()), NumExpr::Const(0));
+    let pred = NumExpr::var("x").le(NumExpr::constant(0));
     let elem = domain.assume(&elem, &pred);
 
     println!("After 'x <= 0': x = {}", elem.get("x"));
@@ -101,7 +101,7 @@ fn example_conditional_analysis() {
     println!("Initial: x = {}", elem.get("x"));
 
     // Evaluate x * x
-    let expr = NumExpr::Mul(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Var("x".to_string())));
+    let expr = NumExpr::var("x").mul(NumExpr::var("x"));
 
     let result = domain.assign(&elem, &"temp".to_string(), &expr);
     let sign_of_square = result.get("temp");
@@ -137,7 +137,7 @@ fn example_loop_analysis() {
     println!("Initial: i = {}", elem.get("i"));
 
     // First iteration: i = 0 + 1
-    let expr = NumExpr::Add(Box::new(NumExpr::Var("i".to_string())), Box::new(NumExpr::Const(1)));
+    let expr = NumExpr::var("i").add(NumExpr::constant(1));
     elem = domain.assign(&elem, &"i".to_string(), &expr);
     println!("After i = i + 1: i = {}", elem.get("i"));
 
@@ -177,11 +177,11 @@ fn example_overflow_detection() {
     elem.set("y".to_string(), Sign::Top);
 
     // Assume x > 0
-    let pred = NumPred::Gt(NumExpr::Var("x".to_string()), NumExpr::Const(0));
+    let pred = NumExpr::var("x").gt(NumExpr::constant(0));
     elem = domain.assume(&elem, &pred);
 
     // Assume y > 0
-    let pred = NumPred::Gt(NumExpr::Var("y".to_string()), NumExpr::Const(0));
+    let pred = NumExpr::var("y").gt(NumExpr::constant(0));
     elem = domain.assume(&elem, &pred);
 
     println!("After 'x > 0 && y > 0':");
@@ -189,7 +189,7 @@ fn example_overflow_detection() {
     println!("  y = {}", elem.get("y"));
 
     // z = x + y
-    let expr = NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Var("y".to_string())));
+    let expr = NumExpr::var("x").add(NumExpr::var("y"));
     let result = domain.assign(&elem, &"z".to_string(), &expr);
 
     println!("  z = x + y: {}", result.get("z"));

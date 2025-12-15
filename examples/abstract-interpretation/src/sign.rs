@@ -1172,19 +1172,19 @@ mod tests {
         elem.set("x".to_string(), Sign::Top);
 
         // x * x should always be non-negative
-        let expr = NumExpr::Mul(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Var("x".to_string())));
+        let expr = NumExpr::var("x").mul(NumExpr::var("x"));
 
         let result = domain.assign(&elem, &"temp".to_string(), &expr);
         assert_eq!(result.get("temp"), Sign::NonNeg);
 
         // Test with different signs
         elem.set("y".to_string(), Sign::Neg);
-        let expr = NumExpr::Mul(Box::new(NumExpr::Var("y".to_string())), Box::new(NumExpr::Var("y".to_string())));
+        let expr = NumExpr::var("y").mul(NumExpr::var("y"));
         let result = domain.assign(&elem, &"temp".to_string(), &expr);
         assert_eq!(result.get("temp"), Sign::Pos);
 
         elem.set("z".to_string(), Sign::Pos);
-        let expr = NumExpr::Mul(Box::new(NumExpr::Var("z".to_string())), Box::new(NumExpr::Var("z".to_string())));
+        let expr = NumExpr::var("z").mul(NumExpr::var("z"));
         let result = domain.assign(&elem, &"temp".to_string(), &expr);
         assert_eq!(result.get("temp"), Sign::Pos);
     }
@@ -1198,13 +1198,13 @@ mod tests {
         elem.set("x".to_string(), Sign::Top);
 
         // After x > 0, division is safe
-        let pred = NumPred::Gt(NumExpr::Var("x".to_string()), NumExpr::Const(0));
+        let pred = NumExpr::var("x").gt(NumExpr::constant(0));
         let elem_safe = domain.assume(&elem, &pred);
         assert_eq!(elem_safe.get("x"), Sign::Pos);
         assert!(!elem_safe.get("x").has_zero());
 
         // After x <= 0, division is unsafe
-        let pred = NumPred::Le(NumExpr::Var("x".to_string()), NumExpr::Const(0));
+        let pred = NumExpr::var("x").le(NumExpr::constant(0));
         let elem_unsafe = domain.assume(&elem, &pred);
         assert!(elem_unsafe.get("x").has_zero());
     }
@@ -1219,7 +1219,7 @@ mod tests {
         assert_eq!(elem.get("i"), Sign::Zero);
 
         // i = i + 1 (first iteration: 0 + 1 = 1, which is Pos)
-        let expr = NumExpr::Add(Box::new(NumExpr::Var("i".to_string())), Box::new(NumExpr::Const(1)));
+        let expr = NumExpr::var("i").add(NumExpr::constant(1));
         elem = domain.assign(&elem, &"i".to_string(), &expr);
         assert_eq!(elem.get("i"), Sign::Pos);
 

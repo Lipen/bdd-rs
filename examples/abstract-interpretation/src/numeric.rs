@@ -88,7 +88,7 @@ mod tests {
         elem.set("x".to_string(), Interval::constant(5));
 
         // y := x + 10
-        let expr = NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Const(10)));
+        let expr = NumExpr::var("x").add(NumExpr::constant(10));
         let result = domain.assign(&elem, &"y".to_string(), &expr);
 
         assert_eq!(result.get("x"), Interval::constant(5));
@@ -103,7 +103,7 @@ mod tests {
         elem.set("y".to_string(), Interval::new(Bound::Finite(5), Bound::Finite(15)));
 
         // z := x + y
-        let expr = NumExpr::Add(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Var("y".to_string())));
+        let expr = NumExpr::var("x").add(NumExpr::var("y"));
         let result = domain.assign(&elem, &"z".to_string(), &expr);
 
         assert_eq!(result.get("z"), Interval::new(Bound::Finite(5), Bound::Finite(25)));
@@ -115,7 +115,7 @@ mod tests {
         let elem = domain.interval(&"x".to_string(), -10, 10);
 
         // assume(x >= 0)
-        let pred = crate::expr::NumPred::Ge(NumExpr::Var("x".to_string()), NumExpr::Const(0));
+        let pred = NumExpr::var("x").ge(NumExpr::constant(0));
         let refined = domain.assume(&elem, &pred);
 
         assert_eq!(refined.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(10)));
@@ -127,7 +127,7 @@ mod tests {
         let elem = domain.interval(&"x".to_string(), 0, 10);
 
         // assume(x < 0) - contradiction
-        let pred = crate::expr::NumPred::Lt(NumExpr::Var("x".to_string()), NumExpr::Const(0));
+        let pred = NumExpr::var("x").lt(NumExpr::constant(0));
         let refined = domain.assume(&elem, &pred);
 
         assert!(domain.is_infeasible(&refined));
@@ -153,11 +153,11 @@ mod tests {
         let elem = domain.interval(&"x".to_string(), -100, 100);
 
         // assume(x >= 0)
-        let pred1 = crate::expr::NumPred::Ge(NumExpr::Var("x".to_string()), NumExpr::Const(0));
+        let pred1 = NumExpr::var("x").ge(NumExpr::constant(0));
         let refined1 = domain.assume(&elem, &pred1);
 
         // assume(x <= 50)
-        let pred2 = crate::expr::NumPred::Le(NumExpr::Var("x".to_string()), NumExpr::Const(50));
+        let pred2 = NumExpr::var("x").le(NumExpr::constant(50));
         let refined2 = domain.assume(&refined1, &pred2);
 
         assert_eq!(refined2.get("x"), Interval::new(Bound::Finite(0), Bound::Finite(50)));
@@ -171,7 +171,7 @@ mod tests {
         elem.set("x".to_string(), Interval::new(Bound::Finite(1), Bound::Finite(2)));
 
         // y := x * x (should be [1, 4])
-        let expr = NumExpr::Mul(Box::new(NumExpr::Var("x".to_string())), Box::new(NumExpr::Var("x".to_string())));
+        let expr = NumExpr::var("x").mul(NumExpr::var("x"));
         let result = domain.assign(&elem, &"y".to_string(), &expr);
 
         assert_eq!(result.get("y"), Interval::new(Bound::Finite(1), Bound::Finite(4)));

@@ -39,7 +39,7 @@ fn main() {
     let mut state = domain.top();
 
     // Refine: length of password must be >= 0
-    let non_neg = NumPred::Ge(NumExpr::Var("password".to_string()), NumExpr::Const(0));
+    let non_neg = NumExpr::var("password").ge(NumExpr::constant(0));
     state = domain.assume_length(&state, &non_neg);
     println!("\nInitial State (after input):");
     println!("  len(password) = {}", domain.get_length(&state, "password"));
@@ -47,7 +47,7 @@ fn main() {
     // 2. Branch: if (len(password) >= 8)
     println!("\n--- Analyzing Branch: if (len(password) >= 8) ---");
 
-    let cond = NumPred::Ge(NumExpr::Var("password".to_string()), NumExpr::Const(8));
+    let cond = NumExpr::var("password").ge(NumExpr::constant(8));
 
     // True branch
     let true_branch = domain.assume_length(&state, &cond);
@@ -55,7 +55,7 @@ fn main() {
     println!("  len(password) = {}", domain.get_length(&true_branch, "password"));
 
     // False branch (Negation of condition)
-    let false_cond = NumPred::Not(Box::new(cond));
+    let false_cond = cond.clone().not();
     let false_branch = domain.assume_length(&state, &false_cond);
     println!("False Branch (Invalid):");
     println!("  len(password) = {}", domain.get_length(&false_branch, "password"));

@@ -14,7 +14,7 @@
 
 use abstract_interpretation::constant::{ConstValue, ConstantDomain, ConstantElement};
 use abstract_interpretation::domain::AbstractDomain;
-use abstract_interpretation::expr::{NumExpr, NumPred};
+use abstract_interpretation::expr::NumExpr;
 use abstract_interpretation::numeric::NumericDomain;
 
 fn main() {
@@ -96,7 +96,7 @@ fn example_dead_code_elimination() {
     println!("State: x = {}", elem.get("x"));
 
     // Check: x > 10
-    let pred = NumPred::Gt(NumExpr::Var("x".to_string()), NumExpr::Const(10));
+    let pred = NumExpr::var("x").gt(NumExpr::constant(10));
     let branch1 = domain.assume(&elem, &pred);
 
     if domain.is_bottom(&branch1) {
@@ -105,7 +105,7 @@ fn example_dead_code_elimination() {
     assert!(domain.is_bottom(&branch1));
 
     // Check: x == 5
-    let pred = NumPred::Eq(NumExpr::Var("x".to_string()), NumExpr::Const(5));
+    let pred = NumExpr::var("x").eq(NumExpr::constant(5));
     let branch2 = domain.assume(&elem, &pred);
 
     if !domain.is_bottom(&branch2) && branch2.get("x") == ConstValue::Const(5) {
@@ -136,7 +136,7 @@ fn example_conditional_simplification() {
     println!("State: DEBUG = {}", elem.get("DEBUG"));
 
     // Check: DEBUG != 0
-    let pred = NumPred::Neq(NumExpr::Var("DEBUG".to_string()), NumExpr::Const(0));
+    let pred = NumExpr::var("DEBUG").neq(NumExpr::constant(0));
     let branch = domain.assume(&elem, &pred);
 
     if !domain.is_bottom(&branch) {
@@ -155,7 +155,7 @@ fn example_conditional_simplification() {
     elem.set("DEBUG".to_string(), ConstValue::Const(0));
     println!("State: DEBUG = {}", elem.get("DEBUG"));
 
-    let pred = NumPred::Neq(NumExpr::Var("DEBUG".to_string()), NumExpr::Const(0));
+    let pred = NumExpr::var("DEBUG").neq(NumExpr::constant(0));
     let branch = domain.assume(&elem, &pred);
 
     if domain.is_bottom(&branch) {
@@ -195,7 +195,7 @@ fn example_optimization_opportunities() {
     println!();
 
     // Assume x < THRESHOLD (which is x < 100)
-    let pred = NumPred::Lt(NumExpr::Var("x".to_string()), NumExpr::Var("THRESHOLD".to_string()));
+    let pred = NumExpr::var("x").lt(NumExpr::var("THRESHOLD"));
     elem = domain.assume(&elem, &pred);
 
     println!("After condition 'x < THRESHOLD':");

@@ -74,7 +74,7 @@ fn example_counter_loop(domain: &IntervalDomain, engine: &FixpointEngine<Interva
         result.set("x".to_string(), incremented);
 
         // Step 2: Assume loop condition x < 10 holds (refines the state)
-        let refined = domain.assume(&result, &NumPred::Lt(NumExpr::Var("x".to_string()), NumExpr::Const(10)));
+        let refined = domain.assume(&result, &NumExpr::var("x").lt(NumExpr::constant(10)));
         refined
     };
 
@@ -147,7 +147,7 @@ fn example_countdown(domain: &IntervalDomain, engine: &FixpointEngine<IntervalDo
         result.set("x".to_string(), decremented);
 
         // Assume loop condition x > 0 holds
-        let refined = domain.assume(&result, &NumPred::Gt(NumExpr::Var("x".to_string()), NumExpr::Const(0)));
+        let refined = domain.assume(&result, &NumExpr::var("x").gt(NumExpr::constant(0)));
         refined
     };
 

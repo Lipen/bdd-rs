@@ -159,17 +159,16 @@ fn test_domain_precision_comparison() {
 
     // x = 5, y = 10
     let sign = sign_domain.constant(&"x".to_string(), 5);
-    let sign = sign_domain.assign(&sign, &"y".to_string(), &NumExpr::Const(10));
+    let sign = sign_domain.assign(&sign, &"y".to_string(), &NumExpr::constant(10));
 
     let constant = const_domain.constant(&"x".to_string(), 5);
-    let constant = const_domain.assign(&constant, &"y".to_string(), &NumExpr::Const(10));
+    let constant = const_domain.assign(&constant, &"y".to_string(), &NumExpr::constant(10));
 
     let interval = interval_domain.constant(&"x".to_string(), 5);
-    let interval = interval_domain.assign(&interval, &"y".to_string(), &NumExpr::Const(10));
+    let interval = interval_domain.assign(&interval, &"y".to_string(), &NumExpr::constant(10));
 
     // z = x + y
-    use NumExpr::*;
-    let expr = Add(Box::new(Var("x".to_string())), Box::new(Var("y".to_string())));
+    let expr = NumExpr::var("x").add(NumExpr::var("y"));
 
     let sign_result = sign_domain.assign(&sign, &"z".to_string(), &expr);
     let const_result = const_domain.assign(&constant, &"z".to_string(), &expr);
