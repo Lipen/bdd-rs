@@ -446,35 +446,35 @@ impl Bdd {
     pub fn nodes(&self) -> cell::Ref<'_, Vec<Node>> {
         self.nodes.borrow()
     }
-    fn nodes_mut(&self) -> cell::RefMut<'_, Vec<Node>> {
+    pub(crate) fn nodes_mut(&self) -> cell::RefMut<'_, Vec<Node>> {
         self.nodes.borrow_mut()
     }
 
     pub fn free_set(&self) -> cell::Ref<'_, HashSet<NodeId>> {
         self.free_set.borrow()
     }
-    fn free_set_mut(&self) -> cell::RefMut<'_, HashSet<NodeId>> {
+    pub(crate) fn free_set_mut(&self) -> cell::RefMut<'_, HashSet<NodeId>> {
         self.free_set.borrow_mut()
     }
 
     pub fn var_order(&self) -> cell::Ref<'_, Vec<Var>> {
         self.var_order.borrow()
     }
-    fn var_order_mut(&self) -> cell::RefMut<'_, Vec<Var>> {
+    pub(crate) fn var_order_mut(&self) -> cell::RefMut<'_, Vec<Var>> {
         self.var_order.borrow_mut()
     }
 
     pub fn level_map(&self) -> cell::Ref<'_, HashMap<Var, Level>> {
         self.level_map.borrow()
     }
-    fn level_map_mut(&self) -> cell::RefMut<'_, HashMap<Var, Level>> {
+    pub(crate) fn level_map_mut(&self) -> cell::RefMut<'_, HashMap<Var, Level>> {
         self.level_map.borrow_mut()
     }
 
     pub fn subtables(&self) -> cell::Ref<'_, Vec<Subtable>> {
         self.subtables.borrow()
     }
-    fn subtables_mut(&self) -> cell::RefMut<'_, Vec<Subtable>> {
+    pub(crate) fn subtables_mut(&self) -> cell::RefMut<'_, Vec<Subtable>> {
         self.subtables.borrow_mut()
     }
 
@@ -498,7 +498,7 @@ impl Bdd {
     pub fn cache(&self) -> cell::Ref<'_, Cache<OpKey, Ref>> {
         self.cache.borrow()
     }
-    fn cache_mut(&self) -> cell::RefMut<'_, Cache<OpKey, Ref>> {
+    pub(crate) fn cache_mut(&self) -> cell::RefMut<'_, Cache<OpKey, Ref>> {
         self.cache.borrow_mut()
     }
 
@@ -506,7 +506,7 @@ impl Bdd {
     pub fn size_cache(&self) -> cell::Ref<'_, Cache<Ref, u64>> {
         self.size_cache.borrow()
     }
-    fn size_cache_mut(&self) -> cell::RefMut<'_, Cache<Ref, u64>> {
+    pub(crate) fn size_cache_mut(&self) -> cell::RefMut<'_, Cache<Ref, u64>> {
         self.size_cache.borrow_mut()
     }
 }
@@ -3132,252 +3132,6 @@ impl Bdd {
         }
 
         alive
-    }
-}
-
-// ============================================================================
-// Dynamic variable reordering
-// ============================================================================
-
-impl Bdd {
-    /// Swaps two adjacent levels in the variable ordering.
-    ///
-    /// This is the fundamental operation for dynamic variable reordering.
-    /// Nodes at the two levels are restructured to reflect the new ordering.
-    ///
-    /// For high-level reordering operations, see [`sift_all_variables`](Self::sift_all_variables)
-    /// which uses this function internally.
-    ///
-    /// # Algorithm (CUDD-style swap)
-    ///
-    /// For each node at level with var_x whose children depend on var_y:
-    /// 1. Extract four grandchildren: f00, f01, f10, f11 (where fij = f[x=i, y=j])
-    /// 2. Rebuild with var_y on top, var_x below:
-    ///    - new_y0 = mk_node(var_x, f00, f10)  -- when y=0
-    ///    - new_y1 = mk_node(var_x, f01, f11)  -- when y=1
-    ///    - result = mk_node(var_y, new_y0, new_y1)
-    /// 3. Update all references to the old node
-    ///
-    /// # Arguments
-    ///
-    /// * `level` - The first level to swap (swaps level with level+1)
-    ///
-    /// # Returns
-    ///
-    /// A mapping from old node indices to new node references.
-    /// Callers should use [`apply_mapping`](Self::apply_mapping) or
-    /// [`remap_roots`](Self::remap_roots) to update any BDD roots they hold.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use ananke_bdd::bdd::Bdd;
-    /// use ananke_bdd::types::Level;
-    ///
-    /// let bdd = Bdd::default();
-    /// let x = bdd.mk_var(1);
-    /// let y = bdd.mk_var(2);
-    /// let mut f = bdd.apply_and(x, y);
-    ///
-    /// // Swap levels 0 and 1
-    /// let mapping = bdd.swap_adjacent_inplace(Level::new(0)).unwrap();
-    ///
-    /// // Update f using the mapping
-    /// f = bdd.apply_mapping(f, &mapping);
-    /// ```
-    pub fn swap_adjacent_inplace(&self, level: Level) -> Result<HashMap<NodeId, Ref>, String> {
-        if level.next().index() >= self.num_levels() {
-            return Err(format!("Level {} out of bounds (only {} levels)", level.next(), self.num_levels()));
-        }
-
-        let var_x = self
-            .get_variable_at_level(level)
-            .ok_or_else(|| format!("No variable at level {}", level))?;
-        let var_y = self
-            .get_variable_at_level(level.next())
-            .ok_or_else(|| format!("No variable at level {}", level.next()))?;
-
-        debug!("Swap: var {} (level {}) <-> var {} (level {})", var_x, level, var_y, level.next());
-
-        // Get nodes at level_x (these have var_x)
-        let nodes_at_x = self.get_nodes_at_level(level);
-        debug!("  Nodes at level {}: {} nodes", level, nodes_at_x.len());
-
-        // Build a mapping from old node index to new reference
-        let mut mapping: HashMap<NodeId, Ref> = HashMap::new();
-
-        // Transform each node with var_x
-        for &node_idx in &nodes_at_x {
-            let node = self.node(node_idx);
-
-            // Verify variable
-            if node.variable != var_x {
-                debug!("Warning: node {} has variable {} but expected {}", node_idx, node.variable, var_x);
-                continue;
-            }
-
-            // Apply any already-computed mappings to the children
-            let low = self.apply_mapping(node.low, &mapping);
-            let high = self.apply_mapping(node.high, &mapping);
-
-            // Extract grandchildren (Shannon expansion with respect to var_y)
-            let (f_x0_y0, f_x0_y1) = self.extract_grandchildren(low, var_y);
-            let (f_x1_y0, f_x1_y1) = self.extract_grandchildren(high, var_y);
-
-            // Rebuild: y on top, x below
-            // When y=0: mk_node(x, f_x0_y0, f_x1_y0)
-            // When y=1: mk_node(x, f_x0_y1, f_x1_y1)
-            let new_y0 = self.mk_node(var_x, f_x0_y0, f_x1_y0);
-            let new_y1 = self.mk_node(var_x, f_x0_y1, f_x1_y1);
-            let new_node = self.mk_node(var_y, new_y0, new_y1);
-
-            mapping.insert(node_idx, new_node);
-            debug!("  Mapped {} -> {}", node_idx, new_node);
-        }
-
-        // Update nodes at higher levels (closer to root) that reference swapped nodes.
-        // We process from level-1 up to level 0.
-        for l in (0..level.index()).rev() {
-            let current_level = Level::new(l);
-            let var_at_level = self.get_variable_at_level(current_level).expect("Level should have variable");
-            let nodes_at_l = self.get_nodes_at_level(current_level);
-
-            for &node_idx in &nodes_at_l {
-                let node = self.node(node_idx);
-
-                // Check if any child is in the mapping
-                let new_low = self.apply_mapping(node.low, &mapping);
-                let new_high = self.apply_mapping(node.high, &mapping);
-
-                if new_low != node.low || new_high != node.high {
-                    // This node's children changed, create a new node
-                    let new_node = self.mk_node(var_at_level, new_low, new_high);
-                    mapping.insert(node_idx, new_node);
-                    debug!("  Updated ancestor {} -> {}", node_idx, new_node);
-                }
-            }
-        }
-
-        // Swap ordering metadata
-        self.var_order_mut().swap(level.index(), level.next().index());
-        self.level_map_mut().insert(var_x, level.next());
-        self.level_map_mut().insert(var_y, level);
-
-        // Rebuild subtables from scratch (simpler and more correct)
-        self.rebuild_subtables();
-
-        // Clear operation caches (they may contain stale results)
-        self.cache_mut().clear();
-        self.size_cache_mut().clear();
-
-        debug!("Swap complete");
-
-        Ok(mapping)
-    }
-
-    /// Applies a node mapping to a reference, handling negation.
-    ///
-    /// If the reference's node id is in the mapping, returns the mapped value
-    /// with negation preserved. Otherwise returns the original reference.
-    pub fn apply_mapping(&self, r: Ref, mapping: &HashMap<NodeId, Ref>) -> Ref {
-        if let Some(&new_ref) = mapping.get(&r.id()) {
-            if r.is_negated() {
-                -new_ref
-            } else {
-                new_ref
-            }
-        } else {
-            r
-        }
-    }
-
-    /// Extracts the two cofactors of a function with respect to a variable.
-    ///
-    /// This is a key helper for the swap algorithm. When swapping variables x and y,
-    /// we need to extract the "grandchildren" of a node: the cofactors of a child
-    /// with respect to the variable being moved up.
-    ///
-    /// # Arguments
-    ///
-    /// * `f` - The BDD reference to extract cofactors from
-    /// * `var_y` - The variable to cofactor with respect to
-    ///
-    /// # Returns
-    ///
-    /// A tuple (f|_{var_y=0}, f|_{var_y=1}):
-    /// - If f has top variable var_y: returns (low child, high child)
-    /// - If f is terminal or has different top variable: returns (f, f)
-    fn extract_grandchildren(&self, f: Ref, var_y: Var) -> (Ref, Ref) {
-        if self.is_terminal(f) {
-            return (f, f);
-        }
-
-        let node = self.node(f.id());
-
-        if node.variable == var_y {
-            // This node has var_y, extract its children
-            let low = self.low_node(f);
-            let high = self.high_node(f);
-            (low, high)
-        } else {
-            // This node doesn't have var_y, both "grandchildren" are the same
-            (f, f)
-        }
-    }
-
-    /// Rebuilds all subtables from the current node storage.
-    ///
-    /// Scans all allocated nodes and re-populates the per-level subtables.
-    /// This is called after variable reordering when node-to-level mappings change.
-    fn rebuild_subtables(&self) {
-        debug!("Rebuilding subtables");
-
-        let var_order = self.var_order();
-
-        // Create fresh subtables for each level
-        let mut new_subtables: Vec<Subtable> = var_order
-            .iter()
-            .map(|&v| Subtable::with_bucket_bits(v, self.config.subtable_bits))
-            .collect();
-        drop(var_order);
-
-        // Collect (level, low, high, id) for all non-free nodes first
-        let entries: Vec<(usize, Ref, Ref, NodeId)> = {
-            let nodes = self.nodes();
-            let free_set = self.free_set();
-            let level_map = self.level_map();
-
-            (1..nodes.len())
-                .filter_map(|idx| {
-                    let id = NodeId::new(idx as u32);
-
-                    if free_set.contains(&id) {
-                        return None;
-                    }
-
-                    let node = &nodes[idx];
-                    let var = node.variable;
-
-                    // Skip terminal nodes (variable 0)
-                    if var.is_terminal() {
-                        return None;
-                    }
-
-                    level_map.get(&var).map(|&level| (level.index(), node.low, node.high, id))
-                })
-                .collect()
-        };
-
-        // Now insert with mutable access to nodes
-        {
-            let mut nodes = self.nodes_mut();
-            for (level_idx, low, high, id) in entries {
-                new_subtables[level_idx].insert(low, high, id, &mut nodes);
-            }
-        }
-
-        *self.subtables_mut() = new_subtables;
-        debug!("subtables rebuilt");
     }
 }
 
