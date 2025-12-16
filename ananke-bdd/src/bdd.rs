@@ -3020,6 +3020,45 @@ impl Bdd {
         size
     }
 
+    /// Count the total number of nodes in a set of BDDs.
+    ///
+    /// This efficiently counts the total number of unique nodes reachable
+    /// from the given set of roots, avoiding double-counting shared nodes.
+    /// This matches the behavior of `size()` - counting unique node indices
+    /// including the terminal but not counting separate visits.
+    ///
+    /// # Arguments
+    ///
+    /// * `roots` - BDD roots to count nodes for
+    ///
+    /// # Returns
+    ///
+    /// The total number of unique nodes (including terminal)
+    pub fn count_nodes(&self, roots: &[Ref]) -> usize {
+        let mut visited = HashSet::new();
+        visited.insert(NodeId::TERMINAL);
+
+        let mut stack = roots.iter().map(|r| r.id()).collect::<Vec<_>>();
+
+        while let Some(id) = stack.pop() {
+            if !visited.insert(id) {
+                continue;
+            }
+
+            let node = self.node(id);
+            let low_id = node.low.id();
+            let high_id = node.high.id();
+            if !low_id.is_terminal() {
+                stack.push(low_id);
+            }
+            if !high_id.is_terminal() {
+                stack.push(high_id);
+            }
+        }
+
+        visited.len()
+    }
+
     /// Get the variables that appear in a set of BDDs (the *support*).
     ///
     /// # Arguments
