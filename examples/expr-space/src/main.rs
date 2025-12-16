@@ -288,32 +288,28 @@ fn main() -> color_eyre::Result<()> {
     println!("└────────────┴──────────────┴───────┴──────┴─────────────────────────┘");
     println!();
 
-    // Show sample expressions (from bounded canonical forms)
-    if args.samples > 0 {
-        println!("Best canonical forms (limited to {} per function): ", max_canonical_forms);
-        println!();
-        let show_for = vec![0x01u8, 0x07, 0x06, 0x0E, 0, 0x0F]; // AND, OR, XOR, NAND, TRUE, FALSE
-        for &tt in &show_for {
-            if let Some(exprs) = canonicals.get(&tt) {
-                println!("  {} ({:04b}):", truth_table_name(tt), tt);
-                for (idx, (expr, depth, size, _is_neg)) in exprs.iter().take(args.samples).enumerate() {
-                    let marker = if idx == 0 { "→ " } else { "  " };
-                    println!("    {} depth {}, size {}: {}", marker, depth, size, expr);
-                }
-                if exprs.len() > args.samples {
-                    if let Some(&total) = actual_totals.get(&tt) {
-                        // We have actual total from semantics analysis
-                        let remaining = total.saturating_sub(args.samples);
-                        println!("    ... and {} more (of {} total)", remaining, total);
-                    } else {
-                        // We don't know the actual total
-                        println!("    ... and more");
-                    }
-                }
-                println!();
-            } else {
-                println!("  {} ({:04b}): (not found)\n", truth_table_name(tt), tt);
+    // Show sample expressions (from canonical forms)
+    println!("Best canonical forms (limited to {} per function): ", max_canonical_forms);
+    println!();
+    let show_for = vec![0x01u8, 0x07, 0x06, 0x0E, 0, 0x0F]; // AND, OR, XOR, NAND, TRUE, FALSE
+    for &tt in &show_for {
+        if let Some(exprs) = canonicals.get(&tt) {
+            println!("  {} ({:04b}):", truth_table_name(tt), tt);
+            for (idx, (expr, depth, size, _is_neg)) in exprs.iter().take(max_canonical_forms).enumerate() {
+                let marker = if idx == 0 { "→ " } else { "  " };
+                println!("    {} depth {}, size {}: {}", marker, depth, size, expr);
             }
+            if let Some(&total) = actual_totals.get(&tt) {
+                // We have actual total from semantics analysis
+                let remaining = total.saturating_sub(max_canonical_forms);
+                println!("    ... and {} more (of {} total)", remaining, total);
+            } else {
+                // We don't know the actual total
+                println!("    ... and more");
+            }
+            println!();
+        } else {
+            println!("  {} ({:04b}): (not found)\n", truth_table_name(tt), tt);
         }
     }
 
