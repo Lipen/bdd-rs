@@ -212,8 +212,9 @@ impl ZddManager {
             return lo;
         }
 
-        // Check unique table
         let level = self.level(var);
+
+        // Check unique table
         {
             let subtables = self.subtables.borrow();
             let nodes = self.nodes.borrow();
