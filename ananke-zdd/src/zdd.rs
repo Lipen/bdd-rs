@@ -214,11 +214,12 @@ impl ZddManager {
 
         // Check unique table
         let level = self.level(var);
-        let subtables = self.subtables.borrow();
-        let nodes = self.nodes.borrow();
-
-        if let Some(id) = subtables[level.index()].find(lo, hi, &nodes) {
-            return ZddId::from_node(id);
+        {
+            let subtables = self.subtables.borrow();
+            let nodes = self.nodes.borrow();
+            if let Some(id) = subtables[level.index()].find(lo, hi, &nodes) {
+                return ZddId::from_node(id);
+            }
         }
 
         // Create new node
