@@ -121,13 +121,11 @@ impl ZddManager {
     // ========================================================================
 
     /// Returns the empty family (⊥): contains no sets.
-    #[inline]
     pub fn zero(&self) -> ZddId {
         ZddId::ZERO
     }
 
     /// Returns the family containing only the empty set (⊤): {∅}.
-    #[inline]
     pub fn one(&self) -> ZddId {
         ZddId::ONE
     }
@@ -151,7 +149,6 @@ impl ZddManager {
     }
 
     /// Returns true if the family is empty (contains no sets).
-    #[inline]
     pub fn is_empty(&self, f: ZddId) -> bool {
         f.is_zero()
     }
@@ -192,7 +189,6 @@ impl ZddManager {
     }
 
     /// Gets the level of a variable in the current ordering.
-    #[inline]
     pub fn level(&self, var: Var) -> Level {
         self.level_map.borrow()[var.id() as usize]
     }
