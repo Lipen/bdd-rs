@@ -28,7 +28,7 @@
 //! assert_eq!(mgr.count(joined), 1);
 //! ```
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 
 use crate::cache::{Cache, CacheKey, CountCache, OpType};
 use crate::node::ZddNode;
@@ -63,7 +63,7 @@ pub struct ZddManager {
 
     /// Variable to level mapping (indexed by var.id() for O(1) lookup).
     /// Index i stores the level of variable with id i, or None if not allocated.
-    level_map: RefCell<Vec<Option<Level>>>,
+    level_map: RefCell<Vec<Level>>,
 
     /// Level to variable mapping.
     var_order: RefCell<Vec<Var>>,
@@ -73,9 +73,6 @@ pub struct ZddManager {
 
     /// Counting cache.
     count_cache: RefCell<CountCache>,
-
-    /// Next variable ID to allocate.
-    next_var_id: Cell<u32>,
 }
 
 impl Default for ZddManager {
@@ -105,14 +102,17 @@ impl ZddManager {
         // Index 1: ONE terminal (⊤)
         nodes.push(ZddNode::default());
 
+        // Level map
+        let mut level_map = Vec::new();
+        level_map.push(Level::new(u32::MAX)); // Var(0) sentinel
+
         Self {
             nodes: RefCell::new(nodes),
             subtables: RefCell::new(Vec::new()),
-            level_map: RefCell::new(Vec::new()),
+            level_map: RefCell::new(level_map),
             var_order: RefCell::new(Vec::new()),
             cache: RefCell::new(Cache::new()),
             count_cache: RefCell::new(CountCache::new()),
-            next_var_id: Cell::new(1),
         }
     }
 
@@ -162,22 +162,16 @@ impl ZddManager {
 
     /// Allocates a new variable and returns its ID.
     pub fn new_var(&self) -> Var {
-        let id = self.next_var_id.get();
-        self.next_var_id.set(id + 1);
-        let var = Var::new(id);
+        let mut level_map = self.level_map.borrow_mut();
+        let new_id = level_map.len() as u32;
+        let var = Var::new(new_id);
 
         // Add to ordering
         let level = Level::new(self.var_order.borrow().len() as u32);
         self.var_order.borrow_mut().push(var);
 
-        // Grow level_map if needed
-        let mut level_map = self.level_map.borrow_mut();
-        while level_map.len() <= id as usize {
-            level_map.push(None);
-        }
-        level_map[id as usize] = Some(level);
-
-        // Create subtable
+        // Allocate level for this variable
+        level_map.push(level);
         self.subtables.borrow_mut().push(Subtable::new(var));
 
         var
@@ -185,15 +179,9 @@ impl ZddManager {
 
     /// Ensures a variable exists, creating it if necessary.
     pub fn ensure_var(&self, var: Var) -> Var {
-        let level_map = self.level_map.borrow();
-        let needs_alloc = var.id() as usize >= level_map.len() || level_map[var.id() as usize].is_none();
-        drop(level_map);
-
-        if needs_alloc {
-            // Allocate variables up to and including this one
-            while self.next_var_id.get() <= var.id() {
-                self.new_var();
-            }
+        // Allocate variables up to and including this one
+        while (self.level_map.borrow().len() as u32) <= var.id() {
+            self.new_var();
         }
         var
     }
@@ -204,12 +192,9 @@ impl ZddManager {
     }
 
     /// Gets the level of a variable in the current ordering.
+    #[inline]
     pub fn level(&self, var: Var) -> Level {
-        let level_map = self.level_map.borrow();
-        let id = var.id() as usize;
-        level_map.get(id)
-            .and_then(|opt| *opt)
-            .expect("Unknown variable")
+        self.level_map.borrow()[var.id() as usize]
     }
 
     /// Gets the variable at a given level.
@@ -847,11 +832,10 @@ impl ZddManager {
         let level_map = self.level_map.borrow();
         for &var in set {
             let id = var.id() as usize;
-            if id >= level_map.len() || level_map[id].is_none() {
+            if id >= level_map.len() {
                 return false; // Unknown variable can't be in any set
             }
         }
-        drop(level_map);
 
         let mut sorted_set: Vec<Var> = set.to_vec();
         sorted_set.sort_by(|a, b| self.level(*a).cmp(&self.level(*b)));
