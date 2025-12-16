@@ -3019,6 +3019,74 @@ impl Bdd {
         self.size_cache_mut().insert(node_ref, size);
         size
     }
+
+    /// Get the variables that appear in a set of BDDs (the *support*).
+    ///
+    /// # Arguments
+    ///
+    /// * `roots` - BDD roots to analyze
+    ///
+    /// # Returns
+    ///
+    /// A vector of variables that appear in the BDDs, sorted by their level in the ordering
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use ananke_bdd::bdd::Bdd;
+    /// # use ananke_bdd::types::Var;
+    /// #
+    /// let bdd = Bdd::default();
+    /// let x = bdd.mk_var(1);
+    /// let y = bdd.mk_var(2);
+    /// let f = bdd.apply_and(x, y);
+    ///
+    /// // Single BDD
+    /// assert_eq!(bdd.support_variables(&[f]), vec![Var::new(1), Var::new(2)]);
+    ///
+    /// // Multiple BDDs
+    /// let z = bdd.mk_var(3);
+    /// assert_eq!(bdd.support_variables(&[x, z]), vec![Var::new(1), Var::new(3)]);
+    /// ```
+    pub fn support_variables(&self, roots: &[Ref]) -> Vec<Var> {
+        let mut vars = HashSet::new();
+        let mut visited = HashSet::new();
+        visited.insert(NodeId::TERMINAL);
+
+        let mut stack: Vec<_> = roots.iter().map(|r| r.id()).collect();
+
+        while let Some(id) = stack.pop() {
+            if !visited.insert(id) {
+                continue;
+            }
+
+            let node = self.node(id);
+            vars.insert(node.variable);
+
+            let low_id = node.low.id();
+            let high_id = node.high.id();
+            if !low_id.is_terminal() {
+                stack.push(low_id);
+            }
+            if !high_id.is_terminal() {
+                stack.push(high_id);
+            }
+        }
+
+        let mut result: Vec<Var> = vars.into_iter().collect();
+        // Sort by level in the ordering (not by variable ID)
+        result.sort_unstable_by_key(|v| self.get_level(*v).map(|l| l.index()).unwrap_or(usize::MAX));
+        result
+    }
+
+    /// Get the maximum variable (by level) that appears in the BDD.
+    ///
+    /// Returns `None` if the BDD is a terminal.
+    ///
+    /// Note: "maximum" refers to the variable closest to the terminals (highest level).
+    pub fn max_variable(&self, root: Ref) -> Option<Var> {
+        self.support_variables(&[root]).last().copied()
+    }
 }
 
 // ============================================================================
