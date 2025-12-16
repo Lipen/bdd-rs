@@ -1072,12 +1072,8 @@ impl Bdd {
         let level = self.get_level(v).expect("Variable should be registered");
 
         // Check if node exists in subtable (needs read access to nodes for chain traversal)
-        {
-            let nodes = self.nodes();
-            let subtables = self.subtables();
-            if let Some(id) = subtables[level.index()].find(low, high, &nodes) {
-                return Ref::positive(id);
-            }
+        if let Some(id) = self.subtables()[level.index()].find(low, high, &self.nodes()) {
+            return Ref::positive(id);
         }
 
         // Node doesn't exist - allocate and insert
@@ -1099,10 +1095,7 @@ impl Bdd {
         };
 
         // Insert into subtable (needs mutable access to nodes for setting next pointer)
-        {
-            let mut nodes = self.nodes_mut();
-            self.subtables_mut()[level.index()].insert_with_resize(low, high, id, &mut nodes);
-        }
+        self.subtables_mut()[level.index()].insert_with_resize(low, high, id, &mut self.nodes_mut());
 
         Ref::positive(id)
     }
