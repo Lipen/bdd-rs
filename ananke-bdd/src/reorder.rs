@@ -787,7 +787,7 @@ impl Bdd {
     /// # Returns
     ///
     /// A map from variable to the number of nodes using that variable
-    pub fn variable_usage_counts(&self, roots: &[Ref]) -> HashMap<Var, usize> {
+    fn variable_usage_counts(&self, roots: &[Ref]) -> HashMap<Var, usize> {
         let mut counts: HashMap<Var, usize> = HashMap::new();
 
         let mut visited = HashSet::new();
