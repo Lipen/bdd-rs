@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "ananke-bdd",
     "ananke-sdd",
+    "ananke-zdd",
     "examples/eda",
     "examples/feature-model",
     "examples/symbolic-execution",
