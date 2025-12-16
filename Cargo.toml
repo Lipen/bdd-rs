@@ -10,6 +10,7 @@ members = [
     "examples/abstract-interpretation",
     "examples/tbdd-pbt",
     "examples/boolean-functions",
+    "examples/expr-space",
 ]
 
 [workspace.package]

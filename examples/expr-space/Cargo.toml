@@ -1,0 +1,26 @@
+[package]
+name = "expr-space"
+version = "0.1.0"
+edition = "2021"
+authors = ["Konstantin Chukharev <lipen00@gmail.com>"]
+description = "Symbolic expression space exploration via BDD"
+
+[dependencies]
+ananke-bdd = { path = "../../ananke-bdd" }
+log = "0.4"
+num-bigint = "0.4"
+simplelog = "0.12"
+clap = { version = "4.5", features = ["derive"] }
+color-eyre = "0.6"
+num-traits = "0.2"
+
+[dev-dependencies]
+test-log = "0.2"
+
+[[example]]
+name = "enumerate"
+path = "examples/enumerate.rs"
+
+[[example]]
+name = "canonical"
+path = "examples/canonical.rs"
