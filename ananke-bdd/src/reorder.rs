@@ -249,22 +249,6 @@ impl Bdd {
         Ok(mapping)
     }
 
-    /// Applies a node mapping to a reference, handling negation.
-    ///
-    /// If the reference's node id is in the mapping, returns the mapped value
-    /// with negation preserved. Otherwise returns the original reference.
-    pub fn apply_mapping(&self, r: Ref, mapping: &HashMap<NodeId, Ref>) -> Ref {
-        if let Some(&new_ref) = mapping.get(&r.id()) {
-            if r.is_negated() {
-                -new_ref
-            } else {
-                new_ref
-            }
-        } else {
-            r
-        }
-    }
-
     /// Extracts the two cofactors of a function with respect to a variable.
     ///
     /// This is a key helper for the swap algorithm. When swapping variables x and y,
@@ -634,6 +618,22 @@ impl Bdd {
         );
 
         (swaps, size_reduction)
+    }
+
+    /// Applies a node mapping to a reference, handling negation.
+    ///
+    /// If the reference's node id is in the mapping, returns the mapped value
+    /// with negation preserved. Otherwise returns the original reference.
+    pub fn apply_mapping(&self, r: Ref, mapping: &HashMap<NodeId, Ref>) -> Ref {
+        if let Some(&new_ref) = mapping.get(&r.id()) {
+            if r.is_negated() {
+                -new_ref
+            } else {
+                new_ref
+            }
+        } else {
+            r
+        }
     }
 
     /// Applies a node index → Ref mapping to a slice of roots, mutating them in place.
