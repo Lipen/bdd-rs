@@ -41,7 +41,7 @@ impl Subtable {
         let bitmask = (num_buckets - 1) as u64;
         Self {
             variable,
-            buckets: vec![NodeId::NO_NEXT; num_buckets],
+            buckets: vec![ZddNode::NO_NEXT; num_buckets],
             bitmask,
             count: 0,
         }
@@ -61,7 +61,7 @@ impl Subtable {
         let bucket_idx = self.bucket_index(lo, hi);
         let mut current = self.buckets[bucket_idx];
 
-        while current != NodeId::NO_NEXT {
+        while current != ZddNode::NO_NEXT {
             let node = &nodes[current.index()];
             if node.lo == lo && node.hi == hi {
                 return Some(current);
@@ -91,7 +91,7 @@ impl Subtable {
         let mut current = self.buckets[bucket_idx];
         let mut prev: Option<NodeId> = None;
 
-        while current != NodeId::NO_NEXT {
+        while current != ZddNode::NO_NEXT {
             if current == id {
                 // Found the node, remove it from chain
                 let next = nodes[current.index()].next;
@@ -100,7 +100,7 @@ impl Subtable {
                 } else {
                     self.buckets[bucket_idx] = next;
                 }
-                nodes[current.index()].next = NodeId::NO_NEXT;
+                nodes[current.index()].next = ZddNode::NO_NEXT;
                 self.count -= 1;
                 return true;
             }
@@ -123,7 +123,7 @@ impl Subtable {
 
     /// Clear all entries (for GC).
     pub fn clear(&mut self) {
-        self.buckets.fill(NodeId::NO_NEXT);
+        self.buckets.fill(ZddNode::NO_NEXT);
         self.count = 0;
     }
 }

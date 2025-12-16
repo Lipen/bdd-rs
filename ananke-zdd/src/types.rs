@@ -23,9 +23,6 @@ impl NodeId {
     /// Sentinel value for invalid/uninitialized node references.
     pub const INVALID: NodeId = NodeId(0xFFFF_FFFF);
 
-    /// Sentinel for end of collision chain.
-    pub const NO_NEXT: NodeId = NodeId(0xFFFF_FFFF);
-
     /// Creates a new NodeId from a raw index.
     pub const fn new(index: u32) -> Self {
         NodeId(index)

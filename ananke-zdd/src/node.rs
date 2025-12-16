@@ -44,13 +44,16 @@ impl Default for ZddNode {
             var: Var::ZERO,
             lo: ZddId::INVALID,
             hi: ZddId::INVALID,
-            next: NodeId::NO_NEXT,
+            next: Self::NO_NEXT,
             hash: 0,
         }
     }
 }
 
 impl ZddNode {
+    /// Sentinel value for end of hash collision chain.
+    pub const NO_NEXT: NodeId = NodeId::INVALID;
+
     /// Creates a new ZDD node.
     ///
     /// # Panics
@@ -63,7 +66,7 @@ impl ZddNode {
             var,
             lo,
             hi,
-            next: NodeId::NO_NEXT,
+            next: Self::NO_NEXT,
             hash,
         }
     }
