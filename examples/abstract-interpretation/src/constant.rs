@@ -403,8 +403,8 @@ impl NumericDomain for ConstantDomain {
             NumPred::Eq(NumExpr::Var(v), NumExpr::Const(n)) | NumPred::Eq(NumExpr::Const(n), NumExpr::Var(v)) => {
                 let current = elem.get(v);
                 match current {
-                    ConstValue::Const(c) if c != *n => return self.bottom(),
-                    ConstValue::Bottom => return self.bottom(),
+                    ConstValue::Const(c) if c != *n => self.bottom(),
+                    ConstValue::Bottom => self.bottom(),
                     _ => {
                         let mut result = elem.clone();
                         result.set(v.clone(), ConstValue::Const(*n));
@@ -416,7 +416,7 @@ impl NumericDomain for ConstantDomain {
             NumPred::Neq(NumExpr::Var(v), NumExpr::Const(n)) | NumPred::Neq(NumExpr::Const(n), NumExpr::Var(v)) => {
                 let current = elem.get(v);
                 match current {
-                    ConstValue::Const(c) if c == *n => return self.bottom(),
+                    ConstValue::Const(c) if c == *n => self.bottom(),
                     ConstValue::Const(_) => elem.clone(), // Different constant
                     _ => {
                         // Was Top, now we know it's not n, but still Top (infinite values)
