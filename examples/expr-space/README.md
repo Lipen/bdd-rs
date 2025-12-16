@@ -1,28 +1,30 @@
 # Symbolic Expression Space Exploration
 
-This example demonstrates using **BDDs to symbolically represent and manipulate the entire space of Boolean expression trees**.
+Explore the entire space of Boolean expression trees at once — not one by one.
 
-## The Problem
+Instead of traditional program synthesis that enumerates millions of expressions individually, this tool builds a **single BDD that represents all possible trees** and manipulates them symbolically. Think of it as "bulk operations" on an exponential search space.
 
-Traditional program synthesis enumerates expressions one-by-one:
+## Why This Matters
 
-```
+Naive enumeration is exponentially slow:
+
+```python
 for each AST in enumerate_all_trees(depth ≤ d):
-    if semantics(AST) == specification:
+    if semantics(AST) == target:
         return AST
 ```
 
-This is exponentially slow — most trees are redundant (semantically or structurally).
+For depth 2 with just 2 Boolean variables, there are **9,468 possible expression trees**, but only **16 distinct Boolean functions** they can represent. Most trees are redundant or structurally equivalent. Checking them one-by-one is wasteful.
 
-## The Solution
+## Our Approach
 
-Instead of enumeration, we represent **all possible trees** as a single BDD and perform:
+We represent all 9,468 trees as a **single BDD** — a compressed Boolean formula — then manipulate them in bulk:
 
-1. **Symbolic construction** — Build entire expression space as a single BDD
-2. **Bulk filtering** — Remove redundant forms symbolically (commutativity, idempotence, etc.)
-3. **Semantic partitioning** — Group all 9,468 trees by their 16 Boolean functions
-4. **Canonical extraction** — Find minimal representatives via streaming TopK algorithm
-5. **Constraint analysis** — Understand why filtering paradoxically expands node count
+1. **Symbolic construction** — Build the entire expression space as one compact BDD structure
+2. **Bulk filtering** — Eliminate redundant forms all at once (commutativity, idempotence, constant folding, etc.)
+3. **Semantic partitioning** — Group all trees by truth table (discovering all 16 Boolean functions automatically)
+4. **Canonical extraction** — Find the minimal, most elegant representative of each function
+5. **Node expansion analysis** — Understand the surprising BDD behavior when filtering
 
 ## Modules
 
@@ -33,44 +35,58 @@ Instead of enumeration, we represent **all possible trees** as a single BDD and 
 - `ast` — AST reconstruction from BDD paths (path → Lit sequence → Expr)
 - `main` — Canonical extraction via streaming TopK, flag-based analysis
 
-## Usage
+## Getting Started
 
 ```bash
-# Basic exploration (depth ≤ 3)
-cargo run -p expr-space --release
+# From the expr-space example directory
+cd examples/expr-space
 
-# With specific depth and canonical form extraction
-cargo run -p expr-space --release -- --depth 2
+# Explore depth ≤ 2 (fast, shows canonical forms)
+cargo run --release -- --depth 2
 
-# With semantic partitioning (tracks actual expression counts per truth table)
-cargo run -p expr-space --release -- --depth 2 --semantics
+# See how expressions group by truth table (16 Boolean functions)
+cargo run --release -- --depth 2 --semantics
 
-# With filtering (removes commutativity, idempotence, constant ops)
-cargo run -p expr-space --release -- --depth 2 --filter
+# Apply filters to remove redundant forms (commutativity, idempotence, etc.)
+cargo run --release -- --depth 2 --filter
 
-# Combined: filter + semantics + show first 10 canonical forms per function
-cargo run -p expr-space --release -- --depth 2 --filter --semantics --samples 10
+# See semantic counts AND filtered results together
+cargo run --release -- --depth 2 --filter --semantics
 
-# Run tests
-cargo test -p expr-space
+# Show first 10 canonical forms per function (default is 5)
+cargo run --release -- --depth 2 --semantics --samples 10
+
+# Run the test suite
+cargo test
 ```
 
-## Results
+## Real Results (Depth ≤ 2, Two Variables)
 
-For a 2-variable Boolean language with depth ≤ 2:
+Here's what the tool discovers when exploring all 9,468 possible expression trees:
 
-| Stage | Tree Count | BDD Nodes | Example |
-|-------|-----------|-----------|---------|
-| Raw expression space | 9,468 | 188 | `(x ∧ y)`, `(y ∧ x)`, `((x ∧ y) ∨ 0)`, ... |
-| After no-double-negation | 3,261 | 165 | −91.7% reduction |
-| After no-constant-ops | 786 | 173 | −93.7% reduction |
-| After no-idempotent | 412 | 298 | −97.1% reduction |
-| After commutativity | 154 | 298 | −98.4% reduction |
-| Semantically unique | 16 | — | `0`, `1`, `x`, `y`, `¬x`, `¬y`, `(x ∧ y)`, `(x ∨ y)`, ... |
+| Stage | Trees | BDD Nodes | Reduction | Key Insight |
+|-------|-------|-----------|-----------|-------------|
+| **Raw space** | 9,468 | 188 | — | Baseline: all possible trees |
+| No double-negation | 9,464 | 181 | 0.04% | Barely eliminates anything |
+| No constant ops | 786 | 165 | 91.7% | Huge jump: removes `0 ∧ x`, `1 ∨ x`, etc. |
+| No idempotent | 442 | 266 | 95.3% | Removes `x ∧ x`, `x ∨ x` |
+| **Final (all filters)** | 154 | 298 | **98.4%** | Only truly unique canonical forms |
+| **Semantically unique** | 16 | — | — | The 16 Boolean functions |
 
-**Key Features:**
+### The BDD Paradox
 
-- **Semantic Partitioning**: Automatically groups all trees by truth table (using `--semantics`)
-- **Canonical Extraction**: Finds minimal representatives (depth, size, negation status)
-- **Bulk Filtering**: Eliminates redundant forms symbolically (using `--filter`)
-- **Streaming TopK**: Memory-efficient extraction of best N canonical forms per function
+Notice something surprising: filtering *reduces* trees by 98.4% but *increases* BDD nodes from 188 → 298. Why?
+
+When you constrain the search space, you remove uniformity. The 9,468 raw trees share massive structural redundancy — many look similar, compress well. The 154 filtered trees are more *diverse* — fewer commonalities to compress. It's like this:
+
+- **Raw space**: Many trees, very repetitive patterns → **small BDD**
+- **Filtered space**: Few trees, diverse patterns → **larger BDD**
+
+This is a key insight: filtering and compression don't always go hand-in-hand!
+
+### Key Capabilities
+
+- **Semantic Discovery**: Automatically partitions all trees into the 16 Boolean functions
+- **Canonical Forms**: Finds the minimal, most elegant expression for each function (sorted by depth, size, negation)
+- **Smart Filtering**: Removes commutativity (`(x ∧ y)` vs. `(y ∧ x)`), idempotence, constant folding
+- **Memory Efficient**: Uses streaming TopK algorithm — never stores all forms in memory
