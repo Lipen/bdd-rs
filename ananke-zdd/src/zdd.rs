@@ -225,9 +225,6 @@ impl ZddManager {
             return ZddId::from_node(id);
         }
 
-        drop(subtables);
-        drop(nodes);
-
         // Create new node
         let node = ZddNode::new(var, lo, hi);
         let id = {
