@@ -636,16 +636,6 @@ impl Bdd {
         (swaps, size_reduction)
     }
 
-    /// Applies a node index → Ref mapping to a single reference.
-    ///
-    /// If the reference's index is in the mapping, returns the mapped value
-    /// (preserving negation). Otherwise returns the reference unchanged.
-    ///
-    /// This is a public wrapper around the internal `apply_mapping` used during swaps.
-    pub fn remap_ref(&self, r: Ref, mapping: &HashMap<NodeId, Ref>) -> Ref {
-        self.apply_mapping(r, mapping)
-    }
-
     /// Applies a node index → Ref mapping to a slice of roots, mutating them in place.
     ///
     /// For each root, if its index is in the mapping, the root is updated to the
