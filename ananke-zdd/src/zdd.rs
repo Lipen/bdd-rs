@@ -29,7 +29,6 @@
 //! ```
 
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 
 use crate::cache::{Cache, CacheKey, CountCache, OpType};
 use crate::node::ZddNode;
@@ -62,8 +61,9 @@ pub struct ZddManager {
     /// Per-variable subtables for unique table lookup.
     subtables: RefCell<Vec<Subtable>>,
 
-    /// Variable to level mapping.
-    level_map: RefCell<HashMap<Var, Level>>,
+    /// Variable to level mapping (indexed by var.id() for O(1) lookup).
+    /// Index i stores the level of variable with id i, or None if not allocated.
+    level_map: RefCell<Vec<Option<Level>>>,
 
     /// Level to variable mapping.
     var_order: RefCell<Vec<Var>>,
@@ -108,7 +108,7 @@ impl ZddManager {
         Self {
             nodes: RefCell::new(nodes),
             subtables: RefCell::new(Vec::new()),
-            level_map: RefCell::new(HashMap::new()),
+            level_map: RefCell::new(Vec::new()),
             var_order: RefCell::new(Vec::new()),
             cache: RefCell::new(Cache::new()),
             count_cache: RefCell::new(CountCache::new()),
@@ -133,19 +133,19 @@ impl ZddManager {
     }
 
     /// Returns true if this is the empty family.
-    #[inline]
+    #[inline(always)]
     pub fn is_zero(&self, f: ZddId) -> bool {
         f.is_zero()
     }
 
     /// Returns true if this is the {∅} family.
-    #[inline]
+    #[inline(always)]
     pub fn is_one(&self, f: ZddId) -> bool {
         f.is_one()
     }
 
     /// Returns true if this is a terminal node.
-    #[inline]
+    #[inline(always)]
     pub fn is_terminal(&self, f: ZddId) -> bool {
         f.is_terminal()
     }
@@ -169,7 +169,13 @@ impl ZddManager {
         // Add to ordering
         let level = Level::new(self.var_order.borrow().len() as u32);
         self.var_order.borrow_mut().push(var);
-        self.level_map.borrow_mut().insert(var, level);
+
+        // Grow level_map if needed
+        let mut level_map = self.level_map.borrow_mut();
+        while level_map.len() <= id as usize {
+            level_map.push(None);
+        }
+        level_map[id as usize] = Some(level);
 
         // Create subtable
         self.subtables.borrow_mut().push(Subtable::new(var));
@@ -179,7 +185,11 @@ impl ZddManager {
 
     /// Ensures a variable exists, creating it if necessary.
     pub fn ensure_var(&self, var: Var) -> Var {
-        if !self.level_map.borrow().contains_key(&var) {
+        let level_map = self.level_map.borrow();
+        let needs_alloc = var.id() as usize >= level_map.len() || level_map[var.id() as usize].is_none();
+        drop(level_map);
+
+        if needs_alloc {
             // Allocate variables up to and including this one
             while self.next_var_id.get() <= var.id() {
                 self.new_var();
@@ -195,7 +205,11 @@ impl ZddManager {
 
     /// Gets the level of a variable in the current ordering.
     pub fn level(&self, var: Var) -> Level {
-        *self.level_map.borrow().get(&var).expect("Unknown variable")
+        let level_map = self.level_map.borrow();
+        let id = var.id() as usize;
+        level_map.get(id)
+            .and_then(|opt| *opt)
+            .expect("Unknown variable")
     }
 
     /// Gets the variable at a given level.
@@ -830,11 +844,14 @@ impl ZddManager {
         }
 
         // Check if all variables in set exist
+        let level_map = self.level_map.borrow();
         for &var in set {
-            if !self.level_map.borrow().contains_key(&var) {
+            let id = var.id() as usize;
+            if id >= level_map.len() || level_map[id].is_none() {
                 return false; // Unknown variable can't be in any set
             }
         }
+        drop(level_map);
 
         let mut sorted_set: Vec<Var> = set.to_vec();
         sorted_set.sort_by(|a, b| self.level(*a).cmp(&self.level(*b)));
