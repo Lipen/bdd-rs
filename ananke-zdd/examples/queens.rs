@@ -82,8 +82,8 @@ fn show_all_solutions(max_n: usize) {
     // Known solution counts for verification
     let known = [1u64, 1, 0, 0, 2, 10, 4, 40, 92, 352, 724, 2680, 14200];
 
-    println!("  N   Solutions   Expected   ZDD Nodes     Time");
-    println!("───  ─────────   ────────   ─────────   ────────");
+    println!("  N   Solutions   Expected   ZDD Nodes        Time");
+    println!("───   ─────────   ────────   ─────────   ─────────");
 
     for n in 1..=max_n {
         let (solutions, nodes, time) = solve_queens(n);
@@ -96,7 +96,7 @@ fn show_all_solutions(max_n: usize) {
             "✗"
         };
         println!(
-            "  {}   {:>8}   {:>8} {}  {:>9}   {:>7.2}ms",
+            "{:>3}   {:>8}   {:>8} {}  {:>9} {:>9.1}ms",
             n, solutions, expected, check, nodes, time
         );
     }
