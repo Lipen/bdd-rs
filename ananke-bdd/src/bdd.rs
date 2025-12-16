@@ -2965,7 +2965,7 @@ impl Bdd {
     /// ```
     pub fn descendants(&self, nodes: impl IntoIterator<Item = Ref>) -> HashSet<NodeId> {
         let mut visited = HashSet::new();
-        visited.insert(self.one().id());
+        visited.insert(NodeId::TERMINAL);
         let mut stack = Vec::from_iter(nodes.into_iter().map(|node_ref| node_ref.id()));
 
         while let Some(i) = stack.pop() {
