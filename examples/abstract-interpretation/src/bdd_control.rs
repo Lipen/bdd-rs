@@ -1351,7 +1351,7 @@ impl Hash for HashableControlState {
 
 impl PartialEq for HashableControlState {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.0.phi == other.0.phi
     }
 }
 
