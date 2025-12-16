@@ -29,6 +29,7 @@
 //! ```
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 use crate::cache::{Cache, CacheKey, CountCache, OpType};
 use crate::node::ZddNode;
@@ -73,6 +74,12 @@ pub struct ZddManager {
 
     /// Counting cache.
     count_cache: RefCell<CountCache>,
+
+    /// Cache for subset1(f, var) operations: (ZddId, Var) -> ZddId.
+    subset1_cache: RefCell<HashMap<(ZddId, u32), ZddId>>,
+
+    /// Cache for subset0(f, var) operations: (ZddId, Var) -> ZddId.
+    subset0_cache: RefCell<HashMap<(ZddId, u32), ZddId>>,
 }
 
 impl Default for ZddManager {
@@ -113,6 +120,8 @@ impl ZddManager {
             var_order: RefCell::new(Vec::new()),
             cache: RefCell::new(Cache::new()),
             count_cache: RefCell::new(CountCache::new()),
+            subset1_cache: RefCell::new(HashMap::new()),
+            subset0_cache: RefCell::new(HashMap::new()),
         }
     }
 
@@ -550,11 +559,17 @@ impl ZddManager {
             return f;
         }
 
+        // Check cache
+        let cache_key = (f, var.id());
+        if let Some(&result) = self.subset0_cache.borrow().get(&cache_key) {
+            return result;
+        }
+
         let f_node = self.node(f);
         let f_level = self.level(f_node.var);
         let var_level = self.level(var);
 
-        match f_level.cmp(&var_level) {
+        let result = match f_level.cmp(&var_level) {
             std::cmp::Ordering::Less => {
                 // var is below f's variable, recurse
                 let lo = self.subset0(f_node.lo, var);
@@ -569,7 +584,11 @@ impl ZddManager {
                 // var is above f's variable, all sets lack var
                 f
             }
-        }
+        };
+
+        // Cache the result
+        self.subset0_cache.borrow_mut().insert(cache_key, result);
+        result
     }
 
     /// Subset1: Sets containing var (with var removed from each set).
@@ -580,11 +599,17 @@ impl ZddManager {
             return ZddId::ZERO; // Terminals don't contain var
         }
 
+        // Check cache
+        let cache_key = (f, var.id());
+        if let Some(&result) = self.subset1_cache.borrow().get(&cache_key) {
+            return result;
+        }
+
         let f_node = self.node(f);
         let f_level = self.level(f_node.var);
         let var_level = self.level(var);
 
-        match f_level.cmp(&var_level) {
+        let result = match f_level.cmp(&var_level) {
             std::cmp::Ordering::Less => {
                 // var is below f's variable, recurse
                 let lo = self.subset1(f_node.lo, var);
@@ -599,7 +624,11 @@ impl ZddManager {
                 // var is above f's variable, no sets contain var
                 ZddId::ZERO
             }
-        }
+        };
+
+        // Cache the result
+        self.subset1_cache.borrow_mut().insert(cache_key, result);
+        result
     }
 
     /// Change: Toggle var in all sets.
@@ -919,6 +948,8 @@ impl ZddManager {
     pub fn clear_caches(&self) {
         self.cache.borrow_mut().clear();
         self.count_cache.borrow_mut().clear();
+        self.subset1_cache.borrow_mut().clear();
+        self.subset0_cache.borrow_mut().clear();
     }
 }
 
