@@ -447,20 +447,35 @@ mod tests {
     }
 
     #[test]
-    fn test_and_irreducibility() {
-        // x₁ ∧ x₂ forms an irreducible interaction set.
-        // Proof: x₁ and x₂ must be in the same block because they INTERACT.
-        // i.e., sets_interact(f, {x₁}, {x₂}) must return true.
+    fn test_and_separability_partition() {
+        // x₁ ∧ x₂ is separable: can be factored as x₁ ∧ x₂
+        // Therefore x₁ and x₂ do NOT interact (can be in different blocks).
         let f = TruthTable::from_expr(2, |x| x[0] && x[1]);
         let x1 = VarSet::singleton(Var(1));
         let x2 = VarSet::singleton(Var(2));
 
-        // They interact: cannot separate them with consistent operator
+        // They do NOT interact (separable partition exists)
+        assert!(!sets_interact(&f, &x1, &x2));
+
+        // Interaction partition has 2 blocks
+        let ip = find_interaction_partition(&f);
+        assert_eq!(ip.num_blocks(), 2, "Separable function should have multiple blocks");
+    }
+
+    #[test]
+    fn test_maj_irreducibility() {
+        // MAJ₃(x₁, x₂, x₃) = (x₁ ∧ x₂) ∨ (x₂ ∧ x₃) ∨ (x₁ ∧ x₃) is truly irreducible.
+        // No two variables can be separated from the third.
+        let f = named::majority3();
+        let x1 = VarSet::singleton(Var(1));
+        let x2 = VarSet::singleton(Var(2));
+
+        // All pairs interact
         assert!(sets_interact(&f, &x1, &x2));
 
-        // Verify the interaction partition has them together
+        // Interaction partition has 1 block (all variables together)
         let ip = find_interaction_partition(&f);
-        assert_eq!(ip.num_blocks(), 1, "All variables should be in one block (irreducible)");
+        assert_eq!(ip.num_blocks(), 1, "Irreducible function should have one block");
     }
 
     #[test]
