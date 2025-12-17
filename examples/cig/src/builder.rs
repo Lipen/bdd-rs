@@ -87,10 +87,7 @@ impl CigBuilder {
         // function being the function itself.
 
         let var_list: Vec<Var> = vars.iter().collect();
-        let children: Vec<Arc<CigNode>> = var_list
-            .iter()
-            .map(|&v| self.unique_table.leaf(v))
-            .collect();
+        let children: Vec<Arc<CigNode>> = var_list.iter().map(|&v| self.unique_table.leaf(v)).collect();
 
         // The interaction function is f itself (reindexed)
         let n = var_list.len() as u32;
@@ -104,11 +101,7 @@ impl CigBuilder {
         });
 
         // Sort children by variable index for canonicity
-        let mut indexed_children: Vec<_> = children
-            .into_iter()
-            .enumerate()
-            .map(|(i, c)| (var_list[i], c))
-            .collect();
+        let mut indexed_children: Vec<_> = children.into_iter().enumerate().map(|(i, c)| (var_list[i], c)).collect();
         indexed_children.sort_by_key(|(v, _)| v.index());
 
         let sorted_children: Vec<_> = indexed_children.into_iter().map(|(_, c)| c).collect();
@@ -131,12 +124,7 @@ impl CigBuilder {
     }
 
     /// Build a binary separable node.
-    fn build_binary_separable(
-        &mut self,
-        f: &TruthTable,
-        a_vars: &VarSet,
-        b_vars: &VarSet,
-    ) -> Arc<CigNode> {
+    fn build_binary_separable(&mut self, f: &TruthTable, a_vars: &VarSet, b_vars: &VarSet) -> Arc<CigNode> {
         // Find the separating operator
         let result = test_separability_on_function(f, a_vars, b_vars);
 
@@ -228,11 +216,7 @@ impl CigBuilder {
 }
 
 /// Helper to test separability for CIG construction.
-fn test_separability_on_function(
-    f: &TruthTable,
-    a_vars: &VarSet,
-    b_vars: &VarSet,
-) -> SeparabilityResult {
+fn test_separability_on_function(f: &TruthTable, a_vars: &VarSet, b_vars: &VarSet) -> SeparabilityResult {
     let a_list: Vec<Var> = a_vars.iter().collect();
     let b_list: Vec<Var> = b_vars.iter().collect();
 
@@ -261,16 +245,12 @@ fn test_separability_on_function(
     for op in Operator::all() {
         if let Some((u, v)) = check_rank_1(&matrix, op) {
             let g = TruthTable::from_expr(a_list.len() as u32, |x| {
-                let idx = x.iter().enumerate().fold(0, |acc, (i, &b)| {
-                    acc | ((b as usize) << i)
-                });
+                let idx = x.iter().enumerate().fold(0, |acc, (i, &b)| acc | ((b as usize) << i));
                 u.get(idx).copied().unwrap_or(false)
             });
 
             let h = TruthTable::from_expr(b_list.len() as u32, |x| {
-                let idx = x.iter().enumerate().fold(0, |acc, (i, &b)| {
-                    acc | ((b as usize) << i)
-                });
+                let idx = x.iter().enumerate().fold(0, |acc, (i, &b)| acc | ((b as usize) << i));
                 v.get(idx).copied().unwrap_or(false)
             });
 

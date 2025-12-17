@@ -40,24 +40,24 @@
 //! println!("Depth: {}", cig.depth());
 //! ```
 
+pub mod analysis;
+pub mod builder;
+pub mod cig;
+pub mod display;
+pub mod interaction;
+pub mod operations;
+pub mod partition;
+pub mod separability;
 pub mod truth_table;
 pub mod variable;
-pub mod separability;
-pub mod partition;
-pub mod interaction;
-pub mod cig;
-pub mod builder;
-pub mod operations;
-pub mod analysis;
-pub mod display;
 
+pub use analysis::{CigAnalysis, ComplexityClass};
+pub use builder::CigBuilder;
+pub use cig::{Cig, CigNode, CigNodeKind, UniqueTable};
+pub use interaction::{InteractionFunction, Operator};
+pub use partition::Partition;
 pub use truth_table::TruthTable;
 pub use variable::Var;
-pub use partition::Partition;
-pub use interaction::{InteractionFunction, Operator};
-pub use cig::{Cig, CigNode, CigNodeKind, UniqueTable};
-pub use builder::CigBuilder;
-pub use analysis::{CigAnalysis, ComplexityClass};
 
 #[cfg(test)]
 mod tests;

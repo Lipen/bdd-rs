@@ -106,12 +106,7 @@ impl TruthTable {
     ///
     /// Returns a function that outputs 1 iff xᵢ = 1.
     pub fn var(n: u32, var: Var) -> Self {
-        assert!(
-            var.index() <= n,
-            "Variable {} out of range for {}-variable function",
-            var,
-            n
-        );
+        assert!(var.index() <= n, "Variable {} out of range for {}-variable function", var, n);
         TruthTable::from_expr(n, move |x| x[var.position()])
     }
 
@@ -134,17 +129,8 @@ impl TruthTable {
     ///
     /// Input is a slice of n Booleans [x₁, x₂, ..., xₙ].
     pub fn eval(&self, input: &[bool]) -> bool {
-        assert_eq!(
-            input.len(),
-            self.n as usize,
-            "Expected {} inputs, got {}",
-            self.n,
-            input.len()
-        );
-        let index = input
-            .iter()
-            .enumerate()
-            .fold(0usize, |acc, (i, &b)| acc | ((b as usize) << i));
+        assert_eq!(input.len(), self.n as usize, "Expected {} inputs, got {}", self.n, input.len());
+        let index = input.iter().enumerate().fold(0usize, |acc, (i, &b)| acc | ((b as usize) << i));
         self.bits[index]
     }
 
@@ -213,20 +199,12 @@ impl TruthTable {
     ///
     /// Returns a function on n-1 variables (renumbered).
     pub fn cofactor(&self, var: Var, value: bool) -> Self {
-        assert!(
-            var.index() <= self.n,
-            "Variable {} out of range",
-            var
-        );
+        assert!(var.index() <= self.n, "Variable {} out of range", var);
 
         if self.n == 1 {
             // Result is a constant
             let idx = if value { 1 } else { 0 };
-            return if self.bits[idx] {
-                TruthTable::one(0)
-            } else {
-                TruthTable::zero(0)
-            };
+            return if self.bits[idx] { TruthTable::one(0) } else { TruthTable::zero(0) };
         }
 
         let new_n = self.n - 1;
@@ -245,10 +223,7 @@ impl TruthTable {
             new_bits.push(self.bits[orig_idx]);
         }
 
-        TruthTable {
-            n: new_n,
-            bits: new_bits,
-        }
+        TruthTable { n: new_n, bits: new_bits }
     }
 
     /// Restrict the function to a subset of variables.
@@ -279,10 +254,7 @@ impl TruthTable {
 
     /// Find all essential variables.
     pub fn essential_vars(&self) -> VarSet {
-        (1..=self.n)
-            .map(Var)
-            .filter(|&v| self.is_essential(v))
-            .collect()
+        (1..=self.n).map(Var).filter(|&v| self.is_essential(v)).collect()
     }
 
     /// Get the raw bits as a slice.
@@ -391,9 +363,7 @@ pub mod named {
 
     /// Full adder carry: (x₁ ∧ x₂) ∨ (x₂ ∧ x₃) ∨ (x₁ ∧ x₃)
     pub fn full_adder_carry() -> TruthTable {
-        TruthTable::from_expr(3, |x| {
-            (x[0] && x[1]) || (x[1] && x[2]) || (x[0] && x[2])
-        })
+        TruthTable::from_expr(3, |x| (x[0] && x[1]) || (x[1] && x[2]) || (x[0] && x[2]))
     }
 }
 

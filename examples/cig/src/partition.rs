@@ -37,20 +37,12 @@ impl Partition {
     /// Panics if blocks are not pairwise disjoint.
     pub fn from_blocks(mut blocks: Vec<VarSet>) -> Self {
         // Sort blocks for canonicity (by first element)
-        blocks.sort_by(|a, b| {
-            a.iter()
-                .next()
-                .map(|v| v.index())
-                .cmp(&b.iter().next().map(|v| v.index()))
-        });
+        blocks.sort_by(|a, b| a.iter().next().map(|v| v.index()).cmp(&b.iter().next().map(|v| v.index())));
 
         // Verify disjointness
         for i in 0..blocks.len() {
             for j in (i + 1)..blocks.len() {
-                assert!(
-                    blocks[i].is_disjoint(&blocks[j]),
-                    "Partition blocks must be disjoint"
-                );
+                assert!(blocks[i].is_disjoint(&blocks[j]), "Partition blocks must be disjoint");
             }
         }
 
@@ -59,10 +51,7 @@ impl Partition {
 
     /// Create a two-block partition.
     pub fn two_blocks(a: VarSet, b: VarSet) -> Self {
-        assert!(
-            a.is_disjoint(&b),
-            "Partition blocks must be disjoint"
-        );
+        assert!(a.is_disjoint(&b), "Partition blocks must be disjoint");
         Partition::from_blocks(vec![a, b])
     }
 
@@ -116,9 +105,7 @@ impl Partition {
     ///
     /// π₁ refines π₂ if every block of π₁ is contained in some block of π₂.
     pub fn refines(&self, other: &Self) -> bool {
-        self.blocks.iter().all(|b1| {
-            other.blocks.iter().any(|b2| b1.is_subset(b2))
-        })
+        self.blocks.iter().all(|b1| other.blocks.iter().any(|b2| b1.is_subset(b2)))
     }
 
     /// Iterate over all non-trivial two-block partitions of the given variables.
@@ -161,11 +148,7 @@ impl TwoPartitionIter {
         let n = vars.len();
         if n < 2 {
             // No non-trivial partitions possible
-            TwoPartitionIter {
-                vars,
-                current: 0,
-                max: 0,
-            }
+            TwoPartitionIter { vars, current: 0, max: 0 }
         } else {
             // We use masks from 1 to 2^(n-1) - 1
             // This gives us all partitions without duplicates

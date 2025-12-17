@@ -10,9 +10,9 @@
 use cig::{CigBuilder, TruthTable, Var};
 
 fn main() {
-    println!("═══════════════════════════════════════════════════════════════");
+    println!("═══════════════════════════════════════════════════════════");
     println!("     Canonical Interaction Graph (CIG) - Basic Example");
-    println!("═══════════════════════════════════════════════════════════════\n");
+    println!("═══════════════════════════════════════════════════════════\n");
 
     let mut builder = CigBuilder::new();
 
@@ -28,7 +28,7 @@ fn main() {
 
     // Example 2: XOR function (separable)
     println!("Example 2: XOR function (x₁ ⊕ x₂)");
-    println!("──────────────────────────────────");
+    println!("─────────────────────────────────");
     let f_xor = TruthTable::from_expr(2, |x| x[0] ^ x[1]);
     let cig_xor = builder.build(&f_xor);
     println!("{}", cig_xor);
@@ -55,7 +55,7 @@ fn main() {
 
     // Example 4: Three-variable function
     println!("Example 4: Three-variable function");
-    println!("───────────────────────────────────");
+    println!("──────────────────────────────────");
     let f = TruthTable::from_expr(3, |x| (x[0] && x[1]) || x[2]);
     let cig = builder.build(&f);
     println!("f = (x₁ ∧ x₂) ∨ x₃");
@@ -68,7 +68,7 @@ fn main() {
 
     // Example 5: Variable projection
     println!("Example 5: Variable Projections");
-    println!("────────────────────────────────");
+    println!("───────────────────────────────");
     for i in 1..=3 {
         let proj = TruthTable::var(3, Var(i as u32));
         let cig = builder.build(&proj);

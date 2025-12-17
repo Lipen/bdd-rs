@@ -1,9 +1,9 @@
 //! Integration tests for the CIG crate.
 
+use crate::analysis::CigAnalysis;
 use crate::builder::CigBuilder;
 use crate::truth_table::{named, TruthTable};
 use crate::variable::Var;
-use crate::analysis::CigAnalysis;
 
 #[test]
 fn test_full_workflow() {
@@ -58,11 +58,7 @@ fn test_evaluation_consistency() {
     let cig = builder.build(&f);
 
     for i in 0..8 {
-        let assignment = [
-            i & 1 == 1,
-            (i >> 1) & 1 == 1,
-            (i >> 2) & 1 == 1,
-        ];
+        let assignment = [i & 1 == 1, (i >> 1) & 1 == 1, (i >> 2) & 1 == 1];
         let tt_result = f.eval(&assignment);
         let cig_result = crate::operations::evaluate(&cig, &assignment);
 

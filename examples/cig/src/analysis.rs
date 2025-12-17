@@ -71,12 +71,7 @@ impl CigAnalysis {
     }
 }
 
-fn count_nodes(
-    node: &CigNode,
-    internal: &mut usize,
-    leaves: &mut usize,
-    operators: &mut Vec<Operator>,
-) {
+fn count_nodes(node: &CigNode, internal: &mut usize, leaves: &mut usize, operators: &mut Vec<Operator>) {
     match &node.kind {
         CigNodeKind::Constant(_) => {}
         CigNodeKind::Leaf(_) => *leaves += 1,
@@ -129,12 +124,7 @@ impl fmt::Display for ComplexityClass {
     }
 }
 
-fn classify(
-    width: usize,
-    depth: usize,
-    operators: &[Operator],
-    num_vars: usize,
-) -> ComplexityClass {
+fn classify(width: usize, depth: usize, operators: &[Operator], num_vars: usize) -> ComplexityClass {
     if num_vars == 0 {
         return ComplexityClass::Constant;
     }
@@ -150,9 +140,7 @@ fn classify(
     }
 
     // Check if all operators are AND/OR
-    let all_monotone = operators
-        .iter()
-        .all(|&op| op == Operator::And || op == Operator::Or);
+    let all_monotone = operators.iter().all(|&op| op == Operator::And || op == Operator::Or);
     if all_monotone && width <= 2 {
         return ComplexityClass::Monotone;
     }
@@ -195,12 +183,7 @@ pub fn summary_report(cig: &Cig) -> String {
     let ops_str = if analysis.operators_used.is_empty() {
         "none".to_string()
     } else {
-        analysis
-            .operators_used
-            .iter()
-            .map(|op| op.symbol())
-            .collect::<Vec<_>>()
-            .join(", ")
+        analysis.operators_used.iter().map(|op| op.symbol()).collect::<Vec<_>>().join(", ")
     };
 
     format!(

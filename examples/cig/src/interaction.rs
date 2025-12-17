@@ -65,9 +65,7 @@ impl InteractionFunction {
 
     /// Create the XOR interaction function on k inputs.
     pub fn xor_all(arity: u32) -> Self {
-        InteractionFunction::from_expr(arity, |x| {
-            x.iter().filter(|&&b| b).count() % 2 == 1
-        })
+        InteractionFunction::from_expr(arity, |x| x.iter().filter(|&&b| b).count() % 2 == 1)
     }
 
     /// Get the arity (number of inputs).
@@ -83,10 +81,7 @@ impl InteractionFunction {
     /// Evaluate the interaction function.
     pub fn eval(&self, inputs: &[bool]) -> bool {
         assert_eq!(inputs.len(), self.arity as usize);
-        let index = inputs
-            .iter()
-            .enumerate()
-            .fold(0usize, |acc, (i, &b)| acc | ((b as usize) << i));
+        let index = inputs.iter().enumerate().fold(0usize, |acc, (i, &b)| acc | ((b as usize) << i));
         self.table[index]
     }
 

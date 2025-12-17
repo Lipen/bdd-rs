@@ -93,11 +93,7 @@ impl SeparabilityResult {
 ///
 /// For f with partition (A, B), the matrix M[i,j] = f(α_i, β_j)
 /// where α_i is the i-th assignment to A and β_j is the j-th to B.
-pub fn characteristic_matrix(
-    f: &TruthTable,
-    a_vars: &VarSet,
-    b_vars: &VarSet,
-) -> Vec<Vec<bool>> {
+pub fn characteristic_matrix(f: &TruthTable, a_vars: &VarSet, b_vars: &VarSet) -> Vec<Vec<bool>> {
     let a_list: Vec<Var> = a_vars.iter().collect();
     let b_list: Vec<Var> = b_vars.iter().collect();
 
@@ -249,11 +245,7 @@ fn has_xor_rank_1(matrix: &[Vec<bool>]) -> Option<(Vec<bool>, Vec<bool>)> {
 }
 
 /// Test if a function is separable over a given partition.
-pub fn test_separability(
-    f: &TruthTable,
-    a_vars: &VarSet,
-    b_vars: &VarSet,
-) -> SeparabilityResult {
+pub fn test_separability(f: &TruthTable, a_vars: &VarSet, b_vars: &VarSet) -> SeparabilityResult {
     // Handle edge cases
     if a_vars.is_empty() || b_vars.is_empty() {
         return SeparabilityResult::not_separable();
@@ -283,9 +275,7 @@ pub fn test_separability(
 /// Convert a Boolean vector to a truth table.
 fn truth_table_from_vector(v: &[bool], n: u32) -> TruthTable {
     TruthTable::from_expr(n, |x| {
-        let idx = x.iter().enumerate().fold(0usize, |acc, (i, &b)| {
-            acc | ((b as usize) << i)
-        });
+        let idx = x.iter().enumerate().fold(0usize, |acc, (i, &b)| acc | ((b as usize) << i));
         v.get(idx).copied().unwrap_or(false)
     })
 }
@@ -357,10 +347,7 @@ fn restrict_to_vars(f: &TruthTable, vars: &VarSet) -> TruthTable {
 /// A and B remain separable with the SAME operator.
 fn sets_interact(f: &TruthTable, a_vars: &VarSet, b_vars: &VarSet) -> bool {
     let all_vars = f.essential_vars();
-    let other_vars: Vec<Var> = all_vars
-        .iter()
-        .filter(|v| !a_vars.contains(*v) && !b_vars.contains(*v))
-        .collect();
+    let other_vars: Vec<Var> = all_vars.iter().filter(|v| !a_vars.contains(*v) && !b_vars.contains(*v)).collect();
 
     if other_vars.is_empty() {
         // No other variables - just test directly
@@ -414,10 +401,7 @@ fn sets_interact(f: &TruthTable, a_vars: &VarSet, b_vars: &VarSet) -> bool {
 
 /// Create a cofactor by fixing some variables.
 fn create_cofactor(f: &TruthTable, vars_to_fix: &[Var], assignment: usize) -> TruthTable {
-    let remaining_vars: Vec<Var> = (1..=f.num_vars())
-        .map(Var::new)
-        .filter(|v| !vars_to_fix.contains(v))
-        .collect();
+    let remaining_vars: Vec<Var> = (1..=f.num_vars()).map(Var::new).filter(|v| !vars_to_fix.contains(v)).collect();
 
     let new_n = remaining_vars.len() as u32;
 

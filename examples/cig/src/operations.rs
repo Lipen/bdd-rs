@@ -45,10 +45,7 @@ fn condition_recursive(
 
         CigNodeKind::Internal { interaction, children } => {
             // Recursively condition children
-            let new_children: Vec<Arc<CigNode>> = children
-                .iter()
-                .map(|c| condition_recursive(c, var, value, table, cache))
-                .collect();
+            let new_children: Vec<Arc<CigNode>> = children.iter().map(|c| condition_recursive(c, var, value, table, cache)).collect();
 
             // Simplify if any children became constants
             simplify_internal(interaction, new_children, table)
@@ -60,16 +57,9 @@ fn condition_recursive(
 }
 
 /// Simplify an internal node if children are constants.
-fn simplify_internal(
-    interaction: &InteractionFunction,
-    children: Vec<Arc<CigNode>>,
-    table: &mut UniqueTable,
-) -> Arc<CigNode> {
+fn simplify_internal(interaction: &InteractionFunction, children: Vec<Arc<CigNode>>, table: &mut UniqueTable) -> Arc<CigNode> {
     // Check if all children are constants
-    let const_values: Option<Vec<bool>> = children
-        .iter()
-        .map(|c| c.as_constant())
-        .collect();
+    let const_values: Option<Vec<bool>> = children.iter().map(|c| c.as_constant()).collect();
 
     if let Some(values) = const_values {
         // Evaluate the interaction function
@@ -89,11 +79,7 @@ fn simplify_internal(
                         return table.zero();
                     }
                     // Remove constant 1s
-                    let non_const: Vec<_> = children
-                        .iter()
-                        .filter(|c| c.as_constant() != Some(true))
-                        .cloned()
-                        .collect();
+                    let non_const: Vec<_> = children.iter().filter(|c| c.as_constant() != Some(true)).cloned().collect();
                     if non_const.len() == 1 {
                         return non_const[0].clone();
                     }
@@ -103,11 +89,7 @@ fn simplify_internal(
                         return table.one();
                     }
                     // Remove constant 0s
-                    let non_const: Vec<_> = children
-                        .iter()
-                        .filter(|c| c.as_constant() != Some(false))
-                        .cloned()
-                        .collect();
+                    let non_const: Vec<_> = children.iter().filter(|c| c.as_constant() != Some(false)).cloned().collect();
                     if non_const.len() == 1 {
                         return non_const[0].clone();
                     }
@@ -152,10 +134,7 @@ fn evaluate_node(node: &CigNode, assignment: &[bool]) -> bool {
         CigNodeKind::Constant(v) => *v,
         CigNodeKind::Leaf(var) => assignment[var.position()],
         CigNodeKind::Internal { interaction, children } => {
-            let child_values: Vec<bool> = children
-                .iter()
-                .map(|c| evaluate_node(c, assignment))
-                .collect();
+            let child_values: Vec<bool> = children.iter().map(|c| evaluate_node(c, assignment)).collect();
             interaction.eval(&child_values)
         }
     }

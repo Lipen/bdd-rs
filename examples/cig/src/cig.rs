@@ -69,10 +69,7 @@ impl CigNode {
         let hash = hasher.finish();
 
         CigNode {
-            kind: CigNodeKind::Internal {
-                interaction,
-                children,
-            },
+            kind: CigNodeKind::Internal { interaction, children },
             hash,
         }
     }
@@ -142,9 +139,7 @@ impl CigNode {
 
         match &self.kind {
             CigNodeKind::Constant(_) | CigNodeKind::Leaf(_) => 1,
-            CigNodeKind::Internal { children, .. } => {
-                1 + children.iter().map(|c| c.size_recursive(visited)).sum::<usize>()
-            }
+            CigNodeKind::Internal { children, .. } => 1 + children.iter().map(|c| c.size_recursive(visited)).sum::<usize>(),
         }
     }
 
@@ -152,9 +147,7 @@ impl CigNode {
     pub fn depth(&self) -> usize {
         match &self.kind {
             CigNodeKind::Constant(_) | CigNodeKind::Leaf(_) => 0,
-            CigNodeKind::Internal { children, .. } => {
-                1 + children.iter().map(|c| c.depth()).max().unwrap_or(0)
-            }
+            CigNodeKind::Internal { children, .. } => 1 + children.iter().map(|c| c.depth()).max().unwrap_or(0),
         }
     }
 
@@ -184,11 +177,7 @@ impl CigNode {
         match &self.kind {
             CigNodeKind::Constant(_) | CigNodeKind::Leaf(_) => 0,
             CigNodeKind::Internal { interaction, children } => {
-                let child_max = children
-                    .iter()
-                    .map(|c| c.interaction_width())
-                    .max()
-                    .unwrap_or(0);
+                let child_max = children.iter().map(|c| c.interaction_width()).max().unwrap_or(0);
                 interaction.arity().max(child_max as u32) as usize
             }
         }
@@ -198,9 +187,7 @@ impl CigNode {
     pub fn table_size(&self) -> usize {
         match &self.kind {
             CigNodeKind::Constant(_) | CigNodeKind::Leaf(_) => 0,
-            CigNodeKind::Internal { interaction, children } => {
-                interaction.size() + children.iter().map(|c| c.table_size()).sum::<usize>()
-            }
+            CigNodeKind::Internal { interaction, children } => interaction.size() + children.iter().map(|c| c.table_size()).sum::<usize>(),
         }
     }
 }
@@ -400,11 +387,7 @@ impl UniqueTable {
     }
 
     /// Get or create an internal node.
-    pub fn internal(
-        &mut self,
-        interaction: InteractionFunction,
-        children: Vec<Arc<CigNode>>,
-    ) -> Arc<CigNode> {
+    pub fn internal(&mut self, interaction: InteractionFunction, children: Vec<Arc<CigNode>>) -> Arc<CigNode> {
         let node = CigNode::internal(interaction, children);
         self.unique(node)
     }

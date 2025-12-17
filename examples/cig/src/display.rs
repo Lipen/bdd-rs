@@ -20,9 +20,7 @@ fn display_node(output: &mut String, node: &CigNode, prefix: &str, is_last: bool
     };
 
     let label = match &node.kind {
-        CigNodeKind::Constant(v) => {
-            if *v { "⊤ (true)" } else { "⊥ (false)" }.to_string()
-        }
+        CigNodeKind::Constant(v) => if *v { "⊤ (true)" } else { "⊥ (false)" }.to_string(),
         CigNodeKind::Leaf(v) => format!("{}", v),
         CigNodeKind::Internal { interaction, .. } => format!("{}", interaction),
     };
@@ -86,12 +84,7 @@ pub fn to_dot(cig: &Cig) -> String {
     output
 }
 
-fn generate_dot_nodes(
-    output: &mut String,
-    node: &CigNode,
-    next_id: &mut usize,
-    ids: &mut std::collections::HashMap<u64, usize>,
-) {
+fn generate_dot_nodes(output: &mut String, node: &CigNode, next_id: &mut usize, ids: &mut std::collections::HashMap<u64, usize>) {
     let hash = node.canonical_hash();
     if ids.contains_key(&hash) {
         return;
@@ -121,28 +114,16 @@ fn generate_dot_nodes(
         format!(", style={}", style)
     };
 
-    output.push_str(&format!(
-        "  n{} [label=\"{}\", shape={}{}];\n",
-        id, label, shape, style_attr
-    ));
+    output.push_str(&format!("  n{} [label=\"{}\", shape={}{}];\n", id, label, shape, style_attr));
 }
 
-fn generate_dot_edges(
-    output: &mut String,
-    node: &CigNode,
-    ids: &std::collections::HashMap<u64, usize>,
-) {
+fn generate_dot_edges(output: &mut String, node: &CigNode, ids: &std::collections::HashMap<u64, usize>) {
     let parent_id = ids.get(&node.canonical_hash()).unwrap();
 
     if let CigNodeKind::Internal { children, .. } = &node.kind {
         for (i, child) in children.iter().enumerate() {
             let child_id = ids.get(&child.canonical_hash()).unwrap();
-            output.push_str(&format!(
-                "  n{} -> n{} [label=\"{}\"];\n",
-                parent_id,
-                child_id,
-                i + 1
-            ));
+            output.push_str(&format!("  n{} -> n{} [label=\"{}\"];\n", parent_id, child_id, i + 1));
             generate_dot_edges(output, child, ids);
         }
     }
