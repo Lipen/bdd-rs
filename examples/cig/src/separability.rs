@@ -429,15 +429,38 @@ mod tests {
 
     #[test]
     fn test_and_separability() {
-        // x₁ ∧ x₂ is NOT separable (irreducible)
+        // f = x₁ ∧ x₂ is separable over partition {{x₁}, {x₂}} via AND.
+        // Result: g = x₁, h = x₂, operator = AND, so f = g ∧ h
+        // Note: This does NOT prove independence in CIG.
+        // Separability over a partition is just local factorization.
+        // Interaction requires testing consistency across all cofactors.
         let f = TruthTable::from_expr(2, |x| x[0] && x[1]);
         let a = VarSet::singleton(Var(1));
         let b = VarSet::singleton(Var(2));
 
-        // Actually, x₁ ∧ x₂ IS separable via AND!
         let result = test_separability(&f, &a, &b);
         assert!(result.is_separable);
         assert_eq!(result.operator, Some(Operator::And));
+        // Verify g = x₁ and h = x₂ (each is 1-variable identity)
+        assert_eq!(result.g.as_ref().unwrap().num_vars(), 1);
+        assert_eq!(result.h.as_ref().unwrap().num_vars(), 1);
+    }
+
+    #[test]
+    fn test_and_irreducibility() {
+        // x₁ ∧ x₂ forms an irreducible interaction set.
+        // Proof: x₁ and x₂ must be in the same block because they INTERACT.
+        // i.e., sets_interact(f, {x₁}, {x₂}) must return true.
+        let f = TruthTable::from_expr(2, |x| x[0] && x[1]);
+        let x1 = VarSet::singleton(Var(1));
+        let x2 = VarSet::singleton(Var(2));
+
+        // They interact: cannot separate them with consistent operator
+        assert!(sets_interact(&f, &x1, &x2));
+
+        // Verify the interaction partition has them together
+        let ip = find_interaction_partition(&f);
+        assert_eq!(ip.num_blocks(), 1, "All variables should be in one block (irreducible)");
     }
 
     #[test]
