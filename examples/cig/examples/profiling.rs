@@ -113,7 +113,7 @@ fn profile_functions_quick(n: u32, samples: usize, skip_partition: bool) {
         let ip = find_interaction_partition(&f);
         partition_time += s.elapsed().as_secs_f64();
 
-        let all_vars = ip.variables();  // Get vars from partition, not from function
+        let all_vars = ip.variables(); // Get vars from partition, not from function
         let num_blocks = ip.num_blocks();
         if num_blocks == 1 {
             irreducible_count += 1;
@@ -356,7 +356,7 @@ fn profile_constructed_functions() {
         let ip = find_interaction_partition(&f);
         let elapsed = start.elapsed();
 
-        let all_vars = ip.variables();  // Get from partition, not from function
+        let all_vars = ip.variables(); // Get from partition, not from function
         let essential_vars = all_vars.len();
         let blocks = ip.num_blocks();
         let micros = elapsed.as_secs_f64() * 1_000_000.0;
