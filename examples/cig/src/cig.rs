@@ -63,7 +63,7 @@ impl CigNode {
         let mut hasher = FxHasher::default();
         interaction.hash(&mut hasher);
         for child in children.iter() {
-            child.hash.hash(&mut hasher);
+            hasher.write_u64(child.canonical_hash());
         }
         let hash = hasher.finish();
 
