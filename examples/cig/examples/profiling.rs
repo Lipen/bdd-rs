@@ -175,7 +175,7 @@ fn profile_functions_quick(n: u32, samples: usize, skip_partition: bool) {
         println!("  Separability tests:  {:.3}s", separability_time);
     }
 
-    println!("\n─────────────────────────────────────────────────────────\n");
+    println!("\n─────────────────────────────────────────────────────────");
 }
 
 fn profile_functions_extensive(n: u32, samples: usize) {
@@ -315,7 +315,7 @@ fn profile_functions_extensive(n: u32, samples: usize) {
     println!("    OR:  {}", operator_consistency[1]);
     println!("    XOR: {}", operator_consistency[2]);
 
-    println!("\n─────────────────────────────────────────────────────────\n");
+    println!("\n─────────────────────────────────────────────────────────");
 }
 
 #[derive(Default)]
