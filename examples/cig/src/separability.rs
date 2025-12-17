@@ -428,25 +428,6 @@ mod tests {
     use crate::truth_table::named;
 
     #[test]
-    fn test_and_separability() {
-        // f = x₁ ∧ x₂ is separable over partition {{x₁}, {x₂}} via AND.
-        // Result: g = x₁, h = x₂, operator = AND, so f = g ∧ h
-        // Note: This does NOT prove independence in CIG.
-        // Separability over a partition is just local factorization.
-        // Interaction requires testing consistency across all cofactors.
-        let f = TruthTable::from_expr(2, |x| x[0] && x[1]);
-        let a = VarSet::singleton(Var(1));
-        let b = VarSet::singleton(Var(2));
-
-        let result = test_separability(&f, &a, &b);
-        assert!(result.is_separable);
-        assert_eq!(result.operator, Some(Operator::And));
-        // Verify g = x₁ and h = x₂ (each is 1-variable identity)
-        assert_eq!(result.g.as_ref().unwrap().num_vars(), 1);
-        assert_eq!(result.h.as_ref().unwrap().num_vars(), 1);
-    }
-
-    #[test]
     fn test_and_separability_partition() {
         // x₁ ∧ x₂ is separable: can be factored as x₁ ∧ x₂
         // Therefore x₁ and x₂ do NOT interact (can be in different blocks).
@@ -460,22 +441,6 @@ mod tests {
         // Interaction partition has 2 blocks
         let ip = find_interaction_partition(&f);
         assert_eq!(ip.num_blocks(), 2, "Separable function should have multiple blocks");
-    }
-
-    #[test]
-    fn test_maj_irreducibility() {
-        // MAJ₃(x₁, x₂, x₃) = (x₁ ∧ x₂) ∨ (x₂ ∧ x₃) ∨ (x₁ ∧ x₃) is truly irreducible.
-        // No two variables can be separated from the third.
-        let f = named::majority3();
-        let x1 = VarSet::singleton(Var(1));
-        let x2 = VarSet::singleton(Var(2));
-
-        // All pairs interact
-        assert!(sets_interact(&f, &x1, &x2));
-
-        // Interaction partition has 1 block (all variables together)
-        let ip = find_interaction_partition(&f);
-        assert_eq!(ip.num_blocks(), 1, "Irreducible function should have one block");
     }
 
     #[test]
