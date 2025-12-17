@@ -254,7 +254,24 @@ impl TruthTable {
 
     /// Find all essential variables.
     pub fn essential_vars(&self) -> VarSet {
-        (1..=self.n).map(Var).filter(|&v| self.is_essential(v)).collect()
+        let mut essential = VarSet::empty();
+        let size = self.size();
+
+        for var_idx in 0..self.n as usize {
+            // A variable is essential if swapping its bit changes at least one output
+            let step = 1usize << var_idx;
+
+            for i in 0..size {
+                // Compare f(x) with f(x with bit i flipped)
+                let j = i ^ step;
+                if i < j && self.bits[i] != self.bits[j] {
+                    essential.insert(Var::new((var_idx + 1) as u32));
+                    break;
+                }
+            }
+        }
+
+        essential
     }
 
     /// Get the raw bits as a slice.
