@@ -1,5 +1,7 @@
 //! Display utilities for CIG.
 
+use std::collections::HashMap;
+
 use crate::cig::{Cig, CigNode, CigNodeKind};
 
 /// Display a CIG as a tree with Unicode box-drawing characters.
@@ -76,7 +78,7 @@ pub fn to_dot(cig: &Cig) -> String {
     output.push_str("  node [fontname=\"Helvetica\"];\n\n");
 
     let mut node_id = 0;
-    let mut ids = std::collections::HashMap::new();
+    let mut ids = HashMap::new();
     generate_dot_nodes(&mut output, cig.root(), &mut node_id, &mut ids);
     generate_dot_edges(&mut output, cig.root(), &ids);
 
@@ -84,7 +86,7 @@ pub fn to_dot(cig: &Cig) -> String {
     output
 }
 
-fn generate_dot_nodes(output: &mut String, node: &CigNode, next_id: &mut usize, ids: &mut std::collections::HashMap<u64, usize>) {
+fn generate_dot_nodes(output: &mut String, node: &CigNode, next_id: &mut usize, ids: &mut HashMap<u64, usize>) {
     let hash = node.canonical_hash();
     if ids.contains_key(&hash) {
         return;
@@ -117,7 +119,7 @@ fn generate_dot_nodes(output: &mut String, node: &CigNode, next_id: &mut usize, 
     output.push_str(&format!("  n{} [label=\"{}\", shape={}{}];\n", id, label, shape, style_attr));
 }
 
-fn generate_dot_edges(output: &mut String, node: &CigNode, ids: &std::collections::HashMap<u64, usize>) {
+fn generate_dot_edges(output: &mut String, node: &CigNode, ids: &HashMap<u64, usize>) {
     let parent_id = ids.get(&node.canonical_hash()).unwrap();
 
     if let CigNodeKind::Internal { children, .. } = &node.kind {
