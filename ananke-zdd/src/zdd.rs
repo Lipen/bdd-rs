@@ -29,6 +29,7 @@
 //! ```
 
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use crate::cache::{Cache, CacheKey, CountCache, OpType};
@@ -405,17 +406,17 @@ impl ZddManager {
             let f_level = self.level(f_node.var);
             let g_level = self.level(g_node.var);
             match f_level.cmp(&g_level) {
-                std::cmp::Ordering::Less => {
+                Ordering::Less => {
                     // f's variable is higher (closer to root)
                     let lo = self.union(f_node.lo, g);
                     self.get_node(f_node.var, lo, f_node.hi)
                 }
-                std::cmp::Ordering::Greater => {
+                Ordering::Greater => {
                     // g's variable is higher
                     let lo = self.union(f, g_node.lo);
                     self.get_node(g_node.var, lo, g_node.hi)
                 }
-                std::cmp::Ordering::Equal => {
+                Ordering::Equal => {
                     // Same variable
                     let lo = self.union(f_node.lo, g_node.lo);
                     let hi = self.union(f_node.hi, g_node.hi);
@@ -467,12 +468,12 @@ impl ZddManager {
             let f_level = self.level(f_node.var);
             let g_level = self.level(g_node.var);
             match f_level.cmp(&g_level) {
-                std::cmp::Ordering::Less => {
+                Ordering::Less => {
                     // f's variable is higher, not in g's top variable
                     self.intersection(f_node.lo, g)
                 }
-                std::cmp::Ordering::Greater => self.intersection(f, g_node.lo),
-                std::cmp::Ordering::Equal => {
+                Ordering::Greater => self.intersection(f, g_node.lo),
+                Ordering::Equal => {
                     let lo = self.intersection(f_node.lo, g_node.lo);
                     let hi = self.intersection(f_node.hi, g_node.hi);
                     self.get_node(f_node.var, lo, hi)
@@ -522,12 +523,12 @@ impl ZddManager {
             let g_level = self.level(g_node.var);
 
             match f_level.cmp(&g_level) {
-                std::cmp::Ordering::Less => {
+                Ordering::Less => {
                     let lo = self.difference(f_node.lo, g);
                     self.get_node(f_node.var, lo, f_node.hi)
                 }
-                std::cmp::Ordering::Greater => self.difference(f, g_node.lo),
-                std::cmp::Ordering::Equal => {
+                Ordering::Greater => self.difference(f, g_node.lo),
+                Ordering::Equal => {
                     let lo = self.difference(f_node.lo, g_node.lo);
                     let hi = self.difference(f_node.hi, g_node.hi);
                     self.get_node(f_node.var, lo, hi)
@@ -570,17 +571,17 @@ impl ZddManager {
         let var_level = self.level(var);
 
         let result = match f_level.cmp(&var_level) {
-            std::cmp::Ordering::Less => {
+            Ordering::Less => {
                 // var is below f's variable, recurse
                 let lo = self.subset0(f_node.lo, var);
                 let hi = self.subset0(f_node.hi, var);
                 self.get_node(f_node.var, lo, hi)
             }
-            std::cmp::Ordering::Equal => {
+            Ordering::Equal => {
                 // At the target variable
                 f_node.lo
             }
-            std::cmp::Ordering::Greater => {
+            Ordering::Greater => {
                 // var is above f's variable, all sets lack var
                 f
             }
@@ -610,17 +611,17 @@ impl ZddManager {
         let var_level = self.level(var);
 
         let result = match f_level.cmp(&var_level) {
-            std::cmp::Ordering::Less => {
+            Ordering::Less => {
                 // var is below f's variable, recurse
                 let lo = self.subset1(f_node.lo, var);
                 let hi = self.subset1(f_node.hi, var);
                 self.get_node(f_node.var, lo, hi)
             }
-            std::cmp::Ordering::Equal => {
+            Ordering::Equal => {
                 // At the target variable
                 f_node.hi
             }
-            std::cmp::Ordering::Greater => {
+            Ordering::Greater => {
                 // var is above f's variable, no sets contain var
                 ZddId::ZERO
             }
@@ -652,17 +653,17 @@ impl ZddManager {
         let var_level = self.level(var);
 
         match f_level.cmp(&var_level) {
-            std::cmp::Ordering::Less => {
+            Ordering::Less => {
                 // var is below f's variable
                 let lo = self.change(f_node.lo, var);
                 let hi = self.change(f_node.hi, var);
                 self.get_node(f_node.var, lo, hi)
             }
-            std::cmp::Ordering::Equal => {
+            Ordering::Equal => {
                 // Swap lo and hi branches
                 self.get_node(f_node.var, f_node.hi, f_node.lo)
             }
-            std::cmp::Ordering::Greater => {
+            Ordering::Greater => {
                 // var is above f's variable, add var to all sets
                 self.get_node(var, ZddId::ZERO, f)
             }
@@ -714,19 +715,19 @@ impl ZddManager {
         let f_level = self.level(f_node.var);
         let g_level = self.level(g_node.var);
         let result = match f_level.cmp(&g_level) {
-            std::cmp::Ordering::Less => {
+            Ordering::Less => {
                 // f's variable is higher
                 let lo = self.join(f_node.lo, g);
                 let hi = self.join(f_node.hi, g);
                 self.get_node(f_node.var, lo, hi)
             }
-            std::cmp::Ordering::Greater => {
+            Ordering::Greater => {
                 // g's variable is higher
                 let lo = self.join(f, g_node.lo);
                 let hi = self.join(f, g_node.hi);
                 self.get_node(g_node.var, lo, hi)
             }
-            std::cmp::Ordering::Equal => {
+            Ordering::Equal => {
                 // Same variable
                 // Sets without var from both
                 let lo_lo = self.join(f_node.lo, g_node.lo);
@@ -772,12 +773,12 @@ impl ZddManager {
         let f_level = self.level(f_node.var);
         let g_level = self.level(g_node.var);
         let result = match f_level.cmp(&g_level) {
-            std::cmp::Ordering::Less => {
+            Ordering::Less => {
                 // f's variable is higher, not in any g set at this level
                 self.meet(f_node.lo, g)
             }
-            std::cmp::Ordering::Greater => self.meet(f, g_node.lo),
-            std::cmp::Ordering::Equal => {
+            Ordering::Greater => self.meet(f, g_node.lo),
+            Ordering::Equal => {
                 // Same variable
                 let lo = self.meet(f_node.lo, g_node.lo);
                 let hi = self.meet(f_node.hi, g_node.hi);
@@ -881,15 +882,15 @@ impl ZddManager {
         let var_level = self.level(var);
 
         match f_level.cmp(&var_level) {
-            std::cmp::Ordering::Less => {
+            Ordering::Less => {
                 // Current variable not in set, follow lo
                 self.contains_rec(f_node.lo, set, idx)
             }
-            std::cmp::Ordering::Equal => {
+            Ordering::Equal => {
                 // Variable matches, follow hi
                 self.contains_rec(f_node.hi, set, idx + 1)
             }
-            std::cmp::Ordering::Greater => {
+            Ordering::Greater => {
                 // Set requires a variable that's not in f
                 false
             }
