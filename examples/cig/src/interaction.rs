@@ -5,7 +5,7 @@
 
 use std::fmt;
 
-use bitvec::prelude::*;
+use bit_vec::BitVec;
 
 pub use crate::separability::Operator;
 
@@ -17,7 +17,7 @@ pub struct InteractionFunction {
     /// Number of inputs (arity).
     arity: u32,
     /// Truth table: 2^arity bits.
-    table: BitVec<u64, Lsb0>,
+    table: BitVec,
 }
 
 impl InteractionFunction {
@@ -38,7 +38,7 @@ impl InteractionFunction {
     }
 
     /// Create from a raw truth table.
-    pub fn from_table(arity: u32, table: BitVec<u64, Lsb0>) -> Self {
+    pub fn from_table(arity: u32, table: BitVec) -> Self {
         assert_eq!(table.len(), 1 << arity);
         InteractionFunction { arity, table }
     }
@@ -141,34 +141,14 @@ impl InteractionFunction {
     }
 
     /// Get the raw truth table.
-    pub fn table(&self) -> &BitSlice<u64, Lsb0> {
+    pub fn table(&self) -> &BitVec {
         &self.table
-    }
-
-    /// Compute a canonical hash.
-    pub fn canonical_hash(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = rustc_hash::FxHasher::default();
-        self.arity.hash(&mut hasher);
-        for chunk in self.table.as_raw_slice() {
-            chunk.hash(&mut hasher);
-        }
-        hasher.finish()
-    }
-
-    /// Get a canonical string representation.
-    pub fn canonical_string(&self) -> String {
-        let mut s = String::with_capacity(self.size());
-        for bit in self.table.iter() {
-            s.push(if *bit { '1' } else { '0' });
-        }
-        s
     }
 }
 
 impl fmt::Debug for InteractionFunction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "I{}[{}]", self.arity, self.canonical_string())
+        write!(f, "I{}[{}]", self.arity, self.table)
     }
 }
 
@@ -192,7 +172,7 @@ impl fmt::Display for InteractionFunction {
         }
 
         // Fall back to truth table representation
-        write!(f, "I{}[{}]", self.arity, self.canonical_string())
+        write!(f, "I{}[{}]", self.arity, self.table)
     }
 }
 

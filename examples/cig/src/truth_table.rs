@@ -5,7 +5,7 @@
 
 use std::fmt;
 
-use bitvec::prelude::*;
+use bit_vec::BitVec;
 
 use crate::variable::{Var, VarSet};
 
@@ -31,7 +31,7 @@ pub struct TruthTable {
     /// Number of variables.
     n: u32,
     /// The truth table bits: 2ⁿ bits.
-    bits: BitVec<u64, Lsb0>,
+    bits: BitVec,
 }
 
 impl TruthTable {
@@ -71,7 +71,7 @@ impl TruthTable {
     /// # Panics
     ///
     /// Panics if `bits.len() != 2^n`.
-    pub fn from_bits(n: u32, bits: BitVec<u64, Lsb0>) -> Self {
+    pub fn from_bits(n: u32, bits: BitVec) -> Self {
         let expected = 1usize << n;
         assert_eq!(
             bits.len(),
@@ -89,7 +89,7 @@ impl TruthTable {
         let size = 1usize << n;
         TruthTable {
             n,
-            bits: bitvec![u64, Lsb0; 0; size],
+            bits: BitVec::from_elem(size, false),
         }
     }
 
@@ -98,7 +98,7 @@ impl TruthTable {
         let size = 1usize << n;
         TruthTable {
             n,
-            bits: bitvec![u64, Lsb0; 1; size],
+            bits: BitVec::from_elem(size, true),
         }
     }
 
@@ -156,43 +156,39 @@ impl TruthTable {
     }
 
     /// Count the number of satisfying assignments (Hamming weight).
-    pub fn count_ones(&self) -> usize {
+    pub fn count_ones(&self) -> u64 {
         self.bits.count_ones()
     }
 
     /// Compute the complement (negation) of this function.
     pub fn complement(&self) -> Self {
-        TruthTable {
-            n: self.n,
-            bits: !self.bits.clone(),
-        }
+        let mut bits = self.bits.clone();
+        bits.negate();
+        TruthTable { n: self.n, bits }
     }
 
     /// Compute the conjunction (AND) of two functions.
     pub fn and(&self, other: &Self) -> Self {
         assert_eq!(self.n, other.n, "Variable count mismatch");
-        TruthTable {
-            n: self.n,
-            bits: self.bits.clone() & other.bits.clone(),
-        }
+        let mut bits = self.bits.clone();
+        bits.and(&other.bits);
+        TruthTable { n: self.n, bits }
     }
 
     /// Compute the disjunction (OR) of two functions.
     pub fn or(&self, other: &Self) -> Self {
         assert_eq!(self.n, other.n, "Variable count mismatch");
-        TruthTable {
-            n: self.n,
-            bits: self.bits.clone() | other.bits.clone(),
-        }
+        let mut bits = self.bits.clone();
+        bits.or(&other.bits);
+        TruthTable { n: self.n, bits }
     }
 
     /// Compute the exclusive-or (XOR) of two functions.
     pub fn xor(&self, other: &Self) -> Self {
         assert_eq!(self.n, other.n, "Variable count mismatch");
-        TruthTable {
-            n: self.n,
-            bits: self.bits.clone() ^ other.bits.clone(),
-        }
+        let mut bits = self.bits.clone();
+        bits.xor(&other.bits);
+        TruthTable { n: self.n, bits }
     }
 
     /// Compute the Shannon cofactor f|_{xᵢ=b}.
@@ -275,43 +271,20 @@ impl TruthTable {
     }
 
     /// Get the raw bits as a slice.
-    pub fn as_bits(&self) -> &BitSlice<u64, Lsb0> {
+    pub fn as_bits(&self) -> &BitVec {
         &self.bits
-    }
-
-    /// Create a canonical hash for this truth table.
-    pub fn canonical_hash(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = rustc_hash::FxHasher::default();
-        self.n.hash(&mut hasher);
-        // Hash the raw bytes of the bitvec
-        for chunk in self.bits.as_raw_slice() {
-            chunk.hash(&mut hasher);
-        }
-        hasher.finish()
     }
 }
 
 impl fmt::Debug for TruthTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TruthTable({}, [", self.n)?;
-        for (i, bit) in self.bits.iter().enumerate() {
-            if i > 0 {
-                write!(f, ", ")?;
-            }
-            write!(f, "{}", if *bit { 1 } else { 0 })?;
-        }
-        write!(f, "])")
+        write!(f, "TruthTable({}, [{}])", self.n, self.bits)
     }
 }
 
 impl fmt::Display for TruthTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Display as a compact binary string
-        for bit in self.bits.iter() {
-            write!(f, "{}", if *bit { '1' } else { '0' })?;
-        }
-        Ok(())
+        write!(f, "[{}]", self.bits)
     }
 }
 

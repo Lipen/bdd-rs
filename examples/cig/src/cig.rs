@@ -5,9 +5,10 @@
 //! or a composition of child nodes via an interaction function.
 
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHasher};
 
 use crate::interaction::InteractionFunction;
 use crate::variable::Var;
@@ -58,12 +59,10 @@ impl CigNode {
 
     /// Create an internal node.
     pub fn internal(interaction: InteractionFunction, children: Vec<Arc<CigNode>>) -> Self {
-        use std::hash::{Hash, Hasher};
-
         // Compute hash from interaction and children
-        let mut hasher = rustc_hash::FxHasher::default();
-        interaction.canonical_hash().hash(&mut hasher);
-        for child in &children {
+        let mut hasher = FxHasher::default();
+        interaction.hash(&mut hasher);
+        for child in children.iter() {
             child.hash.hash(&mut hasher);
         }
         let hash = hasher.finish();
