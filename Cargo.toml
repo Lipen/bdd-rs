@@ -12,6 +12,7 @@ members = [
     "examples/tbdd-pbt",
     "examples/boolean-functions",
     "examples/expr-space",
+    "examples/cig",
 ]
 
 [workspace.package]
