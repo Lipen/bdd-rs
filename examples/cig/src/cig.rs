@@ -14,7 +14,7 @@ use crate::interaction::InteractionFunction;
 use crate::variable::Var;
 
 /// A node in the Canonical Interaction Graph.
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct CigNode {
     /// The kind of node (leaf, internal, or constant).
     pub kind: CigNodeKind,
@@ -23,7 +23,7 @@ pub struct CigNode {
 }
 
 /// The different kinds of CIG nodes.
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum CigNodeKind {
     /// A constant (terminal) node.
     Constant(bool),
