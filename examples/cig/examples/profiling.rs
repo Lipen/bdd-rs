@@ -228,7 +228,7 @@ fn profile_functions_extensive(n: u32, samples: usize) {
 
         stats.total += 1;
         stats.block_distribution[std::cmp::min(num_blocks, 6)] += 1;
-        stats.avg_blocks += num_blocks as f64;
+        stats.sum_blocks += num_blocks as f64;
 
         if num_blocks == 1 {
             stats.irreducible += 1;
@@ -288,7 +288,7 @@ fn profile_functions_extensive(n: u32, samples: usize) {
         stats.irreducible,
         100.0 * stats.irreducible as f64 / stats.total as f64
     );
-    println!("  Average blocks:     {:.3}", stats.avg_blocks / stats.total as f64);
+    println!("  Average blocks:     {:.3}", stats.sum_blocks / stats.total as f64);
     println!("\n  Block count distribution:");
     for (blocks, count) in stats.block_distribution.iter().enumerate() {
         if *count > 0 {
@@ -323,7 +323,7 @@ struct PartitionStats {
     total: usize,
     irreducible: usize,
     fully_separable: usize,
-    avg_blocks: f64,
+    sum_blocks: f64,
     block_distribution: [usize; 7], // 0-6+ blocks
 }
 
