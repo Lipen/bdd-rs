@@ -29,7 +29,7 @@
 //! ```
 
 use std::cell::RefCell;
-use std::cmp::Ordering;
+use std::cmp::{Ordering, Reverse};
 use std::collections::HashMap;
 
 use crate::cache::{Cache, CacheKey, CountCache, OpType};
@@ -261,7 +261,7 @@ impl ZddManager {
     // Primitive Constructors
     // ========================================================================
 
-    /// Creates a base set: {{var}} — family containing only the singleton {var}.
+    /// Creates a base set: `{{var}}` — family containing only the singleton `{var}`.
     ///
     /// This is the fundamental building block for ZDDs.
     pub fn base(&self, var: impl Into<Var>) -> ZddId {
@@ -271,7 +271,7 @@ impl ZddManager {
         self.get_node(var, ZddId::ZERO, ZddId::ONE)
     }
 
-    /// Creates a singleton family: {{v1, v2, ..., vn}}.
+    /// Creates a singleton family: `{{v1, v2, ..., vn}}`.
     ///
     /// The result contains exactly one set with all the given elements.
     pub fn singleton(&self, vars: impl IntoIterator<Item = impl Into<Var>>) -> ZddId {
@@ -286,7 +286,7 @@ impl ZddManager {
         }
 
         // Sort by level (highest level first for bottom-up construction)
-        vars.sort_by(|a, b| self.level(*b).cmp(&self.level(*a)));
+        vars.sort_unstable_by_key(|&var| Reverse(self.level(var)));
 
         // Build from bottom up
         let mut result = ZddId::ONE;
@@ -296,7 +296,7 @@ impl ZddManager {
         result
     }
 
-    /// Creates the power set of given variables: 2^{vars}.
+    /// Creates the power set of given variables: `2^{vars}`.
     ///
     /// Contains all subsets of the given variables.
     pub fn powerset(&self, vars: impl IntoIterator<Item = impl Into<Var>>) -> ZddId {
@@ -311,7 +311,7 @@ impl ZddManager {
         }
 
         // Sort by level (highest level first)
-        vars.sort_by(|a, b| self.level(*b).cmp(&self.level(*a)));
+        vars.sort_unstable_by_key(|&var| Reverse(self.level(var)));
 
         // Build from bottom up: at each variable, both branches lead to same subtree
         let mut result = ZddId::ONE;
@@ -322,7 +322,7 @@ impl ZddManager {
         result
     }
 
-    /// Creates all k-element subsets of given variables: C(n, k).
+    /// Creates all k-element subsets of given variables: `C(n, k)`.
     pub fn combinations(&self, vars: impl IntoIterator<Item = impl Into<Var>>, k: usize) -> ZddId {
         let vars: Vec<Var> = vars.into_iter().map(|v| v.into()).collect();
 
@@ -367,7 +367,7 @@ impl ZddManager {
     // Set-Theoretic Operations
     // ========================================================================
 
-    /// Union: F ∪ G — sets in either family.
+    /// Union: `F ∪ G` — sets in either family.
     pub fn union(&self, f: ZddId, g: ZddId) -> ZddId {
         // Terminal cases
         if f.is_zero() {
@@ -485,7 +485,7 @@ impl ZddManager {
         result
     }
 
-    /// Difference: F \ G — sets in F but not in G.
+    /// Difference: `F \ G` — sets in F but not in G.
     pub fn difference(&self, f: ZddId, g: ZddId) -> ZddId {
         // Terminal cases
         if f.is_zero() {
@@ -635,8 +635,8 @@ impl ZddManager {
     /// Change: Toggle var in all sets.
     ///
     /// For each set S in F:
-    /// - If var ∈ S, result contains S \ {var}
-    /// - If var ∉ S, result contains S ∪ {var}
+    /// - If `var ∈ S`, result contains `S \ {var}`
+    /// - If `var ∉ S`, result contains `S ∪ {var}`
     pub fn change(&self, f: ZddId, var: Var) -> ZddId {
         self.ensure_var(var);
 
@@ -687,7 +687,7 @@ impl ZddManager {
         self.subset0(f, var)
     }
 
-    /// Join: {S ∪ T | S ∈ F, T ∈ G}.
+    /// Join: `{S ∪ T | S ∈ F, T ∈ G}`.
     ///
     /// Also known as the "cross product" or "product" operation.
     /// The result contains all unions of pairs of sets.
@@ -748,7 +748,7 @@ impl ZddManager {
         result
     }
 
-    /// Meet: {S ∩ T | S ∈ F, T ∈ G, S ∩ T ≠ ∅}.
+    /// Meet: `{S ∩ T | S ∈ F, T ∈ G, S ∩ T ≠ ∅}`.
     ///
     /// The result contains non-empty intersections of pairs of sets.
     pub fn meet(&self, f: ZddId, g: ZddId) -> ZddId {
@@ -793,7 +793,7 @@ impl ZddManager {
 
     /// Add an element to every set in the family.
     ///
-    /// Returns the family {S ∪ {var} | S ∈ family}.
+    /// Returns the family `{S ∪ {var} | S ∈ family}`.
     ///
     /// This is equivalent to joining family with the singleton {{var}}.
     pub fn add_element_to_all(&self, family: ZddId, var: Var) -> ZddId {
@@ -863,7 +863,7 @@ impl ZddManager {
         }
 
         let mut sorted_set: Vec<Var> = set.to_vec();
-        sorted_set.sort_by(|a, b| self.level(*a).cmp(&self.level(*b)));
+        sorted_set.sort_unstable_by_key(|&var| self.level(var));
 
         self.contains_rec(f, &sorted_set, 0)
     }
