@@ -29,7 +29,7 @@ jobs:
         run: cargo test --workspace
 
       - name: Run N-queens (n=8) example
-        run: cargo run --release --example queens -- 8
+        run: cargo run --release -p ananke-bdd --example queens
 
   test-windows:
     name: Test on Windows
@@ -55,7 +55,7 @@ jobs:
         run: cargo test --workspace
 
       - name: Run N-queens (n=8) example
-        run: cargo run --release --example queens -- 8
+        run: cargo run --release -p ananke-bdd --example queens
 
   fmt:
     name: Rustfmt
