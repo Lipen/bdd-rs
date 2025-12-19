@@ -8,8 +8,8 @@ ifdef::env-github[]
 :warning-caption: :warning:
 endif::[]
 
-image:https://github.com/Lipen/bdd-rs/actions/workflows/ci.yml/badge.svg?branch=master["CI",link="https://github.com/Lipen/bdd-rs/actions"]
-image:https://hitsofcode.com/github/Lipen/bdd-rs["Hits-of-Code",link="https://hitsofcode.com/view/github/Lipen/bdd-rs"]
+image:https://github.com/Lipen/ananke/actions/workflows/ci.yml/badge.svg?branch=master["CI",link="https://github.com/Lipen/ananke/actions"]
+image:https://hitsofcode.com/github/Lipen/ananke["Hits-of-Code",link="https://hitsofcode.com/view/github/Lipen/ananke"]
 
 Ananke is a collection of Decision Diagram (DD) libraries for Rust, focused on formal verification, static analysis, and symbolic logic research.
 
@@ -38,6 +38,25 @@ Explorations in Boolean function theory and testing:
 * *link:examples/boolean-functions/[Boolean Function Space]*: Analysis and visualization of the Boolean function space.
 * *link:examples/expr-space/[Symbolic Expression Space]*: Symbolic representation and manipulation of Boolean expression tree spaces.
 
+== Installation
+
+Add the desired engine to your `Cargo.toml`:
+
+[source,toml]
+----
+[dependencies]
+ananke-bdd = "0.1"
+# or ananke-zdd, ananke-sdd
+----
+
+For research examples, clone the repository and run via cargo:
+[source,bash]
+----
+git clone https://github.com/Lipen/ananke
+cd ananke
+cargo run -p model-checking --example mutex
+----
+
 == Quick Start
 
 [source,rust]
@@ -55,33 +74,12 @@ assert!(!bdd.is_zero(f)); // Satisfiable
 println!("f = {}", bdd.to_bracket_string(f)); // f = ~@3:(x1, @2:(x2, ⊤, ⊥), ⊤)
 ----
 
-.Installation Details
-[%collapsible]
-====
-Add the desired engine to your `Cargo.toml`:
-
-[source,toml]
-----
-[dependencies]
-ananke-bdd = "0.1"
-# or ananke-zdd, ananke-sdd
-----
-
-For research examples, clone the repository and run via cargo:
-[source,bash]
-----
-git clone https://github.com/Lipen/bdd-rs
-cd bdd-rs
-cargo run -p model-checking --example mutex
-----
-====
-
 == Documentation
 
 * *Guides*: Tutorials for link:docs/guide/[BDDs], link:examples/abstract-interpretation/guide/[Abstract Interpretation], and link:examples/model-checking/guide/[Model Checking].
-    - image:https://img.shields.io/badge/Guide-Binary Decision Diagrams-blue?style=social&logo=gitbook["Comprehensive Guide on BDDs", link="https://lipen.github.io/bdd-rs/guide-bdd.pdf"]
-    - image:https://img.shields.io/badge/Guide-Abstract Interpretation-blue?style=social&logo=gitbook["Guide on Abstract Interpretation", link="https://lipen.github.io/bdd-rs/guide-ai.pdf"]
-    - image:https://img.shields.io/badge/Guide-Model Checking-blue?style=social&logo=gitbook["Guide on Model Checking", link="https://lipen.github.io/bdd-rs/guide-mc.pdf"]
+    - image:https://img.shields.io/badge/Guide-Binary Decision Diagrams-blue?style=social&logo=gitbook["Comprehensive Guide on BDDs", link="https://lipen.github.io/ananke/guide-bdd.pdf"]
+    - image:https://img.shields.io/badge/Guide-Abstract Interpretation-blue?style=social&logo=gitbook["Guide on Abstract Interpretation", link="https://lipen.github.io/ananke/guide-ai.pdf"]
+    - image:https://img.shields.io/badge/Guide-Model Checking-blue?style=social&logo=gitbook["Guide on Model Checking", link="https://lipen.github.io/ananke/guide-mc.pdf"]
 * *API*: Run `cargo doc --no-deps` for the full reference.
 * *Examples*: Each crate and case study includes a `README` and runnable examples.
 
