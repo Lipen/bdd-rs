@@ -20,4 +20,4 @@ authors = ["Konstantin Chukharev <lipen00@gmail.com>"]
 edition = "2021"
 license = "MIT"
 readme = "README.adoc"
-repository = "https://github.com/Lipen/bdd-rs"
+repository = "https://github.com/Lipen/ananke"
