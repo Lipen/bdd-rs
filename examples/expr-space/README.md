@@ -65,7 +65,7 @@ cargo test
 Here's what the tool discovers when exploring all 9,468 possible expression trees:
 
 | Stage | Trees | BDD Nodes | Reduction | Key Insight |
-|-------|-------|-----------|-----------|-------------|
+| ----- | ----- | --------- | --------- | ----------- |
 | **Raw space** | 9,468 | 188 | — | Baseline: all possible trees |
 | No double-negation | 9,464 | 181 | 0.04% | Barely eliminates anything |
 | No constant ops | 786 | 165 | 91.7% | Huge jump: removes `0 ∧ x`, `1 ∨ x`, etc. |
