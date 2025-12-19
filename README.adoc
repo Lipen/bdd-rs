@@ -1,258 +1,96 @@
-= Binary Decision Diagrams for Rust
+= Ananke: Decision Diagrams for Rust
+
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
 
 image:https://github.com/Lipen/bdd-rs/actions/workflows/ci.yml/badge.svg?branch=master["CI",link="https://github.com/Lipen/bdd-rs/actions"]
 image:https://hitsofcode.com/github/Lipen/bdd-rs["Hits-of-Code",link="https://hitsofcode.com/view/github/Lipen/bdd-rs"]
 
-> High-performance Binary Decision Diagrams (BDDs) library for Rust.
-> BDDs represent Boolean functions canonically, enabling efficient formal verification, static analysis, model checking, and optimization.
+Ananke is a collection of Decision Diagram (DD) libraries for Rust, focused on formal verification, static analysis, and symbolic logic research.
 
-== Features
+== Engines
 
-* *Manager-Centric*: All operations through central `Bdd` manager with hash consing
-* *Safe & Efficient*: Lightweight `Ref` handles with minimal overhead
-* *Operation Caching*: Computed table avoids redundant operations
-* *1-Based Variables*: Simplifies integration with DIMACS and similar formats
-* *Boolean Operations*: AND, OR, XOR, NOT, ITE, implication, equivalence
-* *Quantification*: Existential (∃) and universal (∀) over variables
-* *Complement Edges*: Efficient negation via edge attributes
-* *SAT & Model Counting*: Satisfiability checking, model extraction, solution counting
-* *Visualization*: Graphviz DOT export
+Core engines for different symbolic representations:
 
-== Companion Guide
+* *link:ananke-bdd/[ananke-bdd]*: Binary Decision Diagrams (ROBDDs) with complement edges.
+* *link:ananke-zdd/[ananke-zdd]*: Zero-suppressed Decision Diagrams for sparse sets and combinatorial problems.
+* *link:ananke-sdd/[ananke-sdd]*: Sentential Decision Diagrams for succinct representation of complex knowledge bases.
 
-A comprehensive tutorial on BDDs is available:
-link:docs/guide/[`guide/`]
-image:https://img.shields.io/badge/Guide-Binary Decision Diagrams-blue?style=social&logo=gitbook["Comprehensive Guide on BDDs", link="https://lipen.github.io/bdd-rs/guide-bdd.pdf"]
+== Case Studies
 
-== Installation
+Symbolic algorithms and analysis frameworks:
 
-Add `bdd-rs` to your `Cargo.toml`:
+* *link:examples/abstract-interpretation/[Abstract Interpretation]*: Static program analysis using BDDs to represent numeric and symbolic domains.
+* *link:examples/model-checking/[Symbolic Model Checking]*: CTL verification algorithms (EX, EF, AG, etc.) for large state spaces.
+* *link:examples/symbolic-execution/[Symbolic Execution]*: Path-sensitive analysis for Boolean programs with counterexample generation.
 
-[source,toml]
-----
-[dependencies]
-bdd-rs = "0.1"
-----
+== Research
+
+Explorations in Boolean function theory and testing:
+
+* *link:examples/tbdd-pbt/[Theory-aware BDD-guided PBT]*: Integrating BDDs with property-based testing to handle domain-specific constraints.
+* *link:examples/cig/[Canonical Interaction Graphs (CIG)]*: Analyzing structural properties of Boolean functions via interaction graphs.
+* *link:examples/boolean-functions/[Boolean Function Space]*: Analysis and visualization of the Boolean function space.
+* *link:examples/expr-space/[Symbolic Expression Space]*: Symbolic representation and manipulation of Boolean expression tree spaces.
 
 == Quick Start
 
 [source,rust]
 ----
-use bdd_rs::bdd::Bdd;
+use ananke_bdd::bdd::Bdd;
 
-// Initialize the BDD manager
 let bdd = Bdd::default();
-
-// Create variables (1-indexed)
 let x1 = bdd.mk_var(1);
 let x2 = bdd.mk_var(2);
 
-// Build formula: f = x1 ∧ ¬x2
-let not_x2 = bdd.apply_not(x2);
-let f = bdd.apply_and(x1, not_x2);
+// f = x1 ∧ ¬x2
+let f = bdd.apply_and(x1, -x2);
 
-// Check properties
-assert!(!bdd.is_zero(f));  // Satisfiable
-assert!(!bdd.is_one(f));   // Not a tautology
-
-// Evaluate with assignment: x1=true, x2=false
-let result = bdd.cofactor_cube(f, &[1, -2]);
-assert!(bdd.is_one(result));
+assert!(!bdd.is_zero(f)); // Satisfiable
+println!("f = {}", bdd.to_bracket_string(f)); // f = ~@3:(x1, @2:(x2, ⊤, ⊥), ⊤)
 ----
 
-== Core API
+.Installation Details
+[%collapsible]
+====
+Add the desired engine to your `Cargo.toml`:
 
-=== BDD Manager Operations
+[source,toml]
+----
+[dependencies]
+ananke-bdd = "0.1"
+# or ananke-zdd, ananke-sdd
+----
 
-* `Bdd::default()` -- Create BDD manager with default parameters
-* `mk_var(var_id)` -- Create BDD for variable (1-indexed)
-* `collect_garbage(roots)` -- Reclaim unused nodes
-
-=== Boolean Operations
-
-* `apply_and(f, g)` -- Conjunction: `f ∧ g`
-* `apply_or(f, g)` -- Disjunction: `f ∨ g`
-* `apply_xor(f, g)` -- Exclusive OR: `f ⊕ g`
-* `apply_not(f)` -- Negation: `¬f`
-* `apply_imply(f, g)` -- Implication: `f ⇒ g`
-* `apply_eq(f, g)` -- Equivalence: `f ⇔ g`
-* `apply_ite(i, t, e)` -- If-then-else: `(i ∧ t) ∨ (¬i ∧ e)`
-
-=== Quantification
-
-* `exists(var, f)` -- Existential quantification: `∃var. f`
-* `forall(var, f)` -- Universal quantification: `∀var. f`
-
-=== Satisfiability & Properties
-
-* `is_zero(f)` -- Check if f is false (unsatisfiable)
-* `is_one(f)` -- Check if f is true (tautology)
-* `is_implies(f, g)` -- Check if f implies g
-* `count_sat(f)` -- Count satisfying assignments
-* `any_sat(f)` -- Extract one satisfying assignment
-* `cofactor(f, var, value)` -- Restrict variable to value
-* `cofactor_cube(f, literals)` -- Restrict multiple variables
-
-=== Utilities
-
-* `size(f)` -- Count nodes in BDD
-* `var(f)` -- Get decision variable of node
-* `low(f)` / `high(f)` -- Get low/high children
-* `print_stats()` -- Display manager statistics
-
-== Case Studies & Examples
-
-Comprehensive examples demonstrating BDD applications:
-
-=== Abstract Interpretation
-
-See link:examples/abstract-interpretation/[`examples/abstract-interpretation/`]
-
-> Static program analysis framework combining abstract interpretation with BDDs.
-
-*Companion Guide*: link:examples/abstract-interpretation/guide/[`guide/`]
-image:https://img.shields.io/badge/Guide-Abstract Interpretation-blue?style=social&logo=gitbook["Guide on Abstract Interpretation", link="https://lipen.github.io/bdd-rs/guide-ai.pdf"]
-
-*Examples*:
-
-* *Numeric Analysis*: Sign domain, constant propagation, interval analysis, congruence domain
-* *Fixpoint Computation*: Loop analysis with widening/narrowing
-* *Control-Sensitive Analysis*: Traffic light FSM, mode controllers, protocol verification
-* *Pointer Analysis*: BDD-based points-to analysis with must/may aliasing
-* *String Analysis*: Length tracking, prefix/suffix analysis, regex matching, automata
-* *Type Analysis*: Dynamic type tracking and type error detection
-* *Security Analysis*: Taint tracking, input validation, SQL injection prevention
-* *Realistic Programs*: Array bounds checking, combined multi-domain analysis
-
-*Tests*: Comprehensive unit and integration tests for all domains
+For research examples, clone the repository and run via cargo:
 [source,bash]
 ----
-cd examples/abstract-interpretation
-cargo run --example sign_analysis
-cargo run --example realistic_programs
-cargo test  # Run 80+ tests
+git clone https://github.com/Lipen/bdd-rs
+cd bdd-rs
+cargo run -p model-checking --example mutex
 ----
-
-=== Symbolic Model Checking
-
-See link:examples/model-checking/[`examples/model-checking/`]
-
-> Symbolic model checking implementing algorithms from Burch et al. (1990).
-
-*Companion Guide:* link:examples/model-checking/guide/[`guide/`]
-image:https://img.shields.io/badge/Guide-Model Checking-blue?style=social&logo=gitbook["Guide on Model Checking", link="https://lipen.github.io/bdd-rs/guide-mc.pdf"]
-
-*Features*:
-
-* Kripke structures with image/preimage computation
-* Full CTL support: EX, AX, EF, AF, EG, AG, EU, AU
-* Fixpoint algorithms for millions to billions of states
-
-[source,bash]
-----
-cd examples/model-checking
-cargo test
-cargo run --bin modelcheck -- example toggle
-----
-
-=== Symbolic Execution
-
-See link:examples/symbolic-execution/[`examples/symbolic-execution/`]
-
-> Symbolic execution for boolean programs with BDD constraint solving.
-
-*Features*:
-
-* Path-sensitive state tracking
-* Counterexample generation from assertion failures
-* Bounded loop unrolling
-* Exception handling (try/catch/finally)
-
-*Examples*: Branching, XOR properties, mutex verification, loops
-
-[source,bash]
-----
-cd examples/symbolic-execution
-cargo run --bin symexec -- example simple
-cargo run --bin symexec -- example mutex
-cargo run --bin symexec -- example buggy  # See counterexamples!
-----
-
-=== Additional Examples
-
-* *EDA* (link:examples/eda/[`examples/eda/`]): Electronic design automation applications
-* *Feature Models* (link:examples/feature-model/[`examples/feature-model/`]): Software product line analysis
+====
 
 == Documentation
 
-* *API*: `cargo doc --open`
-* *Guide*: link:examples/abstract-interpretation/guide/[150-page tutorial]
-* *Examples*: link:examples/abstract-interpretation/README.md[Abstract Interpretation], link:examples/model-checking/README.md[Model Checking], link:examples/symbolic-execution/README.md[Symbolic Execution]
+* *Guides*: Tutorials for link:docs/guide/[BDDs], link:examples/abstract-interpretation/guide/[Abstract Interpretation], and link:examples/model-checking/guide/[Model Checking].
+    - image:https://img.shields.io/badge/Guide-Binary Decision Diagrams-blue?style=social&logo=gitbook["Comprehensive Guide on BDDs", link="https://lipen.github.io/bdd-rs/guide-bdd.pdf"]
+    - image:https://img.shields.io/badge/Guide-Abstract Interpretation-blue?style=social&logo=gitbook["Guide on Abstract Interpretation", link="https://lipen.github.io/bdd-rs/guide-ai.pdf"]
+    - image:https://img.shields.io/badge/Guide-Model Checking-blue?style=social&logo=gitbook["Guide on Model Checking", link="https://lipen.github.io/bdd-rs/guide-mc.pdf"]
+* *API*: Run `cargo doc --no-deps` for the full reference.
+* *Examples*: Each crate and case study includes a `README` and runnable examples.
 
 == Performance
 
-* *Release Mode*: Always use `--release` for production (exponentially faster)
-* *Variable Ordering*: Critical for BDD size; poor ordering causes exponential blowup
-* *Garbage Collection*: Call `collect_garbage()` periodically
-* *Caching*: Operation cache improves repeated operations
+The implementation uses hash-consing, operation caching, and 32-bit node handles to manage large state spaces efficiently.
 
-== Architecture
-
-=== Core Modules
-
-* link:src/bdd.rs[`bdd.rs`] -- BDD manager with core algorithms
-* link:src/node.rs[`node.rs`] -- BDD node representation
-* link:src/reference.rs[`reference.rs`] -- Lightweight node references (`Ref`)
-* link:src/storage.rs[`storage.rs`] -- Hash-consing table for nodes
-* link:src/cache.rs[`cache.rs`] -- Operation result caching
-* link:src/table.rs[`table.rs`] -- Unique table for node deduplication
-* link:src/sat.rs[`sat.rs`] -- Satisfiability and model counting
-* link:src/eval.rs[`eval.rs`] -- Variable assignment and evaluation
-* link:src/paths.rs[`paths.rs`] -- Path enumeration
-* link:src/dot.rs[`dot.rs`] -- Graphviz visualization
-* link:src/utils.rs[`utils.rs`] -- Utility functions
-
-=== Design Decisions
-
-* *Manager-Centric*: All operations through `Bdd` manager
-* *Complement Edges*: Only low edges negated, high edges never complemented
-* *1-Based Variables*: Start at 1 (0 reserved internally)
-* *Canonical Form*: Unique representation per Boolean function
-* *Hash Consing*: Automatic deduplication
-
-== Testing
-
-[source,bash]
-----
-# Run all tests
-cargo test
-
-# Test specific module
-cargo test --lib bdd
-
-# Run example-specific tests
-cd examples/abstract-interpretation
-cargo test  # 80+ tests
-----
-
-== Contributing
-
-Contributions are welcome! Areas for improvement:
-
-* Variable reordering algorithms (sifting, window permutation)
-* Additional symbolic operations (restrict, compose)
-* Performance optimizations (parallel operations, cache tuning)
-* More examples and case studies
-* Documentation improvements
-
-== References
-
-=== Foundational Papers
-
-* *Bryant (1986)*: _"Graph-Based Algorithms for Boolean Function Manipulation"_ -- Introduces ROBDDs
-* *Burch et al. (1990)*: _"Symbolic Model Checking: 10^20 States and Beyond"_ -- Symbolic model checking
-* *Cousot & Cousot (1977)*: _"Abstract Interpretation: A Unified Lattice Model"_ -- Abstract interpretation foundations
+TIP: Always use `--release` mode!
 
 == License
 
-This crate is licensed under the link:LICENSE[MIT License].
+This project is licensed under the link:LICENSE[MIT License].
